@@ -1,13 +1,16 @@
 import os
+from tqdm import tqdm
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
+import pickle
+from .ade_utils import loadAde20K_file
 
 # Dataset for the Ade20K dataset
-class Ade20KDataset(Dataset):
+class ADE20kDataset(Dataset):
     
-    def __init__(self, root_dir, transform=None, train=True, test=False):
+    def __init__(self, split, transform=None):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -18,52 +21,27 @@ class Ade20KDataset(Dataset):
             test (bool): If True, load the test set. If False, load the
                 training set.
         """
-        self.root_dir = root_dir
-        self.transform = transform
-        self.train = train
-        self.test = test
+        self.root_dir = "/storage/vbutoi/datasets/ade20k"
+        pickl_file = self.root_dir + "/ADE20K_2021_17_01/index_ade20k.pkl"
 
-        # Load the filenames
-        self.filenames = []
-        if self.train:
-            self.filenames = open(os.path.join(self.root_dir, 'train.txt')).read().splitlines()
-        elif self.test:
-            self.filenames = open(os.path.join(self.root_dir, 'test.txt')).read().splitlines()
-        else:
-            self.filenames = open(os.path.join(self.root_dir, 'val.txt')).read().splitlines()
+        # Load data from the pickle file
+        with open(pickl_file, 'rb') as pickle_file:
+            self.loaded_data = pickle.load(pickle_file)
+        
+        # Get the filenames
+        folders = self.loaded_data['folder']
+        filenames = self.loaded_data['filename']
+        datapoints = [os.path.join(self.root_dir, folder, filename) for folder, filename in zip(folders, filenames)]
 
-        # Load the labels
-        self.labels = []
-        if self.train:
-            self.labels = open(os.path.join(self.root_dir, 'train_labels.txt')).read().splitlines()
-        elif self.test:
-            self.labels = open(os.path.join(self.root_dir, 'test_labels.txt')).read().splitlines()
-        else:
-            self.labels = open(os.path.join(self.root_dir, 'val_labels.txt')).read().splitlines()
+        # Load the images and process the labels
+        self.data = datapoints 
 
     def __len__(self):
-        return len(self.filenames)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        # Load the image
-        img_name = os.path.join(self.root_dir, self.filenames[idx])
-        image = Image.open(img_name)
-        image = np.array(image)
-        image = np.transpose(image, (2, 0, 1))
-        image = image.astype(np.float32)
-        image = image / 255
+        image = Image.open(self.data[idx])
+        labels = loadAde20K_file(self.data[idx])
 
-        # Load the label
-        label_name = os.path.join(self.root_dir, self.labels[idx])
-        label = Image.open(label_name)
-        label = np.array(label)
-        label = np.transpose(label, (2, 0, 1))
-        label = label.astype(np.float32)
-        label = label / 255
-
-        # Apply the transforms
-        if self.transform:
-            image, label = self.transform(image, label)
-
-        return image, label
+        return image, labels 
 
