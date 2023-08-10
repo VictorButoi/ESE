@@ -15,7 +15,7 @@ from IonPy.nn.util import num_params
 from IonPy.util.hash import json_digest
 
 
-class ESExperimet(TrainExperiment):
+class CalibrationExperiment(TrainExperiment):
 
     def build_data(self):
         
@@ -25,7 +25,8 @@ class ESExperimet(TrainExperiment):
     
     def build_loss(self):
 
-    def run_step(self, *, batch_idx, batch, backward=True, augmentation=None, epoch=None, **kwargs):
+    def run_step(self):
+
 
     def run(self):
         super().run()
