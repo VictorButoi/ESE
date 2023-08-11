@@ -3,6 +3,7 @@ import equinox as eqx
 import jax
 from pydantic import validate_arguments
 from typing import Any, Optional
+from .modules import ConvBlock
 
 
 @validate_arguments
@@ -21,7 +22,7 @@ class UNet(eqx.Module):
     conv_kws: Optional[dict[str, Any]] = None
 
     def __post_init__(self):
-        #super().__init__()
+        super().__init__()
 
         filters = list(self.filters)
         if self.dec_filters is None:
