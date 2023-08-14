@@ -1,26 +1,33 @@
-import os
-from tqdm import tqdm
-import numpy as np
-import torch
+# Torch imports
 from torch.utils.data import Dataset
-from PIL import Image
-import pickle
+
+# Local imports
 from .ade_utils import loadAde20K_file
 
+# IonPy imports
+from IonPy.util.validation import validate_arguments_init
+
+# Validation Imports
+from dataclasses import dataclass
+
+# Misc imports
+import numpy as np
+import os
+import pickle
+from PIL import Image
+from tqdm import tqdm
+
 # Dataset for the Ade20K dataset
+@validate_arguments_init
+@dataclass
 class ADE20kDataset(Dataset):
+
+    split: str = "train"
     
-    def __init__(self, split, transform=None):
-        """
-        Args:
-            root_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
-            train (bool): If True, load the training set. If False, load the
-                test set.
-            test (bool): If True, load the test set. If False, load the
-                training set.
-        """
+    def __post_init__(self):
+        # Call the constructor for PyTorch dataset
+        super().__init__()
+
         self.root_dir = "/storage/vbutoi/datasets/ade20k"
         pickl_file = self.root_dir + "/ADE20K_2021_17_01/index_ade20k.pkl"
 

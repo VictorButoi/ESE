@@ -1,14 +1,18 @@
 from dataclasses import dataclass
-import equinox as eqx
-import jax
+from typing import Optional, Any
+
+import torch
+from torch import Tensor
+from torch import nn
+import torch.nn.functional as F
+
+from IonPy.nn import get_nonlinearity, ConvBlock
 from pydantic import validate_arguments
-from typing import Any, Optional
-from .modules import ConvBlock
 
 
 @validate_arguments
 @dataclass(eq=False, repr=False)
-class UNet(eqx.Module):
+class UNet(nn.Module):
 
     in_channels: int
     out_channels: int
@@ -29,14 +33,17 @@ class UNet(eqx.Module):
             dec_filters = filters[-2::-1]
         else:
             dec_filters = list(self.dec_filters)
-        
-        self.enc_blocks = eqx.ModuleList()
-        self.dec_blocks = eqx.ModuleList()
+        assert len(dec_filters) == len(filters) - 1
+
+        self.enc_blocks = nn.ModuleList()
+        self.dec_blocks = nn.ModuleList()
+
+        conv_kws = self.conv_kws or {}
 
         for in_ch, out_ch in zip([self.in_channels] + filters[:-1], filters):
-            c = eqx.ConvBlock(in_ch, [out_ch] * self.convs_per_block, **self.conv_kws)
+            c = ConvBlock(in_ch, [out_ch] * self.convs_per_block, **conv_kws)
             self.enc_blocks.append(c)
-        
+
         prev_out_ch = filters[-1]
         skip_chs = filters[-2::-1]
         for skip_ch, out_ch in zip(skip_chs, dec_filters):
@@ -45,9 +52,35 @@ class UNet(eqx.Module):
             prev_out_ch = out_ch
             self.dec_blocks.append(c)
 
-    
-    def forward(self):
-        
+        # Use convblock to benefit from .reset_parameters
+        self.out_conv = ConvBlock(
+            prev_out_ch,
+            [self.out_channels],
+            activation=None,
+            kernel_size=1,
+            dims=self.dims,
+            norm=None,
+            residual=False,
+        )
+
+        if self.interpolation_mode == "linear":
+            self.interpolation_mode = ["linear", "bilinear", "trilinear"][self.dims - 1]
+
+        if self.out_activation:
+            if self.out_activation == "Softmax":
+                self.out_fn = nn.Softmax(dim=1)
+            else:
+                self.out_fn = get_nonlinearity(self.out_activation)()
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for module in self.modules():
+            if module is not self and hasattr(module, "reset_parameters"):
+                module.reset_parameters()
+
+    def forward(self, x: Tensor) -> Tensor:
+
         conv_outputs = []
 
         pool_fn = getattr(F, f"max_pool{self.dims}d")
@@ -67,7 +100,7 @@ class UNet(eqx.Module):
                 mode=self.interpolation_mode,
             )
             if self.skip_connections:
-                x = eqx.cat([x, conv_outputs[-i]], dim=1)
+                x = torch.cat([x, conv_outputs[-i]], dim=1)
             x = conv_block(x)
 
         x = self.out_conv(x)
@@ -76,5 +109,3 @@ class UNet(eqx.Module):
             x = self.out_fn(x)
 
         return x
-    
-        return None

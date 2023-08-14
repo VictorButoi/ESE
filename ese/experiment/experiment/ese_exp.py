@@ -27,10 +27,6 @@ class CalibrationExperiment(TrainExperiment):
     def build_dataloader(self):
         dl_cfg = self.config["dataloader"]
 
-        with Timer(verbose=True)("data loading"):
-            self.train_dataset.init()
-            self.val_dataset.init()
-
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
