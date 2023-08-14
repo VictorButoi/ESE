@@ -1,6 +1,3 @@
-# misc imports
-import pathlib
-
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -40,6 +37,7 @@ class CalibrationExperiment(TrainExperiment):
 
         yhat = self.model(x)
         loss = self.loss_func(yhat, y)
+
         if backward:
             loss.backward()
             self.optim.step()

@@ -16,13 +16,14 @@ import os
 import pickle
 from PIL import Image
 from tqdm import tqdm
+from typing import Literal, Optional, Tuple, Union
 
 # Dataset for the Ade20K dataset
 @validate_arguments_init
 @dataclass
 class ADE20kDataset(Dataset):
 
-    split: str = "train"
+    split: Literal["train", "val", "test"] = "train"
     
     def __post_init__(self):
         # Call the constructor for PyTorch dataset
