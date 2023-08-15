@@ -87,6 +87,7 @@ def pad_image_numpy(image_array, target_width, target_height):
 
     return padded_image_array
 
+
 def normalize_image(image):
     # Convert the image to floating point format
     image = image.astype(np.float32)
@@ -95,6 +96,7 @@ def normalize_image(image):
     normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
     
     return normalized_image
+
 
 def proc_WMH(
         data_dirs, 
@@ -106,16 +108,17 @@ def proc_WMH(
     proc_root = pathlib.Path("/storage/vbutoi/datasets/WMH/processed") 
 
     for ud in data_dirs:
+        print(ud)
         split_args = str(ud).split("/")
         datacenter = split_args[-2]
         modality = split_args[-1]
-        for subj in tqdm(ud.iterdir(), total=len(list(ud.iterdir()))):
+        for subj in ud.iterdir():
             for axis in [0, 1, 2]:
-                
                 image_dict = {}
                 # Get the slices for each modality.
                 for mod_idx, modality in enumerate(modalities):
                     image_dir = subj / pathlib.Path(f"pre/{modality}.nii.gz")
+                    print("Loading image: ", image_dir)
                     img_volume = resample_nib(nib.load(image_dir))
                     mid_axis_slice = img_volume.get_fdata().shape[axis] // 2 
                     img_modality_slice = np.take(img_volume.get_fdata(), mid_axis_slice, axis=axis)
@@ -127,37 +130,62 @@ def proc_WMH(
                     sqr_img = pad_image_numpy(clipped_image, 256, 256)
                     # Normalize the now square image
                     norm_img = normalize_image(sqr_img)
+                    # Fix the orientation
+                    rotated_sqr_img = np.rot90(norm_img, k=3, axes=(1, 0))
                     # Store in the dictionary
-                    image_dict[modality] = norm_img 
+                    image_dict[modality] = rotated_sqr_img
 
                 # Get the label slice
-                seg_dir = subj / "wmh.nii.gz"
-                seg = resample_mask_to(nib.load(seg_dir), img_volume)
-                seg_slice = np.take(seg.get_fdata(), mid_axis_slice, axis=axis)
-                binary_seg_slice = np.uint8(seg_slice == 1)
-                sqr_seg = pad_image_numpy(binary_seg_slice, 256, 256)
-                image_dict["seg"] = seg
+                if "training" in str(ud):
+                    label_versions = ["observer_o12", "observer_o3", "observer_o4"]
+                else:
+                    label_versions = ["observer_o12"]
+
+                image_dict["segs"] = {}
+                for annotator_name in label_versions:
+                    if annotator_name != "observer_o12":
+                        split_name = str(ud).split("WMH")
+                        alternate_seg = pathlib.Path(split_name[0] + f"/WMH/additional_annotations/{annotator_name}/" + split_name[1] + f"/{subj.name}")
+                        seg_dir = alternate_seg / "result.nii.gz"
+                    else:
+                        seg_dir = subj / "wmh.nii.gz"
+                    print("Loading seg: ", seg_dir)
+                    seg = resample_mask_to(nib.load(seg_dir), img_volume)
+                    seg_slice = np.take(seg.get_fdata(), mid_axis_slice, axis=axis)
+                    binary_seg_slice = np.uint8(seg_slice == 1)
+                    sqr_seg = pad_image_numpy(binary_seg_slice, 256, 256)
+                    rotated_sqr_seg = np.rot90(sqr_seg, k=3, axes=(1, 0))
+                    image_dict["segs"][annotator_name] = rotated_sqr_seg 
                 
                 if show:
                     # Plot the slices
-                    f, axarr = plt.subplots(1, len(modalities) + 1, figsize=(5 * (len(modalities) + 1), 5))
-                    im = axarr[0].imshow(sqr_seg)
-                    axarr[0].set_title("Label")
+                    num_segs = len(image_dict["segs"].keys())
+                    f, axarr = plt.subplots(1, num_segs + 1, figsize=(5 * (num_segs + 1), 5))
+                    im = axarr[0].imshow(image_dict["FLAIR"], cmap='gray')
+                    axarr[0].set_title("Image")
                     f.colorbar(im, ax=axarr[0], orientation='vertical') 
-                    for mod_idx, modality in enumerate(modalities):
-                        im = axarr[mod_idx + 1].imshow(image_dict[modality])
-                        axarr[mod_idx + 1].set_title(modality)
-                        f.colorbar(im, ax=axarr[mod_idx + 1], orientation='vertical')
+                    for an_idx, annotator in enumerate(image_dict["segs"].keys()):
+                        im = axarr[an_idx + 1].imshow(image_dict["segs"][annotator], cmap="gray")
+                        axarr[an_idx + 1].set_title(annotator)
+                        f.colorbar(im, ax=axarr[an_idx + 1], orientation='vertical')
                     plt.show()  
                 
-                print(seg.shape)
-                # Save the slices so we can pack them
-                axis = pathlib.Path(str(axis))
                 if save:
-                    save_root = proc_root / datacenter / axis / subj.name  
+                    save_root = proc_root / datacenter / str(axis) / subj.name 
                     if not save_root.exists():
                         os.makedirs(save_root)
+                    
+                    # Save your image
                     img_dir = save_root / "image.npy"
-                    label_dir = save_root / "label.npy"
-                    print(img_dir)
-                    print(label_dir)
+                    print("Saving Image: ", img_dir)
+                    np.save(img_dir, image_dict[modality])
+
+                    for annotator in image_dict["segs"].keys():
+                        # This is how we organize the data.
+                        annotator_dir = save_root / annotator 
+                        if not annotator_dir.exists():
+                            os.makedirs(annotator_dir)
+
+                        label_dir = annotator_dir / "label.npy"
+                        print("Saving Label: ", label_dir)
+                        np.save(label_dir, image_dict["segs"][annotator])

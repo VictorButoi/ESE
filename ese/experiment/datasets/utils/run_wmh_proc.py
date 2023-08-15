@@ -32,7 +32,7 @@ if __name__=="__main__":
                                     print(l5_dir)
                                     all_dirs.append(l5_dir)
     
-    unique_dirs = []
+    all_unique_dirs = []
     for path in all_dirs:
         all_other_dirs = [p for p in all_dirs if p != path]
         is_subdir = False
@@ -41,7 +41,9 @@ if __name__=="__main__":
                 is_subdir = True
                 break
         if not is_subdir:
-            unique_dirs.append(path)
+            all_unique_dirs.append(path)
+    
+    unique_dirs = [ud for ud in all_unique_dirs if "additional_annotations" not in str(ud)]
 
     proc_WMH(
         unique_dirs, 

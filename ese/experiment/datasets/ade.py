@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from .ade_utils import loadAde20K_file
 
 # IonPy imports
-from IonPy.util.validation import validate_arguments_init
+from ionpy.util.validation import validate_arguments_init
 
 # Validation Imports
 from dataclasses import dataclass
