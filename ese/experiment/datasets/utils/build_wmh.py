@@ -7,6 +7,7 @@ import pathlib
 import numpy as np
 import os
 from thunderpack import ThunderDB
+from scipy.ndimage import zoom
 
 from typing import List, Tuple
 from sklearn.model_selection import train_test_split
@@ -104,9 +105,16 @@ def proc_WMH(
             upper = np.percentile(rotated_volume[rotated_volume>0], q=99.5)
             clipped_volume = np.clip(rotated_volume, a_min=lower, a_max=upper)
             # Make the image square
+            max_img_dim = max(clipped_volume.shape)
             sqr_img = pad_image_numpy(clipped_volume, (256, 256, 256))
+            # Resize to 256
+            zoom_factors = np.array([256, 256, 256]) / np.array(sqr_img.shape)
+            resized_img = zoom(sqr_img, zoom_factors, order=1)  # You can adjust the 'order' parameter for interpolation quality
+            # Make the type compatible
+            resized_img = resized_img.astype(np.float32)
+            print(resized_img.shape)
             # Store in the dictionary
-            image_dict["img"] = sqr_img  
+            image_dict["img"] = resized_img
 
             # Get the label slice
             if "training" in str(ud):
@@ -131,9 +139,16 @@ def proc_WMH(
                 # Do the sliceing
                 binary_seg = np.uint8(rotated_seg== 1)
                 # Make the image square
-                sqr_seg = pad_image_numpy(binary_seg, (256, 256, 256))
+                max_seg_dim = max(binary_seg.shape)
+                sqr_seg = pad_image_numpy(binary_seg, (max_seg_dim, max_seg_dim, max_seg_dim))
+                # Resize to 256
+                zoom_factors = np.array([256, 256, 256]) / np.array(sqr_seg.shape)
+                resized_seg = zoom(sqr_seg, zoom_factors, order=0)  # You can adjust the 'order' parameter for interpolation quality
+                # Make the type compatible
+                resized_seg = resized_seg.astype(np.float32)
+                print(resized_seg.shape)
                 # Store in dictionary
-                image_dict["segs"][annotator_name] = sqr_seg 
+                image_dict["segs"][annotator_name] = resized_seg
             
             if show:
                 # Plot the slices
