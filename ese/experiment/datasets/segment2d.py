@@ -47,10 +47,8 @@ class Segment2D(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img_vol = subj_dict['image']
         mask_vol = subj_dict['masks'][self.annotator]
-        assert img.dtype == np.float32
-        assert seg.dtype == np.float32
-        print(img_vol.shape)
-        print(mask_vol.shape)
+        assert img_vol.dtype == np.float32
+        assert mask_vol.dtype == np.float32
 
         # Dense slice sampling means that you sample proportional to how much
         # label there is.
