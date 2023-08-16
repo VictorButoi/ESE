@@ -3,13 +3,8 @@ import torch
 from torch.utils.data import DataLoader
 
 # IonPy imports
-from IonPy.experiment import TrainExperiment
-from IonPy.util import Timer
-from IonPy.util.torchutils import to_device
-from IonPy.experiment.util import absolute_import, eval_config
-
-from IonPy.nn.util import num_params
-from IonPy.util.hash import json_digest
+from ionpy.experiment import TrainExperiment
+from ionpy.experiment.util import absolute_import
 
 
 class CalibrationExperiment(TrainExperiment):

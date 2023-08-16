@@ -47,7 +47,6 @@ if __name__=="__main__":
 
     proc_WMH(
         unique_dirs, 
-        modalities=["FLAIR"],
         show=False,
         save=True
     )

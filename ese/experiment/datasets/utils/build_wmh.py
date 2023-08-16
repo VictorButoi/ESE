@@ -6,6 +6,12 @@ import nibabel.processing as nip
 import pathlib
 import numpy as np
 import os
+from thunderpack import ThunderDB
+
+from typing import List, Tuple
+from sklearn.model_selection import train_test_split
+from pydantic import validate_arguments
+
 
 def resample_nib(img, voxel_spacing=(1, 1, 1), order=3):
     """Resamples the nifti from its original spacing to another specified spacing
@@ -81,12 +87,12 @@ def proc_WMH(
     proc_root = pathlib.Path("/storage/vbutoi/datasets/WMH/processed") 
 
     for ud in data_dirs:
-        print(ud)
 
         split_args = str(ud).split("/")
         datacenter = split_args[-2]
 
         for subj in ud.iterdir():
+            print(subj)
             image_dict = {}
             # Get the slices for each modality.
             image_dir = subj / pathlib.Path(f"pre/FLAIR.nii.gz")
@@ -171,3 +177,90 @@ def proc_WMH(
 
                     label_dir = annotator_dir / "label.npy"
                     np.save(label_dir, image_dict["segs"][annotator])
+
+
+VERSION = "v0.1"
+
+@validate_arguments
+def data_splits(
+    values: List[str], 
+    splits: Tuple[float, float, float, float], 
+    seed: int
+) -> Tuple[List[str], List[str], List[str], List[str]]:
+
+    if len(set(values)) != len(values):
+        raise ValueError(f"Duplicate entries found in values")
+
+    # Super weird bug, removing for now, add up to 1!
+    # if (s := sum(splits)) != 1.0:
+    #     raise ValueError(f"Splits must add up to 1.0, got {splits}->{s}")
+
+    train_size, cal_size, val_size, test_size = splits
+    values = sorted(values)
+    # First get the size of the test splut
+    traincalval, test = train_test_split(values, test_size=test_size, random_state=seed)
+    # Next size of the val split
+    val_ratio = val_size / (train_size + cal_size + val_size)
+    traincal, val = train_test_split(traincalval, test_size=val_ratio, random_state=seed)
+    # Next size of the cal split
+    cal_ratio = cal_size / (train_size + cal_size)
+    train, cal = train_test_split(traincal, test_size=cal_ratio, random_state=seed)
+
+    assert sorted(train + cal + val + test) == values, "Missing Values"
+
+    return (train, cal, val, test)
+
+
+def thunderify_wmh(proc_root, dst):
+    datacenters = proc_root.iterdir() 
+
+    # Train Calibration Val Test
+    splits_ratio = (0.6, 0.1, 0.2, 0.1)
+    splits_seed = 42
+
+    for dc in datacenters:
+        dc_proc_dir = proc_root / dc.name
+        dc_dst = dst / dc.name
+        with ThunderDB.open(str(dc_dst), "c") as db:
+            subjects = []
+            num_annotators = []
+            subj_list = dc_proc_dir.iterdir()
+            for subj in subj_list:
+                key = subj.name
+                print(subj)
+                img_dir = subj / "image.npy"
+                img = np.load(img_dir) 
+                mask_list = list(subj.glob("observer*"))
+                mask_dict = {}
+                for mask_dir in mask_list:
+                    seg_dir = mask_dir / "label.npy"
+                    seg = np.load(seg_dir)
+                    mask_dict[mask_dir.name] = seg
+                db[key] = {
+                    "image": img,
+                    "masks": mask_dict
+                }
+                subjects.append(key)
+                num_annotators.append(len(mask_list))
+
+            subjects, num_annotators = zip(*sorted(zip(subjects, num_annotators)))
+            splits = data_splits(subjects, splits_ratio, splits_seed)
+            splits = dict(zip(("train", "cal", "val", "test"), splits))
+            db["_subjects"] = subjects
+            db["_splits"] = splits
+            db["_splits_kwarg"] = {
+                "ratio": splits_ratio, 
+                "seed": splits_seed
+                }
+            attrs = dict(
+                dataset="WMH",
+                version=VERSION,
+                group=dc.name,
+                modality="FLAIR",
+                resolution=256,
+            )
+            db["_num_annotators"] = num_annotators 
+            db["_subjects"] = subjects
+            db["_samples"] = subjects
+            db["_splits"] = splits
+            db["_attrs"] = attrs
