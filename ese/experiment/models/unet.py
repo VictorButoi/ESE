@@ -6,7 +6,7 @@ from torch import Tensor
 from torch import nn
 import torch.nn.functional as F
 
-from IonPy.nn import get_nonlinearity, ConvBlock
+from ionpy.nn import get_nonlinearity, ConvBlock
 from pydantic import validate_arguments
 
 

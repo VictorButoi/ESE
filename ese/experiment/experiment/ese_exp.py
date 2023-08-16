@@ -10,11 +10,15 @@ from ionpy.experiment.util import absolute_import
 class CalibrationExperiment(TrainExperiment):
 
     def build_data(self):
-        dl_cfg = self.config["data"].to_dict()
-        dataset_cls = absolute_import(dl_cfg.pop("_class"))
+        data_cfg = self.config["data"].to_dict()
+        dataset_cls = absolute_import(data_cfg.pop("_class"))
 
-        self.train_dataset = dataset_cls(split="train")
-        self.val_dataset = dataset_cls(split="val")
+        dataset = data_cfg.pop("dataset")
+        task = data_cfg.pop("task")
+
+        self.train_dataset = dataset_cls(dataset=dataset, task=task, split="train", **data_cfg)
+        self.val_id_dataset = dataset_cls(dataset=dataset, task=task, split="cal", **data_cfg)
+        self.val_dataset = dataset_cls(dataset=dataset, task=task, split="val", **data_cfg)
     
     def build_dataloader(self):
         dl_cfg = self.config["dataloader"]
