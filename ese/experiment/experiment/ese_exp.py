@@ -21,6 +21,7 @@ class CalibrationExperiment(TrainExperiment):
         self.val_dataset = dataset_cls(dataset=dataset, split="val", **data_cfg)
     
     def build_dataloader(self):
+        assert not (self.config["dataloader"]["batch_size"] > 1 and self.config["data"]["slice_batch_size"] > 1), "No mixing of slice_batch_sz and batch_size."
         dl_cfg = self.config["dataloader"]
 
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
@@ -30,7 +31,12 @@ class CalibrationExperiment(TrainExperiment):
 
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
-
+        
+        # This lets you potentially use multiple slices from 3D volumes.
+        if self.config["dataloader"]["batch_size"] == 1:
+            x = x[0][:, None, :, :]
+            y = y[0][:, None, :, :]
+        
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)

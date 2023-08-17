@@ -20,6 +20,7 @@ class WMH(ThunderDataset, DatapathMixin):
     axis: Literal[0, 1, 2] = 0
     split: Literal["train", "cal", "val", "test"] = "train"
     slicing: Literal["dense", "uniform", "midslice"] = "dense"
+    slice_batch_size: int = 1
     version: str = "v0.1"
     preload: bool = False
     samples_per_epoch: Optional[int] = None
@@ -54,21 +55,21 @@ class WMH(ThunderDataset, DatapathMixin):
             all_axes = [0, 1, 2]
             all_axes.remove(self.axis)
             dist = np.sum(mask_vol, axis=tuple(all_axes))
-            slice_idx = np.random.choice(np.arange(256), p=dist/np.sum(dist))
-            img_slice = np.take(img_vol, slice_idx, axis=self.axis)
-            mask_slice = np.take(mask_vol, slice_idx, axis=self.axis)
+            slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=dist/np.sum(dist), replace=False)
+            img_slice = np.take(img_vol, slice_indices, axis=self.axis)
+            mask_slice = np.take(mask_vol, slice_indices, axis=self.axis)
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             all_axes = [0, 1, 2]
             all_axes.remove(self.axis)
             dist = np.sum(mask_vol, axis=tuple(all_axes))
-            chosen_slice = np.random.choice(np.where(dist > 0)[0])
-            img_slice = np.take(img_vol, chosen_slice, axis=self.axis)
-            mask_slice = np.take(mask_vol, chosen_slice, axis=self.axis)
+            chosen_slices = np.random.choice(np.where(dist > 0)[0], size=self.slice_batch_size, replace=False)
+            img_slice = np.take(img_vol, chosen_slices, axis=self.axis)
+            mask_slice = np.take(mask_vol, chosen_slices, axis=self.axis)
         # Otherwise slice both down the middle.
         else:
-            img_slice = np.take(img_vol, 128, axis=self.axis)
-            mask_slice = np.take(mask_vol, 128, axis=self.axis)
+            img_slice = np.take(img_vol, 128, axis=self.axis)[None]
+            mask_slice = np.take(mask_vol, 128, axis=self.axis)[None]
 
         def normalize_image(image):
             min_val = np.min(image)
@@ -77,8 +78,8 @@ class WMH(ThunderDataset, DatapathMixin):
             return normalized_image
 
         # Make sure slice is between [0,1] and the correct dtype.
-        img = normalize_image(img_slice)[None]
-        mask = mask_slice[None]
+        img = normalize_image(img_slice)
+        mask = mask_slice
 
         return torch.from_numpy(img), torch.from_numpy(mask)
 
