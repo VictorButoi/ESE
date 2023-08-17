@@ -58,6 +58,7 @@ class WMH(ThunderDataset, DatapathMixin):
             slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=dist/np.sum(dist), replace=False)
             img_slice = np.take(img_vol, slice_indices, axis=self.axis)
             mask_slice = np.take(mask_vol, slice_indices, axis=self.axis)
+
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             all_axes = [0, 1, 2]
@@ -66,6 +67,7 @@ class WMH(ThunderDataset, DatapathMixin):
             chosen_slices = np.random.choice(np.where(dist > 0)[0], size=self.slice_batch_size, replace=False)
             img_slice = np.take(img_vol, chosen_slices, axis=self.axis)
             mask_slice = np.take(mask_vol, chosen_slices, axis=self.axis)
+
         # Otherwise slice both down the middle.
         else:
             img_slice = np.take(img_vol, 128, axis=self.axis)[None]
