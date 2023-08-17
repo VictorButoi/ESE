@@ -3,7 +3,11 @@ import matplotlib.pyplot as plt
 
 
 def ShowPredictions(experiment):
-    def ShowPredictionsCallback(x, y, yhat):
+    def ShowPredictionsCallback(batch):
+        x = batch["x"]
+        y = batch["ytrue"]
+        yhat = batch["ypred"]
+
         f, axarr = plt.subplots(1, 4, figsize=(20, 5))
 
         axarr[0].set_title("Image")

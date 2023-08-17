@@ -42,14 +42,18 @@ class CalibrationExperiment(TrainExperiment):
             loss.backward()
             self.optim.step()
             self.optim.zero_grad()
-
-        return {
-            "loss": loss,
+        
+        forward_batch = {
             "x": x,
             "ytrue": y,
             "ypred": yhat,
+            "loss": loss,
             "batch_idx": batch_idx,
         }
+        self.run_callbacks("step", batch=forward_batch)
+        forward_batch.pop("x")
+
+        return forward_batch
 
     def run(self):
         super().run()
