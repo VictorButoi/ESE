@@ -55,7 +55,10 @@ class WMH(ThunderDataset, DatapathMixin):
             all_axes = [0, 1, 2]
             all_axes.remove(self.axis)
             dist = np.sum(mask_vol, axis=tuple(all_axes))
-            slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=dist/np.sum(dist), replace=False)
+            # If there are not enough non-zero slices, we allow replacement.
+            allow_replacement = self.slice_batch_size > len(dist[dist > 0])
+            # Same the slices proportional to the amount of label.
+            slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=dist/np.sum(dist), replace=allow_replacement)
             img_slice = np.take(img_vol, slice_indices, axis=self.axis)
             mask_slice = np.take(mask_vol, slice_indices, axis=self.axis)
 
