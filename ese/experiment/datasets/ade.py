@@ -9,7 +9,6 @@ from ionpy.util.validation import validate_arguments_init
 
 # Validation Imports
 from dataclasses import dataclass
-from ESE.ese.experiment.datasets.wmh import Segment2D
 
 # Misc imports
 import os
@@ -19,7 +18,7 @@ from PIL import Image
 # Dataset for the Ade20K dataset
 @validate_arguments_init
 @dataclass
-class ADE20kDataset(Dataset):
+class ADE20k(Dataset):
 
     def __post_init__(self):
         # Call the constructor for PyTorch dataset
