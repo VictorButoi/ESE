@@ -19,7 +19,7 @@ from PIL import Image
 # Dataset for the Ade20K dataset
 @validate_arguments_init
 @dataclass
-class ADE20kDataset(Segment2D):
+class ADE20kDataset(Dataset):
 
     def __post_init__(self):
         # Call the constructor for PyTorch dataset
