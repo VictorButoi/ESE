@@ -1,2 +1,2 @@
-from .ade import ADE20kDataset
-from .segment2d import Segment2D
+from .ade import ADE20k
+from .wmh import WMH

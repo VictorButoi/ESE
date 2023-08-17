@@ -2,29 +2,25 @@
 from torch.utils.data import Dataset
 
 # Local imports
-from .ade_utils import loadAde20K_file
+from .utils.ade_utils import loadAde20K_file
 
 # IonPy imports
 from ionpy.util.validation import validate_arguments_init
 
 # Validation Imports
 from dataclasses import dataclass
+from ESE.ese.experiment.datasets.wmh import Segment2D
 
 # Misc imports
-import numpy as np
 import os
 import pickle
 from PIL import Image
-from tqdm import tqdm
-from typing import Literal, Optional, Tuple, Union
 
 # Dataset for the Ade20K dataset
 @validate_arguments_init
 @dataclass
-class ADE20kDataset(Dataset):
+class ADE20kDataset(Segment2D):
 
-    split: Literal["train", "val", "test"] = "train"
-    
     def __post_init__(self):
         # Call the constructor for PyTorch dataset
         super().__init__()
@@ -52,4 +48,5 @@ class ADE20kDataset(Dataset):
         labels = loadAde20K_file(self.data[idx])
 
         return image, labels 
+
 

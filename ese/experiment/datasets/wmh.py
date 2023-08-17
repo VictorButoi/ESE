@@ -3,18 +3,16 @@ from typing import List, Literal, Optional
 
 import numpy as np
 import torch
-from parse import parse
 
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
-from ionpy.util.thunder import UniqueThunderReader
 from ionpy.util.validation import validate_arguments_init
 
 
 @validate_arguments_init
 @dataclass
-class Segment2D(ThunderDataset, DatapathMixin):
+class WMH(ThunderDataset, DatapathMixin):
 
     task: str 
     dataset: str
