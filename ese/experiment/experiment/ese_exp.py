@@ -6,9 +6,18 @@ from torch.utils.data import DataLoader
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import
 from ionpy.util.torchutils import to_device
-
+from ionpy.util.hash import json_digest
+from universeg.experiment.augmentation import augmentations_from_config
 
 class CalibrationExperiment(TrainExperiment):
+
+    def build_augmentations(self):
+        if "augmentations" in self.config:
+            aug_cfg = self.config.to_dict()["augmentations"]
+            self.aug_pipeline = augmentations_from_config(aug_cfg)
+            self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
+                :8
+            ]
 
     def build_data(self):
         data_cfg = self.config["data"].to_dict()
