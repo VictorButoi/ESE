@@ -81,11 +81,12 @@ def normalize_image(image):
 
 def proc_WMH(
         data_dirs, 
+        version,
         show=False, 
         save=False
         ):
 
-    proc_root = pathlib.Path("/storage/vbutoi/datasets/WMH/processed") 
+    proc_root = pathlib.Path(f"/storage/vbutoi/datasets/WMH/processed/{version}") 
 
     for ud in data_dirs:
 
@@ -106,13 +107,12 @@ def proc_WMH(
             clipped_volume = np.clip(rotated_volume, a_min=lower, a_max=upper)
             # Make the image square
             max_img_dim = max(clipped_volume.shape)
-            sqr_img = pad_image_numpy(clipped_volume, (256, 256, 256))
+            sqr_img = pad_image_numpy(clipped_volume, (max_img_dim, max_img_dim, max_img_dim))
             # Resize to 256
             zoom_factors = np.array([256, 256, 256]) / np.array(sqr_img.shape)
             resized_img = zoom(sqr_img, zoom_factors, order=1)  # You can adjust the 'order' parameter for interpolation quality
             # Make the type compatible
             resized_img = resized_img.astype(np.float32)
-            print(resized_img.shape)
             # Store in the dictionary
             image_dict["img"] = resized_img
 
@@ -146,7 +146,6 @@ def proc_WMH(
                 resized_seg = zoom(sqr_seg, zoom_factors, order=0)  # You can adjust the 'order' parameter for interpolation quality
                 # Make the type compatible
                 resized_seg = resized_seg.astype(np.float32)
-                print(resized_seg.shape)
                 # Store in dictionary
                 image_dict["segs"][annotator_name] = resized_seg
             
@@ -154,12 +153,12 @@ def proc_WMH(
                 # Plot the slices
                 num_segs = len(image_dict["segs"].keys())
                 im_vol = image_dict["img"]
-                for axis in [0, 1, 2]:
+                for vis_axis in [0, 1, 2]:
                     f, axarr = plt.subplots(1, num_segs + 1, figsize=(5 * (num_segs + 1), 5))
 
                     # Do the sliceing
-                    mid_axis_slice = im_vol.shape[axis] // 2 
-                    img_slice = np.take(im_vol, mid_axis_slice, axis=axis)
+                    mid_axis_slice = im_vol.shape[vis_axis] // 2 
+                    img_slice = np.take(im_vol, mid_axis_slice, axis=vis_axis)
                     
                     # Show the image
                     im = axarr[0].imshow(img_slice, cmap='gray')
@@ -169,32 +168,40 @@ def proc_WMH(
                     # Show the segs
                     for an_idx, annotator in enumerate(image_dict["segs"].keys()):
                         seg_vol = image_dict["segs"][annotator]
-                        seg_slice = np.take(seg_vol, mid_axis_slice, axis=axis)
+                        seg_slice = np.take(seg_vol, mid_axis_slice, axis=vis_axis)
                         im = axarr[an_idx + 1].imshow(seg_slice, cmap="gray")
                         axarr[an_idx + 1].set_title(annotator)
                         f.colorbar(im, ax=axarr[an_idx + 1], orientation='vertical')
                     plt.show()  
             
             if save:
-                save_root = proc_root / datacenter / subj.name 
-                if not save_root.exists():
-                    os.makedirs(save_root)
-                
-                # Save your image
-                img_dir = save_root / "image.npy"
-                np.save(img_dir, image_dict["img"])
+                for major_axis in [0, 1, 2]:
+                    
+                    # Figure out how to spin the volume.
+                    all_axes = [0, 1, 2]
+                    all_axes.remove(major_axis)
+                    tranposed_axes = tuple([major_axis] + all_axes)
 
-                for annotator in image_dict["segs"].keys():
-                    # This is how we organize the data.
-                    annotator_dir = save_root / annotator 
-                    if not annotator_dir.exists():
-                        os.makedirs(annotator_dir)
+                    save_root = proc_root / datacenter / str(major_axis) / subj.name 
 
-                    label_dir = annotator_dir / "label.npy"
-                    np.save(label_dir, image_dict["segs"][annotator])
+                    if not save_root.exists():
+                        os.makedirs(save_root)
+                    
+                    # Save your image
+                    img_dir = save_root / "image.npy"
+                    rotated_img_vol =  np.transpose(image_dict["img"], tranposed_axes)
+                    np.save(img_dir, rotated_img_vol)
 
+                    for annotator in image_dict["segs"].keys():
+                        # This is how we organize the data.
+                        annotator_dir = save_root / annotator 
+                        if not annotator_dir.exists():
+                            os.makedirs(annotator_dir)
 
-VERSION = "v0.1"
+                        label_dir = annotator_dir / "label.npy"
+
+                        rotated_mask_vol =  np.transpose(image_dict["segs"][annotator], tranposed_axes)
+                        np.save(label_dir, rotated_mask_vol)
 
 @validate_arguments
 def data_splits(
@@ -226,56 +233,84 @@ def data_splits(
     return (train, cal, val, test)
 
 
-def thunderify_wmh(proc_root, dst):
-    datacenters = proc_root.iterdir() 
+def thunderify_wmh(
+        proc_root, 
+        dst,
+        version
+        ):
 
+    # Append version to our paths
+    proc_root = proc_root / version
+    dst = dst / version
+
+    datacenters = proc_root.iterdir() 
     # Train Calibration Val Test
     splits_ratio = (0.6, 0.1, 0.2, 0.1)
     splits_seed = 42
 
     for dc in datacenters:
         dc_proc_dir = proc_root / dc.name
-        dc_dst = dst / dc.name
-        with ThunderDB.open(str(dc_dst), "c") as db:
-            subjects = []
-            num_annotators = []
-            subj_list = dc_proc_dir.iterdir()
-            for subj in subj_list:
-                key = subj.name
-                print(subj)
-                img_dir = subj / "image.npy"
-                img = np.load(img_dir) 
-                mask_list = list(subj.glob("observer*"))
-                mask_dict = {}
-                for mask_dir in mask_list:
-                    seg_dir = mask_dir / "label.npy"
-                    seg = np.load(seg_dir)
-                    mask_dict[mask_dir.name] = seg
-                db[key] = {
-                    "image": img,
-                    "masks": mask_dict
-                }
-                subjects.append(key)
-                num_annotators.append(len(mask_list))
+        for axis_dir in dc_proc_dir.iterdir():
+            dc_dst = dst / dc.name / axis_dir.name
+            print(str(dc_dst))
+            if not dc_dst.exists():
+                os.makedirs(dc_dst)
 
-            subjects, num_annotators = zip(*sorted(zip(subjects, num_annotators)))
-            splits = data_splits(subjects, splits_ratio, splits_seed)
-            splits = dict(zip(("train", "cal", "val", "test"), splits))
-            db["_subjects"] = subjects
-            db["_splits"] = splits
-            db["_splits_kwarg"] = {
-                "ratio": splits_ratio, 
-                "seed": splits_seed
-                }
-            attrs = dict(
-                dataset="WMH",
-                version=VERSION,
-                group=dc.name,
-                modality="FLAIR",
-                resolution=256,
-            )
-            db["_num_annotators"] = num_annotators 
-            db["_subjects"] = subjects
-            db["_samples"] = subjects
-            db["_splits"] = splits
-            db["_attrs"] = attrs
+            # Iterate through each datacenter, axis  and build it as a task
+            with ThunderDB.open(str(dc_dst), "c") as db:
+                subj_list = axis_dir.iterdir()
+
+                subjects = []
+                num_annotators = []
+
+                for subj in subj_list:
+                    key = subj.name
+                    img_dir = subj / "image.npy"
+
+                    img = np.load(img_dir) 
+                    mask_list = list(subj.glob("observer*"))
+
+                    mask_dict = {}
+                    pp_dict = {}
+                    
+                    # Iterate through each set of ground truth
+                    for mask_dir in mask_list:
+                        seg_dir = mask_dir / "label.npy"
+                        seg = np.load(seg_dir)
+                        
+                        # Our processing has ensured that we care about axis 0.
+                        pixel_proportion = np.sum(seg, axis=(1,2))
+                        mask_dict[mask_dir.name] = seg
+                        pp_dict[mask_dir.name] = pixel_proportion
+
+                    # Save the datapoint to the database
+                    db[key] = {
+                        "image": img,
+                        "masks": mask_dict,
+                        "pixel_proportions": pp_dict
+                    }
+                    subjects.append(key)
+                    num_annotators.append(len(mask_list))
+
+                subjects, num_annotators = zip(*sorted(zip(subjects, num_annotators)))
+                splits = data_splits(subjects, splits_ratio, splits_seed)
+                splits = dict(zip(("train", "cal", "val", "test"), splits))
+                db["_subjects"] = subjects
+                db["_splits"] = splits
+                db["_splits_kwarg"] = {
+                    "ratio": splits_ratio, 
+                    "seed": splits_seed
+                    }
+                attrs = dict(
+                    dataset="WMH",
+                    version=version,
+                    group=dc.name,
+                    modality="FLAIR",
+                    axis=axis_dir.name,
+                    resolution=256,
+                )
+                db["_num_annotators"] = num_annotators 
+                db["_subjects"] = subjects
+                db["_samples"] = subjects
+                db["_splits"] = splits
+                db["_attrs"] = attrs

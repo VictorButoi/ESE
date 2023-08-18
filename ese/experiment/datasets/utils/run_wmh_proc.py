@@ -47,6 +47,7 @@ if __name__=="__main__":
 
     proc_WMH(
         unique_dirs, 
+        version="0.2",
         show=False,
         save=True
     )

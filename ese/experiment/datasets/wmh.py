@@ -46,6 +46,7 @@ class WMH(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img_vol = subj_dict['image']
         mask_vol = subj_dict['masks'][self.annotator]
+        
         assert img_vol.dtype == np.float32
         assert mask_vol.dtype == np.float32
 
