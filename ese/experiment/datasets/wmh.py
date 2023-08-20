@@ -21,7 +21,7 @@ class WMH(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "val", "test"] = "train"
     slicing: Literal["dense", "uniform", "midslice"] = "dense"
     slice_batch_size: int = 1
-    version: str = "v0.2"
+    version: float = 0.2
     preload: bool = False
     samples_per_epoch: Optional[int] = None
 
@@ -46,27 +46,30 @@ class WMH(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img_vol = subj_dict['image']
         mask_vol = subj_dict['masks'][self.annotator]
+
         label_amounts = subj_dict['pixel_proportions'][self.annotator]
         allow_replacement = self.slice_batch_size > len(label_amounts[label_amounts> 0])
-        
-        assert img_vol.dtype == np.float32
-        assert mask_vol.dtype == np.float32
 
         # Dense slice sampling means that you sample proportional to how much
         # label there is.
         if self.slicing == "dense":
             label_probs = label_amounts / np.sum(label_amounts)
             slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=label_probs, replace=allow_replacement)
+
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.slice_batch_size, replace=allow_replacement)
+
         # Otherwise slice  down the middle.
         else:
             slice_indices = np.array([128])
         
         # Data object ensures first axis is the slice axis.
-        img = img_vol[slice_indices, ...]
-        mask = mask_vol[slice_indices, ...]
+        img = img_vol[slice_indices, ...].astype(np.float32)
+        mask = mask_vol[slice_indices, ...].astype(np.float32)
+
+        assert img.dtype == np.float32, "Img must be float32!"
+        assert mask.dtype == np.float32, "Mask must be float32!"
 
         return torch.from_numpy(img), torch.from_numpy(mask)
 
