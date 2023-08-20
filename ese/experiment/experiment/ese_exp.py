@@ -65,6 +65,7 @@ class CalibrationExperiment(TrainExperiment):
             "loss": loss,
             "batch_idx": batch_idx,
         }
+        
         self.run_callbacks("step", batch=forward_batch)
         forward_batch.pop("x")
 

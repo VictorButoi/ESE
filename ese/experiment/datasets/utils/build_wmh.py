@@ -74,9 +74,18 @@ def normalize_image(image):
     image = image.astype(np.float32)
 
     # Normalize the image between 0 and 1
-    normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
+    val_range = np.max(image) - np.min(image)
+    # If the image is a constant, just return a zero image
+    if val_range == 0:
+        normalized_image = np.zeros(image.shape)
+    else:
+        normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
     
     return normalized_image
+
+
+def normalize_volume(volume):
+    return np.stack([normalize_image(volume[slice_idx, ...]) for slice_idx in range(volume.shape[0])], axis=0)
 
 
 def proc_WMH(
@@ -152,13 +161,20 @@ def proc_WMH(
             if show:
                 # Plot the slices
                 num_segs = len(image_dict["segs"].keys())
-                im_vol = image_dict["img"]
-                for vis_axis in [0, 1, 2]:
+                for major_axis in [0, 1, 2]:
+
+                    # Figure out how to spin the volume.
+                    all_axes = [0, 1, 2]
+                    all_axes.remove(major_axis)
+                    tranposed_axes = tuple([major_axis] + all_axes)
+
+                    # Set up the figure
                     f, axarr = plt.subplots(1, num_segs + 1, figsize=(5 * (num_segs + 1), 5))
 
                     # Do the sliceing
-                    mid_axis_slice = im_vol.shape[vis_axis] // 2 
-                    img_slice = np.take(im_vol, mid_axis_slice, axis=vis_axis)
+                    rotated_img_vol = np.transpose(image_dict["img"], tranposed_axes)
+                    norm_img_vol = normalize_volume(rotated_img_vol)
+                    img_slice = norm_img_vol[128, ...]
                     
                     # Show the image
                     im = axarr[0].imshow(img_slice, cmap='gray')
@@ -168,10 +184,13 @@ def proc_WMH(
                     # Show the segs
                     for an_idx, annotator in enumerate(image_dict["segs"].keys()):
                         seg_vol = image_dict["segs"][annotator]
-                        seg_slice = np.take(seg_vol, mid_axis_slice, axis=vis_axis)
+                        rotated_seg_vol = np.transpose(seg_vol, tranposed_axes)
+                        seg_slice = rotated_seg_vol[128, ...]
+
                         im = axarr[an_idx + 1].imshow(seg_slice, cmap="gray")
                         axarr[an_idx + 1].set_title(annotator)
                         f.colorbar(im, ax=axarr[an_idx + 1], orientation='vertical')
+                        
                     plt.show()  
             
             if save:
@@ -190,7 +209,10 @@ def proc_WMH(
                     # Save your image
                     img_dir = save_root / "image.npy"
                     rotated_img_vol =  np.transpose(image_dict["img"], tranposed_axes)
-                    np.save(img_dir, rotated_img_vol)
+                    normalized_img_vol = normalize_volume(rotated_img_vol) 
+
+                    # Make sure slice is between [0,1] and the correct dtype.
+                    np.save(img_dir, normalized_img_vol)
 
                     for annotator in image_dict["segs"].keys():
                         # This is how we organize the data.
@@ -199,7 +221,6 @@ def proc_WMH(
                             os.makedirs(annotator_dir)
 
                         label_dir = annotator_dir / "label.npy"
-
                         rotated_mask_vol =  np.transpose(image_dict["segs"][annotator], tranposed_axes)
                         np.save(label_dir, rotated_mask_vol)
 
