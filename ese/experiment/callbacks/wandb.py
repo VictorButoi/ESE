@@ -3,7 +3,14 @@ import wandb
 
 class WandbLogger:
     
-    def __init__(self, exp, project=None, entity='vbutoi', name=None):
+    def __init__(
+            self, 
+            exp, 
+            project='SemanticCalibration', 
+            entity='vbutoi', 
+            name=None
+            ):
+
         self.exp = exp
         
         wandb.init(
