@@ -20,7 +20,7 @@ class WMH(ThunderDataset, DatapathMixin):
     axis: Literal[0, 1, 2] = 0
     split: Literal["train", "cal", "val", "test"] = "train"
     slicing: Literal["dense", "uniform", "midslice"] = "dense"
-    slice_batch_size: int = 1
+    num_slices: int = 1
     version: float = 0.2
     preload: bool = False
     samples_per_epoch: Optional[int] = None
@@ -48,17 +48,17 @@ class WMH(ThunderDataset, DatapathMixin):
         mask_vol = subj_dict['masks'][self.annotator]
 
         label_amounts = subj_dict['pixel_proportions'][self.annotator]
-        allow_replacement = self.slice_batch_size > len(label_amounts[label_amounts> 0])
+        allow_replacement = self.num_slices > len(label_amounts[label_amounts> 0])
 
         # Dense slice sampling means that you sample proportional to how much
         # label there is.
         if self.slicing == "dense":
             label_probs = label_amounts / np.sum(label_amounts)
-            slice_indices = np.random.choice(np.arange(256), size=self.slice_batch_size, p=label_probs, replace=allow_replacement)
+            slice_indices = np.random.choice(np.arange(256), size=self.num_slices, p=label_probs, replace=allow_replacement)
 
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
-            slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.slice_batch_size, replace=allow_replacement)
+            slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
 
         # Otherwise slice  down the middle.
         else:

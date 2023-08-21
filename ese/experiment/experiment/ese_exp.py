@@ -9,6 +9,10 @@ from ionpy.util.torchutils import to_device
 from ionpy.util.hash import json_digest
 from universeg.experiment.augmentation import augmentations_from_config
 
+# misc imports
+import einops
+
+
 class CalibrationExperiment(TrainExperiment):
 
     def build_augmentations(self):
@@ -30,9 +34,7 @@ class CalibrationExperiment(TrainExperiment):
         self.val_dataset = dataset_cls(dataset=dataset, split="val", **data_cfg)
     
     def build_dataloader(self):
-        assert not (self.config["dataloader"]["batch_size"] > 1 and self.config["data"]["slice_batch_size"] > 1), "No mixing of slice_batch_sz and batch_size."
         dl_cfg = self.config["dataloader"]
-
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
     
@@ -41,10 +43,9 @@ class CalibrationExperiment(TrainExperiment):
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
         
-        # This lets you potentially use multiple slices from 3D volumes.
-        if self.config["dataloader"]["batch_size"] == 1:
-            x = x[0][:, None, :, :]
-            y = y[0][:, None, :, :]
+        # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
+        x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
+        y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
         
         if augmentation:
             with torch.no_grad():
