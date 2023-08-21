@@ -15,7 +15,6 @@ from ionpy.util.validation import validate_arguments_init
 class WMH(ThunderDataset, DatapathMixin):
 
     task: str 
-    dataset: str
     annotator: str = "observer_o12"
     axis: Literal[0, 1, 2] = 0
     split: Literal["train", "cal", "val", "test"] = "train"
@@ -23,7 +22,8 @@ class WMH(ThunderDataset, DatapathMixin):
     num_slices: int = 1
     version: float = 0.2
     preload: bool = False
-    samples_per_epoch: Optional[int] = None
+    dataset: Literal["WMH"] = "WMH"
+    slice_batch_size: Optional[int] = 1 
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -35,8 +35,6 @@ class WMH(ThunderDataset, DatapathMixin):
         self.subjects = subjects
 
     def __len__(self):
-        if self.samples_per_epoch:
-            return self.samples_per_epoch
         return len(self.samples)
 
     def __getitem__(self, key):
@@ -75,13 +73,13 @@ class WMH(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"{self.dataset}/thunder_wmh/{self.version}/{self.task}/{self.axis}"
+        return f"WMH/thunder_wmh/{self.version}/{self.task}/{self.axis}"
 
     @property
     def signature(self):
         return {
             "annotator": self.annotator,
-            "dataset": self.dataset,
+            "dataset": "WMH",
             "resolution": self.resolution,
             "slicing": self.slicing,
             "split": self.split,

@@ -26,12 +26,9 @@ class CalibrationExperiment(TrainExperiment):
     def build_data(self):
         data_cfg = self.config["data"].to_dict()
         dataset_cls = absolute_import(data_cfg.pop("_class"))
-
-        dataset = data_cfg.pop("dataset")
-
-        self.train_dataset = dataset_cls(dataset=dataset, split="train", **data_cfg)
-        self.cal_dataset = dataset_cls(dataset=dataset, split="cal", **data_cfg)
-        self.val_dataset = dataset_cls(dataset=dataset, split="val", **data_cfg)
+        self.train_dataset = dataset_cls(split="train", **data_cfg)
+        self.cal_dataset = dataset_cls(split="cal", **data_cfg)
+        self.val_dataset = dataset_cls(split="val", **data_cfg)
     
     def build_dataloader(self):
         dl_cfg = self.config["dataloader"]
