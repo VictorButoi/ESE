@@ -7,18 +7,17 @@ class WandbLogger:
             self, 
             exp, 
             project='SemanticCalibration', 
-            entity='vbutoi', 
-            name=None
+            entity='vbutoi'
             ):
 
         self.exp = exp
-        
+        exp_config = exp.config.to_dict() 
         wandb.init(
             project=project,
             entity=entity,
-            config=exp.config.to_dict(),
+            config=exp_config,
         )
-        wandb.run.name = exp.path.name if name is None else name
+        wandb.run.name = exp_config["log"]["wandb_string"]
 
     def __call__(self, epoch):
         df = self.exp.metrics.df
