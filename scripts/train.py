@@ -3,6 +3,7 @@ from ese.experiment.experiment.ese_exp import CalibrationExperiment
 from ionpy.slite import SliteRunner
 from ionpy.util.config import check_missing
 from ionpy.util import dict_product, Config
+from ionpy.slite.utils import proc_exp_name
 
 # Random imports
 import pickle
@@ -69,20 +70,6 @@ if __name__=="__main__":
             'dataloader.num_workers': [2]
         }
     ]
-
-     # list the available gpus for a machine
-    available_gpus = ['0', '1', '2', '3']
-
-    def proc_exp_name(exp_name, cfg):
-        params = []
-        params.append("exp_name:" + exp_name)
-        for key, value in cfg.items():
-            if key != "log.root":
-                key_name = key.split(".")[-1]
-                short_value = str(value).replace(" ", "")
-                params.append(f"{key_name}:{short_value}")
-        wandb_string = "-".join(params)
-        return {"log.wandb_string": wandb_string}
 
     # Assemble base config
     base_cfg = LOAD_BASE_CONFIG() 
