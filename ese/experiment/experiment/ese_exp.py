@@ -11,6 +11,7 @@ from universeg.experiment.augmentation import augmentations_from_config
 
 # misc imports
 import einops
+import seaborn as sns
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -71,3 +72,22 @@ class CalibrationExperiment(TrainExperiment):
 
     def run(self):
         super().run()
+
+    def vis_loss_curves(
+        self,
+        x='epoch',  
+        y='dice_score',
+        height=12,
+    ):
+
+        g = sns.relplot(
+            data=self.logs,
+            x=x,
+            y=y,
+            col='phase',
+            kind='line',
+            height=height,
+            )
+        # Set column spacing
+        g.fig.subplots_adjust(wspace=0.05)
+        g.set(ylim=(0, 1))
