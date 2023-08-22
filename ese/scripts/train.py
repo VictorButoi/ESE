@@ -4,7 +4,6 @@ from .utils import LOAD_BASE_CONFIG, LOAD_AUG_CONFIG, get_option_product
 from ionpy.slite import SliteRunner
 
 # Random imports
-import pickle
 import copy
 import os
 
@@ -21,11 +20,6 @@ if __name__=="__main__":
         task_type=CalibrationExperiment, 
         available_gpus=['0', '1', '2', '3']
         )
-
-    # Assemble base config
-    base_cfg = None # Load the default config we build in notebook
-    with open('/storage/vbutoi/projects/ESE/configs/base.pkl', 'rb') as config_file:
-        base_cfg = pickle.load(config_file)
 
     # Need to define the experiment name
     exp_name = 'FixedSizeAblation'
