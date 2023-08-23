@@ -1,3 +1,4 @@
 from .calibration import (
-    ECE
+    ECE,
+    AACP
 )
