@@ -18,7 +18,7 @@ class WMH(ThunderDataset, DatapathMixin):
     annotator: str = "observer_o12"
     axis: Literal[0, 1, 2] = 0
     split: Literal["train", "cal", "val", "test"] = "train"
-    slicing: Literal["dense", "uniform", "midslice"] = "dense"
+    slicing: Literal["dense", "uniform", "midslice", "volume"] = "dense"
     num_slices: int = 1
     version: float = 0.2
     preload: bool = False
@@ -57,6 +57,9 @@ class WMH(ThunderDataset, DatapathMixin):
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
+        
+        elif self.slicing == "volume":
+            slice_indices = np.arange(256)
 
         # Otherwise slice  down the middle.
         else:
