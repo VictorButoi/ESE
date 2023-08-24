@@ -58,6 +58,7 @@ def ESE(
     label_map, 
     measure, 
     bins,
+    bin_weighting='proportional',
     conf_group="mean",
     reduce=None,
     ):
@@ -107,14 +108,15 @@ def ESE(
             measure_per_bin[b_idx] = np.abs(bin_score - bin_confidence)
 
     if reduce == "mean":
-        bin_proportions = bin_amounts / np.sum(bin_amounts)
-        return np.average(measure_per_bin, weights=bin_proportions)
+        if bin_weighting == 'proportional':
+            bin_weights = bin_amounts / np.sum(bin_amounts)
+        elif bin_weighting == 'uniform':
+            bin_weights = np.ones_like(bin_amounts) / len(bin_amounts)
+        else:
+            raise ValueError("Non-valid bin weighting scheme.")
+
+        return np.average(measure_per_bin, weights=bin_weights)
     else:
-        print(bins)
-        print(measure_per_bin)
-        print(bin_amounts)
-
-
         return measure_per_bin, bin_amounts 
 
 
