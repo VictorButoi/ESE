@@ -10,7 +10,6 @@ def ECE(
     label=None,
     confidences=None,
     accuracies=None,
-    bin_range=(0, 1),
     reduce=None
 ):
     """
@@ -22,34 +21,47 @@ def ECE(
     Returns:
         float: Expected Calibration Error
     """
-    if isinstance(bins, int): 
-        bins = np.linspace(bin_range[0], bin_range[1], bins+1)[:-1] # Chop off last bin edge
+    assert not (pred is None and confidences is None), "Must provide either pred or confidences."
+    assert not (label is None and accuracies is None), "Must provide either label or accuracies."
 
+    # Get the confidence bin width
     bin_width = bins[1] - bins[0]
 
     # Calculate |confidence - accuracy| in each bin
     scores = np.zeros(len(bins))
     bin_amounts = np.zeros(len(bins))
 
-    conf_a_thresh = confidences[confidences >= bin_range[0]] # If we want to ignore, then do so.
-    acc_a_thresh = accuracies[confidences >= bin_range[0]]
+    # Get the regions of the prediction corresponding to each bin of confidence.
+    if pred is not None:
+        confidences = pred.flatten()
+
+    if label is not None:
+        hard_pred = (pred >= 0.5)
+        acc_image = (hard_pred == label).float()
+        accuracies = acc_image.flatten()
 
     for bin_idx, bin in enumerate(bins):
         # Calculated |confidence - accuracy| in each bin
-        in_bin = np.logical_and(conf_a_thresh >= bin, conf_a_thresh < (bin + bin_width))
-        num_pix_in_bin = np.sum(in_bin)
+        in_bin = np.logical_and(confidences >= bin, confidences < (bin + bin_width)).bool()
+        num_pix_in_bin = torch.sum(in_bin)
 
         if num_pix_in_bin > 0:
-            accuracy_in_bin = np.mean(acc_a_thresh[in_bin])
-            avg_confidence_in_bin = np.mean(conf_a_thresh[in_bin])
+            all_bin_accs = accuracies[in_bin]
+            all_bin_confs = confidences[in_bin]
 
-            scores[bin_idx] = np.abs(avg_confidence_in_bin - accuracy_in_bin)
+            accuracy_in_bin = torch.mean(all_bin_accs) if torch.sum(all_bin_accs) > 0 else 0
+            avg_confidence_in_bin = torch.mean(all_bin_confs)
+
+            scores[bin_idx] = (avg_confidence_in_bin - accuracy_in_bin).abs()
             bin_amounts[bin_idx] = num_pix_in_bin 
 
     # Calculate ece as the weighted average, if there are any pixels in the bin.
     if reduce == "mean":
-        props_per_bin = bin_amounts / np.sum(bin_amounts)
-        return np.average(scores, weights=props_per_bin)
+        if np.sum(bin_amounts) == 0:
+            return 0
+        else:
+            props_per_bin = bin_amounts / np.sum(bin_amounts)
+            return np.average(scores, weights=props_per_bin)
     else:
         return scores, bin_amounts
 
@@ -121,32 +133,6 @@ def ESE(
         return np.average(measure_per_bin, weights=bin_weights)
     else:
         return measure_per_bin, bin_amounts 
-
-
-
-# ADRIAN's ALTERNATIVE CALIBRATION PLOT
-def AACP(predictions, num_bins=40, round_to=5):
-                       
-    lsp = np.linspace(0, 1, num_bins+1)
-    accs = []
-
-    # For each bin look at the accuracies
-    for bin in range(num_bins):
-        dice_scores_per_sub = []
-        # Iterate through each predictions
-        for pred_dict in predictions:
-            pixels = np.logical_and(pred_dict["soft_pred"] >= lsp[bin], pred_dict["soft_pred"] < lsp[bin+1])
-            label = torch.from_numpy(pred_dict["label"]).float()[pixels][None]
-            ones = torch.ones_like(label)
-            if ones.shape[1] > 0:
-                ds = np.round(dice_score(ones, label), round_to)
-                # Add the dice score to running list
-                dice_scores_per_sub.append(ds)
-        # Place it in our array
-        zero_pad = np.zeros((len(predictions) - len(dice_scores_per_sub)))
-        accs.append(np.concatenate([np.array(dice_scores_per_sub), zero_pad]))
-    
-    plt.bar(lsp, accs, width=1/num_bins)
 
 
 
