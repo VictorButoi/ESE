@@ -1,15 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from ionpy.metrics import dice_score
+from ionpy.metrics import dice_score, pixel_accuracy
 import torch
 
 
 def ECE(
-    accuracies,
-    confidences,
     bins,
-    lower_bound=0,
-    bin_range=(0, 1)
+    pred=None,
+    label=None,
+    confidences=None,
+    accuracies=None,
+    bin_range=(0, 1),
+    reduce=None
 ):
     """
     Calculates the Expected Calibration Error (ECE) for a model.
@@ -22,42 +24,43 @@ def ECE(
     """
     if isinstance(bins, int): 
         bins = np.linspace(bin_range[0], bin_range[1], bins+1)[:-1] # Chop off last bin edge
+
     bin_width = bins[1] - bins[0]
 
     # Calculate |confidence - accuracy| in each bin
     scores = np.zeros(len(bins))
-    props_per_bin = np.zeros(len(bins))
+    bin_amounts = np.zeros(len(bins))
 
-    conf_a_thresh = confidences[confidences >= lower_bound] # If we want to ignore, then do so.
-    acc_a_thresh = accuracies[confidences >= lower_bound]
+    conf_a_thresh = confidences[confidences >= bin_range[0]] # If we want to ignore, then do so.
+    acc_a_thresh = accuracies[confidences >= bin_range[0]]
 
     for bin_idx, bin in enumerate(bins):
         # Calculated |confidence - accuracy| in each bin
         in_bin = np.logical_and(conf_a_thresh >= bin, conf_a_thresh < (bin + bin_width))
-        prop_in_bin = np.mean(in_bin)
+        num_pix_in_bin = np.sum(in_bin)
 
-        if prop_in_bin > 0:
+        if num_pix_in_bin > 0:
             accuracy_in_bin = np.mean(acc_a_thresh[in_bin])
             avg_confidence_in_bin = np.mean(conf_a_thresh[in_bin])
 
             scores[bin_idx] = np.abs(avg_confidence_in_bin - accuracy_in_bin)
-            props_per_bin[bin_idx] = prop_in_bin
+            bin_amounts[bin_idx] = num_pix_in_bin 
 
     # Calculate ece as the weighted average, if there are any pixels in the bin.
-    if np.sum(props_per_bin) == 0:
-        ece = 0
+    if reduce == "mean":
+        props_per_bin = bin_amounts / np.sum(bin_amounts)
+        return np.average(scores, weights=props_per_bin)
     else:
-        ece = np.average(scores, weights=props_per_bin)
-
-    return ece
+        return scores, bin_amounts
 
 
 # Measure per bin.
 def ESE(
-    confidence_map, 
-    label_map, 
-    measure, 
     bins,
+    pred=None, 
+    label=None,
+    confidences=None,
+    accuracies=None,
     bin_weighting='proportional',
     conf_group="mean",
     reduce=None,
@@ -81,14 +84,14 @@ def ESE(
     bin_width = bins[1] - bins[0]
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {bin: np.logical_and(confidence_map >= bin, confidence_map < (bin + bin_width)).bool() for bin in bins}
+    confidence_regions = {bin: np.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
 
     # Iterate through the bins, and get the measure for each bin.
     measure_per_bin = np.zeros_like(bins)
     bin_amounts = np.zeros_like(bins)
 
     for b_idx, bin in enumerate(bins):
-        label_region = label_map[confidence_regions[bin]][None, None, ...]
+        label_region = label[confidence_regions[bin]][None, None, ...]
 
         # If there are no pixels in the region, then the measure is 0.
         bin_amounts[b_idx] = torch.sum(confidence_regions[bin])
@@ -96,11 +99,11 @@ def ESE(
             measure_per_bin[b_idx] = 0
         else:
             simulated_ground_truth = torch.ones_like(label_region)
-            bin_score = measure(simulated_ground_truth, label_region)
+            bin_score = pixel_accuracy(simulated_ground_truth, label_region)
 
             # Need a way of aggregating the confidences in each bin. 
             if conf_group == "mean":
-                bin_confidence = torch.mean(confidence_map[confidence_regions[bin]]).item()
+                bin_confidence = torch.mean(pred[confidence_regions[bin]]).item()
             else:
                 raise NotImplementedError("Haven't implemented other confidence groups yet.")
 
