@@ -16,123 +16,100 @@ metric_dict = {
 def subject_plot(
     subject_dict, 
     num_bins,
-    plot_metric="ESE",
     bin_weighting="both",
-    num_rows=3,
-    show_subj=False,
     ):
     
-    ese_prefix = "w" if bin_weighting == "proportional" else "u"
     # Calculate the bins and spacing
     ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1] # Off by one error
     ese_bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     # if you want to see the subjects and predictions
-    if show_subj:
-        num_cols = 7 
-        plt.rcParams.update({'font.size': 12})  
-    # Otherwise clump the graphs together
-    else:
-        plt.rcParams.update({'font.size': 30})
-        _, axarr = plt.subplots(
-            nrows=num_rows,
-            ncols=len(subject_dict) // num_rows,
-            figsize=(len(subject_dict) * 6, num_rows*15)
-        )
+    num_cols = 7 
+    plt.rcParams.update({'font.size': 12})  
         
     for subj_idx, subj in enumerate(subject_dict):
 
-        if show_subj:
-            # Setup the plot for each subject.
-            f, axarr = plt.subplots(
-                nrows=1,
-                ncols=num_cols,
-                figsize=(6 * num_cols, 6)
-            )
+        # Setup the plot for each subject.
+        f, axarr = plt.subplots(
+            nrows=1,
+            ncols=num_cols,
+            figsize=(6 * num_cols, 6)
+        )
 
-            im = axarr[0].imshow(subj["image"], cmap="gray")
-            axarr[0].axis("off")
-            axarr[0].set_title(f"#{subj_idx + 1}, Image")
-            f.colorbar(im, ax=axarr[0])
+        im = axarr[0].imshow(subj["image"], cmap="gray")
+        axarr[0].axis("off")
+        axarr[0].set_title(f"#{subj_idx + 1}, Image")
+        f.colorbar(im, ax=axarr[0])
 
-            lab = axarr[1].imshow(subj["label"], cmap="gray")
-            axarr[1].axis("off")
-            axarr[1].set_title(f"#{subj_idx + 1}, Ground Truth")
-            f.colorbar(lab, ax=axarr[1])
+        lab = axarr[1].imshow(subj["label"], cmap="gray")
+        axarr[1].axis("off")
+        axarr[1].set_title(f"#{subj_idx + 1}, Ground Truth")
+        f.colorbar(lab, ax=axarr[1])
 
-            pre = axarr[2].imshow(subj["soft_pred"], cmap="gray")
-            axarr[2].axis("off")
-            axarr[2].set_title(f"#{subj_idx + 1}, Prediction, Dice: {subj['dice_score']:.3f}")
-            f.colorbar(pre, ax=axarr[2])
+        pre = axarr[2].imshow(subj["soft_pred"], cmap="gray")
+        axarr[2].axis("off")
+        axarr[2].set_title(f"#{subj_idx + 1}, Prediction, Dice: {subj['dice_score']:.3f}")
+        f.colorbar(pre, ax=axarr[2])
 
-            # Show different kinds of statistics about your subjects.
-            plot_reliability_diagram(
-                bins=ece_bins,
-                subj=subj,
-                metric="ECE",
-                bin_color="blue",
-                ax=axarr[3]
-            )
+        # Show different kinds of statistics about your subjects.
+        plot_reliability_diagram(
+            bins=ece_bins,
+            subj=subj,
+            metric="ECE",
+            remove_empty_bins=True,
+            bin_color="blue",
+            ax=axarr[3]
+        )
 
-            # Show different kinds of statistics about your subjects.
-            region_bins, ese_bin_scores = plot_reliability_diagram(
-                bins=ese_bins,
-                subj=subj,
-                metric="ESE",
-                bin_weighting=bin_weighting,
-                bin_color="green",
-                ax=axarr[4]
-            )
+        # Show different kinds of statistics about your subjects.
+        plot_reliability_diagram(
+            bins=ese_bins,
+            subj=subj,
+            metric="ESE",
+            remove_empty_bins=True,
+            bin_weighting=bin_weighting,
+            bin_color="green",
+            ax=axarr[4]
+        )
 
-            # Look at the pixelwise error.
-            ce_im = axarr[5].imshow(
-                vis.pixelwise_unc_map(
-                    subj
-                ), cmap="plasma"
-            )
-            axarr[5].axis("off")
-            axarr[5].set_title("Pixel-wise Calibration Error")
-            f.colorbar(ce_im, ax=axarr[5])
+        # Look at the pixelwise error.
+        ce_im = axarr[5].imshow(
+            vis.pixelwise_unc_map(
+                subj
+            ), cmap="plasma"
+        )
+        axarr[5].axis("off")
+        axarr[5].set_title("Pixel-wise Calibration Error")
+        f.colorbar(ce_im, ax=axarr[5])
 
-            # Plot our region-wise uncertainty metric.
-            ese_im = axarr[6].imshow(
-                vis.ese_unc_map(
-                    subj,
-                    region_bins,
-                    ese_bin_scores
-                ), cmap="plasma"
-            )
-            axarr[6].axis("off")
-            axarr[6].set_title("Region-wise Calibration Error")
-            f.colorbar(ese_im, ax=axarr[6])
-
-        else:  
-            num_per_row = len(subject_dict) // num_rows
-
-            subj_row = subj_idx // num_per_row
-            subj_col = subj_idx % num_per_row
-
-            plot_reliability_diagram(
+        # Plot our region-wise uncertainty metric.
+        ese_bin_scores, _, _ = ESE(
+            bins=ese_bins,
+            pred=subj["soft_pred"],
+            label=subj["label"],
+        ) 
+        ese_im = axarr[6].imshow(
+            vis.ese_unc_map(
                 subj,
-                metric=plot_metric,
-                bins=bins,
-                title=f"Subject #{subj_idx}",
-                bin_color="blue",
-                ax=axarr[subj_row, subj_col]
-            )
-    plt.show()
+                ese_bin_scores,
+                ese_bins,
+            ), cmap="plasma"
+        )
+        axarr[6].axis("off")
+        axarr[6].set_title("Region-wise Calibration Error")
+        f.colorbar(ese_im, ax=axarr[6])
+
+        plt.show()
 
 
 def aggregate_plot(
     subject_dict,
     num_bins,
     color="blue",
-    metric="accuracy",
     bin_weighting="both"
 ):
     _, axarr = plt.subplots(1, 1, figsize=(15, 10))
 
-    ese_prefix = "w" if bin_weighting == "proportional" else "u"
     # Calculate the bins and spacing
     bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
@@ -142,7 +119,7 @@ def aggregate_plot(
     
     # Get the average score per bin and the amount of pixels that went into those.
     bar_heights = np.mean([ese[0] for ese in total_ese_info], axis=0)
-    bin_amounts = np.sum([ese[1] for ese in total_ese_info], axis=0)
+    bin_amounts = np.sum([ese[2] for ese in total_ese_info], axis=0)
     bin_props = bin_amounts / np.sum(bin_amounts)
 
     if bin_weighting == "proportional":
@@ -165,7 +142,7 @@ def aggregate_plot(
 
     plot_reliability_diagram(
         bins,
-        bar_heights=bar_heights,
+        bin_accs=bar_heights,
         ax=axarr,
         title=title,
         bin_color=color

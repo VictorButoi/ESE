@@ -28,7 +28,8 @@ def ECE(
     bin_width = bins[1] - bins[0]
 
     # Calculate |confidence - accuracy| in each bin
-    scores = np.zeros(len(bins))
+    accuracy_per_bin = np.zeros(len(bins))
+    ece_per_bin = np.zeros(len(bins))
     bin_amounts = np.zeros(len(bins))
 
     # Get the regions of the prediction corresponding to each bin of confidence.
@@ -52,7 +53,8 @@ def ECE(
             accuracy_in_bin = torch.mean(all_bin_accs) if torch.sum(all_bin_accs) > 0 else 0
             avg_confidence_in_bin = torch.mean(all_bin_confs)
 
-            scores[bin_idx] = (avg_confidence_in_bin - accuracy_in_bin).abs()
+            ece_per_bin[bin_idx] = (avg_confidence_in_bin - accuracy_in_bin).abs()
+            accuracy_per_bin[bin_idx] = accuracy_in_bin
             bin_amounts[bin_idx] = num_pix_in_bin 
 
     # Calculate ece as the weighted average, if there are any pixels in the bin.
@@ -61,9 +63,9 @@ def ECE(
             return 0
         else:
             props_per_bin = bin_amounts / np.sum(bin_amounts)
-            return np.average(scores, weights=props_per_bin)
+            return np.average(ece_per_bin, weights=props_per_bin)
     else:
-        return scores, bin_amounts
+        return ece_per_bin, accuracy_per_bin, bin_amounts
 
 
 # Measure per bin.
@@ -99,7 +101,8 @@ def ESE(
     confidence_regions = {bin: np.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
 
     # Iterate through the bins, and get the measure for each bin.
-    measure_per_bin = np.zeros_like(bins)
+    accuracy_per_bin = np.zeros_like(bins)
+    ese_per_bin = np.zeros_like(bins)
     bin_amounts = np.zeros_like(bins)
 
     for b_idx, bin in enumerate(bins):
@@ -108,7 +111,8 @@ def ESE(
         # If there are no pixels in the region, then the measure is 0.
         bin_amounts[b_idx] = torch.sum(confidence_regions[bin])
         if bin_amounts[b_idx] == 0:
-            measure_per_bin[b_idx] = 0
+            accuracy_per_bin[b_idx] = 0
+            ese_per_bin[b_idx] = 0
         else:
             simulated_ground_truth = torch.ones_like(label_region)
             bin_score = pixel_accuracy(simulated_ground_truth, label_region)
@@ -120,7 +124,8 @@ def ESE(
                 raise NotImplementedError("Haven't implemented other confidence groups yet.")
 
             # Calculate the calibration error for the pixels in the bin.
-            measure_per_bin[b_idx] = np.abs(bin_score - bin_confidence)
+            ese_per_bin[b_idx] = np.abs(bin_score - bin_confidence)
+            accuracy_per_bin[b_idx] = bin_score
 
     if reduce == "mean":
         if bin_weighting == 'proportional':
@@ -130,9 +135,9 @@ def ESE(
         else:
             raise ValueError("Non-valid bin weighting scheme.")
 
-        return np.average(measure_per_bin, weights=bin_weights)
+        return np.average(ese_per_bin, weights=bin_weights)
     else:
-        return measure_per_bin, bin_amounts 
+        return ese_per_bin, accuracy_per_bin, bin_amounts 
 
 
 

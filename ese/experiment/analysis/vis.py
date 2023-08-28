@@ -11,11 +11,14 @@ def pixelwise_unc_map(subj):
     return calibration_image
 
 
-def ese_unc_map(subj, region_bins, ese_bin_scores):
+def ese_unc_map(subj, ese_bin_scores, bins):
     pred = subj['soft_pred']
     calibration_image = torch.zeros_like(pred).float()
-    bin_width = region_bins[1] - region_bins[0]
-    for b_idx, bin in enumerate(region_bins):
+
+    # Make sure bins are aligned.
+    bin_width = bins[1] - bins[0]
+    for b_idx, bin in enumerate(bins):
         bin_mask = (pred >= bin) & (pred < bin + bin_width)
         calibration_image[bin_mask] = ese_bin_scores[b_idx] 
+
     return calibration_image
