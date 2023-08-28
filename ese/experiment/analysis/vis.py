@@ -1,5 +1,5 @@
 import torch 
- 
+import matplotlib.pyplot as plt
 
 def pixelwise_unc_map(subj):
     calibration_image = torch.zeros_like(subj['label']).float()
@@ -18,7 +18,7 @@ def ese_unc_map(subj, ese_bin_scores, bins):
     # Make sure bins are aligned.
     bin_width = bins[1] - bins[0]
     for b_idx, bin in enumerate(bins):
-        bin_mask = (pred >= bin) & (pred < bin + bin_width)
+        bin_mask = (pred >= bin) & (pred < (bin + bin_width))
         calibration_image[bin_mask] = ese_bin_scores[b_idx] 
 
     return calibration_image
