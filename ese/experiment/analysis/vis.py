@@ -1,5 +1,6 @@
 import torch 
 import matplotlib.pyplot as plt
+from ese.experiment.metrics import ESE
 
 def pixelwise_unc_map(subj):
     calibration_image = torch.zeros_like(subj['label']).float()
@@ -11,7 +12,13 @@ def pixelwise_unc_map(subj):
     return calibration_image
 
 
-def ese_unc_map(subj, ese_bin_scores, bins):
+def ese_unc_map(subj, bins):
+    ese_bin_scores, _, _ = ESE(
+        bins=bins,
+        pred=subj["soft_pred"],
+        label=subj["label"],
+    ) 
+
     pred = subj['soft_pred']
     calibration_image = torch.zeros_like(pred).float()
 

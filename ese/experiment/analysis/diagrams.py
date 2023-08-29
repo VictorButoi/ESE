@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 # ese imports
 from ese.experiment.analysis.plots import plot_reliability_diagram
-from ese.experiment.metrics import ECE, ESE
+from ese.experiment.metrics import ESE
 import ese.experiment.analysis.vis as vis
 
 # Globally used for which metrics to plot for.
@@ -81,17 +81,11 @@ def subject_plot(
         axarr[5].axis("off")
         axarr[5].set_title("Pixel-wise Calibration Error")
         f.colorbar(ce_im, ax=axarr[5])
-
-        # Plot our region-wise uncertainty metric.
-        ese_bin_scores, _, _ = ESE(
-            bins=ese_bins,
-            pred=subj["soft_pred"],
-            label=subj["label"],
-        ) 
+        
+        # Look at the regionwise error.
         ese_im = axarr[6].imshow(
             vis.ese_unc_map(
                 subj,
-                ese_bin_scores,
                 ese_bins,
             ), cmap="plasma"
         )

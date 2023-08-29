@@ -1,36 +1,39 @@
+# misc imports
 import numpy as np
-import matplotlib.pyplot as plt
-from ionpy.metrics import dice_score, pixel_accuracy
 import torch
 
+# ionpy imports
+from ionpy.metrics import dice_score, pixel_accuracy
+from ionpy.util.validation import validate_arguments_init
 
+#local imports
+from .utils import reduce_scores
+
+
+@validate_arguments_init
 def ECE(
-    bins,
-    pred=None,
-    label=None,
-    confidences=None,
-    accuracies=None,
-    reduce=None
+    bins: np.ndarray,
+    pred: torch.Tensor=None, 
+    label: torch.Tensor=None,
+    confidences: torch.Tensor=None,
+    accuracies: torch.Tensor=None,
+    bin_weighting: str='proportional',
+    from_logits: bool=False,
+    reduce: str=None,
 ):
     """
-    Calculates the Expected Calibration Error (ECE) for a model.
-    Args:
-        accuracies: numpy array of calibration accuracies for each bin
-        confidences: numpy array of confidences outputted by the model
-        num_bins (int): number of confidence interval bins
-    Returns:
-        float: Expected Calibration Error
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert not (pred is None and confidences is None), "Must provide either pred or confidences."
-    assert not (label is None and accuracies is None), "Must provide either label or accuracies."
+    if from_logits:
+        pred = torch.sigmoid(pred)
 
     # Get the confidence bin width
     bin_width = bins[1] - bins[0]
 
     # Calculate |confidence - accuracy| in each bin
-    accuracy_per_bin = np.zeros(len(bins))
-    ece_per_bin = np.zeros(len(bins))
-    bin_amounts = np.zeros(len(bins))
+    accuracy_per_bin = torch.zeros(len(bins))
+    ece_per_bin = torch.zeros(len(bins))
+    bin_amounts = torch.zeros(len(bins))
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     if pred is not None:
@@ -43,7 +46,7 @@ def ECE(
 
     for bin_idx, bin in enumerate(bins):
         # Calculated |confidence - accuracy| in each bin
-        in_bin = np.logical_and(confidences >= bin, confidences < (bin + bin_width)).bool()
+        in_bin = torch.logical_and(confidences >= bin, confidences < (bin + bin_width)).bool()
         num_pix_in_bin = torch.sum(in_bin)
 
         if num_pix_in_bin > 0:
@@ -59,51 +62,37 @@ def ECE(
 
     # Calculate ece as the weighted average, if there are any pixels in the bin.
     if reduce == "mean":
-        if np.sum(bin_amounts) == 0:
-            return 0
-        else:
-            props_per_bin = bin_amounts / np.sum(bin_amounts)
-            return np.average(ece_per_bin, weights=props_per_bin)
+        return reduce_scores(ece_per_bin, bin_amounts, bin_weighting)
     else:
-        return ece_per_bin, accuracy_per_bin, bin_amounts
+        return ece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
 
 # Measure per bin.
+@validate_arguments_init
 def ESE(
-    bins,
-    pred=None, 
-    label=None,
-    confidences=None,
-    accuracies=None,
-    bin_weighting='proportional',
-    conf_group="mean",
-    reduce=None,
+    bins: np.ndarray,
+    pred: torch.Tensor=None, 
+    label: torch.Tensor=None,
+    bin_weighting: str='proportional',
+    from_logits: bool=False,
+    reduce: str=None,
     ):
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
-
-    Args:
-        confidence_map: torch tensor of confidences outputted by the model (B x H x W)
-        label_map: binary torch tensor of labels (B x H x W)
-        measure: function that takes in two torch tensors and returns a float
-        num_bins (int): number of confidence interval bins
-        conf_group (str): how to group the confidences in each bin. Options: "mean"
-        reduce Optional(str): whether to reduce the measure over the bins
-
-    Returns:
-        float: Bins Per Confidence
     """
+    if from_logits:
+        pred = torch.sigmoid(pred)
 
     # Get the confidence bins
     bin_width = bins[1] - bins[0]
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {bin: np.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
+    confidence_regions = {bin: torch.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
 
     # Iterate through the bins, and get the measure for each bin.
-    accuracy_per_bin = np.zeros_like(bins)
-    ese_per_bin = np.zeros_like(bins)
-    bin_amounts = np.zeros_like(bins)
+    accuracy_per_bin = torch.zeros(len(bins))
+    ese_per_bin = torch.zeros(len(bins))
+    bin_amounts = torch.zeros(len(bins))
 
     for b_idx, bin in enumerate(bins):
         label_region = label[confidence_regions[bin]][None, None, ...]
@@ -116,28 +105,16 @@ def ESE(
         else:
             simulated_ground_truth = torch.ones_like(label_region)
             bin_score = pixel_accuracy(simulated_ground_truth, label_region)
-
-            # Need a way of aggregating the confidences in each bin. 
-            if conf_group == "mean":
-                bin_confidence = torch.mean(pred[confidence_regions[bin]]).item()
-            else:
-                raise NotImplementedError("Haven't implemented other confidence groups yet.")
+            bin_confidence = torch.mean(pred[confidence_regions[bin]]).item()
 
             # Calculate the calibration error for the pixels in the bin.
-            ese_per_bin[b_idx] = np.abs(bin_score - bin_confidence)
+            ese_per_bin[b_idx] = (bin_score - bin_confidence).abs()
             accuracy_per_bin[b_idx] = bin_score
-
+    
     if reduce == "mean":
-        if bin_weighting == 'proportional':
-            bin_weights = bin_amounts / np.sum(bin_amounts)
-        elif bin_weighting == 'uniform':
-            bin_weights = np.ones_like(bin_amounts) / len(bin_amounts)
-        else:
-            raise ValueError("Non-valid bin weighting scheme.")
-
-        return np.average(ese_per_bin, weights=bin_weights)
+        return reduce_scores(ese_per_bin, bin_amounts, bin_weighting)
     else:
-        return ese_per_bin, accuracy_per_bin, bin_amounts 
+        return ese_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
 
 
