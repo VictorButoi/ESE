@@ -13,13 +13,13 @@ from .utils import reduce_scores
 @validate_arguments_init
 def ECE(
     bins: np.ndarray,
-    pred: torch.Tensor=None, 
-    label: torch.Tensor=None,
-    confidences: torch.Tensor=None,
-    accuracies: torch.Tensor=None,
-    bin_weighting: str='proportional',
-    from_logits: bool=False,
-    reduce: str=None,
+    pred: torch.Tensor = None, 
+    label: torch.Tensor = None,
+    confidences: torch.Tensor = None,
+    accuracies: torch.Tensor = None,
+    bin_weighting: str = 'proportional',
+    from_logits: bool = False,
+    reduce: str = None,
 ):
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -71,11 +71,11 @@ def ECE(
 @validate_arguments_init
 def ESE(
     bins: np.ndarray,
-    pred: torch.Tensor=None, 
-    label: torch.Tensor=None,
-    bin_weighting: str='proportional',
-    from_logits: bool=False,
-    reduce: str=None,
+    pred: torch.Tensor = None, 
+    label: torch.Tensor = None,
+    bin_weighting: str = 'proportional',
+    from_logits: bool = False,
+    reduce: str = None,
     ):
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.

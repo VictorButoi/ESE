@@ -1,10 +1,12 @@
+#i
 import numpy as np
 import ionpy
-import matplotlib.pyplot as plt
+
+# ionpy imports
+from ionpy.util.validation import validate_arguments_init
 
 # ese imports
 from ese.experiment.metrics import ECE, ESE
-import ese.experiment.analysis.vis as vis
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -12,19 +14,19 @@ metric_dict = {
         "accuracy": ionpy.metrics.pixel_accuracy
     }
 
-
+@validate_arguments_init
 def plot_reliability_diagram(
-    bins,
-    subj=None,
-    metric=None,
-    bin_accs=None,
-    bin_amounts=None,
-    title="",
-    remove_empty_bins=False,
-    bin_weighting="proportional",
-    bin_color='blue',
-    ax=None
-):
+    bins: np.ndarray,
+    subj: dict = None,
+    metric: str = None,
+    bin_accs: np.ndarray = None,
+    bin_amounts: np.ndarray = None,
+    title: str = "",
+    remove_empty_bins: bool = False,
+    bin_weighting: str = "proportional",
+    bin_color: str = 'blue',
+    ax = None
+) -> None:
 
     if bin_accs is None:
         if metric == "ESE":

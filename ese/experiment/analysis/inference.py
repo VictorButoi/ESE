@@ -11,18 +11,22 @@ from torch.utils.data import DataLoader
 # local imports
 from ese.experiment.metrics import ECE, ESE
 from ese.experiment.metrics.utils import reduce_scores
+from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 # ionpy imports
 from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.util.torchutils import to_device
+from ionpy.util.validation import validate_arguments_init
 from ionpy.experiment.util import absolute_import
 
 
+@validate_arguments_init
 def get_dice_breakdown(
-        exp,
-        dataset_cfg_list,
-        num_bins=10
-):
+        exp: CalibrationExperiment,
+        dataset_cfg_list: list,
+        num_bins: int = 10
+) -> None:
+
     items = []
     for dataset_cfg in dataset_cfg_list:
 
@@ -101,4 +105,4 @@ def get_dice_breakdown(
         
     # Save the items in a parquet file
     df = pd.DataFrame(items)
-    df.to_parquet('/storage/vbutoi/scratch/ESE/records/inference_stats.parquet', index=False)
+    df.to_pickle('/storage/vbutoi/scratch/ESE/records/inference_stats.pkl')
