@@ -49,7 +49,7 @@ def get_dice_breakdown(
                 # data_dict[entry_name] = {}
 
                 # Go through each slice and predict the metrics.
-                for slice_idx in range(x.shape[0]):
+                for slice_idx in range(x_vol.shape[0]):
 
                     # Extract the slices from the volumes.
                     x = x_vol[slice_idx, ...][None]
@@ -60,48 +60,45 @@ def get_dice_breakdown(
                     y_pred = torch.sigmoid(yhat)
 
                     # Calculate the scores we want to compare against.
-                    dice = dice_score(y_pred, y).cpu().numpy(),
-                    acc = pixel_accuracy(y_pred, y).cpu().numpy(),
-
-                    # Get the ECE information
-                    ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1] # Off by one error
-                    ece_per_bin, _, ece_bin_counts = ECE(
-                        bins=ece_bins,
-                        pred=y_pred, 
-                        label=y) 
-                    uECE = reduce_scores(ece_per_bin, ece_bin_counts, weighting='uniform')
-                    wECE = reduce_scores(ece_per_bin, ece_bin_counts, weighting='proportional')
-
-                    # Get the ESE information
-                    ese_bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-                    ese_per_bin, _, ese_bin_counts = ESE(
-                        bins=ese_bins,
-                        pred=y_pred, 
-                        label=y)
-                    uESE = reduce_scores(ese_per_bin, ese_bin_counts, weighting='uniform')
-                    wESE = reduce_scores(ese_per_bin, ese_bin_counts, weighting='proportional')
+                    dice = dice_score(y_pred, y).cpu().numpy().item()
+                    acc = pixel_accuracy(y_pred, y).cpu().numpy().item()
 
                     # Other statistics we might care about.
-                    lab_amount = y.sum().cpu().numpy(),
+                    lab_amount = y.sum().cpu().numpy().item()
 
-                    # Wrap it in an item
-                    items.append({
-                        "subj_idx": subj_idx,
-                        "slice": slice,
-                        "label_amount": lab_amount, 
-                        "ESE_bins": tuple(ese_per_bin),
-                        "ESE_bin_counts": tuple(ese_bin_counts),
-                        "wESE": wESE,
-                        "uESE": uESE,
-                        "ECE_bins": tuple(ece_per_bin),
-                        "ECE_bin_counts": tuple(ece_bin_counts),
-                        "wECE": wECE,
-                        "uECE": uECE,
-                        "Acc": acc,
-                        "Dice": dice,
-                        "task": dataset_dict["task"],
-                        "split": dataset_dict["split"]
-                    })
+                    for metric in ["ECE", "ESE"]:
+                        for weighting in ["uniform", "proportional"]:
+                            if metric == "ECE":
+                                ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1]
+                                metric_per_bin, _, bin_counts = ECE(
+                                    bins=ece_bins,
+                                    pred=y_pred, 
+                                    label=y) 
+                            else:
+                                ese_bins = np.linspace(0, 1, num_bins+1)[:-1]
+                                metric_per_bin, _, bin_counts = ESE(
+                                    bins=ese_bins,
+                                    pred=y_pred, 
+                                    label=y)
+                            
+                            # Calculate the metric score.
+                            metric_score = reduce_scores(metric_per_bin, bin_counts, weighting=weighting)
+
+                            # Wrap it in an item
+                            items.append({
+                                "subj_idx": subj_idx,
+                                "slice": slice_idx,
+                                "label_amount": lab_amount, 
+                                "metric": metric,
+                                "metric_weighting": weighting,
+                                "metric_score": metric_score,
+                                "metric_bins": tuple(metric_per_bin),
+                                "bin_counts": tuple(bin_counts),
+                                "Acc": acc,
+                                "Dice": dice,
+                                "task": dataset_dict["task"],
+                                "split": dataset_dict["split"]
+                            })
         
     # Save the items in a parquet file
     df = pd.DataFrame(items)

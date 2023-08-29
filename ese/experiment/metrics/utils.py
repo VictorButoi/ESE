@@ -13,7 +13,7 @@ def reduce_scores(
         ) -> float:
 
     if np.sum(bin_amounts) == 0:
-        return 0
+        return 0.0
     elif weighting== 'proportional':
         bin_weights = bin_amounts / np.sum(bin_amounts)
     elif weighting== 'uniform':
@@ -21,5 +21,6 @@ def reduce_scores(
     else:
         raise ValueError("Invalid bin weighting.")
 
-    return np.average(scores, weights=bin_weights)
+    return np.average(scores, weights=bin_weights).item()
+
 
