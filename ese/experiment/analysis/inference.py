@@ -58,13 +58,17 @@ def get_dice_breakdown(
                     # Get the prediction
                     yhat = exp.model(x) 
                     y_pred = torch.sigmoid(yhat)
+                    hard_pred = (y_pred >= 0.5).float()
 
                     # Calculate the scores we want to compare against.
+                    lab_amount = y.sum().cpu().numpy().item()
+                    lab_predicted = hard_pred.sum().cpu().numpy().item()
                     dice = dice_score(y_pred, y).cpu().numpy().item()
                     acc = pixel_accuracy(y_pred, y).cpu().numpy().item()
 
-                    # Other statistics we might care about.
-                    lab_amount = y.sum().cpu().numpy().item()
+                    # print("label-predicted:", lab_predicted, "label-amount:", lab_amount, "dice:", dice, "acc:", acc)
+                    # if lab_amount == 0.0:
+                    #     assert dice == acc, "When no label, these should be the same. Got: dice {} and acc {}".format(dice, acc)
 
                     for metric in ["ECE", "ESE"]:
                         for weighting in ["uniform", "proportional"]:
@@ -88,6 +92,7 @@ def get_dice_breakdown(
                             items.append({
                                 "subj_idx": subj_idx,
                                 "slice": slice_idx,
+                                "label_predicted": lab_predicted,
                                 "label_amount": lab_amount, 
                                 "metric": metric,
                                 "metric_weighting": weighting,
