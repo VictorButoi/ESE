@@ -17,6 +17,7 @@ def subject_plot(
     subject_dict, 
     num_bins,
     bin_weighting="both",
+    show_bin_amounts=False
     ):
     
     # Calculate the bins and spacing
@@ -24,32 +25,36 @@ def subject_plot(
     ese_bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     # if you want to see the subjects and predictions
-    num_cols = 7 
     plt.rcParams.update({'font.size': 12})  
         
     for subj_idx, subj in enumerate(subject_dict):
 
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
-            nrows=1,
-            ncols=num_cols,
-            figsize=(6 * num_cols, 6)
+            nrows=2,
+            ncols=4,
+            figsize=(24, 12)
         )
 
-        im = axarr[0].imshow(subj["image"], cmap="gray")
-        axarr[0].axis("off")
-        axarr[0].set_title(f"#{subj_idx + 1}, Image")
-        f.colorbar(im, ax=axarr[0])
+        im = axarr[0, 0].imshow(subj["image"], cmap="gray")
+        axarr[0, 0].axis("off")
+        axarr[0, 0].set_title(f"#{subj_idx + 1}, Image")
+        f.colorbar(im, ax=axarr[0,0])
 
-        lab = axarr[1].imshow(subj["label"], cmap="gray")
-        axarr[1].axis("off")
-        axarr[1].set_title(f"#{subj_idx + 1}, Ground Truth")
-        f.colorbar(lab, ax=axarr[1])
+        lab = axarr[0, 1].imshow(subj["label"], cmap="gray")
+        axarr[0, 1].axis("off")
+        axarr[0, 1].set_title(f"#{subj_idx + 1}, Ground Truth")
+        f.colorbar(lab, ax=axarr[0,1])
 
-        pre = axarr[2].imshow(subj["soft_pred"], cmap="gray")
-        axarr[2].axis("off")
-        axarr[2].set_title(f"#{subj_idx + 1}, Prediction, Dice: {subj['dice_score']:.3f}")
-        f.colorbar(pre, ax=axarr[2])
+        post = axarr[0, 2].imshow(subj["hard_pred"], cmap="gray")
+        axarr[0, 2].axis("off")
+        axarr[0, 2].set_title(f"#{subj_idx + 1}, Hard Pred, Dice: {subj['dice_score']:.3f}")
+        f.colorbar(post, ax=axarr[0, 2])
+
+        pre = axarr[0, 3].imshow(subj["soft_pred"], cmap="plasma")
+        axarr[0, 3].axis("off")
+        axarr[0, 3].set_title(f"#{subj_idx + 1}, Probabilities")
+        f.colorbar(pre, ax=axarr[0, 3])
 
         # Show different kinds of statistics about your subjects.
         plot_reliability_diagram(
@@ -58,7 +63,8 @@ def subject_plot(
             metric="ECE",
             remove_empty_bins=True,
             bin_color="blue",
-            ax=axarr[3]
+            show_bin_amounts=show_bin_amounts,
+            ax=axarr[1, 0]
         )
 
         # Show different kinds of statistics about your subjects.
@@ -69,29 +75,30 @@ def subject_plot(
             remove_empty_bins=True,
             bin_weighting=bin_weighting,
             bin_color="green",
-            ax=axarr[4]
+            show_bin_amounts=show_bin_amounts,
+            ax=axarr[1, 1]
         )
 
         # Look at the pixelwise error.
-        ce_im = axarr[5].imshow(
+        ce_im = axarr[1, 2].imshow(
             vis.pixelwise_unc_map(
                 subj
             ), cmap="plasma"
         )
-        axarr[5].axis("off")
-        axarr[5].set_title("Pixel-wise Calibration Error")
-        f.colorbar(ce_im, ax=axarr[5])
+        axarr[1, 2].axis("off")
+        axarr[1, 2].set_title("Pixel-wise Calibration Error")
+        f.colorbar(ce_im, ax=axarr[1, 2])
         
         # Look at the regionwise error.
-        ese_im = axarr[6].imshow(
+        ese_im = axarr[1,3].imshow(
             vis.ese_unc_map(
                 subj,
                 ese_bins,
             ), cmap="plasma"
         )
-        axarr[6].axis("off")
-        axarr[6].set_title("Region-wise Calibration Error")
-        f.colorbar(ese_im, ax=axarr[6])
+        axarr[1, 3].axis("off")
+        axarr[1, 3].set_title("Region-wise Calibration Error")
+        f.colorbar(ese_im, ax=axarr[1, 3])
 
         plt.show()
 

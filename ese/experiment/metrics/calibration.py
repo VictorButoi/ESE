@@ -62,7 +62,7 @@ def ECE(
 
     # Calculate ece as the weighted average, if there are any pixels in the bin.
     if reduce == "mean":
-        return reduce_scores(ece_per_bin, bin_amounts, bin_weighting)
+        return reduce_scores(ece_per_bin.cpu().numpy(), bin_amounts.cpu().numpy(), bin_weighting)
     else:
         return ece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
@@ -112,7 +112,7 @@ def ESE(
             accuracy_per_bin[b_idx] = bin_score
     
     if reduce == "mean":
-        return reduce_scores(ese_per_bin, bin_amounts, bin_weighting)
+        return reduce_scores(ese_per_bin.cpu().numpy(), bin_amounts.cpu().numpy(), bin_weighting)
     else:
         return ese_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 

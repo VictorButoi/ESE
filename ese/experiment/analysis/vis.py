@@ -1,9 +1,10 @@
 import torch 
+import numpy as np
 import matplotlib.pyplot as plt
 from ese.experiment.metrics import ESE
 
 def pixelwise_unc_map(subj):
-    calibration_image = torch.zeros_like(subj['label']).float()
+    calibration_image = np.zeros_like(subj['label'])
     foreground_accuracy = (subj['label'] == subj['hard_pred']).float()
     fore_regions = (subj['label'] == 1).bool()
     # Set the regions of the image corresponding to groundtruth label.
@@ -20,7 +21,7 @@ def ese_unc_map(subj, bins):
     ) 
 
     pred = subj['soft_pred']
-    calibration_image = torch.zeros_like(pred).float()
+    calibration_image = np.zeros_like(pred)
 
     # Make sure bins are aligned.
     bin_width = bins[1] - bins[0]

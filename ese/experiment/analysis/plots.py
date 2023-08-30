@@ -25,6 +25,8 @@ def plot_reliability_diagram(
     remove_empty_bins: bool = False,
     bin_weighting: str = "proportional",
     bin_color: str = 'blue',
+    show_bin_amounts: bool = False,
+    show_diagonal: bool = True,
     ax = None
 ) -> None:
 
@@ -85,10 +87,17 @@ def plot_reliability_diagram(
 
     # Ideal boxs
     ax.bar(graph_bins, graph_bins, width=interval_size, color='red', alpha=0.2)
-    ax.bar(graph_bins, graph_bar_heights, width=interval_size, color=bin_color, alpha=0.5)
+    bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, color=bin_color, alpha=0.5)
+
+    # Display above the bars how many pixels are in the bar
+    if show_bin_amounts:
+        for b_idx, bar in enumerate(bars):
+            yval = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.01, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
 
     # Plot diagonal line
-    ax.plot([0, 1], [0, 1], linestyle='dotted', linewidth=3, color='gray')
+    if show_diagonal:
+        ax.plot([0, 1], [0, 1], linestyle='dotted', linewidth=3, color='gray', alpha=0.5)
 
     # Set title and axis labels
     ax.set_title(title)
