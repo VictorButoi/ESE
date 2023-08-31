@@ -93,7 +93,7 @@ def plot_reliability_diagram(
     if show_bin_amounts:
         for b_idx, bar in enumerate(bars):
             yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.01, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
+            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.02, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
 
     # Plot diagonal line
     if show_diagonal:
@@ -101,7 +101,7 @@ def plot_reliability_diagram(
 
     # Set title and axis labels
     ax.set_title(title)
-    ax.set_ylabel("Accuracy")
+    ax.set_ylabel("Precision")
     ax.set_xlabel("Confidence")
 
     # Set x and y limits

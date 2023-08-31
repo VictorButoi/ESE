@@ -15,6 +15,7 @@ from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 # ionpy imports
 from ionpy.metrics import dice_score, pixel_accuracy
+from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.util.torchutils import to_device
 from ionpy.util.validation import validate_arguments_init
 from ionpy.experiment.util import absolute_import
@@ -65,10 +66,7 @@ def get_dice_breakdown(
                     lab_predicted = hard_pred.sum().cpu().numpy().item()
                     dice = dice_score(y_pred, y).cpu().numpy().item()
                     acc = pixel_accuracy(y_pred, y).cpu().numpy().item()
-
-                    # print("label-predicted:", lab_predicted, "label-amount:", lab_amount, "dice:", dice, "acc:", acc)
-                    # if lab_amount == 0.0:
-                    #     assert dice == acc, "When no label, these should be the same. Got: dice {} and acc {}".format(dice, acc)
+                    balanced_acc = balanced_pixel_accuracy(y_pred, y).cpu().numpy().item()
 
                     for metric in ["ECE", "ESE"]:
                         for weighting in ["uniform", "proportional"]:
@@ -100,6 +98,7 @@ def get_dice_breakdown(
                                 "metric_bins": tuple(metric_per_bin),
                                 "bin_counts": tuple(bin_counts),
                                 "Acc": acc,
+                                "Balanced_Acc": balanced_acc,
                                 "Dice": dice,
                                 "task": dataset_dict["task"],
                                 "split": dataset_dict["split"]
