@@ -1,13 +1,12 @@
 # misc imports
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 # ionpy imports
-from ionpy.metrics import dice_score, pixel_accuracy
+from ionpy.metrics import pixel_accuracy
 from ionpy.util.validation import validate_arguments_init
-
-#local imports
-from .utils import reduce_scores
+from ionpy.util.islands import get_connected_components
 
 
 @validate_arguments_init
@@ -17,9 +16,7 @@ def ECE(
     label: torch.Tensor = None,
     confidences: torch.Tensor = None,
     accuracies: torch.Tensor = None,
-    bin_weighting: str = 'proportional',
-    from_logits: bool = False,
-    reduce: str = None,
+    from_logits: bool = False
 ):
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -60,11 +57,7 @@ def ECE(
             accuracy_per_bin[bin_idx] = accuracy_in_bin
             bin_amounts[bin_idx] = num_pix_in_bin 
 
-    # Calculate ece as the weighted average, if there are any pixels in the bin.
-    if reduce == "mean":
-        return reduce_scores(ece_per_bin.cpu().numpy(), bin_amounts.cpu().numpy(), bin_weighting)
-    else:
-        return ece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
+    return ece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
 
 # Measure per bin.
@@ -73,9 +66,7 @@ def ESE(
     bins: np.ndarray,
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
-    bin_weighting: str = 'proportional',
-    from_logits: bool = False,
-    reduce: str = None,
+    from_logits: bool = False
     ):
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
@@ -111,10 +102,75 @@ def ESE(
             ese_per_bin[b_idx] = (bin_score - bin_confidence).abs()
             accuracy_per_bin[b_idx] = bin_score
     
-    if reduce == "mean":
-        return reduce_scores(ese_per_bin.cpu().numpy(), bin_amounts.cpu().numpy(), bin_weighting)
-    else:
-        return ese_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
+    return ese_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
 
+# Measure per bin.
+@validate_arguments_init
+def ReCE(
+    bins: np.ndarray,
+    pred: torch.Tensor = None, 
+    label: torch.Tensor = None,
+    from_logits: bool = False
+    ):
+    """
+    Calculates the ReCE: Region-wise Calibration Error
+    """
+    if from_logits:
+        pred = torch.sigmoid(pred)
 
+    # Get the confidence bins
+    bin_width = bins[1] - bins[0]
+
+    # Get the regions of the prediction corresponding to each bin of confidence.
+    confidence_regions = {bin: torch.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
+
+    # Iterate through the bins, and get the measure for each bin.
+    accuracy_per_bin = torch.zeros(len(bins))
+    rece_per_bin = torch.zeros(len(bins))
+    bin_amounts = torch.zeros(len(bins))
+
+    # Go through each bin, starting at the back so that we don't have to run connected components
+    # for the very first bin (will be by far the largest).
+    reversed_bins = bins[::-1]
+    visited_regions = torch.zeros_like(pred).bool()
+    for rev_b_idx, bin in enumerate(reversed_bins):
+        
+        # Get the actual bin index
+        b_idx = len(bins) - rev_b_idx - 1
+
+        # Get the binary map of a particular conidence region.
+        conf_region = confidence_regions[bin].int()
+
+        if torch.sum(conf_region) == 0: # If there are no pixels, there are no regions
+            accuracy_per_bin[b_idx] = 0
+            rece_per_bin[b_idx] = 0
+            bin_amounts[b_idx] = 0
+        else:
+            print("BIN: ", bin)
+            print("Entire Regions")
+            plt.imshow(conf_region, cmap='plasma')
+            plt.grid('off')
+            plt.axis('off')
+            plt.show()
+            print("Visited Region")
+            plt.imshow(visited_regions, cmap='plasma')
+            plt.grid('off')
+            plt.axis('off')
+            plt.show()
+            # If we are not the last bin, get the connected components and add it to the visited regions.
+            if b_idx > 0:
+                visited_regions[confidence_regions[bin]] = True
+                conf_islands = get_connected_components(conf_region)
+                print("Islands:")
+                for isl in conf_islands:
+                    plt.imshow(isl, cmap='plasma')
+                    plt.grid('off')
+                    plt.axis('off')
+                    plt.show()
+                print("-----")
+            else:
+                conf_islands = [conf_region]
+
+    return rece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
+    

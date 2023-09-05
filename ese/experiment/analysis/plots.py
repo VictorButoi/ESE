@@ -1,77 +1,68 @@
-#i
+# misc imports
 import numpy as np
-import ionpy
+from typing import List
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
 
 # ese imports
-from ese.experiment.metrics import ECE, ESE
+from ese.experiment.metrics import ECE, ESE, ReCE
+from ese.experiment.metrics.utils import reduce_scores
 
 # Globally used for which metrics to plot for.
 metric_dict = {
-        "dice": ionpy.metrics.dice_score,
-        "accuracy": ionpy.metrics.pixel_accuracy
+        "ECE": ECE,
+        "ESE": ESE,
+        "ReCE": ReCE
     }
+
+def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
+    title_parts = []
+    for weighting in bin_weightings:
+        met_score = reduce_scores(bin_scores, bin_amounts, weighting)
+        title_parts.append(f"{weighting[0]}{metric}: {met_score:.5f}")
+    title += ", ".join(title_parts) + "\n"
+    return title
 
 @validate_arguments_init
 def plot_reliability_diagram(
     bins: np.ndarray,
     subj: dict = None,
-    metric: str = None,
-    bin_accs: np.ndarray = None,
-    bin_amounts: np.ndarray = None,
+    metrics: List[str] = None,
+    bin_info: str = None,
     title: str = "",
     remove_empty_bins: bool = False,
-    bin_weighting: str = "proportional",
+    bin_weightings: List[str] = ["uniform", "weighted"],
     bin_color: str = 'blue',
     show_bin_amounts: bool = False,
     show_diagonal: bool = True,
     ax = None
 ) -> None:
 
-    if bin_accs is None:
-        if metric == "ESE":
-            # This returns a numpy array with the measure per confidence interval
-            _, bin_accs, bin_amounts = ESE(
+    if bin_info is None:
+        for met in metrics:
+            bin_scores, bin_accs, bin_amounts = metric_dict[met](
                 bins=bins,
                 pred=subj["soft_pred"],
                 label=subj["label"],
             )
-            bin_props = bin_amounts / np.sum(bin_amounts)
-
-            if bin_weighting == "proportional":
-                w_ese_score = np.average(bin_accs, weights=bin_props)
-                title += f"wESE: {w_ese_score:.5f}"
-
-            elif bin_weighting == "uniform":
-                uniform_weights = np.ones(len(bin_accs)) / len(bin_accs)
-                u_ese_score = np.average(bin_accs, weights=uniform_weights)
-
-                title += f"uESE: {u_ese_score:.5f}"
-
-            elif bin_weighting == "both":
-                w_ese_score = np.average(bin_accs, weights=bin_props)
-
-                uniform_weights = np.ones(len(bin_accs)) / len(bin_accs)
-                u_ese_score = np.average(bin_accs, weights=uniform_weights)
-
-                title += f"wESE: {w_ese_score:.5f}, uESE: {u_ese_score:.5f}"
-
-        elif metric == "ECE":
-            # This returns a numpy array with the measure per confidence interval
-            _, bin_accs, bin_amounts = ECE(
-                bins=bins,
-                pred=subj["soft_pred"],
-                label=subj["label"],
+            title = build_title(
+                title,
+                met,
+                bin_scores,
+                bin_amounts,
+                bin_weightings
             )
-            if np.sum(bin_amounts) == 0:
-                ece_score = 0 
-            else:
-                bin_props = bin_amounts / np.sum(bin_amounts)
-                ece_score = np.average(bin_accs, weights=bin_props)
-
-            title += f"ECE: {ece_score:.5f}"
+    else:
+        bin_scores, bin_accs, bin_amounts = bin_info
+        for met in metrics:
+            title = build_title(
+                title,
+                met,
+                bin_scores,
+                bin_amounts,
+                bin_weightings
+            )
 
     # Get rid of the empty bins.
     interval_size = bins[1] - bins[0]
@@ -98,6 +89,9 @@ def plot_reliability_diagram(
     # Plot diagonal line
     if show_diagonal:
         ax.plot([0, 1], [0, 1], linestyle='dotted', linewidth=3, color='gray', alpha=0.5)
+
+    # Make sure ax is on
+    ax.axis("on")
 
     # Set title and axis labels
     ax.set_title(title)
