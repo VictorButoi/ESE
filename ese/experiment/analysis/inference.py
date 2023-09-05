@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 
 # local imports
-from ese.experiment.metrics import ECE, ESE
+from ese.experiment.metrics import ECE, ESE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
@@ -40,18 +40,17 @@ def get_dice_breakdown(
         dataloader = DataLoader(DatasetObj, batch_size=1, shuffle=False, drop_last=False)
 
         with torch.no_grad():
-            for subj_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
+            for subj_idx, batch in tqdm(enumerate(dataloader), desc="Subject Loop", total=len(dataloader)):
                 # Get your image label pair and define some regions.
                 x, y = to_device(batch, exp.device)
 
                 # Reshape so that we will like the shape.
                 x_vol = einops.rearrange(x, "b c h w -> (b c) 1 h w")
                 y_vol = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-                # data_dict[entry_name] = {}
 
                 # Go through each slice and predict the metrics.
-                for slice_idx in range(x_vol.shape[0]):
-
+                for slice_idx in tqdm(range(x_vol.shape[0]), desc="Slice loop", position=1, leave=False):
+                    
                     # Extract the slices from the volumes.
                     x = x_vol[slice_idx, ...][None]
                     y = y_vol[slice_idx, ...][None]
@@ -64,22 +63,34 @@ def get_dice_breakdown(
                     # Calculate the scores we want to compare against.
                     lab_amount = y.sum().cpu().numpy().item()
                     lab_predicted = hard_pred.sum().cpu().numpy().item()
+                    
+                    # Get some metrics of these predictions
                     dice = dice_score(y_pred, y).cpu().numpy().item()
                     acc = pixel_accuracy(y_pred, y).cpu().numpy().item()
                     balanced_acc = balanced_pixel_accuracy(y_pred, y).cpu().numpy().item()
+                    
+                    # Squeeze the tensors
+                    y_pred = y_pred.squeeze()
+                    y = y.squeeze()
 
-                    for metric in ["ECE", "ESE"]:
-                        for weighting in ["uniform", "proportional"]:
+                    for metric in ["ECE", "ESE", "ReCE"]:
+                        for weighting in ["uniform", "weighted"]:
                             if metric == "ECE":
                                 ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1]
                                 metric_per_bin, _, bin_counts = ECE(
                                     bins=ece_bins,
                                     pred=y_pred, 
                                     label=y) 
-                            else:
+                            elif metric == "ESE":
                                 ese_bins = np.linspace(0, 1, num_bins+1)[:-1]
                                 metric_per_bin, _, bin_counts = ESE(
                                     bins=ese_bins,
+                                    pred=y_pred, 
+                                    label=y)
+                            else:
+                                rece_bins = np.linspace(0, 1, num_bins+1)[:-1]
+                                metric_per_bin, _, bin_counts = ReCE(
+                                    bins=rece_bins,
                                     pred=y_pred, 
                                     label=y)
                             
@@ -97,9 +108,9 @@ def get_dice_breakdown(
                                 "metric_score": metric_score,
                                 "metric_bins": tuple(metric_per_bin),
                                 "bin_counts": tuple(bin_counts),
-                                "Acc": acc,
-                                "Balanced_Acc": balanced_acc,
-                                "Dice": dice,
+                                "accuracy": acc,
+                                "weighted_accuracy": balanced_acc,
+                                "dice": dice,
                                 "task": dataset_dict["task"],
                                 "split": dataset_dict["split"]
                             })

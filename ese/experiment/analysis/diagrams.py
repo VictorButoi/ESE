@@ -23,7 +23,6 @@ def subject_plot(
     ) -> None:
     
     # Calculate the bins and spacing
-    ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1] # Off by one error
     bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     # if you want to see the subjects and predictions
@@ -42,29 +41,31 @@ def subject_plot(
         for ax in axarr.flatten():
             ax.axis("off")
 
+        # Define subject name
+        subj_name = f"Subject #{subj_idx + 1}"
         # Show the image
         im = axarr[0, 0].imshow(subj["image"], cmap="gray")
-        axarr[0, 0].set_title(f"#{subj_idx + 1}, Image")
+        axarr[0, 0].set_title(f"{subj_name}, Image")
         f.colorbar(im, ax=axarr[0,0])
 
         # Show the groundtruth label
         lab = axarr[0, 1].imshow(subj["label"], cmap="gray")
-        axarr[0, 1].set_title(f"#{subj_idx + 1}, Ground Truth")
+        axarr[0, 1].set_title(f"{subj_name}, Ground Truth")
         f.colorbar(lab, ax=axarr[0,1])
 
         # Show the thresholded prediction
         post = axarr[0, 2].imshow(subj["hard_pred"], cmap="gray")
-        axarr[0, 2].set_title(f"#{subj_idx + 1}, Hard Pred, Dice: {subj['dice_score']:.3f}")
+        axarr[0, 2].set_title(f"{subj_name}, Hard Pred, Dice: {subj['dice_score']:.3f}")
         f.colorbar(post, ax=axarr[0, 2])
 
         # Show the confidence map (which we interpret as probabilities)
         pre = axarr[0, 3].imshow(subj["soft_pred"], cmap="plasma")
-        axarr[0, 3].set_title(f"#{subj_idx + 1}, Probabilities")
+        axarr[0, 3].set_title(f"{subj_name}, Probabilities")
         f.colorbar(pre, ax=axarr[0, 3])
 
         # Show different kinds of statistics about your subjects.
         plot_reliability_diagram(
-            bins=ece_bins,
+            bins=bins,
             subj=subj,
             metrics=["ECE", "ESE", "ReCE"],
             remove_empty_bins=True,

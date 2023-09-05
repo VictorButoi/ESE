@@ -21,6 +21,8 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
     if from_logits:
         pred = torch.sigmoid(pred)
 
@@ -71,6 +73,8 @@ def ESE(
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
     """
+    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
     if from_logits:
         pred = torch.sigmoid(pred)
 
@@ -116,6 +120,8 @@ def ReCE(
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
+    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
     if from_logits:
         pred = torch.sigmoid(pred)
 
@@ -130,10 +136,11 @@ def ReCE(
     rece_per_bin = torch.zeros(len(bins))
     bin_amounts = torch.zeros(len(bins))
 
-    # Go through each bin, starting at the back so that we don't have to run connected components
-    # for the very first bin (will be by far the largest).
+    # Setup a visited regions to speed up connected components and reverse bins to avoid running connected components on the 0 bin.
     reversed_bins = bins[::-1]
     visited_regions = torch.zeros_like(pred).bool()
+
+    # Go through each bin, starting at the back so that we don't have to run connected components
     for rev_b_idx, bin in enumerate(reversed_bins):
         
         # Get the actual bin index
@@ -149,8 +156,11 @@ def ReCE(
         else:
             # If we are not the last bin, get the connected components and add it to the visited regions.
             if b_idx > 0:
+                conf_islands = get_connected_components(
+                    array=conf_region, 
+                    visited=visited_regions
+                    )
                 visited_regions[confidence_regions[bin]] = True
-                conf_islands = get_connected_components(conf_region)
             else:
                 conf_islands = [conf_region.bool()]
             
