@@ -106,6 +106,7 @@ def aggregate_plot(
     color: str = "blue",
     bin_weighting: str = "both"
 ) -> None:
+    raise DeprecationWarning("This function is deprecated.")
     
     # Consturct the subplot (just a single one)
     _, axarr = plt.subplots(1, 1, figsize=(15, 10))
@@ -113,9 +114,11 @@ def aggregate_plot(
     # Calculate the bins and spacing
     bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
-    total_ese_info = [ESE(bins=bins,
-                    pred=subj["soft_pred"],
-                    label=subj["label"]) for subj in subject_dict]
+    total_ese_info = [ESE(
+        bins=bins,
+        pred=subj["soft_pred"],
+        label=subj["label"]
+    ) for subj in subject_dict]
     
     # Get the average score per bin and the amount of pixels that went into those.
     bin_scores = np.mean([ese[0] for ese in total_ese_info], axis=0)

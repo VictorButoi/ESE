@@ -1,7 +1,7 @@
 # misc imports
+from typing import Tuple
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 
 # ionpy imports
 from ionpy.metrics import pixel_accuracy
@@ -17,7 +17,7 @@ def ECE(
     confidences: torch.Tensor = None,
     accuracies: torch.Tensor = None,
     from_logits: bool = False
-):
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -67,7 +67,7 @@ def ESE(
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
     from_logits: bool = False
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
     """
@@ -112,7 +112,7 @@ def ReCE(
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
     from_logits: bool = False
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
@@ -147,30 +147,35 @@ def ReCE(
             rece_per_bin[b_idx] = 0
             bin_amounts[b_idx] = 0
         else:
-            print("BIN: ", bin)
-            print("Entire Regions")
-            plt.imshow(conf_region, cmap='plasma')
-            plt.grid('off')
-            plt.axis('off')
-            plt.show()
-            print("Visited Region")
-            plt.imshow(visited_regions, cmap='plasma')
-            plt.grid('off')
-            plt.axis('off')
-            plt.show()
             # If we are not the last bin, get the connected components and add it to the visited regions.
             if b_idx > 0:
                 visited_regions[confidence_regions[bin]] = True
                 conf_islands = get_connected_components(conf_region)
-                print("Islands:")
-                for isl in conf_islands:
-                    plt.imshow(isl, cmap='plasma')
-                    plt.grid('off')
-                    plt.axis('off')
-                    plt.show()
-                print("-----")
             else:
-                conf_islands = [conf_region]
+                conf_islands = [conf_region.bool()]
+            
+            # Iterate through each island, and get the measure for each island.
+            num_islands = len(conf_islands)
+            region_ece_scores = torch.zeros(num_islands)
+            region_acc_scores = torch.zeros(num_islands)
+
+            for isl_idx, island in enumerate(conf_islands):
+                # Get the label corresponding to the island and simulate ground truth.
+                label_region = label[island][None, None, ...]
+                simulated_ground_truth = torch.ones_like(label_region)
+                
+                # Calculate the accuracy and mean confidenc for the island..
+                region_acc = pixel_accuracy(simulated_ground_truth, label_region)
+                mean_region_confidence = torch.mean(pred[island]).item()
+
+                # Calculate the calibration error for the pixels in the bin.
+                region_ece_scores[isl_idx] = (region_acc - mean_region_confidence).abs()
+                region_acc_scores[isl_idx] = region_acc 
+            
+            # Calculate the average calibration error for the regions in the bin.
+            rece_per_bin[b_idx] = torch.mean(region_ece_scores)
+            accuracy_per_bin[b_idx] = torch.mean(region_acc_scores)
+            bin_amounts[b_idx] = num_islands # The number of islands is the number of regions.
 
     return rece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
     
