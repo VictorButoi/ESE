@@ -156,10 +156,7 @@ def ReCE(
         else:
             # If we are not the last bin, get the connected components and add it to the visited regions.
             if b_idx > 0:
-                conf_islands = get_connected_components(
-                    array=conf_region, 
-                    visited=visited_regions
-                    )
+                conf_islands = get_connected_components(conf_region)
                 visited_regions[confidence_regions[bin]] = True
             else:
                 conf_islands = [conf_region.bool()]
