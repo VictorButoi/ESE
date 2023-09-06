@@ -14,6 +14,7 @@ def ECE(
     conf_bins: torch.Tensor,
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
+    n_classes: int = 2,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -27,8 +28,11 @@ def ECE(
     # Get the confidence bin width
     bin_width = conf_bins[1] - conf_bins[0]
 
-    # Calculate |confidence - accuracy| in each bin
+    # Not great :/
+    lower_bound = 1 / n_classes
+    conf_bins = conf_bins[conf_bins >= lower_bound]
     num_bins = len(conf_bins)
+    
     accuracy_per_bin = torch.zeros(num_bins)
     ece_per_bin = torch.zeros(num_bins)
     bin_amounts = torch.zeros(num_bins)
@@ -43,19 +47,19 @@ def ECE(
         accuracies = acc_image.flatten()
 
     for bin_idx, c_bin in enumerate(conf_bins):
-        in_bin = torch.logical_and(confidences >= c_bin, confidences < (c_bin + bin_width)).bool()
-        num_pix_in_bin = torch.sum(in_bin)
 
-        if num_pix_in_bin > 0:
-            all_bin_accs = accuracies[in_bin]
+        bin_conf_region = torch.logical_and(confidences >= c_bin, confidences < (c_bin + bin_width)).bool()
 
-            accuracy_in_bin = torch.mean(all_bin_accs) if torch.sum(all_bin_accs) > 0 else 0
-            avg_confidence_in_bin = confidences[in_bin].mean()
+        if bin_conf_region.sum() > 0:
+            all_bin_accs = accuracies[bin_conf_region]
 
-            ece_per_bin[bin_idx] = (avg_confidence_in_bin - accuracy_in_bin).abs()
-            accuracy_per_bin[bin_idx] = accuracy_in_bin
-            bin_amounts[bin_idx] = num_pix_in_bin 
-        
+            avg_accuracy = all_bin_accs.mean()
+            avg_confidence = confidences[bin_conf_region].mean()
+
+            ece_per_bin[bin_idx] = (avg_accuracy - avg_confidence).abs()
+            accuracy_per_bin[bin_idx] = avg_accuracy 
+            bin_amounts[bin_idx] = bin_conf_region.sum() 
+    
     return ece_per_bin, accuracy_per_bin, bin_amounts
 
 
@@ -90,18 +94,21 @@ def ESE(
 
         # Get the region of image corresponding to the confidence
         bin_conf_region = confidence_regions[c_bin.item()]
-        
-        # Get the region of the label corresponding to this region.
-        label_region = label[bin_conf_region][None, None, ...]
 
         # If there are some pixels in this confidence bin.
-        if bin_conf_region.sum() != 0:
-            bin_score = pixel_accuracy(torch.ones_like(label_region), label_region)
-            bin_confidence = pred[bin_conf_region].mean()
+        if bin_conf_region.sum() > 0:
+
+            # Get the region of the label corresponding to this region.
+            label_region = label[bin_conf_region][None, None, ...]
+
+            # Calculate the accuracy and mean confidence for the island.
+            avg_accuracy = pixel_accuracy(torch.ones_like(label_region), label_region)
+            avg_confidence = pred[bin_conf_region].mean()
 
             # Calculate the calibration error for the pixels in the bin.
-            ese_per_bin[b_idx] = (bin_score - bin_confidence).abs()
-            accuracy_per_bin[b_idx] = bin_score
+            ese_per_bin[b_idx] = (avg_accuracy - avg_confidence).abs()
+            accuracy_per_bin[b_idx] = avg_accuracy 
+            bin_amounts[b_idx] = bin_conf_region.sum() 
     
     return ese_per_bin, accuracy_per_bin, bin_amounts
 

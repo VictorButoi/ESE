@@ -1,5 +1,8 @@
 import numpy as np
+import torch
 from ese.experiment.metrics import ESE, ReCE
+from ionpy.metrics.segmentation import pixel_accuracy
+from ionpy.util.islands import get_connected_components
 
 
 def ECE_map(subj):
@@ -12,9 +15,10 @@ def ECE_map(subj):
     return calibration_image
 
 
-def ESE_map(subj, bins):
+def ESE_map(subj, conf_bins):
+
     ese_bin_scores, _, _ = ESE(
-        conf_bins=bins,
+        conf_bins=conf_bins,
         pred=subj["soft_pred"],
         label=subj["label"],
     ) 
@@ -23,28 +27,34 @@ def ESE_map(subj, bins):
     calibration_image = np.zeros_like(pred)
 
     # Make sure bins are aligned.
-    bin_width = bins[1] - bins[0]
-    for b_idx, bin in enumerate(bins):
-        bin_mask = (pred >= bin) & (pred < (bin + bin_width))
-        calibration_image[bin_mask] = ese_bin_scores[b_idx] 
+    bin_width = conf_bins[1] - conf_bins[0]
+    for b_idx, c_bin in enumerate(conf_bins):
+        bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
+        calibration_image[bin_conf_region] = ese_bin_scores[b_idx] 
 
     return calibration_image
 
 
-def ReCE_map(subj, bins):
-    ese_bin_scores, _, _ = ReCE(
-        conf_bins=bins,
-        pred=subj["soft_pred"],
-        label=subj["label"],
-    ) 
+def ReCE_map(subj, conf_bins):
 
     pred = subj['soft_pred']
     calibration_image = np.zeros_like(pred)
 
     # Make sure bins are aligned.
-    bin_width = bins[1] - bins[0]
-    for b_idx, bin in enumerate(bins):
-        bin_mask = (pred >= bin) & (pred < (bin + bin_width))
-        calibration_image[bin_mask] = ese_bin_scores[b_idx] 
+    bin_width = conf_bins[1] - conf_bins[0]
+    for c_bin in conf_bins:
+        # Get the binary region of this confidence interval
+        bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
+        # Break it up into islands
+        conf_islands = get_connected_components(bin_conf_region)
+        # Iterate through each island, and get the measure for each island.
+        for island in conf_islands:
+            # Get the label corresponding to the island and simulate ground truth and make the right shape.
+            label_region = subj["label"][island][None, None, ...]
+            # Calculate the accuracy and mean confidence for the island.
+            region_acc_scores = pixel_accuracy(torch.ones_like(label_region), label_region)
+            region_conf_scores = pred[island].mean()
+            # Insert into this region of the image
+            calibration_image[island] = (region_acc_scores - region_conf_scores).abs()
 
     return calibration_image

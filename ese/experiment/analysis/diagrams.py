@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import torch
 from ESE.ese.experiment.metrics.utils import reduce_scores
@@ -20,6 +21,7 @@ metric_dict = {
 def subject_plot(
     subject_dict: dict, 
     num_bins: int,
+    metrics: List[str] = ["ECE", "ESE", "ReCE"],
     show_bin_amounts: bool = False
     ) -> None:
     
@@ -68,7 +70,7 @@ def subject_plot(
         plot_reliability_diagram(
             bins=bins,
             subj=subj,
-            metrics=["ECE", "ESE", "ReCE"],
+            metrics=metrics,
             remove_empty_bins=True,
             bin_color="blue",
             show_bin_amounts=show_bin_amounts,
@@ -77,20 +79,20 @@ def subject_plot(
 
         # Look at the pixelwise error.
         ece_map = vis.ECE_map(subj)
-        ce_im = axarr[1, 1].imshow(ece_map, cmap="plasma")
+        ce_im = axarr[1, 1].imshow(ece_map, cmap="plasma", interpolation="None")
         axarr[1, 1].axis("off")
         axarr[1, 1].set_title("Pixel-wise Calibration Error")
         f.colorbar(ce_im, ax=axarr[1, 1])
         
         # Look at the semantic error.
         ese_map = vis.ESE_map(subj, bins)
-        ese_im = axarr[1,2].imshow(ese_map, cmap="plasma")
+        ese_im = axarr[1,2].imshow(ese_map, cmap="plasma", interpolation="None")
         axarr[1, 2].set_title("Semantic Calibration Error")
         f.colorbar(ese_im, ax=axarr[1, 2])
 
         # Look at the regionwise error.
         rece_map = vis.ReCE_map(subj, bins)
-        ese_im = axarr[1, 3].imshow(rece_map, cmap="plasma")
+        ese_im = axarr[1, 3].imshow(rece_map, cmap="plasma", interpolation="None")
         axarr[1, 3].set_title("Region-wise Calibration Error")
         f.colorbar(ese_im, ax=axarr[1, 3])
         

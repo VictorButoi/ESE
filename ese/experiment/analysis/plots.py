@@ -29,7 +29,7 @@ def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
 def plot_reliability_diagram(
     bins: torch.Tensor,
     subj: dict = None,
-    metrics: List[str] = None,
+    metrics: List[str] = ["ECE", "ESE", "ReCE"],
     bin_info: str = None,
     title: str = "",
     remove_empty_bins: bool = False,
@@ -85,7 +85,7 @@ def plot_reliability_diagram(
     if show_bin_amounts:
         for b_idx, bar in enumerate(bars):
             yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.02, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
+            ax.text(bar.get_x() + bar.get_width() / 2, yval + 0.02, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
 
     # Plot diagonal line
     if show_diagonal:
