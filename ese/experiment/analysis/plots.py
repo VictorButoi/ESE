@@ -1,6 +1,7 @@
 # misc imports
 import numpy as np
 from typing import List
+import torch
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
@@ -19,14 +20,14 @@ metric_dict = {
 def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
     title_parts = []
     for weighting in bin_weightings:
-        met_score = reduce_scores(bin_scores, bin_amounts, weighting)
+        met_score = reduce_scores(bin_scores.numpy(), bin_amounts.numpy(), weighting)
         title_parts.append(f"{weighting[0]}{metric}: {met_score:.5f}")
     title += ", ".join(title_parts) + "\n"
     return title
 
 @validate_arguments_init
 def plot_reliability_diagram(
-    bins: np.ndarray,
+    bins: torch.Tensor,
     subj: dict = None,
     metrics: List[str] = None,
     bin_info: str = None,
@@ -42,7 +43,7 @@ def plot_reliability_diagram(
     if bin_info is None:
         for met in metrics:
             bin_scores, bin_accs, bin_amounts = metric_dict[met](
-                bins=bins,
+                conf_bins=bins,
                 pred=subj["soft_pred"],
                 label=subj["label"],
             )

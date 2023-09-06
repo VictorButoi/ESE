@@ -14,7 +14,7 @@ def ECE_map(subj):
 
 def ESE_map(subj, bins):
     ese_bin_scores, _, _ = ESE(
-        bins=bins,
+        conf_bins=bins,
         pred=subj["soft_pred"],
         label=subj["label"],
     ) 
@@ -33,7 +33,7 @@ def ESE_map(subj, bins):
 
 def ReCE_map(subj, bins):
     ese_bin_scores, _, _ = ReCE(
-        bins=bins,
+        conf_bins=bins,
         pred=subj["soft_pred"],
         label=subj["label"],
     ) 

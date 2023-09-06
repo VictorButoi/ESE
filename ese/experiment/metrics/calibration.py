@@ -11,13 +11,11 @@ from ionpy.util.islands import get_connected_components
 
 @validate_arguments_init
 def ECE(
-    bins: np.ndarray,
+    conf_bins: torch.Tensor,
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
-    confidences: torch.Tensor = None,
-    accuracies: torch.Tensor = None,
     from_logits: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -27,12 +25,13 @@ def ECE(
         pred = torch.sigmoid(pred)
 
     # Get the confidence bin width
-    bin_width = bins[1] - bins[0]
+    bin_width = conf_bins[1] - conf_bins[0]
 
     # Calculate |confidence - accuracy| in each bin
-    accuracy_per_bin = torch.zeros(len(bins))
-    ece_per_bin = torch.zeros(len(bins))
-    bin_amounts = torch.zeros(len(bins))
+    num_bins = len(conf_bins)
+    accuracy_per_bin = torch.zeros(num_bins)
+    ece_per_bin = torch.zeros(num_bins)
+    bin_amounts = torch.zeros(num_bins)
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     if pred is not None:
@@ -43,33 +42,30 @@ def ECE(
         acc_image = (hard_pred == label).float()
         accuracies = acc_image.flatten()
 
-    for bin_idx, bin in enumerate(bins):
-        # Calculated |confidence - accuracy| in each bin
-        in_bin = torch.logical_and(confidences >= bin, confidences < (bin + bin_width)).bool()
+    for bin_idx, c_bin in enumerate(conf_bins):
+        in_bin = torch.logical_and(confidences >= c_bin, confidences < (c_bin + bin_width)).bool()
         num_pix_in_bin = torch.sum(in_bin)
 
         if num_pix_in_bin > 0:
             all_bin_accs = accuracies[in_bin]
-            all_bin_confs = confidences[in_bin]
 
             accuracy_in_bin = torch.mean(all_bin_accs) if torch.sum(all_bin_accs) > 0 else 0
-            avg_confidence_in_bin = torch.mean(all_bin_confs)
+            avg_confidence_in_bin = confidences[in_bin].mean()
 
             ece_per_bin[bin_idx] = (avg_confidence_in_bin - accuracy_in_bin).abs()
             accuracy_per_bin[bin_idx] = accuracy_in_bin
             bin_amounts[bin_idx] = num_pix_in_bin 
+        
+    return ece_per_bin, accuracy_per_bin, bin_amounts
 
-    return ece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
 
-
-# Measure per bin.
 @validate_arguments_init
 def ESE(
-    bins: np.ndarray,
-    pred: torch.Tensor = None, 
-    label: torch.Tensor = None,
+    conf_bins: torch.Tensor,
+    pred: torch.Tensor,
+    label: torch.Tensor,
     from_logits: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
     """
@@ -79,44 +75,44 @@ def ESE(
         pred = torch.sigmoid(pred)
 
     # Get the confidence bins
-    bin_width = bins[1] - bins[0]
+    bin_width = conf_bins[1] - conf_bins[0]
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {bin: torch.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
+    confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
 
     # Iterate through the bins, and get the measure for each bin.
-    accuracy_per_bin = torch.zeros(len(bins))
-    ese_per_bin = torch.zeros(len(bins))
-    bin_amounts = torch.zeros(len(bins))
+    num_bins = len(conf_bins)
+    ese_per_bin = torch.zeros(num_bins)
+    accuracy_per_bin = torch.zeros(num_bins)
+    bin_amounts = torch.zeros(num_bins)
 
-    for b_idx, bin in enumerate(bins):
-        label_region = label[confidence_regions[bin]][None, None, ...]
+    for b_idx, c_bin in enumerate(conf_bins):
 
-        # If there are no pixels in the region, then the measure is 0.
-        bin_amounts[b_idx] = torch.sum(confidence_regions[bin])
-        if bin_amounts[b_idx] == 0:
-            accuracy_per_bin[b_idx] = 0
-            ese_per_bin[b_idx] = 0
-        else:
-            simulated_ground_truth = torch.ones_like(label_region)
-            bin_score = pixel_accuracy(simulated_ground_truth, label_region)
-            bin_confidence = torch.mean(pred[confidence_regions[bin]]).item()
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = confidence_regions[c_bin.item()]
+        
+        # Get the region of the label corresponding to this region.
+        label_region = label[bin_conf_region][None, None, ...]
+
+        # If there are some pixels in this confidence bin.
+        if bin_conf_region.sum() != 0:
+            bin_score = pixel_accuracy(torch.ones_like(label_region), label_region)
+            bin_confidence = pred[bin_conf_region].mean()
 
             # Calculate the calibration error for the pixels in the bin.
             ese_per_bin[b_idx] = (bin_score - bin_confidence).abs()
             accuracy_per_bin[b_idx] = bin_score
     
-    return ese_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
+    return ese_per_bin, accuracy_per_bin, bin_amounts
 
 
-# Measure per bin.
 @validate_arguments_init
 def ReCE(
-    bins: np.ndarray,
-    pred: torch.Tensor = None, 
-    label: torch.Tensor = None,
+    conf_bins: torch.Tensor,
+    pred: torch.Tensor,
+    label: torch.Tensor,
     from_logits: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
@@ -126,63 +122,55 @@ def ReCE(
         pred = torch.sigmoid(pred)
 
     # Get the confidence bins
-    bin_width = bins[1] - bins[0]
+    bin_width = conf_bins[1] - conf_bins[0]
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {bin: torch.logical_and(pred >= bin, pred < (bin + bin_width)).bool() for bin in bins}
+    confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
 
     # Iterate through the bins, and get the measure for each bin.
-    accuracy_per_bin = torch.zeros(len(bins))
-    rece_per_bin = torch.zeros(len(bins))
-    bin_amounts = torch.zeros(len(bins))
+    num_bins = len(conf_bins) 
+    accuracy_per_bin = torch.zeros(num_bins)
+    rece_per_bin = torch.zeros(num_bins)
+    bin_amounts = torch.zeros(num_bins)
 
     # Setup a visited regions to speed up connected components and reverse bins to avoid running connected components on the 0 bin.
-    reversed_bins = bins[::-1]
-    visited_regions = torch.zeros_like(pred).bool()
+    reversed_confidence_bins = torch.flip(conf_bins, [0])
 
     # Go through each bin, starting at the back so that we don't have to run connected components
-    for rev_b_idx, bin in enumerate(reversed_bins):
+    for rev_b_idx, c_bin in enumerate(reversed_confidence_bins):
         
         # Get the actual bin index
-        b_idx = len(bins) - rev_b_idx - 1
+        b_idx = (num_bins - 1) - rev_b_idx
 
-        # Get the binary map of a particular conidence region.
-        conf_region = confidence_regions[bin].int()
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = confidence_regions[c_bin.item()].bool()
 
-        if torch.sum(conf_region) == 0: # If there are no pixels, there are no regions
-            accuracy_per_bin[b_idx] = 0
-            rece_per_bin[b_idx] = 0
-            bin_amounts[b_idx] = 0
-        else:
-            # If we are not the last bin, get the connected components and add it to the visited regions.
-            if b_idx > 0:
-                conf_islands = get_connected_components(conf_region)
-                visited_regions[confidence_regions[bin]] = True
-            else:
-                conf_islands = [conf_region.bool()]
+        # If there are some pixels in this confidence bin.
+        if bin_conf_region.sum() != 0:
+            # If we are not the last bin, get the connected components.
+            conf_islands = get_connected_components(bin_conf_region) if b_idx > 0 else [bin_conf_region]
             
             # Iterate through each island, and get the measure for each island.
             num_islands = len(conf_islands)
-            region_ece_scores = torch.zeros(num_islands)
             region_acc_scores = torch.zeros(num_islands)
+            region_conf_scores = torch.zeros(num_islands)
 
+            # Iterate through each island, and get the measure for each island.
             for isl_idx, island in enumerate(conf_islands):
-                # Get the label corresponding to the island and simulate ground truth.
+                # Get the label corresponding to the island and simulate ground truth and make the right shape.
                 label_region = label[island][None, None, ...]
-                simulated_ground_truth = torch.ones_like(label_region)
-                
-                # Calculate the accuracy and mean confidenc for the island..
-                region_acc = pixel_accuracy(simulated_ground_truth, label_region)
-                mean_region_confidence = torch.mean(pred[island]).item()
-
-                # Calculate the calibration error for the pixels in the bin.
-                region_ece_scores[isl_idx] = (region_acc - mean_region_confidence).abs()
-                region_acc_scores[isl_idx] = region_acc 
+                # Calculate the accuracy and mean confidence for the island.
+                region_acc_scores[isl_idx] = pixel_accuracy(torch.ones_like(label_region), label_region)
+                region_conf_scores[isl_idx] = pred[island].mean()
+            
+            # Get the accumulate metrics from all the islands
+            avg_region_acc = region_acc_scores.mean()
+            avg_region_conf = region_conf_scores.mean()
             
             # Calculate the average calibration error for the regions in the bin.
-            rece_per_bin[b_idx] = torch.mean(region_ece_scores)
-            accuracy_per_bin[b_idx] = torch.mean(region_acc_scores)
+            rece_per_bin[b_idx] = (avg_region_acc - avg_region_conf).abs()
+            accuracy_per_bin[b_idx] = avg_region_acc
             bin_amounts[b_idx] = num_islands # The number of islands is the number of regions.
 
-    return rece_per_bin.cpu().numpy(), accuracy_per_bin.cpu().numpy(), bin_amounts.cpu().numpy()
+    return rece_per_bin, accuracy_per_bin, bin_amounts
     

@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from ESE.ese.experiment.metrics.utils import reduce_scores
 import ionpy
 import matplotlib.pyplot as plt
@@ -23,7 +24,7 @@ def subject_plot(
     ) -> None:
     
     # Calculate the bins and spacing
-    bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
