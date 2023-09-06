@@ -6,31 +6,40 @@ from ionpy.util.islands import get_connected_components
 
 
 def ECE_map(subj):
-    calibration_image = np.zeros_like(subj['label'])
+    conf_scores = subj['soft_pred']
+    
+    # Calculate the per-pixel accuracy and where the foreground regions are.
     foreground_accuracy = (subj['label'] == subj['hard_pred']).float()
-    fore_regions = (subj['label'] == 1).bool()
+    foreground_predicted_regions = (subj['hard_pred'] == 1).bool()
+
     # Set the regions of the image corresponding to groundtruth label.
-    calibration_image[fore_regions] = (foreground_accuracy - subj['soft_pred']).abs()[fore_regions]
+    calibration_image = np.zeros_like(subj['label'])
+    calibration_image[foreground_predicted_regions] = (conf_scores - foreground_accuracy)[foreground_predicted_regions]
 
     return calibration_image
 
 
 def ESE_map(subj, conf_bins):
 
-    ese_bin_scores, _, _ = ESE(
-        conf_bins=conf_bins,
-        pred=subj["soft_pred"],
-        label=subj["label"],
-    ) 
-
     pred = subj['soft_pred']
     calibration_image = np.zeros_like(pred)
 
     # Make sure bins are aligned.
     bin_width = conf_bins[1] - conf_bins[0]
-    for b_idx, c_bin in enumerate(conf_bins):
+    for c_bin in conf_bins:
+        
+        # Get the region of this confidence interval
         bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
-        calibration_image[bin_conf_region] = ese_bin_scores[b_idx] 
+
+        # Get the region of the label corresponding to this region.
+        label_region = subj['label'][bin_conf_region][None, None, ...]
+
+        # Calculate the accuracy and mean confidence for the island.
+        avg_accuracy = pixel_accuracy(torch.ones_like(label_region), label_region)
+        avg_confidence = pred[bin_conf_region].mean()
+
+        # Calculate the calibration error for the pixels in the bin.
+        calibration_image[bin_conf_region]  = (avg_confidence - avg_accuracy)
 
     return calibration_image
 
@@ -55,6 +64,6 @@ def ReCE_map(subj, conf_bins):
             region_acc_scores = pixel_accuracy(torch.ones_like(label_region), label_region)
             region_conf_scores = pred[island].mean()
             # Insert into this region of the image
-            calibration_image[island] = (region_acc_scores - region_conf_scores).abs()
+            calibration_image[island] = (region_conf_scores - region_acc_scores)
 
     return calibration_image

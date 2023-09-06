@@ -20,15 +20,24 @@ from ionpy.util.torchutils import to_device
 from ionpy.util.validation import validate_arguments_init
 from ionpy.experiment.util import absolute_import
 
+# Globally used for which metrics to plot for.
+metric_dict = {
+        "ECE": ECE,
+        "ESE": ESE,
+        "ReCE": ReCE
+    }
 
 @validate_arguments_init
 def get_dice_breakdown(
         exp: CalibrationExperiment,
         dataset_cfg_list: list,
-        num_bins: int = 10
+        num_bins: int
 ) -> None:
 
     items = []
+    # Calculate the bins and spacing
+    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+
     for dataset_cfg in dataset_cfg_list:
 
         dataset_dict = dataset_cfg['dataset'].to_dict()
@@ -41,6 +50,7 @@ def get_dice_breakdown(
 
         with torch.no_grad():
             for subj_idx, batch in tqdm(enumerate(dataloader), desc="Subject Loop", total=len(dataloader)):
+                
                 # Get your image label pair and define some regions.
                 x, y = to_device(batch, exp.device)
 
@@ -75,25 +85,17 @@ def get_dice_breakdown(
 
                     for metric in ["ECE", "ESE", "ReCE"]:
                         for weighting in ["uniform", "weighted"]:
-                            if metric == "ECE":
-                                ece_bins = np.linspace(0.5, 1, (num_bins//2)+1)[:-1]
-                                metric_per_bin, _, bin_counts = ECE(
-                                    bins=ece_bins,
-                                    pred=y_pred, 
-                                    label=y) 
-                            elif metric == "ESE":
-                                ese_bins = np.linspace(0, 1, num_bins+1)[:-1]
-                                metric_per_bin, _, bin_counts = ESE(
-                                    bins=ese_bins,
-                                    pred=y_pred, 
-                                    label=y)
-                            else:
-                                rece_bins = np.linspace(0, 1, num_bins+1)[:-1]
-                                metric_per_bin, _, bin_counts = ReCE(
-                                    bins=rece_bins,
-                                    pred=y_pred, 
-                                    label=y)
-                            
+
+                            metric_per_bin, _, bin_counts = metric_dict[metric](
+                                conf_bins=bins,
+                                pred=y_pred, 
+                                label=y
+                                ) 
+
+                            # Convert to numpy on cpu
+                            metric_per_bin = metric_per_bin.cpu().numpy()
+                            bin_counts = bin_counts.cpu().numpy()
+
                             # Calculate the metric score.
                             metric_score = reduce_scores(metric_per_bin, bin_counts, weighting=weighting)
 

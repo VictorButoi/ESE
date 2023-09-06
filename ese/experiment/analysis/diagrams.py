@@ -39,9 +39,10 @@ def subject_plot(
             ncols=4,
             figsize=(24, 12)
         )
-        
+        f.patch.set_facecolor('0.8')  
+
         # Turn the axes off for all plots
-        for ax in axarr.flatten():
+        for ax in axarr.ravel():
             ax.axis("off")
 
         # Define subject name
@@ -62,7 +63,7 @@ def subject_plot(
         f.colorbar(post, ax=axarr[0, 2])
 
         # Show the confidence map (which we interpret as probabilities)
-        pre = axarr[0, 3].imshow(subj["soft_pred"], cmap="plasma")
+        pre = axarr[0, 3].imshow(subj["soft_pred"], cmap="gray")
         axarr[0, 3].set_title(f"{subj_name}, Probabilities")
         f.colorbar(pre, ax=axarr[0, 3])
 
@@ -79,20 +80,32 @@ def subject_plot(
 
         # Look at the pixelwise error.
         ece_map = vis.ECE_map(subj)
-        ce_im = axarr[1, 1].imshow(ece_map, cmap="plasma", interpolation="None")
+
+        # Get the bounds for visualization
+        ece_abs_max = np.max(np.abs(ece_map))
+        ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
+
+        ce_im = axarr[1, 1].imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
         axarr[1, 1].axis("off")
         axarr[1, 1].set_title("Pixel-wise Calibration Error")
         f.colorbar(ce_im, ax=axarr[1, 1])
         
         # Look at the semantic error.
         ese_map = vis.ESE_map(subj, bins)
-        ese_im = axarr[1,2].imshow(ese_map, cmap="plasma", interpolation="None")
+        # Get the bounds for visualization
+        ese_abs_max = np.max(np.abs(ese_map))
+        ese_vmin, ese_vmax = -ese_abs_max, ese_abs_max
+
+        ese_im = axarr[1,2].imshow(ese_map, cmap="RdBu_r", interpolation="None", vmax=ese_vmax, vmin=ese_vmin)
         axarr[1, 2].set_title("Semantic Calibration Error")
         f.colorbar(ese_im, ax=axarr[1, 2])
 
         # Look at the regionwise error.
         rece_map = vis.ReCE_map(subj, bins)
-        ese_im = axarr[1, 3].imshow(rece_map, cmap="plasma", interpolation="None")
+        # Get the bounds for visualization
+        rece_abs_max = np.max(np.abs(rece_map))
+        rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
+        ese_im = axarr[1, 3].imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
         axarr[1, 3].set_title("Region-wise Calibration Error")
         f.colorbar(ese_im, ax=axarr[1, 3])
         
