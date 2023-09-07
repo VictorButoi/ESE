@@ -2,6 +2,7 @@
 import numpy as np
 from typing import List
 import torch
+import matplotlib.pyplot as plt
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
@@ -29,8 +30,8 @@ def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
 def plot_reliability_diagram(
     bins: torch.Tensor,
     subj: dict = None,
-    metrics: List[str] = ["ECE", "ESE", "ReCE"],
     bin_info: str = None,
+    metrics: List[str] = ["ECE", "ESE", "ReCE"],
     title: str = "",
     remove_empty_bins: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
@@ -78,8 +79,8 @@ def plot_reliability_diagram(
         graph_bins = aligned_bins
 
     # Ideal boxs
-    ideal_bars = ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2)
-    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.65)
+    ideal_bars = ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2, label='Ideal')
+    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.65, label='Predicted')
 
     # Display above the bars how many pixels are in the bar
     if show_bin_amounts:
@@ -103,3 +104,6 @@ def plot_reliability_diagram(
     ax.set_xlim([0, 1])
     ax.set_xticks(np.arange(0, 1.1, 0.1))
     ax.set_ylim([0, 1]) 
+
+    # Add a legend
+    ax.legend()

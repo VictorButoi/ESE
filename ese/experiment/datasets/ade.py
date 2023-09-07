@@ -2,7 +2,7 @@
 from torch.utils.data import Dataset
 
 # Local imports
-from .utils.ade_utils import loadAde20K_file
+from .utils.ade.ade_utils import loadAde20K_file
 
 # IonPy imports
 from ionpy.util.validation import validate_arguments_init

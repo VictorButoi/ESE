@@ -119,46 +119,38 @@ def subject_plot(
 def aggregate_plot(
     subject_dict: dict,
     num_bins: int,
-    metric: str,
+    metrics: List[str],
     color: str = "blue",
     bin_weighting: str = "both"
 ) -> None:
-    raise DeprecationWarning("This function is deprecated.")
     
     # Consturct the subplot (just a single one)
-    _, axarr = plt.subplots(1, 1, figsize=(15, 10))
+    _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(5 * len(metrics), 5))
 
     # Calculate the bins and spacing
-    bins = np.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
-    total_ese_info = [ESE(
-        bins=bins,
-        pred=subj["soft_pred"],
-        label=subj["label"]
-    ) for subj in subject_dict]
-    
-    # Get the average score per bin and the amount of pixels that went into those.
-    bin_scores = np.mean([ese[0] for ese in total_ese_info], axis=0)
-    bin_accs = np.mean([ese[1] for ese in total_ese_info], axis=0)
-    bin_amounts = np.sum([ese[2] for ese in total_ese_info], axis=0)
+    for m_idx, metric in enumerate(metrics):
+        total_ese_info = [ESE(
+            bins=bins,
+            pred=subj["soft_pred"],
+            label=subj["label"]
+        ) for subj in subject_dict]
+        
+        # Get the average score per bin and the amount of pixels that went into those.
+        bin_scores = np.mean([ese[0] for ese in total_ese_info], axis=0)
+        bin_accs = np.mean([ese[1] for ese in total_ese_info], axis=0)
+        bin_amounts = np.sum([ese[2] for ese in total_ese_info], axis=0)
 
-    # Calculate the different bin metric
-    w_ese_score = reduce_scores(bin_scores, bin_amounts, "proportional")
-    u_ese_score = reduce_scores(bin_scores, bin_amounts, "uniform")
+        # Calculate the different bin metric
+        w_ese_score = reduce_scores(bin_scores, bin_amounts, "proportional")
+        u_ese_score = reduce_scores(bin_scores, bin_amounts, "uniform")
 
-    if bin_weighting == "proportional":
-        title = f"wESE: {w_ese_score:.5f}"
-    elif bin_weighting == "uniform":
-        title = f"uESE: {u_ese_score:.5f}"
-    elif bin_weighting == "both":
-        title = f"wESE: {w_ese_score:.5f}, uESE: {u_ese_score:.5f}"
-
-    bin_info = [bin_scores, bin_accs, bin_amounts]
-    plot_reliability_diagram(
-        bins,
-        bin_info=bin_info,
-        metric=metric,
-        ax=axarr,
-        title=title,
-        bin_color=color
-    )
+        bin_info = [bin_scores, bin_accs, bin_amounts]
+        plot_reliability_diagram(
+            bins,
+            bin_info=bin_info,
+            metrics=[metric],
+            ax=axarr[m_idx],
+            bin_color=color
+        )
