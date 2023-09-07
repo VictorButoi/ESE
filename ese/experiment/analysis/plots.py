@@ -78,12 +78,12 @@ def plot_reliability_diagram(
         graph_bins = aligned_bins
 
     # Ideal boxs
-    ax.bar(graph_bins, graph_bins, width=interval_size, color='red', alpha=0.2)
-    bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, color=bin_color, alpha=0.5)
+    ideal_bars = ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2)
+    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.65)
 
     # Display above the bars how many pixels are in the bar
     if show_bin_amounts:
-        for b_idx, bar in enumerate(bars):
+        for b_idx, bar in enumerate(actual_bars):
             yval = bar.get_height()
             ax.text(bar.get_x() + bar.get_width() / 2, yval + 0.02, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
 
