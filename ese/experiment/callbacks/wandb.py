@@ -16,6 +16,7 @@ class WandbLogger:
             project=project,
             entity=entity,
             config=exp_config,
+            dir=exp_config["log"]["root"]
         )
         wandb.run.name = exp_config["log"]["wandb_string"]
 
