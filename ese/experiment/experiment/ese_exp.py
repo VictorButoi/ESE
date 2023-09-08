@@ -41,10 +41,6 @@ class CalibrationExperiment(TrainExperiment):
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
         
-        # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
-        x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
-        y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-        
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)

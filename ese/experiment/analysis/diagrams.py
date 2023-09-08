@@ -7,14 +7,15 @@ import matplotlib.pyplot as plt
 
 # ese imports
 from ese.experiment.analysis.plots import plot_reliability_diagram
-from ese.experiment.metrics import ESE
+from ese.experiment.metrics import ECE, ESE, ReCE
 import ese.experiment.analysis.vis as vis
 from ionpy.util.validation import validate_arguments_init
 
 # Globally used for which metrics to plot for.
 metric_dict = {
-        "dice": ionpy.metrics.dice_score,
-        "accuracy": ionpy.metrics.pixel_accuracy
+        "ECE": ECE,
+        "ESE": ESE,
+        "ReCE": ReCE
     }
 
 @validate_arguments_init
@@ -120,8 +121,7 @@ def aggregate_plot(
     subject_dict: dict,
     num_bins: int,
     metrics: List[str],
-    color: str = "blue",
-    bin_weighting: str = "both"
+    color: str = "blue"
 ) -> None:
     
     # Consturct the subplot (just a single one)
@@ -131,20 +131,21 @@ def aggregate_plot(
     bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     for m_idx, metric in enumerate(metrics):
-        total_ese_info = [ESE(
-            bins=bins,
+        aggregate_info = [metric_dict[metric](
+            conf_bins=bins,
             pred=subj["soft_pred"],
             label=subj["label"]
         ) for subj in subject_dict]
         
         # Get the average score per bin and the amount of pixels that went into those.
-        bin_scores = np.mean([ese[0] for ese in total_ese_info], axis=0)
-        bin_accs = np.mean([ese[1] for ese in total_ese_info], axis=0)
-        bin_amounts = np.sum([ese[2] for ese in total_ese_info], axis=0)
+        aggregated_scores = torch.stack([subj[0] for subj in aggregate_info])
+        aggregated_accs = torch.stack([subj[1] for subj in aggregate_info])
+        aggregated_amounts = torch.stack([subj[2] for subj in aggregate_info])
 
-        # Calculate the different bin metric
-        w_ese_score = reduce_scores(bin_scores, bin_amounts, "proportional")
-        u_ese_score = reduce_scores(bin_scores, bin_amounts, "uniform")
+        # Average over the subjects
+        bin_scores = torch.mean(aggregated_scores, dim=0)
+        bin_accs = torch.mean(aggregated_accs, dim=0)
+        bin_amounts = torch.sum(aggregated_amounts, dim=0)
 
         bin_info = [bin_scores, bin_accs, bin_amounts]
         plot_reliability_diagram(

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Literal, Optional
+import einops
 
 import numpy as np
 import torch
@@ -69,7 +70,15 @@ class WMH(ThunderDataset, DatapathMixin):
         assert img.dtype == np.float32, "Img must be float32!"
         assert mask.dtype == np.float32, "Mask must be float32!"
 
-        return torch.from_numpy(img), torch.from_numpy(mask)
+        # Convert to PyTorch tensors
+        img = torch.from_numpy(img) 
+        mask = torch.from_numpy(mask)
+        
+        # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
+        img = einops.rearrange(img, "b c h w -> (b c) 1 h w")
+        mask = einops.rearrange(mask, "b c h w -> (b c) 1 h w")
+
+        return img, mask
 
     @property
     def _folder_name(self):

@@ -37,7 +37,8 @@ class COCO(CocoDetection):
         img, target = super(COCO, self).__getitem__(key)
         
         # Create an empty mask
-        mask = torch.zeros(img.size[1], img.size[0], dtype=torch.uint8)
+        img = F.to_tensor(img) 
+        mask = torch.zeros_like(img, dtype=torch.uint8)
 
         for ann in target:
             # COCO uses 'category_id' to indicate class of object
