@@ -1,6 +1,8 @@
+# misc imports
 import numpy as np
 import torch
-from ese.experiment.metrics import ESE, ReCE
+
+# ionpy imports
 from ionpy.metrics.segmentation import pixel_accuracy
 from ionpy.util.islands import get_connected_components
 

@@ -1,12 +1,12 @@
-from typing import List
 import numpy as np
-import torch
-from ESE.ese.experiment.metrics.utils import reduce_scores
-import ionpy
 import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+import torch
+from typing import List
 
 # ese imports
-from ese.experiment.analysis.plots import plot_reliability_diagram
+from ese.experiment.analysis.plots import plot_reliability_diagram, plot_confusion_matrix
 from ese.experiment.metrics import ECE, ESE, ReCE
 import ese.experiment.analysis.vis as vis
 from ionpy.util.validation import validate_arguments_init
@@ -79,28 +79,21 @@ def subject_plot(
             ax=axarr[1, 0]
         )
 
+        # Show different kinds of statistics about your subjects.
+        plot_confusion_matrix(
+            subj=subj,
+            ax=axarr[1, 1]
+        )
+
         # Look at the pixelwise error.
         ece_map = vis.ECE_map(subj)
-
         # Get the bounds for visualization
         ece_abs_max = np.max(np.abs(ece_map))
         ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
-
-        ce_im = axarr[1, 1].imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
-        axarr[1, 1].axis("off")
-        axarr[1, 1].set_title("Pixel-wise Calibration Error")
-        f.colorbar(ce_im, ax=axarr[1, 1])
+        ce_im = axarr[1, 2].imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
+        axarr[1, 2].set_title("Pixel-wise Calibration Error")
+        f.colorbar(ce_im, ax=axarr[1, 2])
         
-        # Look at the semantic error.
-        ese_map = vis.ESE_map(subj, bins)
-        # Get the bounds for visualization
-        ese_abs_max = np.max(np.abs(ese_map))
-        ese_vmin, ese_vmax = -ese_abs_max, ese_abs_max
-
-        ese_im = axarr[1,2].imshow(ese_map, cmap="RdBu_r", interpolation="None", vmax=ese_vmax, vmin=ese_vmin)
-        axarr[1, 2].set_title("Semantic Calibration Error")
-        f.colorbar(ese_im, ax=axarr[1, 2])
-
         # Look at the regionwise error.
         rece_map = vis.ReCE_map(subj, bins)
         # Get the bounds for visualization
@@ -155,3 +148,40 @@ def aggregate_plot(
             ax=axarr[m_idx],
             bin_color=color
         )
+
+
+@validate_arguments_init
+def aggregate_confusion_matrix(
+    subj_dict
+):
+    # Initialize an empty aggregate confusion matrix
+    aggregate_cm = np.zeros((2, 2), dtype=int)  # Assuming binary segmentation
+
+    # Define class labels
+    class_labels = ['Background', 'Foreground']
+
+    # Loop through each subject and calculate the confusion matrix
+    for subj in subj_dict:
+        ground_truth_np = subj['label'].cpu().numpy().flatten()
+        predictions_np = subj['hard_pred'].cpu().numpy().flatten()
+        cm = confusion_matrix(ground_truth_np, predictions_np, labels=[0, 1])
+        aggregate_cm += cm
+
+    # Create a predefined axes object (ax)
+    fig, ax = plt.subplots()
+
+    # Plot the aggregate confusion matrix on the predefined axes using seaborn
+    sns.heatmap(aggregate_cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels, ax=ax)
+    ax.set_xlabel('Predicted Labels')
+    ax.set_ylabel('True Labels')
+    ax.set_title('Aggregate Confusion Matrix')
+
+    # Display the plot
+    plt.show()
+
+
+
+
+
+
+

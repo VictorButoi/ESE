@@ -3,6 +3,8 @@ import numpy as np
 from typing import List
 import torch
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
@@ -81,7 +83,7 @@ def plot_reliability_diagram(
     # Pad the graph bar heights so it matches the bins
     graph_bins = graph_bins[len(graph_bins) - len(graph_bar_heights):]
 
-    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.65, label='Predicted')
+    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.8, label='Predicted')
     ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2, label='Ideal')
 
     # Display above the bars how many pixels are in the bar
@@ -109,3 +111,36 @@ def plot_reliability_diagram(
 
     # Add a legend
     ax.legend()
+
+
+@validate_arguments_init
+def plot_confusion_matrix(
+    subj,
+    ax=None
+    ):
+    """
+    This function prints and plots the confusion matrix.
+    If normalize is set to True, the matrix will display percentages instead of counts.
+    """
+    
+    # Convert PyTorch tensors to NumPy arrays
+    ground_truth_np = subj['label'].cpu().numpy()
+    predictions_np = subj['hard_pred'].cpu().numpy()
+
+    # Calculate the confusion matrix
+    cm = confusion_matrix(ground_truth_np.flatten(), predictions_np.flatten(), labels=[0, 1])
+
+    # Define class labels
+    class_labels = ['Background', 'Foreground']
+
+    # Make sure ax is on
+    ax.axis("on")
+
+    # Plot the confusion matrix using seaborn
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels, ax=ax)
+    ax.set_xlabel('Predicted Labels')
+    ax.set_ylabel('True Labels')
+    ax.set_title('Confusion Matrix')
+
+    # Turn the grid off
+    ax.grid(False) 
