@@ -52,6 +52,8 @@ class CalibrationExperiment(TrainExperiment):
 
         yhat = self.model(x)
         loss = self.loss_func(yhat, y)
+        
+        print(loss)
 
         if backward:
             loss.backward()

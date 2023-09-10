@@ -1,7 +1,9 @@
+# misc imports
 import numpy as np
 from dataclasses import dataclass
 from typing import Any, Literal
 import pathlib
+import json
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
@@ -33,6 +35,28 @@ class COCO(CocoDetection):
             raise ValueError(f"Split {self.split} not recognized.")
         super(COCO, self).__init__(path2data, path2json, self.transform, self.target_transform, self.transforms)
 
+        # Check if the cache file exists
+        cache_file = self.root / "label_info.json"
+        # Check if the cache file exists
+        try:
+            with open(cache_file, 'r') as f:
+                self.id_to_newid = json.load(f)
+        except FileNotFoundError:
+            # If not, create the mapping and save to cache file
+            category_ids = set()
+            for img_id in self.coco.getImgIds():
+                ann_ids = self.coco.getAnnIds(imgIds=img_id)
+                anns = self.coco.loadAnns(ann_ids)
+                for ann in anns:
+                    category_ids.add(ann['category_id'])
+
+            category_ids = sorted(list(category_ids))
+            self.id_to_newid = {str(id): i for i, id in enumerate(category_ids)}
+
+            # Save the mapping to a cache file
+            with open(cache_file, 'w') as f:
+                json.dump(self.id_to_newid, f)
+
     def __getitem__(self, key):
         # Load the original image and target (list of annotations)
         img, target = super(COCO, self).__getitem__(key)
@@ -44,7 +68,7 @@ class COCO(CocoDetection):
         for ann in target:
             # COCO uses 'category_id' to indicate class of object
             # You might want to map category_id to consecutive integers starting from 1 if they aren't consecutive.
-            category = ann['category_id']
+            category = self.id_to_newid[str(ann['category_id'])]
             
             # Convert binary masks to PyTorch tensor
             mask_area = F.to_tensor(self.coco.annToMask(ann)).bool()
@@ -56,6 +80,8 @@ class COCO(CocoDetection):
 
         # Convert mask to long tensor
         mask = mask.to(torch.int64)
+
+        print("Mask contains labels:", np.unique(mask))
 
         return img, mask
 
