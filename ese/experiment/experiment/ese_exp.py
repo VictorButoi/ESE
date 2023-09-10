@@ -41,7 +41,7 @@ class CalibrationExperiment(TrainExperiment):
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
         
-        if self.config["data"]["slice_batch_size"] > 1:
+        if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             img = einops.rearrange(img, "b c h w -> (b c) 1 h w")
             mask = einops.rearrange(mask, "b c h w -> (b c) 1 h w")

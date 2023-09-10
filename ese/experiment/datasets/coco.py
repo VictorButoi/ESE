@@ -1,3 +1,4 @@
+import numpy as np
 from dataclasses import dataclass
 from typing import Any, Literal
 import pathlib
@@ -35,10 +36,10 @@ class COCO(CocoDetection):
     def __getitem__(self, key):
         # Load the original image and target (list of annotations)
         img, target = super(COCO, self).__getitem__(key)
-        
+
         # Create an empty mask
         img = F.to_tensor(img) 
-        mask = torch.zeros_like(img, dtype=torch.uint8)
+        mask = torch.zeros(img.shape[1], img.shape[2], dtype=torch.int64)[None]
 
         for ann in target:
             # COCO uses 'category_id' to indicate class of object
@@ -46,12 +47,15 @@ class COCO(CocoDetection):
             category = ann['category_id']
             
             # Convert binary masks to PyTorch tensor
-            m = F.to_tensor(self.coco.annToMask(ann)) * category
-            mask = torch.where(m > 0, m, mask)
+            mask_area = F.to_tensor(self.coco.annToMask(ann)).bool()
+            mask[mask_area] = category
 
         # Apply transforms if given
         if self.transforms:
             img, mask = self.transforms(img, mask)
+
+        # Convert mask to long tensor
+        mask = mask.to(torch.int64)
 
         return img, mask
 

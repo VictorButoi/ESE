@@ -167,14 +167,13 @@ def aggregate_confusion_matrix(
         cm = confusion_matrix(ground_truth_np, predictions_np, labels=[0, 1])
         aggregate_cm += cm
 
-    # Create a predefined axes object (ax)
-    fig, ax = plt.subplots()
-
     # Plot the aggregate confusion matrix on the predefined axes using seaborn
-    sns.heatmap(aggregate_cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels, ax=ax)
-    ax.set_xlabel('Predicted Labels')
-    ax.set_ylabel('True Labels')
-    ax.set_title('Aggregate Confusion Matrix')
+    plt.figure(figsize=(12, 9))
+
+    sns.heatmap(aggregate_cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+    plt.xlabel('Predicted Labels')
+    plt.ylabel('True Labels')
+    plt.title('Aggregate Confusion Matrix')
 
     # Display the plot
     plt.show()
