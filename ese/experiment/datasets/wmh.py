@@ -1,9 +1,7 @@
+# random imports
 from dataclasses import dataclass
-from typing import List, Literal, Optional
-import einops
-
+from typing import Any, List, Literal, Optional
 import numpy as np
-import torch
 
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
@@ -25,6 +23,7 @@ class WMH(ThunderDataset, DatapathMixin):
     preload: bool = False
     dataset: Literal["WMH"] = "WMH"
     slice_batch_size: Optional[int] = 1 
+    transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -70,10 +69,10 @@ class WMH(ThunderDataset, DatapathMixin):
         assert img.dtype == np.float32, "Img must be float32!"
         assert mask.dtype == np.float32, "Mask must be float32!"
 
-        # Convert to PyTorch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
-        
+        if self.transforms:
+            print("I go in here yes?")
+            img, mask = self.transforms(img, mask)
+
         return img, mask
 
     @property

@@ -20,9 +20,7 @@ class COCO(CocoDetection):
 
     split: Literal["train", "cal", "val"] = "train"
     root: pathlib.Path = pathlib.Path("/storage/vbutoi/datasets/COCO")
-    transform: Any = None # For the image only
     transforms: Any = None # Takes in both image and mask
-    target_transform: Any = None # Applied just to mask
 
     def __post_init__(self):
         if self.split == "train":
@@ -33,7 +31,7 @@ class COCO(CocoDetection):
             path2json = self.root / "annotations/instances_val2017.json"
         else:
             raise ValueError(f"Split {self.split} not recognized.")
-        super(COCO, self).__init__(path2data, path2json, self.transform, self.target_transform, self.transforms)
+        super(COCO, self).__init__(path2data, path2json)
 
         # Check if the cache file exists
         cache_file = self.root / "label_info.json"
