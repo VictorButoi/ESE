@@ -3,9 +3,11 @@ import torch
 from torch.utils.data import DataLoader
 
 # IonPy imports
+from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import absolute_import
+from ionpy.nn.util import num_params
 from ionpy.util.torchutils import to_device
+from ionpy.util import Config
 from ionpy.util.hash import json_digest
 from universeg.experiment.augmentation import augmentations_from_config
 
@@ -35,6 +37,24 @@ class CalibrationExperiment(TrainExperiment):
         dl_cfg = self.config["dataloader"]
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
+
+    def build_model(self):
+        # Move the information about channels to the model config.
+        # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
+        total_config = self.config.to_dict()
+
+        # Get the model and data configs.
+        model_config = total_config["model"]
+        data_config = total_config["data"]
+
+        # transfer the arguments to the model config.
+        model_config["in_channels"] = data_config.pop("in_channels")
+        model_config["out_channels"] = data_config.pop("out_channels")
+
+        self.config = Config(total_config)
+
+        self.model = eval_config(self.config["model"])
+        self.properties["num_params"] = num_params(self.model)
     
     def run_step(self, batch_idx, batch, backward=True, augmentation=False, epoch=None, phase=None):
 
