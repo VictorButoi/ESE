@@ -70,7 +70,6 @@ class WMH(ThunderDataset, DatapathMixin):
         assert mask.dtype == np.float32, "Mask must be float32!"
 
         if self.transforms:
-            print("I go in here yes?")
             img, mask = self.transforms(img, mask)
 
         return img, mask

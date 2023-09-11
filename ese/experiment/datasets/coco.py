@@ -20,7 +20,6 @@ class COCO(CocoDetection):
 
     split: Literal["train", "cal", "val"] = "train"
     root: pathlib.Path = pathlib.Path("/storage/vbutoi/datasets/COCO")
-    transforms: Any = None # Takes in both image and mask
 
     def __post_init__(self):
         if self.split == "train":
@@ -71,10 +70,6 @@ class COCO(CocoDetection):
             # Convert binary masks to PyTorch tensor
             mask_area = F.to_tensor(self.coco.annToMask(ann)).bool()
             mask[mask_area] = category
-
-        # Apply transforms if given
-        if self.transforms:
-            img, mask = self.transforms(img, mask)
 
         return img, mask
 
