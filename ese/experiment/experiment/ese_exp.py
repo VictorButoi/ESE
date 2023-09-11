@@ -1,15 +1,17 @@
+# local imports
+from ese.experiment.augmentation import build_transforms
+
 # torch imports
 import torch
 from torch.utils.data import DataLoader
 
 # IonPy imports
-from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.experiment import TrainExperiment
+from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params
-from ionpy.util.torchutils import to_device
 from ionpy.util import Config
 from ionpy.util.hash import json_digest
-from universeg.experiment.augmentation import augmentations_from_config
+from ionpy.util.torchutils import to_device
 
 # misc imports
 import einops
@@ -19,19 +21,26 @@ import seaborn as sns
 class CalibrationExperiment(TrainExperiment):
 
     def build_augmentations(self):
-        if "augmentations" in self.config:
+        if self.config["train"]["augmentations"] != "None":
+            raise NotImplementedError("Augmentations not implemented for calibration.")
+
             aug_cfg = self.config.to_dict()["augmentations"]
-            self.aug_pipeline = augmentations_from_config(aug_cfg)
             self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
                 :8
             ]
 
     def build_data(self):
+        # Get the data and transforms we want to apply
         data_cfg = self.config["data"].to_dict()
+
+        # Get the dataset class and build the transforms
         dataset_cls = absolute_import(data_cfg.pop("_class"))
-        self.train_dataset = dataset_cls(split="train", **data_cfg)
-        self.cal_dataset = dataset_cls(split="cal", **data_cfg)
-        self.val_dataset = dataset_cls(split="val", **data_cfg)
+        transforms = build_transforms(self.config["transforms"])
+        
+        # Build the datasets, apply the transforms
+        self.train_dataset = dataset_cls(split="train", transforms=transforms, **data_cfg)
+        self.cal_dataset = dataset_cls(split="cal", transforms=transforms, **data_cfg)
+        self.val_dataset = dataset_cls(split="val", transforms=transforms, **data_cfg)
     
     def build_dataloader(self):
         dl_cfg = self.config["dataloader"]
@@ -48,8 +57,9 @@ class CalibrationExperiment(TrainExperiment):
         data_config = total_config["data"]
 
         # transfer the arguments to the model config.
-        model_config["in_channels"] = data_config.pop("in_channels")
-        model_config["out_channels"] = data_config.pop("out_channels")
+        if "in_channels" in data_config:
+            model_config["in_channels"] = data_config.pop("in_channels")
+            model_config["out_channels"] = data_config.pop("out_channels")
 
         self.config = Config(total_config)
 
@@ -75,6 +85,8 @@ class CalibrationExperiment(TrainExperiment):
         
         # Get the loss (segmentation loss)
         loss = self.loss_func(yhat, y)
+
+        print(loss)
 
         if backward:
             loss.backward()

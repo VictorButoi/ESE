@@ -78,9 +78,6 @@ class COCO(CocoDetection):
         if self.transforms:
             img, mask = self.transforms(img, mask)
 
-        # Convert mask to long tensor
-        mask = mask.to(torch.int64)
-
         return img, mask
 
 
