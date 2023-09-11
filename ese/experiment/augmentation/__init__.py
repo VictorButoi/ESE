@@ -1,1 +1,1 @@
-from .transforms import build_transforms
+from .transforms import augmentations_from_config 

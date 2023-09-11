@@ -1,5 +1,5 @@
 # local imports
-from ese.experiment.augmentation import build_transforms
+from ..augmentation import augmentations_from_config
 
 # torch imports
 import torch
@@ -21,10 +21,11 @@ import seaborn as sns
 class CalibrationExperiment(TrainExperiment):
 
     def build_augmentations(self):
-        if self.config["train"]["augmentations"] != "None":
-            raise NotImplementedError("Augmentations not implemented for calibration.")
+        if "augmentations" in self.config:
 
             aug_cfg = self.config.to_dict()["augmentations"]
+            self.aug_pipeline = augmentations_from_config(aug_cfg)
+
             self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
                 :8
             ]

@@ -31,7 +31,6 @@ def get_option_product(
     for option_dict in option_set:
         for cfg_update in dict_product(option_dict):
             cfg = base_cfg.update([cfg_update, proc_exp_name(exp_name, cfg_update)])
-            # cfg = cfg.update(proc_exp_name(exp_name, cfg_update))
             # Verify it's a valid config
             try:
                 check_missing(cfg)

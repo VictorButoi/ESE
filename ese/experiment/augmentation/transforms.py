@@ -1,44 +1,79 @@
-# ionpy imports
-from ionpy.experiment.util import absolute_import
+# Random imports
+from typing import Any, Dict, List, Literal, Optional, Union
+import einops as E
+import numpy as np
 
 # torch imports
-from torchvision.transforms import functional as F
-from torchvision import transforms 
+from torch import nn
+
+# Local imports
+from . import paired
 
 
-def build_transforms(config):
-    """Builds the transforms from the config."""
-    # Get the transforms we want to apply
-    built_transforms = []
+def augmentations_from_config(config: List[Dict[str, Any]]) -> SegmentationSequential:
+    augmentations = []
+    random_apply = False
+    for aug in config:
+        assert len(aug) == 1 and isinstance(aug, dict)
+        for name, params in aug.items():
+            if name == "random_apply":
+                random_apply = params
+            else:
+                augmentations.append(getattr(paired, name)(**params))
 
-    # iterate through each transform in the config
-    for transform_dict in config:
-        transform = next(iter(transform_dict.values()))
-        transform_cls = absolute_import(transform.pop("_class"))
-        built_transforms.append(transform_cls(**transform))
+    return SegmentationSequential(*augmentations, random_apply=random_apply)
     
-    # Compose the list of transforms together
-    transform_list = transforms.Compose(built_transforms)
 
-    return transform_list 
+class SegmentationSequential(nn.Sequential):
+    """Given a list of augmentation modules with segmentation API
+    f(x, y) -> x, y
+    it applies them one after the other depending on the value of random_apply
+    - False -> applies them sequentially
+    - True -> applies all of them in a random order
+    - n: int -> applies a random subset of N augmentations
+    - (n: int, b: int) -> applies a random subset of randint(n,m)
+    """
 
+    def __init__(
+        self,
+        *augmentations: list[nn.Module],
+        random_apply: Union[int, bool, tuple[int, int]] = False,
+    ):
+        super().__init__()
 
-class RandomCropSegmentation(transforms.RandomCrop):
-    """Randomly crop both image and segmentation mask with the same parameters."""
-    def __call__(self, sample):
-        img, mask = sample['image'], sample['mask']
-        # Ensure same seed for image and mask for consistent cropping
-        i, j, h, w = self.get_params(img, self.size)
-        
-        img = F.crop(img, i, j, h, w)
-        mask = F.crop(mask, i, j, h, w)
-        
-        return {'image': img, 'mask': mask}
+        self.random_apply = random_apply
 
+        for i, augmentation in enumerate(augmentations):
+            self.add_module(f"{augmentation.__class__.__name__}_{i}", augmentation)
 
-class ToTensorForBoth:
-    def __init__(self):
-        self.to_tensor = transforms.ToTensor()
+    def _get_idxs(self):
 
-    def __call__(self, image, segmentation):
-        return self.to_tensor(image), self.to_tensor(segmentation)
+        N = len(self)
+
+        if self.random_apply is False:
+            return np.arange(N)
+        elif self.random_apply is True:
+            return np.random.permutation(N)
+        elif isinstance(self.random_apply, int):
+            assert 1 <= self.random_apply <= len(self)
+            return np.random.permutation(N)[: self.random_apply]
+        elif isinstance(self.random_apply, tuple):
+            n = np.random.randint(*self.random_apply)
+            return np.random.permutation(N)[:n]
+        else:
+            raise TypeError(f"Invalid type {type(self.random_apply)}")
+
+    def forward(self, image, segmentation):
+        for i in self._get_idxs():
+            image, segmentation = self[i](image, segmentation)
+        return image, segmentation
+
+    def support_forward(self, images, segmentations):
+        x, y = images, segmentations
+        support_size = x.shape[1]
+        x = E.rearrange(x, "B S C H W -> B (S C) H W")
+        y = E.rearrange(y, "B S C H W -> B (S C) H W")
+        x, y = self.forward(x, y)
+        x = E.rearrange(x, "B (S C) H W -> B S C H W", S=support_size)
+        y = E.rearrange(y, "B (S C) H W -> B S C H W", S=support_size)
+        return x, y
