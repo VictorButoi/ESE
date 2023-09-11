@@ -81,8 +81,6 @@ class COCO(CocoDetection):
         # Convert mask to long tensor
         mask = mask.to(torch.int64)
 
-        print("Mask contains labels:", np.unique(mask))
-
         return img, mask
 
 

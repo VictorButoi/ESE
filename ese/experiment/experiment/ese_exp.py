@@ -70,10 +70,11 @@ class CalibrationExperiment(TrainExperiment):
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
 
+        # Forward pass
         yhat = self.model(x)
-        loss = self.loss_func(yhat, y)
         
-        print(loss)
+        # Get the loss (segmentation loss)
+        loss = self.loss_func(yhat, y)
 
         if backward:
             loss.backward()

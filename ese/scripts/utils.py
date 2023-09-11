@@ -1,6 +1,10 @@
+# random imports
 import pickle
+
+# ionpy imports
+from ionpy.util.config import check_missing
 from ionpy.util import dict_product
-from ionpy.slite.utils import proc_exp_name, validate_cfg
+
 
 def LOAD_BASE_CONFIG():
     # Load the default config we build in notebook
@@ -9,6 +13,7 @@ def LOAD_BASE_CONFIG():
         base_cfg = pickle.load(config_file)
     return base_cfg
 
+
 def LOAD_AUG_CONFIG():
     # Load the default config we build in notebook
     lite_aug_cfg = None
@@ -16,12 +21,37 @@ def LOAD_AUG_CONFIG():
         lite_aug_cfg = pickle.load(config_file)
     return lite_aug_cfg
 
-def get_option_product(exp_name, option_set, base_cfg, ):
+
+def get_option_product(
+    exp_name,
+    option_set,
+    base_cfg
+):
     cfgs = []
     for option_dict in option_set:
         for cfg_update in dict_product(option_dict):
             cfg = base_cfg.update(cfg_update)
             cfg = cfg.update(proc_exp_name(exp_name, cfg_update))
-            cfg = validate_cfg(cfg)
-            cfgs.append(cfg)
+            # Verify it's a valid config
+            try:
+                check_missing(cfg)
+                cfgs.append(cfg)
+            except Exception as e:
+                print("Not a valid config!")
+
     return cfgs
+
+
+def proc_exp_name(
+    exp_name,
+    cfg
+):
+    params = []
+    params.append("exp_name:" + exp_name)
+    for key, value in cfg.items():
+        if key != "log.root":
+            key_name = key.split(".")[-1]
+            short_value = str(value).replace(" ", "")
+            params.append(f"{key_name}:{short_value}")
+    wandb_string = "-".join(params)
+    return {"log.wandb_string": wandb_string}
