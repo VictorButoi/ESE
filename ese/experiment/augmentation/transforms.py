@@ -10,9 +10,12 @@ def build_transforms(config):
     """Builds the transforms from the config."""
     # Get the transforms we want to apply
     transforms = []
-    for transform in config:
+
+    for transform_dict in config:
+        transform = next(iter(transform_dict.values()))
         transform_cls = absolute_import(transform.pop("_class"))
         transforms.append(transform_cls(**transform))
+
     return transforms
 
 
