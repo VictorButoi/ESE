@@ -1,16 +1,26 @@
 import os
+from typing import Literal, Any
 import numpy as np
 import torch
 from torchvision import transforms
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from dataclasses import dataclass
+from torch.utils.data import Dataset
 
+# ionpy imports
+from ionpy.util.validation import validate_arguments_init
+
+
+@validate_arguments_init
+@dataclass
 class PascalVOC(Dataset):
-    def __init__(self, root, is_transform=True, split="train"):
-        self.root = root
-        self.split = split
-        self.files = list(map(lambda x: x.strip(), open(os.path.join(root, 'ImageSets', 'Segmentation', split + '.txt')).readlines()))
-        self.is_transform = is_transform
+
+    split: Literal["train", "cal", "val"] = "train"
+    transform: Any = None
+
+    def __post_init__(self):
+        root = "/storage/vbutoi/datasets/VOCdevkit/VOC2012"
+        self.files = list(map(lambda x: x.strip(), open(os.path.join(root, 'ImageSets', 'Segmentation', self.split + '.txt')).readlines()))
         if self.is_transform:
             self.transform = transforms.Compose([
                 transforms.Resize((224, 224)),
