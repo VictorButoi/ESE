@@ -7,7 +7,9 @@ from ionpy.metrics.segmentation import pixel_accuracy
 from ionpy.util.islands import get_connected_components
 
 
-def ECE_map(subj):
+def ECE_map(
+    subj
+):
     conf_scores = subj['soft_pred']
     
     # Calculate the per-pixel accuracy and where the foreground regions are.
@@ -21,7 +23,13 @@ def ECE_map(subj):
     return calibration_image
 
 
-def ESE_map(subj, conf_bins):
+def ESE_map(
+    subj,
+    num_bins
+):
+
+    # Get the confidence bins
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     pred = subj['soft_pred']
     calibration_image = np.zeros_like(pred)
@@ -46,7 +54,12 @@ def ESE_map(subj, conf_bins):
     return calibration_image
 
 
-def ReCE_map(subj, conf_bins):
+def ReCE_map(
+    subj,
+    num_bins 
+):
+    # Get the confidence bins
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     pred = subj['soft_pred']
     calibration_image = np.zeros_like(pred)

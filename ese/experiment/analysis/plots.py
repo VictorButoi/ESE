@@ -8,10 +8,13 @@ import seaborn as sns
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
+from ionpy.metrics import dice_score
 
 # ese imports
 from ese.experiment.metrics import ECE, ESE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
+from ese.experiment.augmentation import smooth_soft_pred
+import ese.experiment.analysis.vis as vis
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -30,10 +33,10 @@ def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
 
 @validate_arguments_init
 def plot_reliability_diagram(
-    bins: torch.Tensor,
+    num_bins: int,
     subj: dict = None,
     bin_info: str = None,
-    metrics: List[str] = ["ECE", "ESE", "ReCE"],
+    metrics: List[str] = ["ECE", "ReCE"],
     title: str = "",
     remove_empty_bins: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
@@ -42,6 +45,10 @@ def plot_reliability_diagram(
     show_diagonal: bool = True,
     ax = None
 ) -> None:
+
+    # Setup the bins
+    print(num_bins)
+    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if bin_info is None:
         for met in metrics:
@@ -133,8 +140,9 @@ def plot_confusion_matrix(
     # Define class labels
     class_labels = ['Background', 'Foreground']
 
-    # Make sure ax is on
+    # Make sure ax is on and grid is off
     ax.axis("on")
+    ax.grid(False) 
 
     # Plot the confusion matrix using seaborn
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels, ax=ax)
@@ -142,5 +150,113 @@ def plot_confusion_matrix(
     ax.set_ylabel('True Labels')
     ax.set_title('Confusion Matrix')
 
-    # Turn the grid off
-    ax.grid(False) 
+
+@validate_arguments_init
+def plot_subject_image(
+    subj_name,
+    subj,
+    fig,
+    ax
+):
+    im = ax.imshow(subj["image"], cmap="gray")
+    ax.set_title(f"{subj_name}, Image")
+    fig.colorbar(im, ax=ax)
+
+
+@validate_arguments_init
+def plot_subj_label(
+    subj,
+    fig,
+    ax
+):
+    lab = ax.imshow(subj["label"], cmap="gray")
+    ax.set_title("Ground Truth")
+    fig.colorbar(lab, ax=ax)
+
+
+@validate_arguments_init
+def plot_prediction_probs(
+    subj,
+    fig,
+    ax
+):
+    pre = ax.imshow(subj["soft_pred"], cmap="gray")
+    ax.set_title("Probabilities")
+    fig.colorbar(pre, ax=ax)
+
+
+@validate_arguments_init
+def plot_pixelwise_pred(
+    subj,
+    fig,
+    ax
+):
+    def_pred = ax.imshow(subj["hard_pred"], cmap="gray")
+
+    dice = dice_score(subj["soft_pred"], subj["label"])
+    ax.set_title(f"Pixel-wise Pred, Dice: {dice:.3f}")
+
+    fig.colorbar(def_pred, ax=ax)
+
+
+@validate_arguments_init
+def plot_regionwise_pred(
+    subj,
+    num_bins,
+    fig,
+    ax
+):
+    smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
+    hard_smoothed_prediction = (smoothed_prediction > 0.5).float()
+
+    smooth_pred = ax.imshow(hard_smoothed_prediction, cmap="gray")
+
+    smoothed_dice = dice_score(smoothed_prediction, subj["label"])
+    ax.set_title(f"Region-wise Pred, Dice: {smoothed_dice:.3f}")
+
+    fig.colorbar(smooth_pred, ax=ax)
+
+
+@validate_arguments_init
+def plot_error_vs_numbins(
+    subj,
+    metrics,
+    bin_weightings,
+    ax=None
+    ):
+
+    num_bins_set = np.linspace(10, 100, 10, dtype=int)
+
+
+def plot_ece_map(
+    subj,
+    fig,
+    ax,
+):
+    # Look at the pixelwise error.
+    ece_map = vis.ECE_map(subj)
+
+    # Get the bounds for visualization
+    ece_abs_max = np.max(np.abs(ece_map))
+    ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
+    ce_im = ax.imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
+    ax.set_title("Pixel-wise Calibration Error")
+    fig.colorbar(ce_im, ax=ax)
+
+
+def plot_rece_map(
+    subj,
+    num_bins,
+    fig,
+    ax
+):
+    # Look at the regionwise error.
+    rece_map = vis.ReCE_map(subj, num_bins)
+
+    # Get the bounds for visualization
+    rece_abs_max = np.max(np.abs(rece_map))
+    rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
+    ese_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
+    ax.set_title("Region-wise Calibration Error")
+    fig.colorbar(ese_im, ax=ax)
+

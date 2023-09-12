@@ -11,7 +11,8 @@ from ionpy.util.islands import get_connected_components
 
 @validate_arguments_init
 def ECE(
-    conf_bins: torch.Tensor,
+    conf_bins: torch.Tensor = None,
+    num_bins: int = 10,
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
     n_classes: int = 2,
@@ -21,6 +22,10 @@ def ECE(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
+    # If conf_bins is not predefined, create them. 
+    if conf_bins is None:
+        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if from_logits:
         pred = torch.sigmoid(pred)
@@ -65,15 +70,20 @@ def ECE(
 
 @validate_arguments_init
 def ESE(
-    conf_bins: torch.Tensor,
-    pred: torch.Tensor,
-    label: torch.Tensor,
+    conf_bins: torch.Tensor = None,
+    num_bins: int = 10,
+    pred: torch.Tensor = None,
+    label: torch.Tensor = None,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ESE) for a predicted label map.
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
+    # If conf_bins is not predefined, create them. 
+    if conf_bins is None:
+        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if from_logits:
         pred = torch.sigmoid(pred)
@@ -115,15 +125,20 @@ def ESE(
 
 @validate_arguments_init
 def ReCE(
-    conf_bins: torch.Tensor,
-    pred: torch.Tensor,
-    label: torch.Tensor,
+    conf_bins: torch.Tensor = None,
+    num_bins: int = 10,
+    pred: torch.Tensor = None,
+    label: torch.Tensor = None,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
+    # If conf_bins is not predefined, create them. 
+    if conf_bins is None:
+        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if from_logits:
         pred = torch.sigmoid(pred)

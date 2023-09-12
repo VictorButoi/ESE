@@ -6,10 +6,12 @@ import torch
 from typing import List
 
 # ese imports
-from ese.experiment.analysis.plots import plot_reliability_diagram, plot_confusion_matrix
+from ese.experiment.analysis.plots import *
 from ese.experiment.metrics import ECE, ESE, ReCE
-import ese.experiment.analysis.vis as vis
+
+# ionpy imports
 from ionpy.util.validation import validate_arguments_init
+
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -23,56 +25,73 @@ def subject_plot(
     subject_dict: dict, 
     num_bins: int,
     metrics: List[str] = ["ECE", "ESE", "ReCE"],
+    bin_weightings: List[str] = ["uniform", "weighted"],
     show_bin_amounts: bool = False
     ) -> None:
     
-    # Calculate the bins and spacing
-    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
         
+    # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_dict):
 
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
             nrows=2,
-            ncols=4,
-            figsize=(24, 12)
+            ncols=5,
+            figsize=(30, 12)
         )
+        # 6 * 5, 6 * 2
         f.patch.set_facecolor('0.8')  
 
         # Turn the axes off for all plots
         for ax in axarr.ravel():
             ax.axis("off")
 
-        # Define subject name
+        # Define subject name and plot the image
         subj_name = f"Subject #{subj_idx + 1}"
-        # Show the image
-        im = axarr[0, 0].imshow(subj["image"], cmap="gray")
-        axarr[0, 0].set_title(f"{subj_name}, Image")
-        f.colorbar(im, ax=axarr[0,0])
+        plot_subject_image(
+            subj_name=subj_name,
+            subj=subj,
+            fig=f,
+            ax=axarr[0, 0]
+        )
 
         # Show the groundtruth label
-        lab = axarr[0, 1].imshow(subj["label"], cmap="gray")
-        axarr[0, 1].set_title(f"{subj_name}, Ground Truth")
-        f.colorbar(lab, ax=axarr[0,1])
-
-        # Show the thresholded prediction
-        post = axarr[0, 2].imshow(subj["hard_pred"], cmap="gray")
-        axarr[0, 2].set_title(f"{subj_name}, Hard Pred, Dice: {subj['dice_score']:.3f}")
-        f.colorbar(post, ax=axarr[0, 2])
+        plot_subj_label(
+            subj=subj,
+            fig=f,
+            ax=axarr[0, 1]
+        )
 
         # Show the confidence map (which we interpret as probabilities)
-        pre = axarr[0, 3].imshow(subj["soft_pred"], cmap="gray")
-        axarr[0, 3].set_title(f"{subj_name}, Probabilities")
-        f.colorbar(pre, ax=axarr[0, 3])
+        plot_prediction_probs(
+            subj=subj,
+            fig=f,
+            ax=axarr[0, 2]
+        )
+
+        # Show the pixelwise thresholded prediction
+        plot_pixelwise_pred(
+            subj=subj,
+            fig=f,
+            ax=axarr[0, 3]
+        )
+
+        # Show the regionwise thresholded prediction
+        plot_regionwise_pred(
+            subj=subj,
+            num_bins=num_bins,
+            fig=f,
+            ax=axarr[0, 4]
+        )
 
         # Show different kinds of statistics about your subjects.
         plot_reliability_diagram(
-            bins=bins,
+            num_bins=num_bins,
             subj=subj,
             metrics=metrics,
+            bin_weightings=bin_weightings,
             remove_empty_bins=True,
             bin_color="blue",
             show_bin_amounts=show_bin_amounts,
@@ -80,32 +99,38 @@ def subject_plot(
         )
 
         # Show different kinds of statistics about your subjects.
-        plot_confusion_matrix(
+        plot_error_vs_numbins(
             subj=subj,
+            metrics=metrics,
+            bin_weightings=bin_weightings,
             ax=axarr[1, 1]
         )
 
-        # Look at the pixelwise error.
-        ece_map = vis.ECE_map(subj)
-        # Get the bounds for visualization
-        ece_abs_max = np.max(np.abs(ece_map))
-        ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
-        ce_im = axarr[1, 2].imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
-        axarr[1, 2].set_title("Pixel-wise Calibration Error")
-        f.colorbar(ce_im, ax=axarr[1, 2])
-        
-        # Look at the regionwise error.
-        rece_map = vis.ReCE_map(subj, bins)
-        # Get the bounds for visualization
-        rece_abs_max = np.max(np.abs(rece_map))
-        rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
-        ese_im = axarr[1, 3].imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
-        axarr[1, 3].set_title("Region-wise Calibration Error")
-        f.colorbar(ese_im, ax=axarr[1, 3])
+        # Show different kinds of statistics about your subjects.
+        plot_confusion_matrix(
+            subj=subj,
+            ax=axarr[1, 2]
+        )
+
+        # Display the pixelwise calibration error.
+        plot_ece_map(
+            subj=subj,
+            fig=f,
+            ax=axarr[1, 3]
+        ) 
+
+        # Display the regionwise calibration error.
+        plot_rece_map(
+            subj=subj,
+            num_bins=num_bins,
+            fig=f,
+            ax=axarr[1, 4]
+        )
         
         # Adjust vertical spacing between the subplots
         plt.subplots_adjust(hspace=0.35)
 
+        # Display for the subject.
         plt.show()
 
 
@@ -151,7 +176,7 @@ def aggregate_plot(
 
 
 @validate_arguments_init
-def aggregate_confusion_matrix(
+def aggregate_confusion_matrix_plot(
     subj_dict
 ):
     # Initialize an empty aggregate confusion matrix
@@ -177,10 +202,3 @@ def aggregate_confusion_matrix(
 
     # Display the plot
     plt.show()
-
-
-
-
-
-
-
