@@ -1,5 +1,5 @@
 # Random imports
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Union
 import einops as E
 import numpy as np
 
@@ -10,7 +10,7 @@ from torch import nn
 from . import paired
 
 
-def augmentations_from_config(config: List[Dict[str, Any]]) -> SegmentationSequential:
+def augmentations_from_config(config: List[Dict[str, Any]]):
     augmentations = []
     random_apply = False
     for aug in config:
