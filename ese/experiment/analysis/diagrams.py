@@ -32,6 +32,10 @@ def subject_plot(
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
         
+    # Dimensions of the plots
+    width_per_plot = 7
+    height_per_plot = 6
+
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_dict):
 
@@ -39,7 +43,7 @@ def subject_plot(
         f, axarr = plt.subplots(
             nrows=2,
             ncols=5,
-            figsize=(30, 12)
+            figsize=(width_per_plot * 5, height_per_plot * 2)
         )
         # 6 * 5, 6 * 2
         f.patch.set_facecolor('0.8')  
@@ -128,7 +132,7 @@ def subject_plot(
         )
         
         # Adjust vertical spacing between the subplots
-        plt.subplots_adjust(hspace=0.35)
+        plt.subplots_adjust(hspace=0.4)
 
         # Display for the subject.
         plt.show()
@@ -166,8 +170,9 @@ def aggregate_plot(
         bin_amounts = torch.sum(aggregated_amounts, dim=0)
 
         bin_info = [bin_scores, bin_accs, bin_amounts]
+
         plot_reliability_diagram(
-            bins,
+            num_bins=num_bins,
             bin_info=bin_info,
             metrics=[metric],
             ax=axarr[m_idx],
@@ -176,7 +181,7 @@ def aggregate_plot(
 
 
 @validate_arguments_init
-def aggregate_confusion_matrix_plot(
+def aggregate_cm_plot(
     subj_dict
 ):
     # Initialize an empty aggregate confusion matrix

@@ -4,6 +4,7 @@ from typing import List
 import torch
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
+import pandas as pd
 import seaborn as sns
 
 # ionpy imports
@@ -37,7 +38,6 @@ def plot_reliability_diagram(
     subj: dict = None,
     bin_info: str = None,
     metrics: List[str] = ["ECE", "ReCE"],
-    title: str = "",
     remove_empty_bins: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
     bin_color: str = 'blue',
@@ -47,8 +47,10 @@ def plot_reliability_diagram(
 ) -> None:
 
     # Setup the bins
-    print(num_bins)
     bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+
+    # Define the title
+    title = f"Reliability Diagram w/ {num_bins} bins:\n"
 
     if bin_info is None:
         for met in metrics:
@@ -191,12 +193,18 @@ def plot_pixelwise_pred(
     fig,
     ax
 ):
-    def_pred = ax.imshow(subj["hard_pred"], cmap="gray")
+    # Plot the pixel-wise prediction
+    hard_im = ax.imshow(subj["hard_pred"], cmap="gray")
 
-    dice = dice_score(subj["soft_pred"], subj["label"])
+    # Expand extra dimensions for metrics
+    pred = subj["hard_pred"][None, None, ...]
+    label = subj["label"][None, None, ...]
+
+    # Calculate the dice score
+    dice = dice_score(pred, label)
     ax.set_title(f"Pixel-wise Pred, Dice: {dice:.3f}")
 
-    fig.colorbar(def_pred, ax=ax)
+    fig.colorbar(hard_im, ax=ax)
 
 
 @validate_arguments_init
@@ -206,15 +214,20 @@ def plot_regionwise_pred(
     fig,
     ax
 ):
+    # Plot the processed region-wise prediction
     smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
     hard_smoothed_prediction = (smoothed_prediction > 0.5).float()
+    smooth_im = ax.imshow(hard_smoothed_prediction, cmap="gray")
 
-    smooth_pred = ax.imshow(hard_smoothed_prediction, cmap="gray")
+    # Expand extra dimensions for metrics
+    smoothed_pred = hard_smoothed_prediction[None, None, ...]
+    label = subj["label"][None, None, ...]
 
-    smoothed_dice = dice_score(smoothed_prediction, subj["label"])
+    # Calculate the dice score
+    smoothed_dice = dice_score(smoothed_pred, label)
     ax.set_title(f"Region-wise Pred, Dice: {smoothed_dice:.3f}")
 
-    fig.colorbar(smooth_pred, ax=ax)
+    fig.colorbar(smooth_im, ax=ax)
 
 
 @validate_arguments_init
@@ -225,7 +238,58 @@ def plot_error_vs_numbins(
     ax=None
     ):
 
-    num_bins_set = np.linspace(10, 100, 10, dtype=int)
+    # Define the number of bins to test.
+    num_bins_set = np.linspace(5, 100, 5, dtype=int)
+
+    # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
+    error_list = []
+
+    # Go through each number of bins.
+    for num_bins in num_bins_set:
+        for metric in metrics:
+            for bin_weighting in bin_weightings:
+                
+                # Compute the metrics.
+                bin_scores, _, bin_amounts = metric_dict[metric](
+                    num_bins=num_bins,
+                    pred=subj["soft_pred"],
+                    label=subj["label"]
+                )
+
+                # Calculate the error.
+                error = reduce_scores(
+                    scores=bin_scores.numpy(),
+                    bin_amounts=bin_amounts.numpy(),
+                    weighting=bin_weighting
+                )
+
+                # Add the error to the dataframe.
+                error_list.append({
+                    "# Bins": num_bins,
+                    "metric_name": metric,
+                    "bin_weighting": bin_weighting,
+                    "Calibration Error": error
+                })
+
+    # Convert list to a pandas dataframe
+    error_df = pd.DataFrame(error_list)
+    
+    # Plot the number of bins vs the error using seaborn lineplot, with hue for each metric
+    # and style for each weighting.
+    ax.axis("on")
+    sns.lineplot(
+        data=error_df,
+        x="# Bins",
+        y="Calibration Error",
+        hue="metric_name",
+        style="bin_weighting",
+        ax=ax
+    )
+    # Make the x ticks go every 10 bins, and set the x lim to be between the first and last number of bins.
+    x_ticks = np.arange(0, 101, 10)
+    ax.set_xticks(x_ticks)
+    ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
+
 
 
 def plot_ece_map(
