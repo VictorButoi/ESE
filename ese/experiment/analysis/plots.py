@@ -239,21 +239,23 @@ def plot_error_vs_numbins(
     ):
 
     # Define the number of bins to test.
-    num_bins_set = np.linspace(5, 100, 5, dtype=int)
+    num_bins_set = np.arange(5, 105, 5, dtype=int)
 
     # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
     error_list = []
+    pred = subj["soft_pred"]
+    label = subj["label"]
 
     # Go through each number of bins.
-    for num_bins in num_bins_set:
-        for metric in metrics:
-            for bin_weighting in bin_weightings:
+    for metric in metrics:
+        for bin_weighting in bin_weightings:
+            for num_bins in num_bins_set:
                 
                 # Compute the metrics.
                 bin_scores, _, bin_amounts = metric_dict[metric](
                     num_bins=num_bins,
-                    pred=subj["soft_pred"],
-                    label=subj["label"]
+                    pred=pred,
+                    label=label
                 )
 
                 # Calculate the error.
@@ -266,8 +268,8 @@ def plot_error_vs_numbins(
                 # Add the error to the dataframe.
                 error_list.append({
                     "# Bins": num_bins,
-                    "metric_name": metric,
-                    "bin_weighting": bin_weighting,
+                    "Metric": metric,
+                    "Weighting": bin_weighting,
                     "Calibration Error": error
                 })
 
@@ -281,13 +283,15 @@ def plot_error_vs_numbins(
         data=error_df,
         x="# Bins",
         y="Calibration Error",
-        hue="metric_name",
-        style="bin_weighting",
+        hue="Metric",
+        style="Weighting",
         ax=ax
     )
+
     # Make the x ticks go every 10 bins, and set the x lim to be between the first and last number of bins.
     x_ticks = np.arange(0, 101, 10)
     ax.set_xticks(x_ticks)
+    ax.set_title("Calibration Error vs. Number of Bins")
     ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
 
 

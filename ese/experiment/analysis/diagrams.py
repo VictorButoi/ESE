@@ -153,7 +153,9 @@ def aggregate_plot(
     bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     for m_idx, metric in enumerate(metrics):
-        aggregate_info = [metric_dict[metric](
+
+        aggregate_info = [
+            metric_dict[metric](
             conf_bins=bins,
             pred=subj["soft_pred"],
             label=subj["label"]
