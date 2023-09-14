@@ -34,16 +34,18 @@ def subject_plot(
         
     # Dimensions of the plots
     width_per_plot = 7
-    height_per_plot = 6
+    height_per_plot = 7
+    num_rows = 3 
+    num_cols = 4 
 
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_dict):
 
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
-            nrows=2,
-            ncols=5,
-            figsize=(width_per_plot * 5, height_per_plot * 2)
+            nrows=num_rows,
+            ncols=num_cols,
+            figsize=(width_per_plot * num_cols, height_per_plot * num_rows)
         )
         # 6 * 5, 6 * 2
         f.patch.set_facecolor('0.8')  
@@ -51,6 +53,10 @@ def subject_plot(
         # Turn the axes off for all plots
         for ax in axarr.ravel():
             ax.axis("off")
+
+        #########################################################
+        # ROW THREE
+        #########################################################
 
         # Define subject name and plot the image
         subj_name = f"Subject #{subj_idx + 1}"
@@ -76,18 +82,20 @@ def subject_plot(
         )
 
         # Show the pixelwise thresholded prediction
-        plot_pixelwise_pred(
+        plot_pred(
             subj=subj,
             fig=f,
             ax=axarr[0, 3]
         )
 
-        # Show the regionwise thresholded prediction
-        plot_regionwise_pred(
+        #########################################################
+        # ROW TwO 
+        #########################################################
+
+        # Show different kinds of statistics about your subjects.
+        plot_confusion_matrix(
             subj=subj,
-            num_bins=num_bins,
-            fig=f,
-            ax=axarr[0, 4]
+            ax=axarr[1, 0]
         )
 
         # Show different kinds of statistics about your subjects.
@@ -99,7 +107,7 @@ def subject_plot(
             remove_empty_bins=True,
             bin_color="blue",
             show_bin_amounts=show_bin_amounts,
-            ax=axarr[1, 0]
+            ax=axarr[1, 1]
         )
 
         # Show different kinds of statistics about your subjects.
@@ -107,56 +115,68 @@ def subject_plot(
             subj=subj,
             metrics=metrics,
             bin_weightings=bin_weightings,
-            ax=axarr[1, 1]
-        )
-
-        # Show different kinds of statistics about your subjects.
-        plot_confusion_matrix(
-            subj=subj,
             ax=axarr[1, 2]
         )
+
+        #########################################################
+        # ROW THREE
+        #########################################################
 
         # Display the pixelwise calibration error.
         plot_ece_map(
             subj=subj,
             fig=f,
-            ax=axarr[1, 3]
+            ax=axarr[2, 0]
         ) 
 
-        # Display the regionwise calibration error.
+        # Display the regionwise calibration error averaging over the region.
         plot_rece_map(
             subj=subj,
             num_bins=num_bins,
             fig=f,
-            ax=axarr[1, 4]
+            ax=axarr[2, 1],
+            average=True
+        )
+
+        # Show a more per-pixel calibration error for each region.
+        plot_rece_map(
+            subj=subj,
+            num_bins=num_bins,
+            fig=f,
+            ax=axarr[2, 2],
+            average=False
         )
         
         # Adjust vertical spacing between the subplots
-        plt.subplots_adjust(hspace=0.4)
+        plt.subplots_adjust(hspace=0.3)
 
         # Display for the subject.
         plt.show()
 
 
 @validate_arguments_init
-def aggregate_plot(
+def aggregate_reliability_plot(
     subject_dict: dict,
     num_bins: int,
     metrics: List[str],
+    bin_weightings: List[str] = ["uniform", "weighted"],
     color: str = "blue"
 ) -> None:
     
     # Consturct the subplot (just a single one)
-    _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(5 * len(metrics), 5))
+    _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(7 * len(metrics), 7))
 
-    # Calculate the bins and spacing
-    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    # y-axis labels
+    y_axes = {
+        "ECE": "Avg. Accuracy",
+        "ReCE": "Avg. Island-wise Precision"
+    }
 
     for m_idx, metric in enumerate(metrics):
 
         aggregate_info = [
             metric_dict[metric](
-            conf_bins=bins,
+            num_bins=num_bins,
             pred=subj["soft_pred"],
             label=subj["label"]
         ) for subj in subject_dict]
@@ -177,6 +197,8 @@ def aggregate_plot(
             num_bins=num_bins,
             bin_info=bin_info,
             metrics=[metric],
+            bin_weightings=bin_weightings,
+            y_axis=y_axes[metric],
             ax=axarr[m_idx],
             bin_color=color
         )
@@ -209,3 +231,56 @@ def aggregate_cm_plot(
 
     # Display the plot
     plt.show()
+
+
+@validate_arguments_init
+def aggregate_error_distribution_plot(
+    subject_dict: dict,
+    num_bins: int,
+    metrics: List[str],
+    bin_weightings: List[str] = ["uniform", "weighted"],
+) -> None:
+
+    error_list = []
+    for metric in metrics:
+        for bin_weighting in bin_weightings:
+            for subj in subject_dict:
+
+                # Compute the metrics.
+                bin_scores, _, bin_amounts = metric_dict[metric](
+                    num_bins=num_bins,
+                    pred=subj['soft_pred'],
+                    label=subj['label']
+                )
+
+                # Calculate the error.
+                error = reduce_scores(
+                    scores=bin_scores.numpy(),
+                    bin_amounts=bin_amounts.numpy(),
+                    weighting=bin_weighting
+                )
+
+                # Add the error to the dataframe.
+                error_list.append({
+                    "Metric": metric,
+                    "Weighting": bin_weighting,
+                    "Calibration Error": error
+                })
+    
+    # Wrap into a pandas dataframe
+    error_df = pd.DataFrame(error_list)
+
+    # Create a box plot of the calibration errors, and set its height
+    plt.figure(figsize=(6, 10))
+
+    sns.set_theme(style="whitegrid")
+    sns.boxplot(
+        x="Metric",
+        y="Calibration Error",
+        data=error_df,
+    )
+
+
+
+            
+

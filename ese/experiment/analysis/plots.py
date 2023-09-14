@@ -2,20 +2,19 @@
 import numpy as np
 from typing import List
 import torch
-import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 import pandas as pd
 import seaborn as sns
 
 # ionpy imports
+from ionpy.metrics.segmentation import dice_score, pixel_accuracy
 from ionpy.util.validation import validate_arguments_init
-from ionpy.metrics import dice_score
+from ionpy.util.islands import get_connected_components
 
 # ese imports
 from ese.experiment.metrics import ECE, ESE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
 from ese.experiment.augmentation import smooth_soft_pred
-import ese.experiment.analysis.vis as vis
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -40,6 +39,7 @@ def plot_reliability_diagram(
     metrics: List[str] = ["ECE", "ReCE"],
     remove_empty_bins: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
+    y_axis: str = "Precision",
     bin_color: str = 'blue',
     show_bin_amounts: bool = False,
     show_diagonal: bool = True,
@@ -110,7 +110,7 @@ def plot_reliability_diagram(
 
     # Set title and axis labels
     ax.set_title(title)
-    ax.set_ylabel("Precision")
+    ax.set_ylabel(y_axis)
     ax.set_xlabel("Confidence")
 
     # Set x and y limits
@@ -144,7 +144,6 @@ def plot_confusion_matrix(
 
     # Make sure ax is on and grid is off
     ax.axis("on")
-    ax.grid(False) 
 
     # Plot the confusion matrix using seaborn
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels, ax=ax)
@@ -188,7 +187,7 @@ def plot_prediction_probs(
 
 
 @validate_arguments_init
-def plot_pixelwise_pred(
+def plot_pred(
     subj,
     fig,
     ax
@@ -202,13 +201,13 @@ def plot_pixelwise_pred(
 
     # Calculate the dice score
     dice = dice_score(pred, label)
-    ax.set_title(f"Pixel-wise Pred, Dice: {dice:.3f}")
+    ax.set_title(f"Prediction, Dice: {dice:.3f}")
 
     fig.colorbar(hard_im, ax=ax)
 
 
 @validate_arguments_init
-def plot_regionwise_pred(
+def plot_smoothed_pred(
     subj,
     num_bins,
     fig,
@@ -225,7 +224,7 @@ def plot_regionwise_pred(
 
     # Calculate the dice score
     smoothed_dice = dice_score(smoothed_pred, label)
-    ax.set_title(f"Region-wise Pred, Dice: {smoothed_dice:.3f}")
+    ax.set_title(f"Smoothed Prediction, Dice: {smoothed_dice:.3f}")
 
     fig.colorbar(smooth_im, ax=ax)
 
@@ -239,7 +238,7 @@ def plot_error_vs_numbins(
     ):
 
     # Define the number of bins to test.
-    num_bins_set = np.arange(5, 105, 5, dtype=int)
+    num_bins_set = np.arange(10, 110, 10, dtype=int)
 
     # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
     error_list = []
@@ -279,17 +278,31 @@ def plot_error_vs_numbins(
     # Plot the number of bins vs the error using seaborn lineplot, with hue for each metric
     # and style for each weighting.
     ax.axis("on")
+    multiple_bins = len(num_bins_set) > 1
+    multiple_weighting = len(bin_weightings) > 1
+    hue = None
+    style = None
+
+    # Check if you have multiple options
+    if multiple_bins and multiple_weighting:
+        hue = "Metric"
+        style = "Weighting"
+    elif multiple_bins:
+        hue = "Metric"
+    elif multiple_weighting:
+        hue = "Weighting"
+
     sns.lineplot(
         data=error_df,
         x="# Bins",
         y="Calibration Error",
-        hue="Metric",
-        style="Weighting",
+        hue=hue,
+        style=style,
         ax=ax
     )
 
     # Make the x ticks go every 10 bins, and set the x lim to be between the first and last number of bins.
-    x_ticks = np.arange(0, 101, 10)
+    x_ticks = np.arange(0, 110, 10)
     ax.set_xticks(x_ticks)
     ax.set_title("Calibration Error vs. Number of Bins")
     ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
@@ -301,14 +314,21 @@ def plot_ece_map(
     fig,
     ax,
 ):
-    # Look at the pixelwise error.
-    ece_map = vis.ECE_map(subj)
+    # Calculate the per-pixel accuracy and where the foreground regions are.
+    acc_per_pixel = (subj['label'] == subj['hard_pred']).float()
+    foreground = subj['hard_pred'].bool()
+
+    # Set the regions of the image corresponding to groundtruth label.
+    ece_map = np.zeros_like(subj['label'])
+    ece_map[foreground] = (subj['soft_pred'] - acc_per_pixel)[foreground]
 
     # Get the bounds for visualization
     ece_abs_max = np.max(np.abs(ece_map))
     ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
+
+    # Show the ece map
     ce_im = ax.imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
-    ax.set_title("Pixel-wise Calibration Error")
+    ax.set_title("Pixel-wise Cal Error")
     fig.colorbar(ce_im, ax=ax)
 
 
@@ -316,15 +336,53 @@ def plot_rece_map(
     subj,
     num_bins,
     fig,
-    ax
+    ax,
+    average=False
 ):
-    # Look at the regionwise error.
-    rece_map = vis.ReCE_map(subj, num_bins)
+    # Get the confidence bins
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+
+    pred = subj['soft_pred']
+    rece_map = np.zeros_like(pred)
+
+    # Make sure bins are aligned.
+    bin_width = conf_bins[1] - conf_bins[0]
+    for c_bin in conf_bins:
+
+        # Get the binary region of this confidence interval
+        bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
+
+        # Break it up into islands
+        conf_islands = get_connected_components(bin_conf_region)
+
+        # Iterate through each island, and get the measure for each island.
+        for island in conf_islands:
+
+            # Get the label corresponding to the island and simulate ground truth and make the right shape.
+            label_region = subj["label"][island][None, None, ...]
+            pseudo_pred = torch.ones_like(label_region)
+
+            # If averaging, then everything in one island will get the same score, otherwise pixelwise.
+            if average:
+                # Calculate the accuracy and mean confidence for the island.
+                region_accuracies  = pixel_accuracy(pseudo_pred , label_region)
+                region_confidences = pred[island].mean()
+            else:
+                region_accuracies = (pseudo_pred == label_region).squeeze().float()
+                region_confidences = pred[island]
+
+            # Place the numbers in the island.
+            rece_map[island] = (region_confidences - region_accuracies)
 
     # Get the bounds for visualization
     rece_abs_max = np.max(np.abs(rece_map))
     rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
     ese_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
-    ax.set_title("Region-wise Calibration Error")
+
+    if average:
+        ax.set_title("Averaged Region-wise Cal Error")
+    else:
+        ax.set_title("Region-wise Cal Error")
+
     fig.colorbar(ese_im, ax=ax)
 
