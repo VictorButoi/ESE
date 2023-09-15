@@ -50,19 +50,21 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         # Get the class name
         class_name = "_".join(example_name.split("_")[:-1])
         label = self.class_map[class_name]
-        print(class_name)
-        print(label)
-        mask = (mask * label)
-
-        assert img.dtype == np.float32, "Img must be float32!"
-        assert mask.dtype == np.int64, "Mask must be int64!" 
+        mask = (mask * label)[None]
 
         if self.transforms:
             img, mask = self.transforms(img, mask)
+        
+        # Convert to float32
+        img = img.astype(np.float32)
+        mask = mask.astype(np.float32)
+
+        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
+        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
 
         # Convert to torch tensors
-        img = torch.from_numpy(img.copy())
-        mask = torch.from_numpy(mask.copy())[None]
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
 
         return img, mask
 

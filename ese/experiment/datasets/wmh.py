@@ -1,4 +1,7 @@
+# torch imports
+import torch
 # random imports
+
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
 import numpy as np
@@ -66,11 +69,15 @@ class WMH(ThunderDataset, DatapathMixin):
         img = img_vol[slice_indices, ...].astype(np.float32)
         mask = mask_vol[slice_indices, ...].astype(np.float32)
 
-        assert img.dtype == np.float32, "Img must be float32!"
-        assert mask.dtype == np.float32, "Mask must be float32!"
+        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
+        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
 
         if self.transforms:
             img, mask = self.transforms(img, mask)
+
+        # Convert to torch tensors
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
 
         return img, mask
 
