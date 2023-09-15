@@ -236,25 +236,31 @@ def thunderify_OxfordPets(
                 
                 # Convert to the right type
                 img = img.astype(np.float32)
-                seg = seg.astype(np.float32)
+                seg = seg.astype(np.int64)
 
                 assert img.shape == (3, 256, 256), f"Image shape is {img.shape}"
                 assert seg.shape == (256, 256), f"Seg shape is {seg.shape}"
                 
                 # Save the datapoint to the database
                 db[key] = (img, seg) 
+                
                 examples.append(key)
             
             except Exception as e:
                 print(f"Error with {key}: {e}. Skipping")
 
         examples = sorted(examples)
+        classes = [ex.split("_")[:-1] for ex in examples]
+        data_ids = [ex.split("_")[-1] for ex in examples]
+
         splits = data_splits(examples, splits_ratio, splits_seed)
         splits = dict(zip(("train", "cal", "val", "test"), splits))
 
         # Save the metadata
         db["_examples"] = examples 
         db["_samples"] = examples 
+        db["_classes"] = classes 
+        db["_ids"] = data_ids 
         db["_splits"] = splits
         db["_splits_kwarg"] = {
             "ratio": splits_ratio, 

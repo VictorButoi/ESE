@@ -58,8 +58,11 @@ class CalibrationExperiment(TrainExperiment):
 
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
-            model_config["in_channels"] = data_config.pop("in_channels")
-            model_config["out_channels"] = data_config.pop("out_channels")
+            in_channels = data_config.pop("in_channels")
+            out_channels = data_config.pop("out_channels")
+            assert out_channels > 1, "Must be multi-class segmentation!"
+            model_config["in_channels"] = in_channels
+            model_config["out_channels"] = out_channels 
 
         self.config = Config(total_config)
 
@@ -83,8 +86,11 @@ class CalibrationExperiment(TrainExperiment):
         # Forward pass
         yhat = self.model(x)
         
+        print("yhat dtype:", yhat.dtype)
+        print("y dtype:", y.dtype)
         # Get the loss (segmentation loss)
         loss = self.loss_func(yhat, y)
+        print(loss)
 
         if backward:
             loss.backward()
