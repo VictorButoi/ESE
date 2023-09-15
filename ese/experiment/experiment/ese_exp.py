@@ -86,8 +86,6 @@ class CalibrationExperiment(TrainExperiment):
         # Get the loss (segmentation loss)
         loss = self.loss_func(yhat, y)
 
-        print(loss)
-
         if backward:
             loss.backward()
             self.optim.step()

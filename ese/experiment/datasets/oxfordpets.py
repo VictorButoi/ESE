@@ -41,12 +41,12 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         assert img.dtype == np.float32, "Img must be float32!"
         assert mask.dtype == np.float32, "Mask must be float32!"
 
-        if self.transforms:
-            img, mask = self.transforms(img, mask)
+        # if self.transforms:
+        #     img, mask = self.transforms(img, mask)
 
         # Convert to torch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)[None]
+        img = torch.from_numpy(img.copy())
+        mask = torch.from_numpy(mask.copy())[None]
 
         return img, mask
 

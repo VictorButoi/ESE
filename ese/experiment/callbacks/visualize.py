@@ -1,9 +1,11 @@
 import torch
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def ShowPredictions(
         experiment, 
+        mode='binary',
         label_cmap='gray',
         show_soft_pred=False
         ):
@@ -14,52 +16,45 @@ def ShowPredictions(
     def ShowPredictionsCallback(batch):
         # Move the channel dimension to the last dimension
         x = batch["x"]
+        y = batch["ytrue"]
+        yhat = batch["ypred"]
         bs = x.shape[0]
-        x = x.squeeze()
-        x = x.permute(1, 2, 0)
 
-        # Prepare the raw pred depending on multiclass or not by softmaxing and argmaxing over first dimension.
-        yhat = batch["ypred"].squeeze()
-        if len(yhat.shape) == 3:
+        if mode == "multiclass":
             assert not show_soft_pred, "Can't show soft predictions for multiclass"
-            yhat = torch.softmax(yhat, dim=0)
-            yhat = torch.argmax(yhat, dim=0)
+            yhat = torch.argmax(torch.softmax(yhat, dim=0), dim=0)
+            x = x.permute(0, 2, 3, 1)
+            x = x.cpu().detach().numpy().astype(np.uint8)
         else:
+            x = x.cpu().detach().numpy()
             yhat = torch.sigmoid(yhat)
-
-        # Get the label 
-        y = batch["ytrue"].squeeze()
-
-        # Prepare the tensors for visualization
-        x = x.cpu().detach().numpy()
-        y = y.cpu().detach().numpy()
-        yhat = yhat.cpu().detach().numpy()
 
         num_cols = 4 if show_soft_pred else 3
         f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
+
+        # Prepare the tensors
+        y = y.cpu().detach().numpy()
+        yhat = yhat.cpu().detach().numpy()
 
         # Go through each item in the batch.
         for b_idx in range(bs):
 
             if bs == 1:
                 axarr[0].set_title("Image")
-                print(x.shape)
-                plt.hist(x.flatten())
-                plt.show()
-                im1 = axarr[0].imshow(x, interpolation='None')
+                im1 = axarr[0].imshow(x.squeeze(), interpolation='None')
                 f.colorbar(im1, ax=axarr[0], orientation='vertical')
 
                 axarr[1].set_title("Label")
-                im2 = axarr[1].imshow(y, cmap=label_cmap, interpolation='None')
+                im2 = axarr[1].imshow(y.squeeze(), cmap=label_cmap, interpolation='None')
                 f.colorbar(im2, ax=axarr[1], orientation='vertical')
 
                 axarr[2].set_title("Prediction")
-                im3 = axarr[2].imshow(yhat, cmap=label_cmap, interpolation='None')
+                im3 = axarr[2].imshow(yhat.squeeze(), cmap=label_cmap, interpolation='None')
                 f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
                 if show_soft_pred:
                     axarr[3].set_title("Soft Prediction")
-                    im4 = axarr[3].imshow(yhat, cmap="gray")
+                    im4 = axarr[3].imshow(yhat.squeeze(), cmap="gray")
                     f.colorbar(im4, ax=axarr[3], orientation='vertical')
             else:
                 axarr[b_idx, 0].set_title("Image")

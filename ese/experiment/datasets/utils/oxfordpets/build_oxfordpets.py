@@ -28,23 +28,29 @@ def resize_with_aspect_ratio(image, target_size=256):
     # Calculate the scaling factor
     if height < width:
         scaling_factor = target_size / height
+        new_height = target_size
+        new_width = int(width * scaling_factor)
     else:
         scaling_factor = target_size / width
-    
-    # Calculate the new dimensions while maintaining aspect ratio
-    new_height = int(height * scaling_factor)
-    new_width = int(width * scaling_factor)
+        new_width = target_size
+        new_height = int(height * scaling_factor)
 
     # Resize the image
     resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
 
     # Center-crop the longer side
-    height, width = resized_image.shape[:2]
-    y1 = (height - target_size) // 2
-    y2 = y1 + target_size
-    x1 = (width - target_size) // 2
-    x2 = x1 + target_size
-    cropped_image = resized_image[y1:y2, x1:x2]
+    if resized_image.shape[:2] != (target_size, target_size):
+        height, width = resized_image.shape[:2]
+        y1 = (height - target_size) // 2
+        y2 = y1 + target_size
+        x1 = (width - target_size) // 2
+        x2 = x1 + target_size
+        cropped_image = resized_image[y1:y2, x1:x2]
+    else:
+        cropped_image = resized_image
+
+    # Ensure that it's square
+    assert cropped_image.shape[:2] == (target_size, target_size), f"Image shape is {cropped_image.shape}."
     
     return cropped_image 
 
@@ -105,7 +111,7 @@ def proc_OxfordPets(
         img_dir = img_root / example.name
 
         # Read the image and label
-        if ".jpg" in example.name:
+        try:
             ex_counter += 1
             
             label_dir = mask_root / example.name.replace(".jpg", ".png")
@@ -158,6 +164,9 @@ def proc_OxfordPets(
 
                 np.save(img_save_dir, img)
                 np.save(label_save_dir, label)
+        
+        except Exception as e:
+            print(f"Error with {example.name}: {e}. Skipping")
 
 @validate_arguments
 def data_splits(
@@ -221,14 +230,21 @@ def thunderify_OxfordPets(
 
             try:
                 # Load the image and segmentation.
-                img = np.load(img_dir).astype(np.float32) 
+                img = np.load(img_dir)
                 img = img.transpose(2, 0, 1)
+                seg = np.load(seg_dir)
+                
+                # Convert to the right type
+                img = img.astype(np.float32)
+                seg = seg.astype(np.float32)
 
-                seg = np.load(seg_dir).astype(np.float32) 
+                assert img.shape == (3, 256, 256), f"Image shape is {img.shape}"
+                assert seg.shape == (256, 256), f"Seg shape is {seg.shape}"
                 
                 # Save the datapoint to the database
                 db[key] = (img, seg) 
                 examples.append(key)
+            
             except Exception as e:
                 print(f"Error with {key}: {e}. Skipping")
 
