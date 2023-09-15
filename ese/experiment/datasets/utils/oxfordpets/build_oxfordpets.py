@@ -121,7 +121,7 @@ def proc_OxfordPets(
 
             # resize img and label
             img = resize_with_aspect_ratio(big_img)
-            label = resize_with_aspect_ratio(big_label)
+            label = resize_with_aspect_ratio(big_label).astype(int)
 
             if show:
                 f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
@@ -189,7 +189,7 @@ def data_splits(
     return (train, cal, val, test)
 
 
-def thunderify_oxfordpets(
+def thunderify_OxfordPets(
         proc_root, 
         dst,
         version
@@ -197,43 +197,48 @@ def thunderify_oxfordpets(
 
     # Append version to our paths
     proc_root = proc_root / version
+    dst_dir = dst / version
 
     # Append version to our paths
     splits_ratio = (0.6, 0.1, 0.2, 0.1)
     splits_seed = 42
 
-
     # Iterate through each datacenter, axis  and build it as a task
-    with ThunderDB.open(str(dc_dst), "c") as db:
+    with ThunderDB.open(str(dst_dir), "c") as db:
 
         # Key track of the ids
         examples = []
 
         # Iterate through the examples.
-        for example in axis_dir.iterdir():
+        for example in tqdm(proc_root.iterdir(), total=len(list(proc_root.iterdir()))):
 
             # Example name
-            key = subj.name
+            key = example.name
 
             # Paths to the image and segmentation
-            img_dir = subj / "image.npy"
-            seg_dir = mask_dir / "label.npy"
+            img_dir = example / "image.npy"
+            seg_dir = example / "label.npy"
 
-            # Load the image and segmentation.
-            img = np.load(img_dir) 
-            seg = np.load(seg_dir)
-            
-            # Save the datapoint to the database
-            db[key] = (img, seg) 
-           
-            examples.append(key)
+            try:
+                # Load the image and segmentation.
+                img = np.load(img_dir).astype(np.float32) 
+                img = img.transpose(2, 0, 1)
+
+                seg = np.load(seg_dir).astype(np.float32) 
+                
+                # Save the datapoint to the database
+                db[key] = (img, seg) 
+                examples.append(key)
+            except Exception as e:
+                print(f"Error with {key}: {e}. Skipping")
 
         examples = sorted(examples)
-        splits = data_splits(subjects, splits_ratio, splits_seed)
+        splits = data_splits(examples, splits_ratio, splits_seed)
         splits = dict(zip(("train", "cal", "val", "test"), splits))
 
         # Save the metadata
         db["_examples"] = examples 
+        db["_samples"] = examples 
         db["_splits"] = splits
         db["_splits_kwarg"] = {
             "ratio": splits_ratio, 
@@ -243,6 +248,5 @@ def thunderify_oxfordpets(
             dataset="OxfordPets",
             version=version,
         )
-        db["_samples"] = examples 
         db["_splits"] = splits
         db["_attrs"] = attrs

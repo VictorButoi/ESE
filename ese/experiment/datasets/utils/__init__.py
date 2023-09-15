@@ -1,2 +1,2 @@
-from .oxfordpets import proc_OxfordPets
-from .wmh import proc_WMH
+from .oxfordpets import *
+from .wmh import * 

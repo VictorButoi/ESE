@@ -1,3 +1,6 @@
+# torch imports
+import torch
+
 # random imports
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
@@ -13,7 +16,6 @@ from ionpy.util.validation import validate_arguments_init
 @dataclass
 class OxfordPets(ThunderDataset, DatapathMixin):
 
-    task: str 
     split: Literal["train", "cal", "val", "test"] = "train"
     version: float = 0.2
     preload: bool = False
@@ -33,7 +35,8 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         return len(self.samples)
 
     def __getitem__(self, key):
-        img, mask = self._db[subj]
+        example_name = self.samples[key]
+        img, mask = self._db[example_name]
 
         assert img.dtype == np.float32, "Img must be float32!"
         assert mask.dtype == np.float32, "Mask must be float32!"
@@ -41,11 +44,15 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         if self.transforms:
             img, mask = self.transforms(img, mask)
 
+        # Convert to torch tensors
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)[None]
+
         return img, mask
 
     @property
     def _folder_name(self):
-        return f"OxfordPets/thunder_pets/{self.version}"
+        return f"OxfordPets/thunder_oxfordpets/{self.version}"
 
     @property
     def signature(self):

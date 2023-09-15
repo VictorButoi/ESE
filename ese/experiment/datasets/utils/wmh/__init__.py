@@ -1,1 +1,1 @@
-from .build_wmh import proc_WMH
+from .build_wmh import * 

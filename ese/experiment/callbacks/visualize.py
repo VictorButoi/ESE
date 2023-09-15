@@ -43,6 +43,9 @@ def ShowPredictions(
 
             if bs == 1:
                 axarr[0].set_title("Image")
+                print(x.shape)
+                plt.hist(x.flatten())
+                plt.show()
                 im1 = axarr[0].imshow(x, interpolation='None')
                 f.colorbar(im1, ax=axarr[0], orientation='vertical')
 
