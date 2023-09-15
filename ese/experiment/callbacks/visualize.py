@@ -22,8 +22,9 @@ def ShowPredictions(
         # Get the predicted label
         yhat = batch["ypred"].detach().cpu()
         bs = x.shape[0]
+        num_pred_classes = yhat.shape[1]
 
-        if yhat.shape[1] > 1:
+        if num_pred_classes > 1:
             assert not show_soft_pred, "Can't show soft predictions for multiclass"
             yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1)
             x = x.numpy().astype(np.uint8)
@@ -31,11 +32,11 @@ def ShowPredictions(
             x = x.numpy()
             yhat = torch.sigmoid(yhat)
         
-        if yhat.shape[1] <= 2: 
+        if num_pred_classes <= 2: 
             label_cmap = "gray"
         else:
             label_cmap = "tab20"
-
+        
         num_cols = 4 if show_soft_pred else 3
         f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
 
@@ -44,7 +45,6 @@ def ShowPredictions(
         yhat = yhat.numpy()
 
         # Go through each item in the batch.
-        print("Loss:", batch["loss"])
         for b_idx in range(bs):
 
             if bs == 1:
