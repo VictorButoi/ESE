@@ -21,11 +21,11 @@ import seaborn as sns
 class CalibrationExperiment(TrainExperiment):
 
     def build_augmentations(self):
-        if "augmentations" in self.config:
+        # Build the augmentations if they are there to be built.        
+        config_dict = self.config.to_dict()
 
-            aug_cfg = self.config.to_dict()["augmentations"]
-            self.aug_pipeline = augmentations_from_config(aug_cfg)
-
+        if "augmentations" in config_dict and (config_dict["augmentations"] is not None):
+            self.aug_pipeline = augmentations_from_config(config_dict["augmentations"])
             self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
                 :8
             ]
@@ -79,6 +79,7 @@ class CalibrationExperiment(TrainExperiment):
             img = einops.rearrange(img, "b c h w -> (b c) 1 h w")
             mask = einops.rearrange(mask, "b c h w -> (b c) 1 h w")
 
+        # Add augmentation to image and label.
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
@@ -86,8 +87,6 @@ class CalibrationExperiment(TrainExperiment):
         # Forward pass
         yhat = self.model(x)
         
-        print("yhat dtype:", yhat.dtype)
-        print("y dtype:", y.dtype)
         # Get the loss (segmentation loss)
         loss = self.loss_func(yhat, y)
         print(loss)
@@ -105,7 +104,9 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         
-        self.run_callbacks("step", batch=forward_batch)
+        if loss < 0.5:
+            self.run_callbacks("step", batch=forward_batch)
+
         forward_batch.pop("x")
 
         return forward_batch
