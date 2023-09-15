@@ -240,6 +240,7 @@ def thunderify_OxfordPets(
 
                 assert img.shape == (3, 256, 256), f"Image shape is {img.shape}"
                 assert seg.shape == (256, 256), f"Seg shape is {seg.shape}"
+                assert np.count_nonzero(seg) > 0, "Label can't be empty."
                 
                 # Save the datapoint to the database
                 db[key] = (img, seg) 
@@ -250,7 +251,7 @@ def thunderify_OxfordPets(
                 print(f"Error with {key}: {e}. Skipping")
 
         examples = sorted(examples)
-        classes = [ex.split("_")[:-1] for ex in examples]
+        classes = ["_".join(ex.split("_")[:-1]) for ex in examples]
         data_ids = [ex.split("_")[-1] for ex in examples]
 
         splits = data_splits(examples, splits_ratio, splits_seed)

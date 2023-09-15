@@ -22,7 +22,7 @@ def ShowPredictions(
 
         if mode == "multiclass":
             assert not show_soft_pred, "Can't show soft predictions for multiclass"
-            yhat = torch.argmax(torch.softmax(yhat, dim=0), dim=0)
+            yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1)
             x = x.permute(0, 2, 3, 1)
             x = x.cpu().detach().numpy().astype(np.uint8)
         else:
@@ -35,7 +35,6 @@ def ShowPredictions(
         # Prepare the tensors
         y = y.cpu().detach().numpy()
         yhat = yhat.cpu().detach().numpy()
-
         # Go through each item in the batch.
         for b_idx in range(bs):
 
