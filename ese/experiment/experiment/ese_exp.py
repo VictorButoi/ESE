@@ -104,7 +104,7 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         
-        if loss < 0.5:
+        if loss < 0.5:  
             self.run_callbacks("step", batch=forward_batch)
 
         forward_batch.pop("x")
