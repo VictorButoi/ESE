@@ -19,7 +19,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "val", "test"] = "train"
     version: float = 0.2
     preload: bool = False
-    num_classes: int = 38
+    num_classes: Any = "all" 
     transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
@@ -30,9 +30,20 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         samples = self._db["_splits"][self.split]
         classes = self._db["_classes"]
 
-        self.classes = classes
+        if num_classes != "all":
+            assert isinstance(num_classes, int), "Must specify number of classes."
+            selected_classes = np.random.choice(np.unique(classes), num_classes)
+            self.samples = []
+            self.classes = []
+            for (sample, class_id) in zip(samples, classes):
+                if class_id in selected_classes:
+                    self.samples.append(sample)
+                    self.classes.append(class_id)
+        else:
+            self.samples = samples 
+            self.classes = classes
+
         self.class_map = {c: (i + 1) for i, c in enumerate(np.unique(classes))} # 1 -> 38 (0 background)
-        self.samples = samples 
 
     def __len__(self):
         return len(self.samples)
@@ -72,6 +83,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     def signature(self):
         return {
             "dataset": "OxfordPets",
+            "classes": self.classes,
             "resolution": self.resolution,
             "split": self.split,
             "version": self.version

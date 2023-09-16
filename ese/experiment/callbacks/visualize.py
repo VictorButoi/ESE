@@ -1,6 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.colors as mcolors
 
 
 def ShowPredictions(
@@ -10,6 +11,17 @@ def ShowPredictions(
 
     # Get the experiment config
     exp_config = experiment.config.to_dict() 
+
+    # Generate a list of random colors, starting with black for background
+    num_pred_classes = exp_config['model']['out_channels']
+
+    if num_pred_classes == 2:
+        colors = [(0, 0, 0), (1, 1, 1)]
+    else:
+        colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+
+    cmap_name = "seg_map"
+    cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
 
     def ShowPredictionsCallback(batch):
         # Move the channel dimension to the last dimension
@@ -32,11 +44,6 @@ def ShowPredictions(
             x = x.numpy()
             yhat = torch.sigmoid(yhat)
         
-        if num_pred_classes <= 2: 
-            label_cmap = "gray"
-        else:
-            label_cmap = "tab20"
-        
         num_cols = 4 if show_soft_pred else 3
         f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
 
@@ -53,11 +60,11 @@ def ShowPredictions(
                 f.colorbar(im1, ax=axarr[0], orientation='vertical')
 
                 axarr[1].set_title("Label")
-                im2 = axarr[1].imshow(y.squeeze(), cmap=label_cmap, interpolation='None')
+                im2 = axarr[1].imshow(y.squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im2, ax=axarr[1], orientation='vertical')
 
                 axarr[2].set_title("Prediction")
-                im3 = axarr[2].imshow(yhat.squeeze(), cmap=label_cmap, interpolation='None')
+                im3 = axarr[2].imshow(yhat.squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
                 if show_soft_pred:
@@ -70,11 +77,11 @@ def ShowPredictions(
                 f.colorbar(im1, ax=axarr[b_idx, 0], orientation='vertical')
 
                 axarr[b_idx, 1].set_title("Label")
-                im2 = axarr[b_idx, 1].imshow(y[b_idx].squeeze(), cmap=label_cmap, interpolation='None')
+                im2 = axarr[b_idx, 1].imshow(y[b_idx].squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
 
                 axarr[b_idx, 2].set_title("Prediction")
-                im3 = axarr[b_idx, 2].imshow(yhat[b_idx].squeeze(), cmap=label_cmap, interpolation='None')
+                im3 = axarr[b_idx, 2].imshow(yhat[b_idx].squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
 
                 if show_soft_pred:
