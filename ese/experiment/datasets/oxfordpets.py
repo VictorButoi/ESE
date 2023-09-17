@@ -30,9 +30,9 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         samples = self._db["_splits"][self.split]
         classes = self._db["_classes"]
 
-        if num_classes != "all":
-            assert isinstance(num_classes, int), "Must specify number of classes."
-            selected_classes = np.random.choice(np.unique(classes), num_classes)
+        if self.num_classes != "all":
+            assert isinstance(self.num_classes, int), "Must specify number of classes."
+            selected_classes = np.random.choice(np.unique(classes), self.num_classes)
             self.samples = []
             self.classes = []
             for (sample, class_id) in zip(samples, classes):

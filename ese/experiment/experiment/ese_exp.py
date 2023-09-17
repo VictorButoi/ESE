@@ -77,24 +77,28 @@ class CalibrationExperiment(TrainExperiment):
         if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             img = einops.rearrange(img, "b c h w -> (b c) 1 h w")
-            mask = einops.rearrange(mask, "b c h w -> (b c) 1 h w")
+            y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
 
         # Add augmentation to image and label.
-        if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
 
         # Forward pass
         yhat = self.model(x)
         
-        # Get the loss (segmentation loss)
+        print("-------------------------------------------------------------")
+        print("Forward pass phase")
+
         loss = self.loss_func(yhat, y)
-        print(loss)
+        print("dice loss:", loss)
 
         if backward:
             loss.backward()
             self.optim.step()
             self.optim.zero_grad()
+        
+        print("EXP, y.shape: ", y.shape)
+        print("EXP, yhat.shape:", yhat.shape)
         
         forward_batch = {
             "x": x,
@@ -106,8 +110,12 @@ class CalibrationExperiment(TrainExperiment):
         
         if loss < 0.5:  
             self.run_callbacks("step", batch=forward_batch)
+            raise ValueError
 
         forward_batch.pop("x")
+
+        print("--------------------")
+        print("Eval phase")
 
         return forward_batch
 
