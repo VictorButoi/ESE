@@ -86,19 +86,12 @@ class CalibrationExperiment(TrainExperiment):
         # Forward pass
         yhat = self.model(x)
         
-        print("-------------------------------------------------------------")
-        print("Forward pass phase")
-
         loss = self.loss_func(yhat, y)
-        print("dice loss:", loss)
 
         if backward:
             loss.backward()
             self.optim.step()
             self.optim.zero_grad()
-        
-        print("EXP, y.shape: ", y.shape)
-        print("EXP, yhat.shape:", yhat.shape)
         
         forward_batch = {
             "x": x,
@@ -108,14 +101,8 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         
-        if loss < 0.5:  
-            self.run_callbacks("step", batch=forward_batch)
-            raise ValueError
-
-        forward_batch.pop("x")
-
-        print("--------------------")
-        print("Eval phase")
+        # Run step-wise callbacks if you have them.
+        self.run_callbacks("step", batch=forward_batch)
 
         return forward_batch
 
