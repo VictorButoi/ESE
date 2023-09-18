@@ -101,8 +101,10 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         
-        # Run step-wise callbacks if you have them.
-        self.run_callbacks("step", batch=forward_batch)
+        if loss < 0.5:
+            # Run step-wise callbacks if you have them.
+            self.run_callbacks("step", batch=forward_batch)
+            #raise ValueError("Loss is too low, exiting early.")
 
         return forward_batch
 

@@ -36,6 +36,9 @@ def ShowPredictions(
         bs = x.shape[0]
         num_pred_classes = yhat.shape[1]
 
+        # Prints some metric stuff
+        print("Loss: ", batch["loss"].item())
+
         if num_pred_classes > 1:
             assert not show_soft_pred, "Can't show soft predictions for multiclass"
             yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1)
