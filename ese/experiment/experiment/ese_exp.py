@@ -69,6 +69,17 @@ class CalibrationExperiment(TrainExperiment):
         self.model = eval_config(self.config["model"])
         self.properties["num_params"] = num_params(self.model)
     
+    def build_loss(self):
+        # Get the loss parts, classes and weights.
+        loss_classes = self.config["loss_func"]["classes"]
+        weights = torch.Tensor(self.config["loss_func"]["weights"]).to(self.device)
+        # Get the loss functions you're using.
+        loss_funcs = eval_config(loss_classes)
+        # Get the weights per loss and normalize to weights to 1.
+        loss_weights = (weights / torch.sum(weights))
+        # Build the loss function.
+        self.loss_func = lambda yhat, y: torch.sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
+    
     def run_step(self, batch_idx, batch, backward=True, augmentation=False, epoch=None, phase=None):
 
         # Send data and labels to device.
