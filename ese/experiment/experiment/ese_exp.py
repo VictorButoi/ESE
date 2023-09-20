@@ -129,6 +129,7 @@ class CalibrationExperiment(TrainExperiment):
         height=12,
     ):
 
+        # Show a lineplot of the loss curves.
         g = sns.relplot(
             data=self.logs,
             x=x,
@@ -137,6 +138,7 @@ class CalibrationExperiment(TrainExperiment):
             kind='line',
             height=height,
             )
+
         # Set column spacing
         g.fig.subplots_adjust(wspace=0.05)
         g.set(ylim=(0, 1))
