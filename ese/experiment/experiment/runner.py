@@ -1,13 +1,17 @@
 # ionpy imports
-import pathlib
-from typing import List, Optional
 from ionpy import slite
 from ionpy.util import Config
+from ionpy.util.config import config_digest
+from ionpy.util.ioutil import autosave
+from ionpy.experiment.util import generate_tuid
 
 # local imports
 from .ese_exp import CalibrationExperiment 
 
 # misc imports
+import os
+import pathlib
+from typing import List, Optional, Union
 from pydantic import validate_arguments
 
 
@@ -68,7 +72,7 @@ def submit_ese_exps(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def restart_ese_exps(
     exp_name: str,
-    job_names: Optional[List[str]],
+    job_names: Union[str, List[str]],
     available_gpus: List[str],
     modifications: Optional[dict] = None,
     wandb: bool = False,
@@ -76,21 +80,16 @@ def restart_ese_exps(
 ):
     exp_dir = exp_root / exp_name
     # Either rerun the entire experiment, or specific jobs.
-    if job_names is None:
-        cfg_files = [jn / "config.yml" for jn in list(exp_dir.iterdir()) if jn.name not in ["submitit", "wandb"]]
+    if job_names == "all":
+        exp_path_files = [jn for jn in list(exp_dir.iterdir()) if jn.name not in ["submitit", "wandb"]]
     else:
-        cfg_files = [exp_dir / job_name / "config.yml" for job_name in job_names]
+        exp_path_files = [exp_dir / job_name for job_name in job_names]
     
     # Load the configs.
-    config_list = [Config.load(cfg_file) for cfg_file in cfg_files]
-
-    if modifications:
-        for c_idx in range(len(config_list)):
-            cfg = config_list[c_idx]
-            config_list[c_idx] = cfg.update(modifications)
+    config_list = [Config.load(exp_path / "config.yml") for exp_path in exp_path_files]
         
     # Get the config as a dictionary.
-    for config in config_list:
+    for exp_path, config in zip(exp_path_files, config_list):
         cfg = config.to_dict()
 
         # Remove the step callback because it will slow down training.
@@ -104,12 +103,31 @@ def restart_ese_exps(
         # If you don't want wandb logging, and it is in the config, remove it.
         if not wandb and ("ese.experiment.callbacks.WandbLogger" in cfg["callbacks"]["epoch"]):
             cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
+        
+        # Update the config with any modifications
+        if modifications:
+            cfg = Config(cfg).update(modifications).to_dict()
 
+        # Create some new metadata
+        create_time, nonce = generate_tuid()
+        digest = config_digest(cfg)
+        metadata = {"create_time": create_time, "nonce": nonce, "digest": digest}
+
+        # Move the old config and metadata to backup files if they don't exist.
+        if not (exp_path / "metadata.json.backup").is_dir():
+            os.rename(exp_path / "metadata.json", exp_path / "metadata.json.backup")
+        if not (exp_path / "config.yml.backup").is_dir():
+            os.rename(exp_path / "config.yml", exp_path / "config.yml.backup")
+
+        # Save the new config and metadata
+        autosave(metadata, exp_path / "metadata.json")
+        autosave(cfg, exp_path / "config.yml")
+        
     # Run the experiments 
     slite.submit_exps(
         project="ESE",
         exp_name=exp_name,
         exp_class=CalibrationExperiment,
-        available_gpus=available_gpus,
-        config_list=config_list
+        exp_path_list=exp_path_files,
+        available_gpus=available_gpus
     ) 
