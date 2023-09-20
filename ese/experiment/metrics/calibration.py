@@ -181,6 +181,7 @@ def ReCE(
             for isl_idx, island in enumerate(conf_islands):
                 # Get the label corresponding to the island and simulate ground truth and make the right shape.
                 label_region = label[island][None, None, ...]
+
                 # Calculate the accuracy and mean confidence for the island.
                 region_acc_scores[isl_idx] = pixel_accuracy(torch.ones_like(label_region), label_region)
                 region_conf_scores[isl_idx] = pred[island].mean()

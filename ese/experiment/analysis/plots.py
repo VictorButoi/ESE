@@ -308,7 +308,6 @@ def plot_error_vs_numbins(
     ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
 
 
-
 def plot_ece_map(
     subj,
     fig,
