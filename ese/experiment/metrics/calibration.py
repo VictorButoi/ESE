@@ -21,7 +21,7 @@ def ECE(
     label: torch.Tensor = None,
     measure: str = "Accuracy",
     include_background: bool = False,
-    threshhold: float = 0.5,
+    threshold: float = 0.5,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -32,9 +32,11 @@ def ECE(
     # If conf_bins is not predefined, create them. 
     if conf_bins is None:
         conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    else:
         num_bins = len(conf_bins)
+
     if not include_background:
-        conf_bins = conf_bins[conf_bins >= threshhold]
+        conf_bins = conf_bins[conf_bins >= threshold]
 
     if from_logits:
         pred = torch.sigmoid(pred)
@@ -63,6 +65,10 @@ def ECE(
 
             # Calculate the accuracy and mean confidence for the island.
             avg_metric = measure_dict[measure](bin_pred, bin_label)
+            # If we include background, then we need to flip the accuracy
+            # if we are below the threshhold.
+            if include_background and (c_bin + bin_width) <= threshold and measure == "Accuracy":
+                avg_metric = 1 - avg_metric
             avg_confidence = bin_pred.mean()
 
             ece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
@@ -80,7 +86,7 @@ def ReCE(
     label: torch.Tensor = None,
     measure: str = "Accuracy",
     include_background: bool = False,
-    threshhold: float = 0.5,
+    threshold: float = 0.5,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -91,9 +97,11 @@ def ReCE(
     # If conf_bins is not predefined, create them. 
     if conf_bins is None:
         conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    else:
         num_bins = len(conf_bins)
+
     if not include_background:
-        conf_bins = conf_bins[conf_bins >= threshhold]
+        conf_bins = conf_bins[conf_bins >= threshold]
 
     if from_logits:
         pred = torch.sigmoid(pred)
@@ -136,6 +144,10 @@ def ReCE(
             
             # Get the accumulate metrics from all the islands
             avg_region_measure = region_metric_scores.mean()
+            # If we include background, then we need to flip the accuracy
+            # if we are below the threshhold.
+            if include_background and (c_bin + bin_width) <= threshold and measure == "Accuracy":
+                avg_region_measure = 1 - avg_region_measure 
             avg_region_conf = region_conf_scores.mean()
             
             # Calculate the average calibration error for the regions in the bin.

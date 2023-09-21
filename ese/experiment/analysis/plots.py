@@ -1,15 +1,15 @@
 # misc imports
-import numpy as np
-from typing import List
 import torch
-from sklearn.metrics import confusion_matrix
+import numpy as np
 import pandas as pd
 import seaborn as sns
+from typing import Any, List
+from pydantic import validate_arguments
+from sklearn.metrics import confusion_matrix
 
 # ionpy imports
-from ionpy.metrics.segmentation import dice_score, pixel_accuracy
-from ionpy.util.validation import validate_arguments_init
 from ionpy.util.islands import get_connected_components
+from ionpy.metrics.segmentation import dice_score, pixel_accuracy
 
 # ese imports
 from ese.experiment.metrics import ECE, ReCE
@@ -22,6 +22,7 @@ metric_dict = {
         "ReCE": ReCE
     }
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
     title_parts = []
     for weighting in bin_weightings:
@@ -30,16 +31,18 @@ def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
     title += ", ".join(title_parts) + "\n"
     return title
 
-@validate_arguments_init
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_reliability_diagram(
     num_bins: int,
+    y_axis: str,
     subj: dict = None,
     bin_info: str = None,
     metrics: List[str] = ["ECE", "ReCE"],
     remove_empty_bins: bool = False,
+    include_background: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
-    y_axis: str = "Precision",
-    bin_color: str = 'blue',
+    bar_color: str = 'blue',
     show_bin_amounts: bool = False,
     show_diagonal: bool = True,
     ax = None
@@ -57,7 +60,8 @@ def plot_reliability_diagram(
                 conf_bins=bins,
                 pred=subj["soft_pred"],
                 label=subj["label"],
-                measure=y_axis
+                measure=y_axis,
+                include_background=include_background
             )
             title = build_title(
                 title,
@@ -92,7 +96,7 @@ def plot_reliability_diagram(
     # Pad the graph bar heights so it matches the bins
     graph_bins = graph_bins[len(graph_bins) - len(graph_bar_heights):]
 
-    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bin_color, color=bin_color, alpha=0.8, label='Predicted')
+    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bar_color, color=bar_color, alpha=0.8, label='Predicted')
     ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2, label='Ideal')
 
     # Display above the bars how many pixels are in the bar
@@ -122,10 +126,10 @@ def plot_reliability_diagram(
     ax.legend()
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_confusion_matrix(
-    subj,
-    ax=None
+    subj: dict,
+    ax = None
     ):
     """
     This function prints and plots the confusion matrix.
@@ -152,45 +156,45 @@ def plot_confusion_matrix(
     ax.set_title('Confusion Matrix')
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_subject_image(
-    subj_name,
-    subj,
-    fig,
-    ax
+    subj_name: str,
+    subj: dict,
+    fig: Any = None,
+    ax: Any = None
 ):
     im = ax.imshow(subj["image"], cmap="gray")
     ax.set_title(f"{subj_name}, Image")
     fig.colorbar(im, ax=ax)
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_subj_label(
-    subj,
-    fig,
-    ax
+    subj: dict,
+    fig: Any = None,
+    ax: Any = None
 ):
     lab = ax.imshow(subj["label"], cmap="gray")
     ax.set_title("Ground Truth")
     fig.colorbar(lab, ax=ax)
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_prediction_probs(
-    subj,
-    fig,
-    ax
+    subj: dict,
+    fig: Any = None,
+    ax: Any = None
 ):
     pre = ax.imshow(subj["soft_pred"], cmap="gray")
     ax.set_title("Probabilities")
     fig.colorbar(pre, ax=ax)
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_pred(
-    subj,
-    fig,
-    ax
+    subj: dict,
+    fig: Any = None,
+    ax: Any = None
 ):
     # Plot the pixel-wise prediction
     hard_im = ax.imshow(subj["hard_pred"], cmap="gray")
@@ -206,12 +210,12 @@ def plot_pred(
     fig.colorbar(hard_im, ax=ax)
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_smoothed_pred(
-    subj,
-    num_bins,
-    fig,
-    ax
+    subj: dict,
+    num_bins: int,
+    fig: Any = None,
+    ax: Any = None
 ):
     # Plot the processed region-wise prediction
     smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
@@ -229,12 +233,12 @@ def plot_smoothed_pred(
     fig.colorbar(smooth_im, ax=ax)
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_error_vs_numbins(
-    subj,
-    metrics,
-    bin_weightings,
-    ax=None
+    subj: dict,
+    metrics: List[str],
+    bin_weightings: List[str],
+    ax: Any = None
     ):
 
     # Define the number of bins to test.
@@ -308,18 +312,23 @@ def plot_error_vs_numbins(
     ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_ece_map(
-    subj,
-    fig,
-    ax,
+    subj: dict,
+    fig: Any,
+    ax: Any,
 ):
+    # Copy the soft and hard predictions
+    soft_pred = subj['soft_pred'].clone()
+    hard_pred = subj['hard_pred'].clone()
+
     # Calculate the per-pixel accuracy and where the foreground regions are.
-    acc_per_pixel = (subj['label'] == subj['hard_pred']).float()
-    foreground = subj['hard_pred'].bool()
+    acc_per_pixel = (subj['label'] == hard_pred).float()
+    pred_foreground = hard_pred.bool()
 
     # Set the regions of the image corresponding to groundtruth label.
     ece_map = np.zeros_like(subj['label'])
-    ece_map[foreground] = (subj['soft_pred'] - acc_per_pixel)[foreground]
+    ece_map[pred_foreground] = (soft_pred - acc_per_pixel)[pred_foreground]
 
     # Get the bounds for visualization
     ece_abs_max = np.max(np.abs(ece_map))
@@ -331,12 +340,13 @@ def plot_ece_map(
     fig.colorbar(ce_im, ax=ax)
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_rece_map(
-    subj,
-    num_bins,
-    fig,
-    ax,
-    average=False
+    subj: dict,
+    num_bins: int,
+    average: bool = False,
+    fig: Any = None,
+    ax: Any = None
 ):
     # Get the confidence bins
     conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
@@ -385,3 +395,49 @@ def plot_rece_map(
 
     fig.colorbar(rece_im, ax=ax)
 
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def plot_variance_per_bin(
+    subj: dict,
+    num_bins: int,
+    metric: str,
+    bar_color: str = "blue",
+    ax: Any = None
+):
+    # If conf_bins is not predefined, create them. 
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+
+    pred = subj['soft_pred']
+
+    # Get the confidence bins
+    bin_width = conf_bins[1] - conf_bins[0]
+
+    # Get the regions of the prediction corresponding to each bin of confidence.
+    confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
+    conf_per_bin = {}
+
+    # Go through each bin, starting at the back so that we don't have to run connected components
+    for c_idx, c_bin in enumerate(conf_bins):
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = confidence_regions[c_bin.item()].bool()
+        # If there are some pixels in this confidence bin.
+        if bin_conf_region.sum() != 0:
+            if metric == "ReCE":
+                # Iterate through each island, and get the measure for each island
+                conf_islands = get_connected_components(bin_conf_region)
+                conf_per_bin[c_idx] = torch.var(torch.stack([pred[island].mean() for island in conf_islands]))
+            elif metric == "ECE":
+                conf_per_bin[c_idx] = pred[bin_conf_region].var()
+            else:
+                raise ValueError(f"Metric {metric} not supported.")
+    
+    ax.axis("on")
+    # Create a boxplot from the values in the dictionary
+    conf_dict = {
+        "Bin": list(conf_per_bin.keys()),
+        "Variance": list(conf_per_bin.values())
+    }
+    print(conf_dict)
+    conf_df = pd.DataFrame.from_dict(conf_dict)
+    sns.barplot(x="Bin", y="Variance", data=conf_df, color=bar_color, ax=ax)
+    ax.set_title(f"Variance per {metric} Bin")

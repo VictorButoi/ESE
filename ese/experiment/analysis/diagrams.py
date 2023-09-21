@@ -25,7 +25,8 @@ def subject_plot(
     num_bins: int,
     metrics: List[str] = ["ECE", "ReCE"],
     bin_weightings: List[str] = ["uniform", "weighted"],
-    show_bin_amounts: bool = False
+    show_bin_amounts: bool = False,
+    include_background: bool = True 
     ) -> None:
     
     # if you want to see the subjects and predictions
@@ -65,21 +66,18 @@ def subject_plot(
             fig=f,
             ax=axarr[0, 0]
         )
-
         # Show the groundtruth label
         plot_subj_label(
             subj=subj,
             fig=f,
             ax=axarr[0, 1]
         )
-
         # Show the confidence map (which we interpret as probabilities)
         plot_prediction_probs(
             subj=subj,
             fig=f,
             ax=axarr[0, 2]
         )
-
         # Show the pixelwise thresholded prediction
         plot_pred(
             subj=subj,
@@ -96,25 +94,38 @@ def subject_plot(
             subj=subj,
             ax=axarr[1, 0]
         )
-
-        # Show different kinds of statistics about your subjects.
+        # Plot reliability diagram with precision on y.
         plot_reliability_diagram(
             num_bins=num_bins,
+            y_axis="Accuracy",
             subj=subj,
-            metrics=metrics,
+            metrics=["ECE"],
             bin_weightings=bin_weightings,
             remove_empty_bins=True,
-            bin_color="blue",
+            include_background=include_background,
             show_bin_amounts=show_bin_amounts,
+            bar_color="blue",
             ax=axarr[1, 1]
         )
-
+        # Plot reliability diagram with accuracy on y.
+        plot_reliability_diagram(
+            num_bins=num_bins,
+            y_axis="Accuracy",
+            subj=subj,
+            metrics=["ReCE"],
+            bin_weightings=bin_weightings,
+            remove_empty_bins=True,
+            include_background=include_background,
+            show_bin_amounts=show_bin_amounts,
+            bar_color="green",
+            ax=axarr[1, 2]
+        )
         # Show different kinds of statistics about your subjects.
         plot_error_vs_numbins(
             subj=subj,
             metrics=metrics,
             bin_weightings=bin_weightings,
-            ax=axarr[1, 2]
+            ax=axarr[1, 3]
         )
 
         #########################################################
@@ -127,22 +138,28 @@ def subject_plot(
             fig=f,
             ax=axarr[2, 0]
         ) 
-
-        # Display the regionwise calibration error averaging over the region.
-        plot_rece_map(
+        # Show the variance of the confidences for pixel samples in the bin.
+        plot_variance_per_bin(
             subj=subj,
             num_bins=num_bins,
-            fig=f,
-            ax=axarr[2, 1],
-            average=True
+            metric="ECE",
+            bar_color="blue",
+            ax=axarr[2, 1] 
         )
-
+        # Show the variance of the confidences for region samples in the bin.
+        plot_variance_per_bin(
+            subj=subj,
+            num_bins=num_bins,
+            metric="ReCE",
+            bar_color="green",
+            ax=axarr[2, 2] 
+        )
         # Show a more per-pixel calibration error for each region.
         plot_rece_map(
             subj=subj,
             num_bins=num_bins,
             fig=f,
-            ax=axarr[2, 2],
+            ax=axarr[2, 3],
             average=False
         )
         
