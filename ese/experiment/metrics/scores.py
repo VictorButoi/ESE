@@ -8,7 +8,7 @@ from ionpy.util.validation import validate_arguments_init
 
 #local imports
 from .utils import reduce_scores
-from .calibration import ECE, ESE, ReCE
+from .calibration import ECE, ReCE
 
 
 
@@ -35,27 +35,6 @@ def ece_score(
     ece_score = reduce_scores(ece_per_bin, bin_amounts, bin_weighting) 
     
     return ece_score 
-    
-
-@validate_arguments_init
-def ese_score(
-    bins: np.ndarray,
-    pred: torch.Tensor = None, 
-    label: torch.Tensor = None,
-    bin_weighting: Literal["weighted", "uniform"] = 'weighted',
-    from_logits: bool = False
-    ):
-    
-    ese_per_bin, _, bin_amounts = ESE(
-        bins,
-        pred,
-        label,
-        from_logits
-    )
-    
-    ese_score = reduce_scores(ese_per_bin, bin_amounts, bin_weighting) 
-    
-    return ese_score 
     
 
 @validate_arguments_init

@@ -12,14 +12,13 @@ from ionpy.util.validation import validate_arguments_init
 from ionpy.util.islands import get_connected_components
 
 # ese imports
-from ese.experiment.metrics import ECE, ESE, ReCE
+from ese.experiment.metrics import ECE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
 from ese.experiment.augmentation import smooth_soft_pred
 
 # Globally used for which metrics to plot for.
 metric_dict = {
         "ECE": ECE,
-        "ESE": ESE,
         "ReCE": ReCE
     }
 
@@ -50,14 +49,15 @@ def plot_reliability_diagram(
     bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     # Define the title
-    title = f"Reliability Diagram w/ {num_bins} bins:\n"
+    title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
 
     if bin_info is None:
         for met in metrics:
-            bin_scores, bin_accs, bin_amounts = metric_dict[met](
+            bin_scores, bin_y_vals, bin_amounts = metric_dict[met](
                 conf_bins=bins,
                 pred=subj["soft_pred"],
                 label=subj["label"],
+                measure=y_axis
             )
             title = build_title(
                 title,
@@ -67,7 +67,7 @@ def plot_reliability_diagram(
                 bin_weightings
             )
     else:
-        bin_scores, bin_accs, bin_amounts = bin_info
+        bin_scores, bin_y_vals, bin_amounts = bin_info
         for met in metrics:
             title = build_title(
                 title,
@@ -83,10 +83,10 @@ def plot_reliability_diagram(
 
     # Make sure to only use bins where the bin amounts are non-zero
     if remove_empty_bins:
-        graph_bar_heights = bin_accs[bin_amounts != 0]
+        graph_bar_heights = bin_y_vals[bin_amounts != 0]
         graph_bins = aligned_bins[bin_amounts != 0]
     else:
-        graph_bar_heights = bin_accs
+        graph_bar_heights = bin_y_vals
         graph_bins = aligned_bins
 
     # Pad the graph bar heights so it matches the bins
@@ -376,12 +376,12 @@ def plot_rece_map(
     # Get the bounds for visualization
     rece_abs_max = np.max(np.abs(rece_map))
     rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
-    ese_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
+    rece_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
 
     if average:
         ax.set_title("Averaged Region-wise Cal Error")
     else:
         ax.set_title("Region-wise Cal Error")
 
-    fig.colorbar(ese_im, ax=ax)
+    fig.colorbar(rece_im, ax=ax)
 

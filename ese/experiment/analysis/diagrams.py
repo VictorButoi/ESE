@@ -7,7 +7,7 @@ from typing import List
 
 # ese imports
 from ese.experiment.analysis.plots import *
-from ese.experiment.metrics import ECE, ESE, ReCE
+from ese.experiment.metrics import ECE, ReCE
 
 # ionpy imports
 from ionpy.util.validation import validate_arguments_init
@@ -16,7 +16,6 @@ from ionpy.util.validation import validate_arguments_init
 # Globally used for which metrics to plot for.
 metric_dict = {
         "ECE": ECE,
-        "ESE": ESE,
         "ReCE": ReCE
     }
 
@@ -24,7 +23,7 @@ metric_dict = {
 def subject_plot(
     subject_dict: dict, 
     num_bins: int,
-    metrics: List[str] = ["ECE", "ESE", "ReCE"],
+    metrics: List[str] = ["ECE", "ReCE"],
     bin_weightings: List[str] = ["uniform", "weighted"],
     show_bin_amounts: bool = False
     ) -> None:
