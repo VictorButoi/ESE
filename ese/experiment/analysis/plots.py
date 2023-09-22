@@ -37,7 +37,7 @@ def plot_reliability_diagram(
     num_bins: int,
     y_axis: str,
     subj: dict = None,
-    bin_info: str = None,
+    bin_info: Any = None,
     metrics: List[str] = ["ECE", "ReCE"],
     remove_empty_bins: bool = False,
     include_background: bool = False,
@@ -400,8 +400,8 @@ def plot_rece_map(
 def plot_variance_per_bin(
     subj: dict,
     num_bins: int,
-    metric: str,
-    bar_color: str = "blue",
+    metrics: List[str],
+    bar_colors: List[str],
     ax: Any = None
 ):
     # If conf_bins is not predefined, create them. 
@@ -414,30 +414,38 @@ def plot_variance_per_bin(
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
-    conf_per_bin = {}
 
+    conf_list = []
     # Go through each bin, starting at the back so that we don't have to run connected components
-    for c_idx, c_bin in enumerate(conf_bins):
-        # Get the region of image corresponding to the confidence
-        bin_conf_region = confidence_regions[c_bin.item()].bool()
-        # If there are some pixels in this confidence bin.
-        if bin_conf_region.sum() != 0:
-            if metric == "ReCE":
-                # Iterate through each island, and get the measure for each island
-                conf_islands = get_connected_components(bin_conf_region)
-                conf_per_bin[c_idx] = torch.var(torch.stack([pred[island].mean() for island in conf_islands]))
-            elif metric == "ECE":
-                conf_per_bin[c_idx] = pred[bin_conf_region].var()
-            else:
-                raise ValueError(f"Metric {metric} not supported.")
-    
+    for metric in metrics:
+        for c_bin in conf_bins:
+            # Get the region of image corresponding to the confidence
+            bin_conf_region = confidence_regions[c_bin.item()].bool()
+            # If there are some pixels in this confidence bin.
+            if bin_conf_region.sum() != 0:
+                if metric == "ReCE":
+                    # Iterate through each island, and get the measure for each island
+                    conf_islands = get_connected_components(bin_conf_region)
+                    if len(conf_islands) == 1:
+                        confidences_var = 0.0
+                    else:
+                        island_confidences = torch.stack([pred[island].mean() for island in conf_islands])
+                        confidences_var = island_confidences.var().item()
+                elif metric == "ECE":
+                    confidences_var = pred[bin_conf_region].var().item()
+                else:
+                    raise ValueError(f"Metric {metric} not supported.")
+                # Add the variance to the dictionary
+                conf_list.append({
+                    "Bin": np.round(c_bin.item(), 2),
+                    "Variance": confidences_var,
+                    "metric": metric
+                })
+
+    # Make a dataframe from the list
+    conf_df = pd.DataFrame(conf_list)
+
     ax.axis("on")
-    # Create a boxplot from the values in the dictionary
-    conf_dict = {
-        "Bin": list(conf_per_bin.keys()),
-        "Variance": list(conf_per_bin.values())
-    }
-    print(conf_dict)
-    conf_df = pd.DataFrame.from_dict(conf_dict)
-    sns.barplot(x="Bin", y="Variance", data=conf_df, color=bar_color, ax=ax)
-    ax.set_title(f"Variance per {metric} Bin")
+    bar_palette = {metric: bar_color for metric, bar_color in zip(metrics, bar_colors)}
+    sns.barplot(x="Bin", y="Variance", data=conf_df, hue="metric", ax=ax, orient="v", palette=bar_palette)
+    ax.set_title(f"Variance per Bin")

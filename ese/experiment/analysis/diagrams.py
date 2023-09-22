@@ -136,31 +136,23 @@ def subject_plot(
         plot_ece_map(
             subj=subj,
             fig=f,
-            ax=axarr[2, 0]
+            ax=axarr[2, 1]
         ) 
-        # Show the variance of the confidences for pixel samples in the bin.
-        plot_variance_per_bin(
-            subj=subj,
-            num_bins=num_bins,
-            metric="ECE",
-            bar_color="blue",
-            ax=axarr[2, 1] 
-        )
-        # Show the variance of the confidences for region samples in the bin.
-        plot_variance_per_bin(
-            subj=subj,
-            num_bins=num_bins,
-            metric="ReCE",
-            bar_color="green",
-            ax=axarr[2, 2] 
-        )
         # Show a more per-pixel calibration error for each region.
         plot_rece_map(
             subj=subj,
             num_bins=num_bins,
             fig=f,
-            ax=axarr[2, 3],
+            ax=axarr[2, 2],
             average=False
+        )
+        # Show the variance of the confidences for pixel samples in the bin.
+        plot_variance_per_bin(
+            subj=subj,
+            num_bins=num_bins,
+            metrics=["ECE", "ReCE"],
+            bar_colors=["blue", "green"],
+            ax=axarr[2, 3] 
         )
         
         # Adjust vertical spacing between the subplots
@@ -216,7 +208,7 @@ def aggregate_reliability_plot(
             bin_weightings=bin_weightings,
             y_axis=y_axes[metric],
             ax=axarr[m_idx],
-            bin_color=color
+            bar_color=color
         )
 
 
