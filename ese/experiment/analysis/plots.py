@@ -12,13 +12,14 @@ from ionpy.util.islands import get_connected_components
 from ionpy.metrics.segmentation import dice_score, pixel_accuracy
 
 # ese imports
-from ese.experiment.metrics import ECE, ReCE
+from ese.experiment.metrics import ECE, ACE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
 from ese.experiment.augmentation import smooth_soft_pred
 
 # Globally used for which metrics to plot for.
 metric_dict = {
         "ECE": ECE,
+        "ACE": ACE,
         "ReCE": ReCE
     }
 
@@ -48,16 +49,13 @@ def plot_reliability_diagram(
     ax = None
 ) -> None:
 
-    # Setup the bins
-    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-
     # Define the title
     title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
 
     if bin_info is None:
         for met in metrics:
             bin_scores, bin_y_vals, bin_amounts = metric_dict[met](
-                conf_bins=bins,
+                num_bins=num_bins,
                 pred=subj["soft_pred"],
                 label=subj["label"],
                 measure=y_axis,
@@ -82,6 +80,7 @@ def plot_reliability_diagram(
             )
 
     # Get rid of the empty bins.
+    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
     interval_size = bins[1] - bins[0]
     aligned_bins = bins + (interval_size / 2) # shift bins to center
 

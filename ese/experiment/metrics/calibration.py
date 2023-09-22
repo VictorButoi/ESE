@@ -15,7 +15,6 @@ measure_dict = {
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
-    conf_bins: torch.Tensor = None,
     num_bins: int = 10,
     pred: torch.Tensor = None, 
     label: torch.Tensor = None,
@@ -30,10 +29,7 @@ def ECE(
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
     # If conf_bins is not predefined, create them. 
-    if conf_bins is None:
-        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-    else:
-        num_bins = len(conf_bins)
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if not include_background:
         conf_bins = conf_bins[conf_bins >= threshold]
@@ -65,10 +61,6 @@ def ECE(
 
             # Calculate the accuracy and mean confidence for the island.
             avg_metric = measure_dict[measure](bin_pred, bin_label)
-            # If we include background, then we need to flip the accuracy
-            # if we are below the threshhold.
-            if include_background and (c_bin + bin_width) <= threshold and measure == "Accuracy":
-                avg_metric = 1 - avg_metric
             avg_confidence = bin_pred.mean()
 
             ece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
@@ -79,8 +71,88 @@ def ECE(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def ACE(
+    num_bins: int = 10,
+    pred: torch.Tensor = None, 
+    label: torch.Tensor = None,
+    measure: str = "Accuracy",
+    include_background: bool = False,
+    threshold: float = 0.5,
+    from_logits: bool = False
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+
+    if from_logits:
+        pred = torch.sigmoid(pred)
+
+    def split_tensor(tensor, num_bins):
+        """
+        Split a tensor of shape [N] into num_bins smaller tensors such that
+        the difference in size between any of the chunks is at most 1.
+
+        Args:
+        - tensor (torch.Tensor): Tensor of shape [N] to split
+        - num_bins (int): Number of bins/tensors to split into
+
+        Returns:
+        - List of tensors
+        """
+        N = tensor.size(0)
+        base_size = N // num_bins
+        remainder = N % num_bins
+        # This will give a list where the first `remainder` numbers are 
+        # (base_size + 1) and the rest are `base_size`.
+        split_sizes = [base_size + 1 if i < remainder else base_size for i in range(num_bins)]
+        return torch.split(tensor, split_sizes)
+
+    # Create the adaptive confidence bins.    
+    sorted_pix_values = torch.sort(pred.flatten())[0]
+
+
+    conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
+    # Get the ranges o the confidences bins.
+    chunk_ranges = [(chunk[-1] - chunk[0]) for chunk in conf_bins_chunks]
+    conf_bins = [chunk[0] for chunk in conf_bins_chunks]
+
+    if not include_background:
+        conf_bins = conf_bins[conf_bins >= threshold]
+
+    # Finally build the confidence regions.
+    confidence_regions = {conf_bins[bin_idx].item(): torch.logical_and(pred >= conf_bins[bin_idx], 
+                                                                          pred < conf_bins[bin_idx] + chunk_ranges[bin_idx]) 
+                                                                          for bin_idx in range(num_bins)}
+    # Keep track of different things for each bin.
+    ace_per_bin = torch.zeros(num_bins)
+    measure_per_bin = torch.zeros(num_bins)
+    bin_amounts = torch.zeros(num_bins)
+
+    # Get the regions of the prediction corresponding to each bin of confidence.
+    for bin_idx, c_bin in enumerate(conf_bins):
+
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = confidence_regions[c_bin.item()]
+
+        # If there are some pixels in this confidence bin.
+        if bin_conf_region.sum() > 0:
+            bin_pred = pred[bin_conf_region]
+            bin_label = label[bin_conf_region]
+
+            # Calculate the accuracy and mean confidence for the island.
+            avg_metric = measure_dict[measure](bin_pred, bin_label)
+            avg_confidence = bin_pred.mean()
+
+            ace_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
+            measure_per_bin[bin_idx] = avg_metric 
+            bin_amounts[bin_idx] = bin_conf_region.sum() 
+    
+    return ace_per_bin, measure_per_bin, bin_amounts
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ReCE(
-    conf_bins: torch.Tensor = None,
     num_bins: int = 10,
     pred: torch.Tensor = None,
     label: torch.Tensor = None,
@@ -95,10 +167,7 @@ def ReCE(
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
     # If conf_bins is not predefined, create them. 
-    if conf_bins is None:
-        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-    else:
-        num_bins = len(conf_bins)
+    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if not include_background:
         conf_bins = conf_bins[conf_bins >= threshold]
@@ -144,10 +213,6 @@ def ReCE(
             
             # Get the accumulate metrics from all the islands
             avg_region_measure = region_metric_scores.mean()
-            # If we include background, then we need to flip the accuracy
-            # if we are below the threshhold.
-            if include_background and (c_bin + bin_width) <= threshold and measure == "Accuracy":
-                avg_region_measure = 1 - avg_region_measure 
             avg_region_conf = region_conf_scores.mean()
             
             # Calculate the average calibration error for the regions in the bin.
