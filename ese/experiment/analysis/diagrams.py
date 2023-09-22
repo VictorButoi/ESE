@@ -99,7 +99,20 @@ def subject_plot(
             num_bins=num_bins,
             y_axis="Accuracy",
             subj=subj,
-            metrics=["ECE"],
+            metric="ECE",
+            bin_weightings=bin_weightings,
+            remove_empty_bins=True,
+            include_background=include_background,
+            show_bin_amounts=show_bin_amounts,
+            bar_color="blue",
+            ax=axarr[1, 1]
+        )
+        # Plot reliability diagram with precision on y.
+        plot_reliability_diagram(
+            num_bins=num_bins,
+            y_axis="Accuracy",
+            subj=subj,
+            metric="ACE",
             bin_weightings=bin_weightings,
             remove_empty_bins=True,
             include_background=include_background,
@@ -112,7 +125,7 @@ def subject_plot(
             num_bins=num_bins,
             y_axis="Accuracy",
             subj=subj,
-            metrics=["ReCE"],
+            metric="ReCE",
             bin_weightings=bin_weightings,
             remove_empty_bins=True,
             include_background=include_background,
@@ -120,18 +133,18 @@ def subject_plot(
             bar_color="green",
             ax=axarr[1, 2]
         )
-        # Show different kinds of statistics about your subjects.
-        plot_error_vs_numbins(
-            subj=subj,
-            metrics=metrics,
-            bin_weightings=bin_weightings,
-            ax=axarr[1, 3]
-        )
 
         #########################################################
         # ROW THREE
         #########################################################
 
+        # Show different kinds of statistics about your subjects.
+        plot_error_vs_numbins(
+            subj=subj,
+            metrics=metrics,
+            bin_weightings=bin_weightings,
+            ax=axarr[2, 0]
+        )
         # Display the pixelwise calibration error.
         plot_ece_map(
             subj=subj,

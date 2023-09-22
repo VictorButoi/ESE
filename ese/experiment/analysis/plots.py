@@ -37,9 +37,9 @@ def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
 def plot_reliability_diagram(
     num_bins: int,
     y_axis: str,
+    metric: str, 
     subj: dict = None,
     bin_info: Any = None,
-    metrics: List[str] = ["ECE", "ReCE"],
     remove_empty_bins: bool = False,
     include_background: bool = False,
     bin_weightings: List[str] = ["uniform", "weighted"],
@@ -53,47 +53,38 @@ def plot_reliability_diagram(
     title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
 
     if bin_info is None:
-        for met in metrics:
-            bin_scores, bin_y_vals, bin_amounts = metric_dict[met](
-                num_bins=num_bins,
-                pred=subj["soft_pred"],
-                label=subj["label"],
-                measure=y_axis,
-                include_background=include_background
-            )
-            title = build_title(
-                title,
-                met,
-                bin_scores,
-                bin_amounts,
-                bin_weightings
-            )
+        bins, bin_widths, bin_scores, bin_y_vals, bin_amounts = metric_dict[metric](
+            num_bins=num_bins,
+            pred=subj["soft_pred"],
+            label=subj["label"],
+            measure=y_axis,
+            include_background=include_background
+        )
     else:
         bin_scores, bin_y_vals, bin_amounts = bin_info
-        for met in metrics:
-            title = build_title(
-                title,
-                met,
-                bin_scores,
-                bin_amounts,
-                bin_weightings
-            )
+
+    title = build_title(
+        title,
+        metric,
+        bin_scores,
+        bin_amounts,
+        bin_weightings
+    )
 
     # Get rid of the empty bins.
-    bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-    interval_size = bins[1] - bins[0]
-    aligned_bins = bins + (interval_size / 2) # shift bins to center
+    #aligned_bins = bins + (interval_size / 2) # shift bins to center
 
     # Make sure to only use bins where the bin amounts are non-zero
     if remove_empty_bins:
         graph_bar_heights = bin_y_vals[bin_amounts != 0]
-        graph_bins = aligned_bins[bin_amounts != 0]
+        graph_bins = bins[bin_amounts != 0]
     else:
         graph_bar_heights = bin_y_vals
-        graph_bins = aligned_bins
+        graph_bins = bins 
 
     # Pad the graph bar heights so it matches the bins
     graph_bins = graph_bins[len(graph_bins) - len(graph_bar_heights):]
+    interval_size = 0.1
 
     actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bar_color, color=bar_color, alpha=0.8, label='Predicted')
     ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2, label='Ideal')

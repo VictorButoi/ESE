@@ -33,12 +33,13 @@ def ECE(
 
     if not include_background:
         conf_bins = conf_bins[conf_bins >= threshold]
-
+    
     if from_logits:
         pred = torch.sigmoid(pred)
 
     # Get the confidence bins
     bin_width = conf_bins[1] - conf_bins[0]
+    conf_bin_widths = torch.ones(num_bins) * bin_width
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
@@ -67,7 +68,7 @@ def ECE(
             measure_per_bin[bin_idx] = avg_metric 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
     
-    return ece_per_bin, measure_per_bin, bin_amounts
+    return conf_bins, conf_bin_widths, ece_per_bin, measure_per_bin, bin_amounts
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -78,6 +79,7 @@ def ACE(
     measure: str = "Accuracy",
     include_background: bool = False,
     threshold: float = 0.5,
+    min_conf: float = 0.05,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -108,21 +110,23 @@ def ACE(
         split_sizes = [base_size + 1 if i < remainder else base_size for i in range(num_bins)]
         return torch.split(tensor, split_sizes)
 
+    # If you don't want to include background pixels, remove them.
+    if not include_background:
+        pred = pred[pred >= threshold]
+
+    # Eliminate the super small values, used when background is included typically
+    if min_conf > 0:
+        pred = pred[pred >= min_conf]
+
     # Create the adaptive confidence bins.    
     sorted_pix_values = torch.sort(pred.flatten())[0]
-
-
     conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
     # Get the ranges o the confidences bins.
-    chunk_ranges = [(chunk[-1] - chunk[0]) for chunk in conf_bins_chunks]
-    conf_bins = [chunk[0] for chunk in conf_bins_chunks]
-
-    if not include_background:
-        conf_bins = conf_bins[conf_bins >= threshold]
-
+    conf_bin_widths = [(chunk[-1] - chunk[0]) for chunk in conf_bins_chunks]
+    conf_bins = torch.Tensor([chunk[0] for chunk in conf_bins_chunks])
     # Finally build the confidence regions.
     confidence_regions = {conf_bins[bin_idx].item(): torch.logical_and(pred >= conf_bins[bin_idx], 
-                                                                          pred < conf_bins[bin_idx] + chunk_ranges[bin_idx]) 
+                                                                          pred < conf_bins[bin_idx] + conf_bin_widths[bin_idx]) 
                                                                           for bin_idx in range(num_bins)}
     # Keep track of different things for each bin.
     ace_per_bin = torch.zeros(num_bins)
@@ -148,7 +152,7 @@ def ACE(
             measure_per_bin[bin_idx] = avg_metric 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
     
-    return ace_per_bin, measure_per_bin, bin_amounts
+    return conf_bins, conf_bin_widths, ace_per_bin, measure_per_bin, bin_amounts
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -177,6 +181,7 @@ def ReCE(
 
     # Get the confidence bins
     bin_width = conf_bins[1] - conf_bins[0]
+    conf_bin_widths = torch.ones(num_bins) * bin_width
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
@@ -220,5 +225,5 @@ def ReCE(
             measure_per_bin[b_idx] = avg_region_measure
             bin_amounts[b_idx] = num_islands # The number of islands is the number of regions.
 
-    return rece_per_bin, measure_per_bin, bin_amounts
+    return conf_bins, conf_bin_widths, rece_per_bin, measure_per_bin, bin_amounts
     
