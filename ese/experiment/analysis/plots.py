@@ -42,6 +42,7 @@ def plot_reliability_diagram(
     bin_info: Any = None,
     remove_empty_bins: bool = False,
     include_background: bool = False,
+    threshold: float = 0.5,
     bin_weightings: List[str] = ["uniform", "weighted"],
     bar_color: str = 'blue',
     show_bin_amounts: bool = False,
@@ -63,8 +64,6 @@ def plot_reliability_diagram(
     else:
         bin_scores, bin_y_vals, bin_amounts = bin_info
 
-    print(len(bin_scores), len(bin_y_vals), len(bin_amounts), len(bins))
-
     title = build_title(
         title,
         metric,
@@ -74,19 +73,40 @@ def plot_reliability_diagram(
     )
 
     # Make sure to only use bins where the bin amounts are non-zero
-    if remove_empty_bins:
-        graph_bar_heights = bin_y_vals[bin_amounts != 0]
-        graph_bins = bins[bin_amounts != 0]
-    else:
-        graph_bar_heights = bin_y_vals
-        graph_bins = bins 
+    non_empty_bins = (bin_amounts != 0)
+    graph_bar_heights = bin_y_vals[non_empty_bins] if remove_empty_bins else bin_y_vals
+    graph_bin_widths = bin_widths[non_empty_bins] if remove_empty_bins else bin_widths
+    graph_bins = bins[non_empty_bins] if remove_empty_bins else bins
 
-    # Pad the graph bar heights so it matches the bins
-    graph_bins = graph_bins[len(graph_bins) - len(graph_bar_heights):]
-    interval_size = 0.1
+    # Create cumulative widths for positioning the bars
+    start = 0 if include_background else threshold
 
-    actual_bars = ax.bar(graph_bins, graph_bar_heights, width=interval_size, edgecolor=bar_color, color=bar_color, alpha=0.8, label='Predicted')
-    ax.bar(graph_bins, graph_bins, width=interval_size, hatch='///', edgecolor='red', color='red', alpha=0.2, label='Ideal')
+    # Create the variable width bar plot
+    for i in range(len(graph_bar_heights)):
+        # Define the bars of the plots
+        bar_position = graph_bins[i]
+        bar_height = graph_bar_heights[i]
+        bar_width = graph_bin_widths[i]
+
+        # Plot the real bars
+        actual_bars = ax.bar(
+            bar_position,
+            bar_height, 
+            width=bar_width,
+            edgecolor=bar_color, 
+            color=bar_color, 
+            alpha=0.8
+            )
+        # Plot the ideal bars
+        ax.bar(
+            bar_position,
+            bar_position,
+            width=bar_width,
+            hatch='///', 
+            edgecolor='red', 
+            color='red', 
+            alpha=0.2, 
+            )
 
     # Display above the bars how many pixels are in the bar
     if show_bin_amounts:
@@ -110,9 +130,6 @@ def plot_reliability_diagram(
     ax.set_xlim([0, 1])
     ax.set_xticks(np.arange(0, 1.1, 0.1))
     ax.set_ylim([0, 1]) 
-
-    # Add a legend
-    ax.legend()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -244,19 +261,17 @@ def plot_error_vs_numbins(
             for num_bins in num_bins_set:
                 
                 # Compute the metrics.
-                bin_scores, _, bin_amounts = metric_dict[metric](
+                _, _, bin_scores, _, bin_amounts = metric_dict[metric](
                     num_bins=num_bins,
                     pred=pred,
                     label=label
                 )
-
                 # Calculate the error.
                 error = reduce_scores(
                     scores=bin_scores.numpy(),
                     bin_amounts=bin_amounts.numpy(),
                     weighting=bin_weighting
                 )
-
                 # Add the error to the dataframe.
                 error_list.append({
                     "# Bins": num_bins,

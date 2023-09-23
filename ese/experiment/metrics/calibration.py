@@ -106,23 +106,33 @@ def ACE(
         # This will give a list where the first `remainder` numbers are 
         # (base_size + 1) and the rest are `base_size`.
         split_sizes = [base_size + 1 if i < remainder else base_size for i in range(num_bins)]
-        return torch.split(tensor, split_sizes)
+        split_tensors = torch.split(tensor, split_sizes)
+
+        return split_tensors
 
     # If you don't want to include background pixels, remove them.
     if not include_background:
-        pred = pred[pred >= threshold]
         label = label[pred >= threshold]
+        pred = pred[pred >= threshold]
 
     # Create the adaptive confidence bins.    
     sorted_pix_values = torch.sort(pred.flatten())[0]
     conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
-    # Get the ranges o the confidences bins.
-    conf_bin_widths = [(chunk[-1] - chunk[0]) for chunk in conf_bins_chunks]
-    conf_bins = torch.Tensor([chunk[0] for chunk in conf_bins_chunks])
+
+    # Get the ranges of the confidences bins.
+    bin_widths = []
+    bin_starts = []
+    for chunk in conf_bins_chunks:
+        if len(chunk) > 0:
+            bin_widths.append(chunk[-1].item() - chunk[0].item())
+            bin_starts.append(chunk[0].item())
+    conf_bin_widths = torch.Tensor(bin_widths)
+    conf_bins = torch.Tensor(bin_starts)
+
     # Finally build the confidence regions.
-    confidence_regions = {conf_bins[bin_idx].item(): torch.logical_and(pred >= conf_bins[bin_idx], 
-                                                                        pred < conf_bins[bin_idx] + conf_bin_widths[bin_idx]) 
-                                                                          for bin_idx in range(num_bins)}
+    confidence_regions = {conf_bin.item(): torch.logical_and(pred >= conf_bin, 
+                                                             pred < conf_bin + conf_bin_widths[bin_idx]) 
+                                                             for bin_idx, conf_bin in enumerate(conf_bins)}
     # Keep track of different things for each bin.
     ace_per_bin = torch.zeros(num_bins)
     measure_per_bin = torch.zeros(num_bins)

@@ -26,6 +26,7 @@ def subject_plot(
     metrics: List[str] = ["ECE", "ReCE"],
     bin_weightings: List[str] = ["uniform", "weighted"],
     show_bin_amounts: bool = False,
+    remove_empty_bins: bool = True,
     include_background: bool = True 
     ) -> None:
     
@@ -94,46 +95,25 @@ def subject_plot(
             subj=subj,
             ax=axarr[1, 0]
         )
-        # Plot reliability diagram with precision on y.
-        plot_reliability_diagram(
-            num_bins=num_bins,
-            y_axis="Accuracy",
-            subj=subj,
-            metric="ECE",
-            bin_weightings=bin_weightings,
-            remove_empty_bins=True,
-            include_background=include_background,
-            show_bin_amounts=show_bin_amounts,
-            bar_color="blue",
-            ax=axarr[1, 1]
-        )
-        # Plot reliability diagram with precision on y.
-        plot_reliability_diagram(
-            num_bins=num_bins,
-            y_axis="Accuracy",
-            subj=subj,
-            metric="ACE",
-            bin_weightings=bin_weightings,
-            remove_empty_bins=True,
-            include_background=include_background,
-            show_bin_amounts=show_bin_amounts,
-            bar_color="blue",
-            ax=axarr[1, 1]
-        )
-        # Plot reliability diagram with accuracy on y.
-        plot_reliability_diagram(
-            num_bins=num_bins,
-            y_axis="Accuracy",
-            subj=subj,
-            metric="ReCE",
-            bin_weightings=bin_weightings,
-            remove_empty_bins=True,
-            include_background=include_background,
-            show_bin_amounts=show_bin_amounts,
-            bar_color="green",
-            ax=axarr[1, 2]
-        )
-
+        metric_dict = {
+            "ECE": "blue",
+            "ACE": "yellow",
+            "ReCE": "green" 
+        }
+        for m_idx, metric in enumerate(metrics):
+            # Plot reliability diagram with precision on y.
+            plot_reliability_diagram(
+                num_bins=num_bins,
+                y_axis="Accuracy",
+                subj=subj,
+                metric=metric,
+                bin_weightings=bin_weightings,
+                remove_empty_bins=remove_empty_bins,
+                include_background=include_background,
+                show_bin_amounts=show_bin_amounts,
+                bar_color=metric_dict[metric],
+                ax=axarr[1, 1 + m_idx]
+            )
         #########################################################
         # ROW THREE
         #########################################################
