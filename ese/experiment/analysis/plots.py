@@ -63,6 +63,8 @@ def plot_reliability_diagram(
     else:
         bin_scores, bin_y_vals, bin_amounts = bin_info
 
+    print(len(bin_scores), len(bin_y_vals), len(bin_amounts), len(bins))
+
     title = build_title(
         title,
         metric,
@@ -70,9 +72,6 @@ def plot_reliability_diagram(
         bin_amounts,
         bin_weightings
     )
-
-    # Get rid of the empty bins.
-    #aligned_bins = bins + (interval_size / 2) # shift bins to center
 
     # Make sure to only use bins where the bin amounts are non-zero
     if remove_empty_bins:

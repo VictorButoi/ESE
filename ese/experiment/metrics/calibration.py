@@ -28,11 +28,10 @@ def ECE(
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
-    # If conf_bins is not predefined, create them. 
-    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-
     if not include_background:
-        conf_bins = conf_bins[conf_bins >= threshold]
+        conf_bins = torch.linspace(threshold, 1, num_bins+1)[:-1] # Off by one error
+    else:
+        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
     
     if from_logits:
         pred = torch.sigmoid(pred)
@@ -79,7 +78,6 @@ def ACE(
     measure: str = "Accuracy",
     include_background: bool = False,
     threshold: float = 0.5,
-    min_conf: float = 0.05,
     from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -113,10 +111,7 @@ def ACE(
     # If you don't want to include background pixels, remove them.
     if not include_background:
         pred = pred[pred >= threshold]
-
-    # Eliminate the super small values, used when background is included typically
-    if min_conf > 0:
-        pred = pred[pred >= min_conf]
+        label = label[pred >= threshold]
 
     # Create the adaptive confidence bins.    
     sorted_pix_values = torch.sort(pred.flatten())[0]
@@ -126,7 +121,7 @@ def ACE(
     conf_bins = torch.Tensor([chunk[0] for chunk in conf_bins_chunks])
     # Finally build the confidence regions.
     confidence_regions = {conf_bins[bin_idx].item(): torch.logical_and(pred >= conf_bins[bin_idx], 
-                                                                          pred < conf_bins[bin_idx] + conf_bin_widths[bin_idx]) 
+                                                                        pred < conf_bins[bin_idx] + conf_bin_widths[bin_idx]) 
                                                                           for bin_idx in range(num_bins)}
     # Keep track of different things for each bin.
     ace_per_bin = torch.zeros(num_bins)
@@ -170,11 +165,10 @@ def ReCE(
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
-    # If conf_bins is not predefined, create them. 
-    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-
     if not include_background:
-        conf_bins = conf_bins[conf_bins >= threshold]
+        conf_bins = torch.linspace(threshold, 1, num_bins+1)[:-1] # Off by one error
+    else:
+        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
     if from_logits:
         pred = torch.sigmoid(pred)
