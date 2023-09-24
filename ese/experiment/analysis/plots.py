@@ -59,11 +59,13 @@ def plot_reliability_diagram(
             pred=subj["soft_pred"],
             label=subj["label"],
             measure=y_axis,
+            threshold=threshold,
             include_background=include_background
         )
     else:
         bin_scores, bin_y_vals, bin_amounts = bin_info
 
+    # Build the title
     title = build_title(
         title,
         metric,
@@ -74,23 +76,26 @@ def plot_reliability_diagram(
 
     # Make sure to only use bins where the bin amounts are non-zero
     non_empty_bins = (bin_amounts != 0)
+
     graph_bar_heights = bin_y_vals[non_empty_bins] if remove_empty_bins else bin_y_vals
     graph_bin_widths = bin_widths[non_empty_bins] if remove_empty_bins else bin_widths
     graph_bins = bins[non_empty_bins] if remove_empty_bins else bins
 
-    # Create cumulative widths for positioning the bars
-    start = 0 if include_background else threshold
+    print("Graph Bins: ", graph_bins)
+    print("Graph Bars: ", graph_bar_heights)
+    print("Graph Widths: ", graph_bin_widths)
+    print()
 
     # Create the variable width bar plot
     for i in range(len(graph_bar_heights)):
         # Define the bars of the plots
-        bar_position = graph_bins[i]
+        aligned_bar_position = graph_bins[i] + (graph_bin_widths[i] / 2)
         bar_height = graph_bar_heights[i]
         bar_width = graph_bin_widths[i]
 
         # Plot the real bars
         actual_bars = ax.bar(
-            bar_position,
+            aligned_bar_position,
             bar_height, 
             width=bar_width,
             edgecolor=bar_color, 
@@ -99,8 +104,8 @@ def plot_reliability_diagram(
             )
         # Plot the ideal bars
         ax.bar(
-            bar_position,
-            bar_position,
+            aligned_bar_position,
+            aligned_bar_position,
             width=bar_width,
             hatch='///', 
             edgecolor='red', 
@@ -243,6 +248,7 @@ def plot_smoothed_pred(
 def plot_error_vs_numbins(
     subj: dict,
     metrics: List[str],
+    metric_colors: dict,
     bin_weightings: List[str],
     ax: Any = None
     ):
@@ -405,7 +411,7 @@ def plot_variance_per_bin(
     subj: dict,
     num_bins: int,
     metrics: List[str],
-    bar_colors: List[str],
+    metric_colors: dict,
     ax: Any = None
 ):
     # If conf_bins is not predefined, create them. 
@@ -450,6 +456,5 @@ def plot_variance_per_bin(
     conf_df = pd.DataFrame(conf_list)
 
     ax.axis("on")
-    bar_palette = {metric: bar_color for metric, bar_color in zip(metrics, bar_colors)}
-    sns.barplot(x="Bin", y="Variance", data=conf_df, hue="metric", ax=ax, orient="v", palette=bar_palette)
+    sns.barplot(x="Bin", y="Variance", data=conf_df, hue="metric", ax=ax, orient="v", palette=metric_colors)
     ax.set_title(f"Variance per Bin")

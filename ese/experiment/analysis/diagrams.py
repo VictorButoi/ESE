@@ -15,9 +15,15 @@ from ionpy.util.validation import validate_arguments_init
 
 # Globally used for which metrics to plot for.
 metric_dict = {
-        "ECE": ECE,
-        "ReCE": ReCE
-    }
+    "ECE": ECE,
+    "ReCE": ReCE
+}
+
+metric_color_dict = {
+    "ECE": "blue",
+    "ACE": "yellow",
+    "ReCE": "green" 
+}
 
 @validate_arguments_init
 def subject_plot(
@@ -95,11 +101,6 @@ def subject_plot(
             subj=subj,
             ax=axarr[1, 0]
         )
-        metric_dict = {
-            "ECE": "blue",
-            "ACE": "yellow",
-            "ReCE": "green" 
-        }
         for m_idx, metric in enumerate(metrics):
             # Plot reliability diagram with precision on y.
             plot_reliability_diagram(
@@ -111,7 +112,7 @@ def subject_plot(
                 remove_empty_bins=remove_empty_bins,
                 include_background=include_background,
                 show_bin_amounts=show_bin_amounts,
-                bar_color=metric_dict[metric],
+                bar_color=metric_color_dict[metric],
                 ax=axarr[1, 1 + m_idx]
             )
         #########################################################
@@ -122,6 +123,7 @@ def subject_plot(
         plot_error_vs_numbins(
             subj=subj,
             metrics=metrics,
+            metric_colors=metric_color_dict,
             bin_weightings=bin_weightings,
             ax=axarr[2, 0]
         )
@@ -144,7 +146,7 @@ def subject_plot(
             subj=subj,
             num_bins=num_bins,
             metrics=["ECE", "ReCE"],
-            bar_colors=["blue", "green"],
+            metric_colors=metric_color_dict,
             ax=axarr[2, 3] 
         )
         
