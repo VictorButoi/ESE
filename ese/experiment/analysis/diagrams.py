@@ -21,7 +21,7 @@ metric_dict = {
 
 metric_color_dict = {
     "ECE": "blue",
-    "ACE": "yellow",
+    "ACE": "goldenrod",
     "ReCE": "green" 
 }
 
@@ -118,36 +118,37 @@ def subject_plot(
         #########################################################
         # ROW THREE
         #########################################################
-
+        # Show the variance of the confidences for pixel samples in the bin.
+        plot_avg_samplesize_vs_numbins(
+            subj=subj,
+            metrics=metrics,
+            metric_colors=metric_color_dict,
+            bin_weightings=bin_weightings,
+            ax=axarr[2, 0] 
+        )
+        # Show the variance of the confidences for pixel samples in the bin.
+        plot_avg_variance_vs_numbins(
+            subj=subj,
+            metrics=metrics,
+            metric_colors=metric_color_dict,
+            bin_weightings=bin_weightings,
+            ax=axarr[2, 1] 
+        )
         # Show different kinds of statistics about your subjects.
         plot_error_vs_numbins(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
             bin_weightings=bin_weightings,
-            ax=axarr[2, 0]
+            ax=axarr[2, 2]
         )
-        # Display the pixelwise calibration error.
-        plot_ece_map(
-            subj=subj,
-            fig=f,
-            ax=axarr[2, 1]
-        ) 
         # Show a more per-pixel calibration error for each region.
         plot_rece_map(
             subj=subj,
             num_bins=num_bins,
             fig=f,
-            ax=axarr[2, 2],
+            ax=axarr[2, 3],
             average=False
-        )
-        # Show the variance of the confidences for pixel samples in the bin.
-        plot_variance_per_bin(
-            subj=subj,
-            num_bins=num_bins,
-            metrics=["ECE", "ReCE"],
-            metric_colors=metric_color_dict,
-            ax=axarr[2, 3] 
         )
         
         # Adjust vertical spacing between the subplots
