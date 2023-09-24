@@ -42,7 +42,7 @@ def subject_plot(
     plt.rcParams.update({'font.size': 12})  
         
     # Dimensions of the plots
-    width_per_plot = 7
+    width_per_plot = 8
     height_per_plot = 7
     num_rows = 3 
     num_cols = 4 
@@ -50,7 +50,6 @@ def subject_plot(
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_dict):
 
-        # try:
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
             nrows=num_rows,
@@ -159,10 +158,6 @@ def subject_plot(
 
         # Display for the subject.
         plt.show()
-
-        # except Exception as e:
-        #     print(f"Error plotting subject {subj_idx + 1}: {e}")
-        #     continue
 
 
 @validate_arguments_init

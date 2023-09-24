@@ -40,19 +40,19 @@ def ECE(
     bin_width = conf_bins[1] - conf_bins[0]
     conf_bin_widths = torch.ones(num_bins) * bin_width
 
-    # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
-
     # Keep track of different things for each bin.
     ece_per_bin = torch.zeros(num_bins)
     measure_per_bin = torch.zeros(num_bins)
     bin_amounts = torch.zeros(num_bins)
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    for bin_idx, c_bin in enumerate(conf_bins):
+    for bin_idx, conf_bin in enumerate(conf_bins):
 
         # Get the region of image corresponding to the confidence
-        bin_conf_region = confidence_regions[c_bin.item()]
+        if conf_bin_widths[bin_idx] == 0:
+            bin_conf_region = (pred == conf_bin)
+        else:
+            bin_conf_region = torch.logical_and(pred >= conf_bin, pred < conf_bin + conf_bin_widths[bin_idx])
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
@@ -130,29 +130,24 @@ def ACE(
     bin_starts = []
     for chunk in conf_bins_chunks:
         if len(chunk) > 0:
-            bin_widths.append(chunk[-1].item() - chunk[0].item())
-            bin_starts.append(chunk[0].item())
+            bin_widths.append(chunk[-1] - chunk[0])
+            bin_starts.append(chunk[0])
     conf_bin_widths = torch.Tensor(bin_widths)
     conf_bins = torch.Tensor(bin_starts)
     
-    print("Conf widths:", conf_bin_widths)
-    print("Conf bins:", conf_bins)
-    print()
-
-    # Finally build the confidence regions.
-    confidence_regions = {conf_bin.item(): torch.logical_and(pred >= conf_bin, 
-                                                             pred < conf_bin + conf_bin_widths[bin_idx]) 
-                                                             for bin_idx, conf_bin in enumerate(conf_bins)}
     # Keep track of different things for each bin.
     ace_per_bin = torch.zeros(num_bins)
     measure_per_bin = torch.zeros(num_bins)
     bin_amounts = torch.zeros(num_bins)
 
     # Get the regions of the prediction corresponding to each bin of confidence.
-    for bin_idx, c_bin in enumerate(conf_bins):
+    for bin_idx, conf_bin in enumerate(conf_bins):
 
         # Get the region of image corresponding to the confidence
-        bin_conf_region = confidence_regions[c_bin.item()]
+        if conf_bin_widths[bin_idx] == 0:
+            bin_conf_region = (pred == conf_bin)
+        else:
+            bin_conf_region = torch.logical_and(pred >= conf_bin, pred < conf_bin + conf_bin_widths[bin_idx])
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
@@ -203,19 +198,19 @@ def ReCE(
     bin_width = conf_bins[1] - conf_bins[0]
     conf_bin_widths = torch.ones(num_bins) * bin_width
 
-    # Get the regions of the prediction corresponding to each bin of confidence.
-    confidence_regions = {c_bin.item(): torch.logical_and(pred >= c_bin, pred < (c_bin + bin_width)).bool() for c_bin in conf_bins}
-
     # Iterate through the bins, and get the measure for each bin.
     measure_per_bin = torch.zeros(num_bins)
     rece_per_bin = torch.zeros(num_bins)
     bin_amounts = torch.zeros(num_bins)
 
     # Go through each bin, starting at the back so that we don't have to run connected components
-    for b_idx, c_bin in enumerate(conf_bins):
+    for bin_idx, conf_bin in enumerate(conf_bins):
         
         # Get the region of image corresponding to the confidence
-        bin_conf_region = confidence_regions[c_bin.item()].bool()
+        if conf_bin_widths[bin_idx] == 0:
+            bin_conf_region = (pred == conf_bin)
+        else:
+            bin_conf_region = torch.logical_and(pred >= conf_bin, pred < conf_bin + conf_bin_widths[bin_idx])
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() != 0:
@@ -241,9 +236,9 @@ def ReCE(
             avg_region_conf = region_conf_scores.mean()
             
             # Calculate the average calibration error for the regions in the bin.
-            rece_per_bin[b_idx] = (avg_region_measure - avg_region_conf).abs()
-            measure_per_bin[b_idx] = avg_region_measure
-            bin_amounts[b_idx] = num_islands # The number of islands is the number of regions.
+            rece_per_bin[bin_idx] = (avg_region_measure - avg_region_conf).abs()
+            measure_per_bin[bin_idx] = avg_region_measure
+            bin_amounts[bin_idx] = num_islands # The number of islands is the number of regions.
 
     return {
         "bins": conf_bins, 
