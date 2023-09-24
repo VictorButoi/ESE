@@ -7,6 +7,8 @@ from typing import List
 
 # ese imports
 from ese.experiment.analysis.plots import *
+from ese.experiment.analysis.simple_vis import *
+from ese.experiment.analysis.error_maps import *
 from ese.experiment.metrics import ECE, ReCE
 
 # ionpy imports
@@ -48,6 +50,7 @@ def subject_plot(
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_dict):
 
+        # try:
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
             nrows=num_rows,
@@ -156,6 +159,10 @@ def subject_plot(
 
         # Display for the subject.
         plt.show()
+
+        # except Exception as e:
+        #     print(f"Error plotting subject {subj_idx + 1}: {e}")
+        #     continue
 
 
 @validate_arguments_init

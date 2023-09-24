@@ -9,12 +9,10 @@ from sklearn.metrics import confusion_matrix
 
 # ionpy imports
 from ionpy.util.islands import get_connected_components
-from ionpy.metrics.segmentation import dice_score, pixel_accuracy
 
 # ese imports
 from ese.experiment.metrics import ECE, ACE, ReCE
 from ese.experiment.metrics.utils import reduce_scores
-from ese.experiment.augmentation import smooth_soft_pred
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -24,7 +22,13 @@ metric_dict = {
     }
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def build_title(title, metric, bin_scores, bin_amounts, bin_weightings):
+def build_title(
+    title: str, 
+    metric: str, 
+    bin_scores: torch.Tensor, 
+    bin_amounts: torch.Tensor, 
+    bin_weightings: List[str]
+) -> str:
     title_parts = []
     for weighting in bin_weightings:
         met_score = reduce_scores(bin_scores.numpy(), bin_amounts.numpy(), weighting)
@@ -39,7 +43,6 @@ def plot_reliability_diagram(
     y_axis: str,
     metric: str, 
     subj: dict = None,
-    bin_info: Any = None,
     remove_empty_bins: bool = False,
     include_background: bool = False,
     threshold: float = 0.5,
@@ -53,37 +56,34 @@ def plot_reliability_diagram(
     # Define the title
     title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
 
-    if bin_info is None:
-        bins, bin_widths, bin_scores, bin_y_vals, bin_amounts = metric_dict[metric](
-            num_bins=num_bins,
-            pred=subj["soft_pred"],
-            label=subj["label"],
-            measure=y_axis,
-            threshold=threshold,
-            include_background=include_background
-        )
-    else:
-        bin_scores, bin_y_vals, bin_amounts = bin_info
+    calibration_info = metric_dict[metric](
+        num_bins=num_bins,
+        pred=subj["soft_pred"],
+        label=subj["label"],
+        measure=y_axis,
+        threshold=threshold,
+        include_background=include_background
+    )
 
     # Build the title
     title = build_title(
         title,
-        metric,
-        bin_scores,
-        bin_amounts,
-        bin_weightings
+        metric=metric,
+        bin_scores=calibration_info["scores_per_bin"],
+        bin_amounts=calibration_info["bin_amounts"],
+        bin_weightings=bin_weightings
     )
 
     # Make sure to only use bins where the bin amounts are non-zero
-    non_empty_bins = (bin_amounts != 0)
+    non_empty_bins = (calibration_info["bin_amounts"] != 0)
 
     # Get the bins, bin widths, and bin y values for the non-empty bins
-    if len(bins) > 0:
-        graph_bar_heights = bin_y_vals[non_empty_bins] if remove_empty_bins else bin_y_vals
-        graph_bin_widths = bin_widths[non_empty_bins] if remove_empty_bins else bin_widths
-        graph_bins = bins[non_empty_bins] if remove_empty_bins else bin
+    if len(calibration_info["bins"]) > 0:
+        graph_bar_heights = calibration_info["accuracy_per_bin"][non_empty_bins] if remove_empty_bins else calibration_info["accuracy_per_bin"]
+        graph_bin_widths = calibration_info["bin_widths"][non_empty_bins] if remove_empty_bins else calibration_info["bin_widths"]
+        graph_bins = calibration_info["bins"][non_empty_bins] if remove_empty_bins else bin
     else:
-        graph_bar_heights = np.zeros_like(bin_y_vals)
+        graph_bar_heights = np.zeros_like(calibration_info["accuracy_per_bin"])
         graph_bin_widths = np.zeros_like(graph_bar_heights)
         graph_bins = np.zeros_like(graph_bar_heights)
 
@@ -118,7 +118,7 @@ def plot_reliability_diagram(
     if show_bin_amounts:
         for b_idx, bar in enumerate(actual_bars):
             yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2, yval + 0.02, "{:,}".format(int(bin_amounts[b_idx])), va='bottom', ha='center', rotation=90)
+            ax.text(bar.get_x() + bar.get_width() / 2, yval + 0.02, "{:,}".format(int(calibration_info["bin_amounts"][b_idx])), va='bottom', ha='center', rotation=90)
 
     # Plot diagonal line
     if show_diagonal:
@@ -169,83 +169,6 @@ def plot_confusion_matrix(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_subject_image(
-    subj_name: str,
-    subj: dict,
-    fig: Any = None,
-    ax: Any = None
-):
-    im = ax.imshow(subj["image"], cmap="gray")
-    ax.set_title(f"{subj_name}, Image")
-    fig.colorbar(im, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_subj_label(
-    subj: dict,
-    fig: Any = None,
-    ax: Any = None
-):
-    lab = ax.imshow(subj["label"], cmap="gray")
-    ax.set_title("Ground Truth")
-    fig.colorbar(lab, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_prediction_probs(
-    subj: dict,
-    fig: Any = None,
-    ax: Any = None
-):
-    pre = ax.imshow(subj["soft_pred"], cmap="gray")
-    ax.set_title("Probabilities")
-    fig.colorbar(pre, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_pred(
-    subj: dict,
-    fig: Any = None,
-    ax: Any = None
-):
-    # Plot the pixel-wise prediction
-    hard_im = ax.imshow(subj["hard_pred"], cmap="gray")
-
-    # Expand extra dimensions for metrics
-    pred = subj["hard_pred"][None, None, ...]
-    label = subj["label"][None, None, ...]
-
-    # Calculate the dice score
-    dice = dice_score(pred, label)
-    ax.set_title(f"Prediction, Dice: {dice:.3f}")
-
-    fig.colorbar(hard_im, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_smoothed_pred(
-    subj: dict,
-    num_bins: int,
-    fig: Any = None,
-    ax: Any = None
-):
-    # Plot the processed region-wise prediction
-    smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
-    hard_smoothed_prediction = (smoothed_prediction > 0.5).float()
-    smooth_im = ax.imshow(hard_smoothed_prediction, cmap="gray")
-
-    # Expand extra dimensions for metrics
-    smoothed_pred = hard_smoothed_prediction[None, None, ...]
-    label = subj["label"][None, None, ...]
-
-    # Calculate the dice score
-    smoothed_dice = dice_score(smoothed_pred, label)
-    ax.set_title(f"Smoothed Prediction, Dice: {smoothed_dice:.3f}")
-
-    fig.colorbar(smooth_im, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_error_vs_numbins(
     subj: dict,
     metrics: List[str],
@@ -268,17 +191,22 @@ def plot_error_vs_numbins(
             for num_bins in num_bins_set:
                 
                 # Compute the metrics.
-                _, _, bin_scores, _, bin_amounts = metric_dict[metric](
+                calibration_info = metric_dict[metric](
                     num_bins=num_bins,
                     pred=pred,
                     label=label
                 )
                 # Calculate the error.
                 error = reduce_scores(
-                    scores=bin_scores.numpy(),
-                    bin_amounts=bin_amounts.numpy(),
+                    scores=calibration_info["scores_per_bin"].numpy(),
+                    bin_amounts=calibration_info["bin_amounts"].numpy(),
                     weighting=bin_weighting
                 )
+                
+                if error == 0:
+                    print(calibration_info["bin_amounts"].numpy())
+                    print(calibration_info["scores_per_bin"].numpy())
+                assert error != 0, "Unlikely this happens with scores"
                 # Add the error to the dataframe.
                 error_list.append({
                     "# Bins": num_bins,
@@ -345,21 +273,29 @@ def plot_avg_variance_vs_numbins(
         for bin_weighting in bin_weightings:
             for num_bins in num_bins_set:
                 # Compute the metrics.
-                conf_bins, conf_bin_widths, _, _, _ = metric_dict[metric](
+                calibration_info = metric_dict[metric](
                     num_bins=num_bins,
                     pred=pred,
                     label=label
                 )
-                for c_bin, c_width in zip(conf_bins, conf_bin_widths):
-                    bin_confidences = pred[torch.logical_and(pred >= c_bin, pred < (c_bin + c_width))]
+                for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
+                    bin_confidences = torch.logical_and(pred >= c_bin, pred < (c_bin + c_width))
+
                     # Add the error to the dataframe.
-                    if torch.sum(bin_confidences) > 0:
-                        var_list.append({
-                            "# Bins": num_bins,
-                            "Metric": metric,
-                            "Weighting": bin_weighting,
-                            "Bin-Wise Variance": bin_confidences.var().item()
-                        })
+                    if metric == "ReCE":
+                        conf_islands = get_connected_components(bin_confidences)
+                        region_conf_scores = torch.Tensor([pred[island].mean() for island in conf_islands])
+                        bin_variance = region_conf_scores.var().item()
+                    else:
+                        bin_variance = pred[bin_confidences].var().item()
+
+                    # Add the error to the dataframe.
+                    var_list.append({
+                        "# Bins": num_bins,
+                        "Metric": metric,
+                        "Weighting": bin_weighting,
+                        "Bin-Wise Variance": bin_variance
+                    })
 
     # Convert list to a pandas dataframe
     variances_df = pd.DataFrame(var_list)
@@ -420,20 +356,26 @@ def plot_avg_samplesize_vs_numbins(
         for bin_weighting in bin_weightings:
             for num_bins in num_bins_set:
                 # Compute the metrics.
-                conf_bins, conf_bin_widths, _, _, _ = metric_dict[metric](
+                calibration_info = metric_dict[metric](
                     num_bins=num_bins,
                     pred=pred,
                     label=label
                 )
-                for c_bin, c_width in zip(conf_bins, conf_bin_widths):
-                    bin_confidences = pred[torch.logical_and(pred >= c_bin, pred < (c_bin + c_width))]
+                for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
+                    bin_confidences = torch.logical_and(pred >= c_bin, pred < (c_bin + c_width))
                     # Add the error to the dataframe.
+                    if metric == "ReCE":
+                        num_samples = len(get_connected_components(bin_confidences))
+                    else:
+                        num_samples = pred[bin_confidences].sum().item() 
+
                     amounts_list.append({
                         "# Bins": num_bins,
                         "Metric": metric,
                         "Weighting": bin_weighting,
-                        "#Samples Per Bin": bin_confidences.sum().item() 
+                        "#Samples Per Bin": num_samples
                     })
+
 
     # Convert list to a pandas dataframe
     variances_df = pd.DataFrame(amounts_list)
@@ -468,90 +410,5 @@ def plot_avg_samplesize_vs_numbins(
     # Make the x ticks go every 10 bins, and set the x lim to be between the first and last number of bins.
     x_ticks = np.arange(0, 110, 10)
     ax.set_xticks(x_ticks)
-    ax.set_title("Bin Samples vs. Number of Bins")
+    ax.set_title("# of Bin Samples vs. Number of Bins")
     ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_ece_map(
-    subj: dict,
-    fig: Any,
-    ax: Any,
-):
-    # Copy the soft and hard predictions
-    soft_pred = subj['soft_pred'].clone()
-    hard_pred = subj['hard_pred'].clone()
-
-    # Calculate the per-pixel accuracy and where the foreground regions are.
-    acc_per_pixel = (subj['label'] == hard_pred).float()
-    pred_foreground = hard_pred.bool()
-
-    # Set the regions of the image corresponding to groundtruth label.
-    ece_map = np.zeros_like(subj['label'])
-    ece_map[pred_foreground] = (soft_pred - acc_per_pixel)[pred_foreground]
-
-    # Get the bounds for visualization
-    ece_abs_max = np.max(np.abs(ece_map))
-    ece_vmin, ece_vmax = -ece_abs_max, ece_abs_max
-
-    # Show the ece map
-    ce_im = ax.imshow(ece_map, cmap="RdBu_r", interpolation="None", vmax=ece_vmax, vmin=ece_vmin)
-    ax.set_title("Pixel-wise Cal Error")
-    fig.colorbar(ce_im, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_rece_map(
-    subj: dict,
-    num_bins: int,
-    average: bool = False,
-    fig: Any = None,
-    ax: Any = None
-):
-    # Get the confidence bins
-    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-
-    pred = subj['soft_pred']
-    rece_map = np.zeros_like(pred)
-
-    # Make sure bins are aligned.
-    bin_width = conf_bins[1] - conf_bins[0]
-    for c_bin in conf_bins:
-
-        # Get the binary region of this confidence interval
-        bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
-
-        # Break it up into islands
-        conf_islands = get_connected_components(bin_conf_region)
-
-        # Iterate through each island, and get the measure for each island.
-        for island in conf_islands:
-
-            # Get the label corresponding to the island and simulate ground truth and make the right shape.
-            label_region = subj["label"][island][None, None, ...]
-            pseudo_pred = torch.ones_like(label_region)
-
-            # If averaging, then everything in one island will get the same score, otherwise pixelwise.
-            if average:
-                # Calculate the accuracy and mean confidence for the island.
-                region_accuracies  = pixel_accuracy(pseudo_pred , label_region)
-                region_confidences = pred[island].mean()
-            else:
-                region_accuracies = (pseudo_pred == label_region).squeeze().float()
-                region_confidences = pred[island]
-
-            # Place the numbers in the island.
-            rece_map[island] = (region_confidences - region_accuracies)
-
-    # Get the bounds for visualization
-    rece_abs_max = np.max(np.abs(rece_map))
-    rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
-    rece_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
-
-    if average:
-        ax.set_title("Averaged Region-wise Cal Error")
-    else:
-        ax.set_title("Region-wise Cal Error")
-
-    fig.colorbar(rece_im, ax=ax)
-

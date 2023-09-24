@@ -67,7 +67,13 @@ def ECE(
             measure_per_bin[bin_idx] = avg_metric 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
     
-    return conf_bins, conf_bin_widths, ece_per_bin, measure_per_bin, bin_amounts
+    return {
+        "bins": conf_bins, 
+        "bin_widths": conf_bin_widths, 
+        "bin_amounts": bin_amounts,
+        "scores_per_bin": ece_per_bin, 
+        "accuracy_per_bin": measure_per_bin, 
+    }
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -128,6 +134,10 @@ def ACE(
             bin_starts.append(chunk[0].item())
     conf_bin_widths = torch.Tensor(bin_widths)
     conf_bins = torch.Tensor(bin_starts)
+    
+    print("Conf widths:", conf_bin_widths)
+    print("Conf bins:", conf_bins)
+    print()
 
     # Finally build the confidence regions.
     confidence_regions = {conf_bin.item(): torch.logical_and(pred >= conf_bin, 
@@ -157,7 +167,13 @@ def ACE(
             measure_per_bin[bin_idx] = avg_metric 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
     
-    return conf_bins, conf_bin_widths, ace_per_bin, measure_per_bin, bin_amounts
+    return {
+        "bins": conf_bins, 
+        "bin_widths": conf_bin_widths, 
+        "bin_amounts": bin_amounts,
+        "scores_per_bin": ace_per_bin, 
+        "accuracy_per_bin": measure_per_bin, 
+    }
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -229,5 +245,11 @@ def ReCE(
             measure_per_bin[b_idx] = avg_region_measure
             bin_amounts[b_idx] = num_islands # The number of islands is the number of regions.
 
-    return conf_bins, conf_bin_widths, rece_per_bin, measure_per_bin, bin_amounts
+    return {
+        "bins": conf_bins, 
+        "bin_widths": conf_bin_widths, 
+        "bin_amounts": bin_amounts,
+        "scores_per_bin": rece_per_bin, 
+        "accuracy_per_bin": measure_per_bin, 
+    }
     
