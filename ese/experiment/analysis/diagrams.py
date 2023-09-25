@@ -6,7 +6,7 @@ import torch
 from typing import List
 
 # ese imports
-from ese.experiment.analysis.plots import *
+from ese.experiment.analysis.analysis_plots import *
 from ese.experiment.analysis.simple_vis import *
 from ese.experiment.analysis.error_maps import *
 from ese.experiment.metrics import ECE, ReCE
