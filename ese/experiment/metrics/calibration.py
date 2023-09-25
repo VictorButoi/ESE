@@ -55,7 +55,7 @@ def ECE(
 
     # Keep track of different things for each bin, dicts are
     # for cummulation over multiple images, tensors are for one image.
-    frequency_per_bin = {}
+    freqs_per_bin = {}
     confs_per_bin = {}
 
     ece_per_bin = torch.zeros(num_bins)
@@ -76,14 +76,18 @@ def ECE(
             # Calculate the accuracy and mean confidence for the island.
             avg_metric = measure_dict[measure](bin_confidences, bin_label)
             avg_confidence = bin_confidences.mean()
-            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label)
+            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label).float()
 
             ece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
             avg_freq_per_bin[bin_idx] = avg_metric
-            frequency_per_bin[bin_idx] = pixel_frequencies 
-            confs_per_bin[bin_idx] = bin_confidences 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
-    
+            # Store the frequencies and confidences for each bin.
+            freqs_per_bin[bin_idx] = pixel_frequencies 
+            confs_per_bin[bin_idx] = bin_confidences 
+        else:
+            freqs_per_bin[bin_idx] = torch.Tensor([]) 
+            confs_per_bin[bin_idx] = torch.Tensor([]) 
+
     # Finally, get the ECE score.
     ece_score = reduce_scores(
         score_per_bin=ece_per_bin, 
@@ -98,7 +102,7 @@ def ECE(
         "bin_amounts": bin_amounts,
         "score_per_bin": ece_per_bin, 
         "avg_freq_per_bin": avg_freq_per_bin,
-        "frequency_per_bin": frequency_per_bin, 
+        "freqs_per_bin": freqs_per_bin, 
         "confs_per_bin": confs_per_bin,
     }
 
@@ -139,7 +143,7 @@ def ACE(
     
     # Keep track of different things for each bin, dicts are
     # for cummulation over multiple images, tensors are for one image.
-    frequency_per_bin = {}
+    freqs_per_bin = {}
     confs_per_bin = {}
 
     ace_per_bin = torch.zeros(num_bins)
@@ -160,14 +164,18 @@ def ACE(
             # Calculate the accuracy and mean confidence for the island.
             avg_metric = measure_dict[measure](bin_confidences, bin_label)
             avg_confidence = bin_confidences.mean()
-            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label)
+            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label).float()
 
             ace_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
             avg_freq_per_bin[bin_idx] = avg_metric
-            frequency_per_bin[bin_idx] = pixel_frequencies 
-            confs_per_bin[bin_idx] = bin_confidences 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
-    
+            # Store the frequencies and confidences for each bin.
+            freqs_per_bin[bin_idx] = pixel_frequencies 
+            confs_per_bin[bin_idx] = bin_confidences 
+        else:
+            freqs_per_bin[bin_idx] = torch.Tensor([]) 
+            confs_per_bin[bin_idx] = torch.Tensor([]) 
+
     # Finally, get the ReCE score.
     ace_score = reduce_scores(
         score_per_bin=ace_per_bin, 
@@ -182,7 +190,7 @@ def ACE(
         "bin_amounts": bin_amounts,
         "score_per_bin": ace_per_bin, 
         "avg_freq_per_bin": avg_freq_per_bin,
-        "frequency_per_bin": frequency_per_bin, 
+        "freqs_per_bin": freqs_per_bin, 
         "confs_per_bin": confs_per_bin, 
     }
 
@@ -217,7 +225,7 @@ def ReCE(
 
     # Keep track of different things for each bin, dicts are
     # for cummulation over multiple images, tensors are for one image.
-    frequency_per_bin = {}
+    freqs_per_bin = {}
     confs_per_bin = {}
 
     rece_per_bin = torch.zeros(num_bins)
@@ -256,9 +264,13 @@ def ReCE(
             # Calculate the average calibration error for the regions in the bin.
             rece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
             avg_freq_per_bin[bin_idx] = avg_metric
-            frequency_per_bin[bin_idx] = region_conf_scores 
-            confs_per_bin[bin_idx] = region_conf_scores 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+            # Store the frequencies and confidences for each bin.
+            freqs_per_bin[bin_idx] = region_metric_scores 
+            confs_per_bin[bin_idx] = region_conf_scores 
+        else:
+            freqs_per_bin[bin_idx] = torch.Tensor([]) 
+            confs_per_bin[bin_idx] = torch.Tensor([]) 
 
     # Finally, get the ReCE score.
     rece_score = reduce_scores(
@@ -274,7 +286,7 @@ def ReCE(
         "bin_amounts": bin_amounts,
         "score_per_bin": rece_per_bin, 
         "avg_freq_per_bin": avg_freq_per_bin,
-        "frequency_per_bin": frequency_per_bin, 
-        "confs_per_bin": region_conf_scores,
+        "freqs_per_bin": freqs_per_bin, 
+        "confs_per_bin": confs_per_bin,
     }
     

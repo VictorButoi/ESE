@@ -1,10 +1,11 @@
 # misc imports
 import numpy as np
+from typing import Any
 from pydantic import validate_arguments
-from typing import List
 
 # ese imports
 from ese.experiment.metrics import ECE, ACE, ReCE
+from ese.experiment.metrics.utils import get_bins
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -13,58 +14,40 @@ metric_dict = {
         "ReCE": ReCE
     }
 
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def build_title(
-    title: str, 
-    metric: str, 
-    met_score: float,
-    bin_weightings: List[str]
-) -> str:
-    title_parts = []
-    for weighting in bin_weightings:
-        title_parts.append(f"{weighting[0]}{metric}: {met_score:.5f}")
-    title += ", ".join(title_parts) + "\n"
-    return title
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_subj_reliability_diagram(
-    num_bins: int,
+def reliability_diagram(
+    title: str,
+    calibration_info: dict,
     y_axis: str,
     metric: str, 
-    subj: dict = None,
-    remove_empty_bins: bool = False,
-    include_background: bool = False,
-    threshold: float = 0.5,
-    bin_weightings: List[str] = ["uniform", "weighted"],
-    bar_color: str = 'blue',
-    show_bin_amounts: bool = False,
-    show_diagonal: bool = True,
-    ax = None
-) -> None:
-
-    # Define the title
-    title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
-
-    calibration_info = metric_dict[metric](
-        num_bins=num_bins,
-        pred=subj["soft_pred"],
-        label=subj["label"],
-        measure=y_axis,
-        threshold=threshold,
-        include_background=include_background
-    )
-
-    # Build the title
-    title = build_title(
-        title,
-        metric=metric,
-        met_score=calibration_info["score"],
-        bin_weightings=bin_weightings
-    )
+    num_bins: int,
+    bin_weighting: str,
+    ax: Any,
+    threshold: float,
+    remove_empty_bins: bool,
+    include_background: bool,
+    bar_color: str,
+    show_bin_amounts: bool,
+    show_diagonal: bool
+):
+    # Add the metric to the title
+    title += f"{metric}: {calibration_info['score']:.5f} ({bin_weighting})"
 
     # Make sure to only use bins where the bin amounts are non-zero
     non_empty_bins = (calibration_info["bin_amounts"] != 0)
+
+    # If bins are not defined, redefine them.
+    if "bins" not in calibration_info:
+        assert metric != "ACE", "ACE requires confidence values to be passed in."
+        conf_bins, conf_bin_widths = get_bins(
+            metric=metric,
+            include_background=include_background,
+            threshold=threshold,
+            num_bins=num_bins
+        )
+        calibration_info["bins"] = conf_bins
+        calibration_info["bin_widths"] = conf_bin_widths
 
     # Get the bins, bin widths, and bin y values for the non-empty bins
     if len(calibration_info["bins"]) > 0:
@@ -125,3 +108,85 @@ def plot_subj_reliability_diagram(
     ax.set_xlim([0, 1])
     ax.set_xticks(np.arange(0, 1.1, 0.1))
     ax.set_ylim([0, 1]) 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def plot_subj_reliability_diagram(
+    num_bins: int,
+    y_axis: str,
+    metric: str, 
+    subj: dict,
+    bin_weighting: str,
+    include_background: bool,
+    ax: Any,
+    remove_empty_bins: bool = True,
+    threshold: float = 0.5,
+    bar_color: str = 'blue',
+    show_bin_amounts: bool = False,
+    show_diagonal: bool = True,
+) -> None:
+
+    # Define the title
+    title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
+
+    calibration_info = metric_dict[metric](
+        num_bins=num_bins,
+        pred=subj["soft_pred"],
+        label=subj["label"],
+        measure=y_axis,
+        weighting=bin_weighting,
+        threshold=threshold,
+        include_background=include_background
+    )
+    
+    reliability_diagram(
+        title=title,
+        calibration_info=calibration_info,
+        y_axis=y_axis,
+        metric=metric,
+        num_bins=num_bins,
+        bin_weighting=bin_weighting,
+        remove_empty_bins=remove_empty_bins,
+        include_background=include_background,
+        threshold=threshold,
+        bar_color=bar_color,
+        show_bin_amounts=show_bin_amounts,
+        show_diagonal=show_diagonal,
+        ax=ax
+    )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def plot_cumulative_reliability_diagram(
+    num_bins: int,
+    calibration_info: dict,
+    y_axis: str,
+    metric: str, 
+    include_background: bool,
+    bin_weighting: str,
+    ax: Any,
+    threshold: float = 0.5,
+    remove_empty_bins: bool = True,
+    bar_color: str = 'blue',
+    show_bin_amounts: bool = False,
+    show_diagonal: bool = True,
+) -> None:
+
+    # Define the title
+    title = f"{y_axis} Cumulative Reliability Diagram w/ {num_bins} bins:\n"
+
+    reliability_diagram(
+        title=title,
+        calibration_info=calibration_info,
+        y_axis=y_axis,
+        metric=metric,
+        num_bins=num_bins,
+        bin_weighting=bin_weighting,
+        remove_empty_bins=remove_empty_bins,
+        include_background=include_background,
+        threshold=threshold,
+        bar_color=bar_color,
+        show_bin_amounts=show_bin_amounts,
+        show_diagonal=show_diagonal,
+        ax=ax
+    )

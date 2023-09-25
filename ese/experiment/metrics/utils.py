@@ -8,7 +8,7 @@ import torch
 def reduce_scores(
     score_per_bin: torch.Tensor, 
     amounts_per_bin: torch.Tensor, 
-    weighting: str = "propotional"
+    weighting: str = "proportional"
     ) -> float:
 
     if amounts_per_bin.sum() == 0:
@@ -18,7 +18,7 @@ def reduce_scores(
     elif weighting== 'uniform':
         bin_weights = torch.ones_like(amounts_per_bin) / len(amounts_per_bin)
     else:
-        raise ValueError("Invalid bin weighting.")
+        raise ValueError(f"Invalid bin weighting. Must be one of 'proportional' or 'uniform', got '{weighting}' instead.")
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
 
     # Multiply by the weights and sum.

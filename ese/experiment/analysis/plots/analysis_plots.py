@@ -55,7 +55,7 @@ def plot_error_vs_numbins(
     subj: dict,
     metrics: List[str],
     metric_colors: dict,
-    bin_weightings: List[str],
+    bin_weighting: str,
     ax: Any = None
     ):
     try:
@@ -69,22 +69,21 @@ def plot_error_vs_numbins(
 
         # Go through each number of bins.
         for metric in metrics:
-            for bin_weighting in bin_weightings:
-                for num_bins in num_bins_set:
-                    # Compute the metrics.
-                    calibration_info = metric_dict[metric](
-                        num_bins=num_bins,
-                        pred=pred,
-                        label=label,
-                        weighting=bin_weighting
-                    )
-                    # Add the error to the dataframe.
-                    error_list.append({
-                        "# Bins": num_bins,
-                        "Metric": metric,
-                        "Weighting": bin_weighting,
-                        "Calibration Error": calibration_info["score"].item()
-                    })
+            for num_bins in num_bins_set:
+                # Compute the metrics.
+                calibration_info = metric_dict[metric](
+                    num_bins=num_bins,
+                    pred=pred,
+                    label=label,
+                    weighting=bin_weighting
+                )
+                # Add the error to the dataframe.
+                error_list.append({
+                    "# Bins": num_bins,
+                    "Metric": metric,
+                    "Weighting": bin_weighting,
+                    "Calibration Error": calibration_info["score"].item()
+                })
 
         # Convert list to a pandas dataframe
         error_df = pd.DataFrame(error_list)
@@ -92,26 +91,12 @@ def plot_error_vs_numbins(
         # Plot the number of bins vs the error using seaborn lineplot, with hue for each metric
         # and style for each weighting.
         ax.axis("on")
-        multiple_bins = len(num_bins_set) > 1
-        multiple_weighting = len(bin_weightings) > 1
-        hue = None
-        style = None
-
-        # Check if you have multiple options
-        if multiple_bins and multiple_weighting:
-            hue = "Metric"
-            style = "Weighting"
-        elif multiple_bins:
-            hue = "Metric"
-        elif multiple_weighting:
-            hue = "Weighting"
 
         sns.lineplot(
             data=error_df,
             x="# Bins",
             y="Calibration Error",
-            hue=hue,
-            style=style,
+            hue="Metric",
             palette=metric_colors,
             ax=ax
         )
@@ -121,9 +106,8 @@ def plot_error_vs_numbins(
         ax.set_xticks(x_ticks)
         ax.set_title("Calibration Error vs. Number of Bins")
         ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-    except Exception as e:
-        print(e)
-        raise ValueError
+    except:
+        pass
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -131,7 +115,7 @@ def plot_avg_variance_vs_numbins(
     subj: dict,
     metrics: List[str],
     metric_colors: dict,
-    bin_weightings: List[str],
+    bin_weighting: str,
     ax: Any = None
 ):
     try:
@@ -145,40 +129,39 @@ def plot_avg_variance_vs_numbins(
 
         # Go through each number of bins.
         for metric in metrics:
-            for bin_weighting in bin_weightings:
-                for num_bins in num_bins_set:
-                    # Compute the metrics.
-                    calibration_info = metric_dict[metric](
-                        num_bins=num_bins,
-                        pred=pred,
-                        label=label
-                    )
-                    for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
-                        # Get the region of image corresponding to the confidence
-                        if c_width == 0:
-                            bin_conf_region = (pred == c_bin)
+            for num_bins in num_bins_set:
+                # Compute the metrics.
+                calibration_info = metric_dict[metric](
+                    num_bins=num_bins,
+                    pred=pred,
+                    label=label
+                )
+                for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
+                    # Get the region of image corresponding to the confidence
+                    if c_width == 0:
+                        bin_conf_region = (pred == c_bin)
+                    else:
+                        bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
+
+                    if bin_conf_region.sum() > 0:                
+                        # Add the error to the dataframe.
+                        if bin_conf_region.sum() == 1:
+                            bin_variance = 0
                         else:
-                            bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
-
-                        if bin_conf_region.sum() > 0:                
-                            # Add the error to the dataframe.
-                            if bin_conf_region.sum() == 1:
-                                bin_variance = 0
+                            if metric == "ReCE":
+                                conf_islands = get_connected_components(bin_conf_region)
+                                region_conf_scores = torch.Tensor([pred[island].mean() for island in conf_islands])
+                                bin_variance = region_conf_scores.var().item()
                             else:
-                                if metric == "ReCE":
-                                    conf_islands = get_connected_components(bin_conf_region)
-                                    region_conf_scores = torch.Tensor([pred[island].mean() for island in conf_islands])
-                                    bin_variance = region_conf_scores.var().item()
-                                else:
-                                    bin_variance = pred[bin_conf_region].var().item()
+                                bin_variance = pred[bin_conf_region].var().item()
 
-                            # Add the error to the dataframe.
-                            var_list.append({
-                                "# Bins": num_bins,
-                                "Metric": metric,
-                                "Weighting": bin_weighting,
-                                "Bin-Wise Variance": bin_variance
-                            })
+                        # Add the error to the dataframe.
+                        var_list.append({
+                            "# Bins": num_bins,
+                            "Metric": metric,
+                            "Weighting": bin_weighting,
+                            "Bin-Wise Variance": bin_variance
+                        })
 
         # Convert list to a pandas dataframe
         variances_df = pd.DataFrame(var_list)
@@ -186,26 +169,12 @@ def plot_avg_variance_vs_numbins(
         # Plot the number of bins vs the error using seaborn lineplot, with hue for each metric
         # and style for each weighting.
         ax.axis("on")
-        multiple_bins = len(num_bins_set) > 1
-        multiple_weighting = len(bin_weightings) > 1
-        hue = None
-        style = None
-
-        # Check if you have multiple options
-        if multiple_bins and multiple_weighting:
-            hue = "Metric"
-            style = "Weighting"
-        elif multiple_bins:
-            hue = "Metric"
-        elif multiple_weighting:
-            hue = "Weighting"
 
         sns.lineplot(
             data=variances_df,
             x="# Bins",
             y="Bin-Wise Variance",
-            hue=hue,
-            style=style,
+            hue="Metric",
             palette=metric_colors,
             ax=ax
         )
@@ -224,7 +193,7 @@ def plot_avg_samplesize_vs_numbins(
     subj: dict,
     metrics: List[str],
     metric_colors: dict,
-    bin_weightings: List[str],
+    bin_weighting: str,
     ax: Any = None
 ):
     try:   
@@ -238,60 +207,47 @@ def plot_avg_samplesize_vs_numbins(
 
         # Go through each number of bins.
         for metric in metrics:
-            for bin_weighting in bin_weightings:
-                for num_bins in num_bins_set:
-                    # Compute the metrics.
-                    calibration_info = metric_dict[metric](
-                        num_bins=num_bins,
-                        pred=pred,
-                        label=label
-                    )
-                    for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
-                        # Get the region of image corresponding to the confidence
-                        if c_width == 0:
-                            bin_conf_region = (pred == c_bin)
-                        else:
-                            bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
+            for num_bins in num_bins_set:
+                # Compute the metrics.
+                calibration_info = metric_dict[metric](
+                    num_bins=num_bins,
+                    pred=pred,
+                    label=label
+                )
+                for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
+                    # Get the region of image corresponding to the confidence
+                    if c_width == 0:
+                        bin_conf_region = (pred == c_bin)
+                    else:
+                        bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
 
-                        if bin_conf_region.sum() > 0:
-                            # Add the error to the dataframe.
-                            if metric == "ReCE":
-                                num_samples = len(get_connected_components(bin_conf_region))
-                            else:
-                                num_samples = bin_conf_region.sum().item() 
-                            
-                            assert num_samples > 0, "Number of samples in bin should be greater than 0."
-                            amounts_list.append({
-                                "# Bins": num_bins,
-                                "Metric": metric,
-                                "Weighting": bin_weighting,
-                                "#Samples Per Bin": num_samples
-                            })
+                    if bin_conf_region.sum() > 0:
+                        # Add the error to the dataframe.
+                        if metric == "ReCE":
+                            num_samples = len(get_connected_components(bin_conf_region))
+                        else:
+                            num_samples = bin_conf_region.sum().item() 
+                        
+                        assert num_samples > 0, "Number of samples in bin should be greater than 0."
+                        amounts_list.append({
+                            "# Bins": num_bins,
+                            "Metric": metric,
+                            "Weighting": bin_weighting,
+                            "#Samples Per Bin": num_samples
+                        })
 
         # Convert list to a pandas dataframe
         variances_df = pd.DataFrame(amounts_list)
         # Plot the number of bins vs the error using seaborn lineplot, with hue for each metric
         # and style for each weighting.
         ax.axis("on")
-        multiple_bins = len(num_bins_set) > 1
-        multiple_weighting = len(bin_weightings) > 1
-        hue = None
-        style = None
-        # Check if you have multiple options
-        if multiple_bins and multiple_weighting:
-            hue = "Metric"
-            style = "Weighting"
-        elif multiple_bins:
-            hue = "Metric"
-        elif multiple_weighting:
-            hue = "Weighting"
-
+        
+        # Plot line plot
         sns.lineplot(
             data=variances_df,
             x="# Bins",
             y="#Samples Per Bin",
-            hue=hue,
-            style=style,
+            hue="Metric",
             palette=metric_colors,
             ax=ax
         )

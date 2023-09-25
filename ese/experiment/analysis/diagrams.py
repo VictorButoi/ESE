@@ -1,16 +1,17 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
 import torch
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 from typing import List
+from pydantic import validate_arguments
+from sklearn.metrics import confusion_matrix
 
 # ese imports
 from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
 from ese.experiment.metrics import ECE, ReCE
-
-# ionpy imports
-from ionpy.util.validation import validate_arguments_init
+import ese.experiment.metrics.utils as metric_utils
 
 
 # Globally used for which metrics to plot for.
@@ -25,13 +26,13 @@ metric_color_dict = {
     "ReCE": "green" 
 }
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def subject_plot(
-    subject_dict: dict, 
+    subject_list: List[dict], 
     num_bins: int,
     reliability_y_axis: str = "Frequency",
     metrics: List[str] = ["ECE", "ReCE"],
-    bin_weightings: List[str] = ["uniform", "weighted"],
+    bin_weighting: str = "proportional",
     show_bin_amounts: bool = False,
     remove_empty_bins: bool = True,
     include_background: bool = True 
@@ -48,7 +49,7 @@ def subject_plot(
     num_cols = 4 
 
     # Go through each subject and plot a bunch of info about it.
-    for subj_idx, subj in enumerate(subject_dict):
+    for subj_idx, subj in enumerate(subject_list):
 
         # Setup the plot for each subject.
         f, axarr = plt.subplots(
@@ -110,7 +111,7 @@ def subject_plot(
                 y_axis=reliability_y_axis,
                 subj=subj,
                 metric=metric,
-                bin_weightings=bin_weightings,
+                bin_weighting=bin_weighting,
                 remove_empty_bins=remove_empty_bins,
                 include_background=include_background,
                 show_bin_amounts=show_bin_amounts,
@@ -125,7 +126,7 @@ def subject_plot(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
-            bin_weightings=bin_weightings,
+            bin_weighting=bin_weighting,
             ax=axarr[2, 0] 
         )
         # Show the variance of the confidences for pixel samples in the bin.
@@ -133,7 +134,7 @@ def subject_plot(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
-            bin_weightings=bin_weightings,
+            bin_weighting=bin_weighting,
             ax=axarr[2, 1] 
         )
         # Show different kinds of statistics about your subjects.
@@ -141,7 +142,7 @@ def subject_plot(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
-            bin_weightings=bin_weightings,
+            bin_weighting=bin_weighting,
             ax=axarr[2, 2]
         )
         # Show a more per-pixel calibration error for each region.
@@ -160,57 +161,94 @@ def subject_plot(
         plt.show()
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def aggregate_reliability_plot(
-    subject_dict: dict,
+    subject_list: List[dict],
     num_bins: int,
     metrics: List[str],
-    bin_weightings: List[str] = ["uniform", "weighted"],
-    color: str = "blue"
+    reliability_y_axis: str = "Frequency",
+    bin_weighting: str = "proportional",
+    remove_empty_bins: bool = True,
+    include_background: bool = True,
+    threshold: float = 0.5,
+    bar_color: str = "blue"
 ) -> None:
     
     # Consturct the subplot (just a single one)
     _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(7 * len(metrics), 7))
 
-    # y-axis labels
-    y_axes = {
-        "ECE": "Avg. Accuracy",
-        "ReCE": "Avg. Island-wise Precision"
-    }
-
     for m_idx, metric in enumerate(metrics):
 
-        aggregate_info = [
-            metric_dict[metric](
-            num_bins=num_bins,
-            pred=subj["soft_pred"],
-            label=subj["label"]
-        ) for subj in subject_dict]
+        conf_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
+        freq_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
+        amount_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
         
-        # Get the average score per bin and the amount of pixels that went into those.
-        aggregated_scores = torch.stack([subj[0] for subj in aggregate_info])
-        aggregated_accs = torch.stack([subj[1] for subj in aggregate_info])
-        aggregated_amounts = torch.stack([subj[2] for subj in aggregate_info])
+        # Go through each subject, and get the information we need.
+        for subj in subject_list:
+            subj_calibration_info = metric_dict[metric](
+                num_bins=num_bins,
+                pred=subj["soft_pred"],
+                label=subj["label"],
+                measure=reliability_y_axis,
+                weighting=bin_weighting,   
+                threshold=threshold,
+                include_background=include_background
+            )
+            # Information about the subject.
+            subj_confs_per_bin = subj_calibration_info["confs_per_bin"]
+            subj_freqs_per_bin = subj_calibration_info["freqs_per_bin"]
+            subj_amounts_per_bin = subj_calibration_info["bin_amounts"]
 
-        # Average over the subjects
-        bin_scores = torch.mean(aggregated_scores, dim=0)
-        bin_accs = torch.mean(aggregated_accs, dim=0)
-        bin_amounts = torch.sum(aggregated_amounts, dim=0)
+            # Add the information to the aggregate.
+            for bin_idx in range(num_bins):
+                if conf_per_bin[bin_idx] is None:
+                    conf_per_bin[bin_idx] = subj_confs_per_bin[bin_idx]
+                    freq_per_bin[bin_idx] = subj_freqs_per_bin[bin_idx]
+                    amount_per_bin[bin_idx] = subj_amounts_per_bin[bin_idx]
+                else:
+                    conf_per_bin[bin_idx] = torch.cat((conf_per_bin[bin_idx], subj_confs_per_bin[bin_idx]))
+                    freq_per_bin[bin_idx] = torch.cat((freq_per_bin[bin_idx], subj_freqs_per_bin[bin_idx]))
+                    amount_per_bin[bin_idx] += subj_amounts_per_bin[bin_idx]
+        
+        # Build the calibration info for each bin
+        calibration_info = {
+            "bin_amounts": torch.zeros(num_bins),
+            "avg_conf_per_bin": torch.zeros(num_bins),
+            "avg_freq_per_bin": torch.zeros(num_bins),
+            "score_per_bin": torch.zeros(num_bins)
+        }
+        for b_idx in range(num_bins):
+            # Reduce over the samples for confidences and frequencies.
+            bin_amounts = amount_per_bin[b_idx]
+            avg_frequency = freq_per_bin[b_idx].mean()
+            avg_confidence = conf_per_bin[b_idx].mean()
+            score_per_bin = (avg_confidence - avg_frequency).abs()
+            # Store in our calibration info.
+            calibration_info["bin_amounts"][b_idx] = bin_amounts
+            calibration_info["avg_conf_per_bin"][b_idx] = avg_confidence
+            calibration_info["avg_freq_per_bin"][b_idx] = avg_frequency
+            calibration_info["score_per_bin"][b_idx] = score_per_bin
+            # Get the calibration score
+            calibration_info["score"] = metric_utils.reduce_scores(
+                score_per_bin=score_per_bin,
+                amounts_per_bin=bin_amounts, 
+                weighting=bin_weighting
+            )
 
-        bin_info = [bin_scores, bin_accs, bin_amounts]
-
-        plot_reliability_diagram(
+        reliability_plots.plot_cumulative_reliability_diagram(
             num_bins=num_bins,
-            bin_info=bin_info,
-            metrics=[metric],
-            bin_weightings=bin_weightings,
-            y_axis=y_axes[metric],
+            calibration_info=calibration_info,
+            metric=metric,
+            bin_weighting=bin_weighting,
+            y_axis=reliability_y_axis,
+            remove_empty_bins=remove_empty_bins,
+            include_background=include_background,
             ax=axarr[m_idx],
-            bar_color=color
+            bar_color=metric_color_dict[metric]
         )
 
 
-@validate_arguments_init
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def aggregate_cm_plot(
     subj_dict
 ):
@@ -237,56 +275,3 @@ def aggregate_cm_plot(
 
     # Display the plot
     plt.show()
-
-
-@validate_arguments_init
-def aggregate_error_distribution_plot(
-    subject_dict: dict,
-    num_bins: int,
-    metrics: List[str],
-    bin_weightings: List[str] = ["uniform", "weighted"],
-) -> None:
-
-    error_list = []
-    for metric in metrics:
-        for bin_weighting in bin_weightings:
-            for subj in subject_dict:
-
-                # Compute the metrics.
-                bin_scores, _, bin_amounts = metric_dict[metric](
-                    num_bins=num_bins,
-                    pred=subj['soft_pred'],
-                    label=subj['label']
-                )
-
-                # Calculate the error.
-                error = reduce_scores(
-                    scores=bin_scores.numpy(),
-                    bin_amounts=bin_amounts.numpy(),
-                    weighting=bin_weighting
-                )
-
-                # Add the error to the dataframe.
-                error_list.append({
-                    "Metric": metric,
-                    "Weighting": bin_weighting,
-                    "Calibration Error": error
-                })
-    
-    # Wrap into a pandas dataframe
-    error_df = pd.DataFrame(error_list)
-
-    # Create a box plot of the calibration errors, and set its height
-    plt.figure(figsize=(6, 10))
-
-    sns.set_theme(style="whitegrid")
-    sns.boxplot(
-        x="Metric",
-        y="Calibration Error",
-        data=error_df,
-    )
-
-
-
-            
-
