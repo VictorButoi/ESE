@@ -6,9 +6,7 @@ import torch
 from typing import List
 
 # ese imports
-from ese.experiment.analysis.analysis_plots import *
-from ese.experiment.analysis.simple_vis import *
-from ese.experiment.analysis.error_maps import *
+from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
 from ese.experiment.metrics import ECE, ReCE
 
 # ionpy imports
@@ -71,26 +69,26 @@ def subject_plot(
 
         # Define subject name and plot the image
         subj_name = f"Subject #{subj_idx + 1}"
-        plot_subject_image(
+        simple_vis.plot_subject_image(
             subj_name=subj_name,
             subj=subj,
             fig=f,
             ax=axarr[0, 0]
         )
         # Show the groundtruth label
-        plot_subj_label(
+        simple_vis.plot_subj_label(
             subj=subj,
             fig=f,
             ax=axarr[0, 1]
         )
         # Show the confidence map (which we interpret as probabilities)
-        plot_prediction_probs(
+        simple_vis.plot_prediction_probs(
             subj=subj,
             fig=f,
             ax=axarr[0, 2]
         )
         # Show the pixelwise thresholded prediction
-        plot_pred(
+        simple_vis.plot_pred(
             subj=subj,
             fig=f,
             ax=axarr[0, 3]
@@ -101,13 +99,13 @@ def subject_plot(
         #########################################################
 
         # Show different kinds of statistics about your subjects.
-        plot_confusion_matrix(
+        analysis_plots.plot_confusion_matrix(
             subj=subj,
             ax=axarr[1, 0]
         )
         for m_idx, metric in enumerate(metrics):
             # Plot reliability diagram with precision on y.
-            plot_reliability_diagram(
+            reliability_plots.plot_subj_reliability_diagram(
                 num_bins=num_bins,
                 y_axis=reliability_y_axis,
                 subj=subj,
@@ -123,7 +121,7 @@ def subject_plot(
         # ROW THREE
         #########################################################
         # Show the variance of the confidences for pixel samples in the bin.
-        plot_avg_samplesize_vs_numbins(
+        analysis_plots.plot_avg_samplesize_vs_numbins(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
@@ -131,7 +129,7 @@ def subject_plot(
             ax=axarr[2, 0] 
         )
         # Show the variance of the confidences for pixel samples in the bin.
-        plot_avg_variance_vs_numbins(
+        analysis_plots.plot_avg_variance_vs_numbins(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
@@ -139,7 +137,7 @@ def subject_plot(
             ax=axarr[2, 1] 
         )
         # Show different kinds of statistics about your subjects.
-        plot_error_vs_numbins(
+        analysis_plots.plot_error_vs_numbins(
             subj=subj,
             metrics=metrics,
             metric_colors=metric_color_dict,
@@ -147,7 +145,7 @@ def subject_plot(
             ax=axarr[2, 2]
         )
         # Show a more per-pixel calibration error for each region.
-        plot_rece_map(
+        error_maps.plot_rece_map(
             subj=subj,
             num_bins=num_bins,
             fig=f,
