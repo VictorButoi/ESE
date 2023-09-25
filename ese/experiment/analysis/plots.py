@@ -26,13 +26,11 @@ metric_dict = {
 def build_title(
     title: str, 
     metric: str, 
-    bin_scores: torch.Tensor, 
-    bin_amounts: torch.Tensor, 
+    met_score: float,
     bin_weightings: List[str]
 ) -> str:
     title_parts = []
     for weighting in bin_weightings:
-        met_score = reduce_scores(bin_scores.numpy(), bin_amounts.numpy(), weighting)
         title_parts.append(f"{weighting[0]}{metric}: {met_score:.5f}")
     title += ", ".join(title_parts) + "\n"
     return title
@@ -70,8 +68,7 @@ def plot_reliability_diagram(
     title = build_title(
         title,
         metric=metric,
-        bin_scores=calibration_info["scores_per_bin"],
-        bin_amounts=calibration_info["bin_amounts"],
+        met_score=calibration_info["score"],
         bin_weightings=bin_weightings
     )
 
@@ -80,11 +77,11 @@ def plot_reliability_diagram(
 
     # Get the bins, bin widths, and bin y values for the non-empty bins
     if len(calibration_info["bins"]) > 0:
-        graph_bar_heights = calibration_info["accuracy_per_bin"][non_empty_bins] if remove_empty_bins else calibration_info["accuracy_per_bin"]
+        graph_bar_heights = calibration_info["avg_freq_per_bin"][non_empty_bins] if remove_empty_bins else calibration_info["avg_freq_per_bin"]
         graph_bin_widths = calibration_info["bin_widths"][non_empty_bins] if remove_empty_bins else calibration_info["bin_widths"]
         graph_bins = calibration_info["bins"][non_empty_bins] if remove_empty_bins else bin
     else:
-        graph_bar_heights = np.zeros_like(calibration_info["accuracy_per_bin"])
+        graph_bar_heights = np.zeros_like(calibration_info["avg_freq_per_bin"])
         graph_bin_widths = np.zeros_like(graph_bar_heights)
         graph_bins = np.zeros_like(graph_bar_heights)
 
@@ -194,21 +191,15 @@ def plot_error_vs_numbins(
                     calibration_info = metric_dict[metric](
                         num_bins=num_bins,
                         pred=pred,
-                        label=label
-                    )
-                    # Calculate the error.
-                    error = reduce_scores(
-                        scores=calibration_info["scores_per_bin"].numpy(),
-                        bin_amounts=calibration_info["bin_amounts"].numpy(),
+                        label=label,
                         weighting=bin_weighting
                     )
-                    
                     # Add the error to the dataframe.
                     error_list.append({
                         "# Bins": num_bins,
                         "Metric": metric,
                         "Weighting": bin_weighting,
-                        "Calibration Error": error
+                        "Calibration Error": calibration_info["score"].item()
                     })
 
         # Convert list to a pandas dataframe
@@ -246,8 +237,9 @@ def plot_error_vs_numbins(
         ax.set_xticks(x_ticks)
         ax.set_title("Calibration Error vs. Number of Bins")
         ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-    except:
-        pass
+    except Exception as e:
+        print(e)
+        raise ValueError
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
