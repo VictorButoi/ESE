@@ -9,7 +9,7 @@ from ionpy.util.islands import get_connected_components
 
 measure_dict = {
     "Accuracy": pixel_accuracy,
-    "Precision": pixel_precision
+    "Frequency": pixel_precision
 }
 
 
@@ -20,22 +20,22 @@ def ECE(
     label: torch.Tensor = None,
     measure: str = "Accuracy",
     include_background: bool = False,
+    min_prediction: float = 0.05,
     threshold: float = 0.5,
-    from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
-    if not include_background:
-        conf_bins = torch.linspace(threshold, 1, num_bins+1)[:-1] # Off by one error
-    else:
-        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
-    
-    if from_logits:
-        pred = torch.sigmoid(pred)
+    # Eliminate the super small predictions to get a better picture.
+    label = label[pred >= min_prediction]
+    pred = pred[pred >= min_prediction]
 
+    # Define the confidence bins
+    start = 0 if include_background else threshold
+    conf_bins = torch.linspace(start, 1, num_bins+1)[:-1] # Off by one error
+    
     # Get the confidence bins
     bin_width = conf_bins[1] - conf_bins[0]
     conf_bin_widths = torch.ones(num_bins) * bin_width
@@ -83,16 +83,13 @@ def ACE(
     label: torch.Tensor = None,
     measure: str = "Accuracy",
     include_background: bool = False,
+    min_prediction: float = 0.05,
     threshold: float = 0.5,
-    from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
-
-    if from_logits:
-        pred = torch.sigmoid(pred)
 
     def split_tensor(tensor, num_bins):
         """
@@ -115,6 +112,10 @@ def ACE(
         split_tensors = torch.split(tensor, split_sizes)
 
         return split_tensors
+
+    # Eliminate the super small predictions to get a better picture.
+    label = label[pred >= min_prediction]
+    pred = pred[pred >= min_prediction]
 
     # If you don't want to include background pixels, remove them.
     if not include_background:
@@ -178,21 +179,21 @@ def ReCE(
     label: torch.Tensor = None,
     measure: str = "Accuracy",
     include_background: bool = False,
+    min_prediction: float = 0.01,
     threshold: float = 0.5,
-    from_logits: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
     assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
 
-    if not include_background:
-        conf_bins = torch.linspace(threshold, 1, num_bins+1)[:-1] # Off by one error
-    else:
-        conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    # Eliminate the super small predictions to get a better picture.
+    label = label[pred >= min_prediction]
+    pred = pred[pred >= min_prediction]
 
-    if from_logits:
-        pred = torch.sigmoid(pred)
+    # Define the bins
+    start = 0 if include_background else threshold
+    conf_bins = torch.linspace(start, 1, num_bins+1)[:-1] # Off by one error
 
     # Get the confidence bins
     bin_width = conf_bins[1] - conf_bins[0]

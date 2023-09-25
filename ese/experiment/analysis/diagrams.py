@@ -31,12 +31,14 @@ metric_color_dict = {
 def subject_plot(
     subject_dict: dict, 
     num_bins: int,
+    reliability_y_axis: str = "Frequency",
     metrics: List[str] = ["ECE", "ReCE"],
     bin_weightings: List[str] = ["uniform", "weighted"],
     show_bin_amounts: bool = False,
     remove_empty_bins: bool = True,
     include_background: bool = True 
     ) -> None:
+    assert not (reliability_y_axis == "Accuracy" and include_background), "Cannot include background when using accuracy as y-axis."
     
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
@@ -107,7 +109,7 @@ def subject_plot(
             # Plot reliability diagram with precision on y.
             plot_reliability_diagram(
                 num_bins=num_bins,
-                y_axis="Accuracy",
+                y_axis=reliability_y_axis,
                 subj=subj,
                 metric=metric,
                 bin_weightings=bin_weightings,
