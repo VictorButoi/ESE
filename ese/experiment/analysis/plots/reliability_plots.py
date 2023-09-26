@@ -9,10 +9,10 @@ from ese.experiment.metrics.utils import get_bins
 
 # Globally used for which metrics to plot for.
 metric_dict = {
-        "ECE": ECE,
-        "ACE": ACE,
-        "ReCE": ReCE
-    }
+    "ECE": ECE,
+    "ACE": ACE,
+    "ReCE": ReCE
+}
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -131,7 +131,7 @@ def plot_subj_reliability_diagram(
 
     calibration_info = metric_dict[metric](
         num_bins=num_bins,
-        pred=subj["soft_pred"],
+        conf_map=subj["conf_map"],
         label=subj["label"],
         measure=y_axis,
         weighting=bin_weighting,

@@ -58,10 +58,10 @@ def get_bins(
     include_background: bool, 
     threshold: float, 
     num_bins: int,
-    pred: Optional[torch.Tensor] = None
+    conf_map: Optional[torch.Tensor] = None
     ):
     if metric == "ACE":
-        sorted_pix_values = torch.sort(pred.flatten())[0]
+        sorted_pix_values = torch.sort(conf_map.flatten())[0]
         conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
 
         # Get the ranges of the confidences bins.

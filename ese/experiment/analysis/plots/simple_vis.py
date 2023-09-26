@@ -15,7 +15,12 @@ def plot_subject_image(
     fig: Any = None,
     ax: Any = None
 ):
-    im = ax.imshow(subj["image"], cmap="gray")
+    image = subj["image"]
+    # If rgb, move channels to the back.
+    if len(image.shape) == 3:
+        image = image.permute(1, 2, 0).int()
+    # Plot the image
+    im = ax.imshow(image, cmap="gray")
     ax.set_title(f"{subj_name}, Image")
     fig.colorbar(im, ax=ax)
 
@@ -37,7 +42,7 @@ def plot_prediction_probs(
     fig: Any = None,
     ax: Any = None
 ):
-    pre = ax.imshow(subj["soft_pred"], cmap="gray")
+    pre = ax.imshow(subj["conf_map"], cmap="gray")
     ax.set_title("Probabilities")
     fig.colorbar(pre, ax=ax)
 
@@ -49,10 +54,10 @@ def plot_pred(
     ax: Any = None
 ):
     # Plot the pixel-wise prediction
-    hard_im = ax.imshow(subj["hard_pred"], cmap="gray")
+    hard_im = ax.imshow(subj["pred_map"], cmap="gray")
 
     # Expand extra dimensions for metrics
-    pred = subj["hard_pred"][None, None, ...]
+    pred = subj["pred_map"][None, None, ...]
     label = subj["label"][None, None, ...]
 
     # Calculate the dice score

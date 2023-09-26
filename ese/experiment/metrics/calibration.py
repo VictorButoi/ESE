@@ -16,34 +16,34 @@ measure_dict = {
     "Frequency": pixel_precision
 }
 
-def get_conf_region(bin_idx, conf_bin, conf_bin_widths, pred):
+def get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
-        bin_conf_region = (pred == conf_bin)
+        bin_conf_region = (conf_map == conf_bin)
     else:
-        bin_conf_region = torch.logical_and(pred >= conf_bin, pred < conf_bin + conf_bin_widths[bin_idx])
+        bin_conf_region = torch.logical_and(conf_map >= conf_bin, conf_map < conf_bin + conf_bin_widths[bin_idx])
     return bin_conf_region
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
     num_bins: int = 10,
-    pred: torch.Tensor = None, 
+    conf_map: torch.Tensor = None, 
     label: torch.Tensor = None,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
-    min_prediction: float = 0.05,
+    min_confidence: float = 0.05,
     threshold: float = 0.5,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
 
     # Eliminate the super small predictions to get a better picture.
-    label = label[pred >= min_prediction]
-    pred = pred[pred >= min_prediction]
+    label = label[conf_map >= min_confidence]
+    conf_map = conf_map[conf_map >= min_confidence]
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -66,11 +66,11 @@ def ECE(
     for bin_idx, conf_bin in enumerate(conf_bins):
 
         # Get the region of image corresponding to the confidence
-        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, pred)
+        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
-            bin_confidences = pred[bin_conf_region]
+            bin_confidences = conf_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
             # Calculate the accuracy and mean confidence for the island.
@@ -110,27 +110,27 @@ def ECE(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ACE(
     num_bins: int = 10,
-    pred: torch.Tensor = None, 
+    conf_map: torch.Tensor = None, 
     label: torch.Tensor = None,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
-    min_prediction: float = 0.05,
+    min_confidence: float = 0.05,
     threshold: float = 0.5,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
 
     # Eliminate the super small predictions to get a better picture.
-    label = label[pred >= min_prediction]
-    pred = pred[pred >= min_prediction]
+    label = label[conf_map >= min_confidence]
+    conf_map = conf_map[conf_map >= min_confidence]
 
     # If you don't want to include background pixels, remove them.
     if not include_background:
-        label = label[pred >= threshold]
-        pred = pred[pred >= threshold]
+        label = label[conf_map >= threshold]
+        conf_map = conf_map[conf_map >= threshold]
 
     # Create the adaptive confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -138,7 +138,7 @@ def ACE(
         include_background=include_background, 
         threshold=threshold, 
         num_bins=num_bins, 
-        pred=pred
+        conf_map=conf_map
         )
     
     # Keep track of different things for each bin, dicts are
@@ -154,11 +154,11 @@ def ACE(
     for bin_idx, conf_bin in enumerate(conf_bins):
 
         # Get the region of image corresponding to the confidence
-        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, pred)
+        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
-            bin_confidences = pred[bin_conf_region]
+            bin_confidences = conf_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
             # Calculate the accuracy and mean confidence for the island.
@@ -198,22 +198,22 @@ def ACE(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ReCE(
     num_bins: int = 10,
-    pred: torch.Tensor = None,
+    conf_map: torch.Tensor = None,
     label: torch.Tensor = None,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
-    min_prediction: float = 0.01,
+    min_confidence: float = 0.01,
     threshold: float = 0.5,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
-    assert len(pred.shape) == 2 and pred.shape == label.shape, f"pred and label must be 2D tensors of the same shape. Got {pred.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
 
     # Eliminate the super small predictions to get a better picture.
-    label = label[pred >= min_prediction]
-    pred = pred[pred >= min_prediction]
+    label = label[conf_map >= min_confidence]
+    conf_map = conf_map[conf_map >= min_confidence]
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -236,7 +236,7 @@ def ReCE(
     for bin_idx, conf_bin in enumerate(conf_bins):
         
         # Get the region of image corresponding to the confidence
-        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, pred)
+        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() != 0:
@@ -251,11 +251,11 @@ def ReCE(
             # Iterate through each island, and get the measure for each island.
             for isl_idx, island in enumerate(conf_islands):
                 # Get the island primitives
-                bin_pred = pred[island]                
+                bin_conf_map = conf_map[island]                
                 bin_label = label[island]
                 # Calculate the accuracy and mean confidence for the island.
-                region_metric_scores[isl_idx] = measure_dict[measure](bin_pred, bin_label)
-                region_conf_scores[isl_idx] = bin_pred.mean()
+                region_metric_scores[isl_idx] = measure_dict[measure](bin_conf_map, bin_label)
+                region_conf_scores[isl_idx] = bin_conf_map.mean()
             
             # Get the accumulate metrics from all the islands
             avg_metric = region_metric_scores.mean()

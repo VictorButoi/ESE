@@ -15,10 +15,10 @@ from ese.experiment.metrics import ECE, ACE, ReCE
 
 # Globally used for which metrics to plot for.
 metric_dict = {
-        "ECE": ECE,
-        "ACE": ACE,
-        "ReCE": ReCE
-    }
+    "ECE": ECE,
+    "ACE": ACE,
+    "ReCE": ReCE
+}
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_confusion_matrix(
@@ -32,7 +32,7 @@ def plot_confusion_matrix(
     
     # Convert PyTorch tensors to NumPy arrays
     ground_truth_np = subj['label'].cpu().numpy()
-    predictions_np = subj['hard_pred'].cpu().numpy()
+    predictions_np = subj['pred_map'].cpu().numpy()
 
     # Calculate the confusion matrix
     cm = confusion_matrix(ground_truth_np.flatten(), predictions_np.flatten(), labels=[0, 1])
@@ -64,7 +64,7 @@ def plot_error_vs_numbins(
 
         # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
         error_list = []
-        pred = subj["soft_pred"]
+        conf_map = subj["conf_map"]
         label = subj["label"]
 
         # Go through each number of bins.
@@ -73,7 +73,7 @@ def plot_error_vs_numbins(
                 # Compute the metrics.
                 calibration_info = metric_dict[metric](
                     num_bins=num_bins,
-                    pred=pred,
+                    conf_map=conf_map,
                     label=label,
                     weighting=bin_weighting
                 )
@@ -125,7 +125,7 @@ def plot_avg_variance_vs_numbins(
 
         # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
         var_list = []
-        pred = subj["soft_pred"]
+        conf_map = subj["conf_map"]
         label = subj["label"]
 
         # Go through each number of bins.
@@ -134,15 +134,15 @@ def plot_avg_variance_vs_numbins(
                 # Compute the metrics.
                 calibration_info = metric_dict[metric](
                     num_bins=num_bins,
-                    pred=pred,
+                    conf_map=conf_map,
                     label=label
                 )
                 for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
                     # Get the region of image corresponding to the confidence
                     if c_width == 0:
-                        bin_conf_region = (pred == c_bin)
+                        bin_conf_region = (conf_map == c_bin)
                     else:
-                        bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
+                        bin_conf_region = torch.logical_and(conf_map >= c_bin, conf_map < c_bin + c_width)
 
                     if bin_conf_region.sum() > 0:                
                         # Add the error to the dataframe.
@@ -151,10 +151,10 @@ def plot_avg_variance_vs_numbins(
                         else:
                             if metric == "ReCE":
                                 conf_islands = get_connected_components(bin_conf_region)
-                                region_conf_scores = torch.Tensor([pred[island].mean() for island in conf_islands])
+                                region_conf_scores = torch.Tensor([conf_map[island].mean() for island in conf_islands])
                                 bin_variance = region_conf_scores.var().item()
                             else:
-                                bin_variance = pred[bin_conf_region].var().item()
+                                bin_variance = conf_map[bin_conf_region].var().item()
 
                         # Add the error to the dataframe.
                         var_list.append({
@@ -204,7 +204,7 @@ def plot_avg_samplesize_vs_numbins(
 
         # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
         amounts_list = []
-        pred = subj["soft_pred"]
+        conf_map = subj["conf_map"]
         label = subj["label"]
 
         # Go through each number of bins.
@@ -213,15 +213,15 @@ def plot_avg_samplesize_vs_numbins(
                 # Compute the metrics.
                 calibration_info = metric_dict[metric](
                     num_bins=num_bins,
-                    pred=pred,
+                    conf_map=conf_map,
                     label=label
                 )
                 for c_bin, c_width in zip(calibration_info["bins"], calibration_info["bin_widths"]):
                     # Get the region of image corresponding to the confidence
                     if c_width == 0:
-                        bin_conf_region = (pred == c_bin)
+                        bin_conf_region = (conf_map == c_bin)
                     else:
-                        bin_conf_region = torch.logical_and(pred >= c_bin, pred < c_bin + c_width)
+                        bin_conf_region = torch.logical_and(conf_map >= c_bin, conf_map < c_bin + c_width)
 
                     if bin_conf_region.sum() > 0:
                         # Add the error to the dataframe.

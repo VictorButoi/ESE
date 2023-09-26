@@ -95,8 +95,8 @@ class CalibrationExperiment(TrainExperiment):
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
 
         # Add augmentation to image and label.
-            with torch.no_grad():
-                x, y = self.aug_pipeline(x, y)
+        with torch.no_grad():
+            x, y = self.aug_pipeline(x, y)
 
         # Forward pass
         yhat = self.model(x)

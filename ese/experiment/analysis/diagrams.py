@@ -30,12 +30,14 @@ metric_color_dict = {
 def subject_diagram(
     subject_list: List[dict], 
     num_bins: int,
+    metrics: List[str],
+    num_subjects: int = 10,
     reliability_y_axis: str = "Frequency",
-    metrics: List[str] = ["ECE", "ReCE"],
     bin_weighting: str = "proportional",
     show_bin_amounts: bool = False,
     remove_empty_bins: bool = True,
-    include_background: bool = True 
+    include_background: bool = True,
+    multi_label: bool = False
     ) -> None:
     assert not (reliability_y_axis == "Accuracy" and include_background), "Cannot include background when using accuracy as y-axis."
     
@@ -47,6 +49,9 @@ def subject_diagram(
     height_per_plot = 7
     num_rows = 3 
     num_cols = 4 
+
+    # Shorten the total subject list (to save time).
+    subject_list = subject_list[:num_subjects]
 
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_list):
@@ -82,17 +87,21 @@ def subject_diagram(
             fig=f,
             ax=axarr[0, 1]
         )
-        # Show the confidence map (which we interpret as probabilities)
-        simple_vis.plot_prediction_probs(
-            subj=subj,
-            fig=f,
-            ax=axarr[0, 2]
-        )
+        if not multi_label:
+            # Show the confidence map (which we interpret as probabilities)
+            simple_vis.plot_prediction_probs(
+                subj=subj,
+                fig=f,
+                ax=axarr[0, 2]
+            )
+            pred_ax = axarr[0, 3]
+        else:
+            pred_ax = axarr[0, 2]
         # Show the pixelwise thresholded prediction
         simple_vis.plot_pred(
             subj=subj,
             fig=f,
-            ax=axarr[0, 3]
+            ax=pred_ax
         )
 
         #########################################################
