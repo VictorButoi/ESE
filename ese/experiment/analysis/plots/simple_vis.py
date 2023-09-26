@@ -31,18 +31,18 @@ def plot_subj_label(
     fig: Any = None,
     ax: Any = None
 ):
-    lab = ax.imshow(subj["label"], cmap="gray")
+    lab = ax.imshow(subj["label"], interpolation="None", cmap="gray")
     ax.set_title("Ground Truth")
     fig.colorbar(lab, ax=ax)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_prediction_probs(
+def plot_conf_map(
     subj: dict,
     fig: Any = None,
     ax: Any = None
 ):
-    pre = ax.imshow(subj["conf_map"], cmap="gray")
+    pre = ax.imshow(subj["conf_map"], interpolation="None", cmap="gray")
     ax.set_title("Probabilities")
     fig.colorbar(pre, ax=ax)
 
@@ -54,7 +54,7 @@ def plot_pred(
     ax: Any = None
 ):
     # Plot the pixel-wise prediction
-    hard_im = ax.imshow(subj["pred_map"], cmap="gray")
+    hard_im = ax.imshow(subj["pred_map"], interpolation="None", cmap="gray")
 
     # Expand extra dimensions for metrics
     pred = subj["pred_map"][None, None, ...]
@@ -77,7 +77,7 @@ def plot_smoothed_pred(
     # Plot the processed region-wise prediction
     smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
     hard_smoothed_prediction = (smoothed_prediction > 0.5).float()
-    smooth_im = ax.imshow(hard_smoothed_prediction, cmap="gray")
+    smooth_im = ax.imshow(hard_smoothed_prediction, interpolation="None", cmap="gray")
 
     # Expand extra dimensions for metrics
     smoothed_pred = hard_smoothed_prediction[None, None, ...]

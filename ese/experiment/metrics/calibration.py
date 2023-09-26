@@ -242,7 +242,7 @@ def ReCE(
         if bin_conf_region.sum() != 0:
             # If we are not the last bin, get the connected components.
             conf_islands = get_connected_components(bin_conf_region)
-            
+
             # Iterate through each island, and get the measure for each island.
             num_islands = len(conf_islands)
             region_metric_scores = torch.zeros(num_islands)
@@ -253,6 +253,7 @@ def ReCE(
                 # Get the island primitives
                 bin_conf_map = conf_map[island]                
                 bin_label = label[island]
+
                 # Calculate the accuracy and mean confidence for the island.
                 region_metric_scores[isl_idx] = measure_dict[measure](bin_conf_map, bin_label)
                 region_conf_scores[isl_idx] = bin_conf_map.mean()

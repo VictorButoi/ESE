@@ -60,7 +60,7 @@ def plot_error_vs_numbins(
     ):
     try:
         # Define the number of bins to test.
-        num_bins_set = np.arange(10, 110, 10, dtype=int)
+        num_bins_set = np.arange(10, 60, 10, dtype=int)
 
         # Keep a dataframe of the error for each metric, bin weighting, and number of bins.
         error_list = []

@@ -37,7 +37,6 @@ def subject_diagram(
     show_bin_amounts: bool = False,
     remove_empty_bins: bool = True,
     include_background: bool = True,
-    multi_label: bool = False
     ) -> None:
     assert not (reliability_y_axis == "Accuracy" and include_background), "Cannot include background when using accuracy as y-axis."
     
@@ -87,21 +86,17 @@ def subject_diagram(
             fig=f,
             ax=axarr[0, 1]
         )
-        if not multi_label:
-            # Show the confidence map (which we interpret as probabilities)
-            simple_vis.plot_prediction_probs(
-                subj=subj,
-                fig=f,
-                ax=axarr[0, 2]
-            )
-            pred_ax = axarr[0, 3]
-        else:
-            pred_ax = axarr[0, 2]
+        # Show the confidence map (which we interpret as probabilities)
+        simple_vis.plot_conf_map(
+            subj=subj,
+            fig=f,
+            ax=axarr[0, 2]
+        )
         # Show the pixelwise thresholded prediction
         simple_vis.plot_pred(
             subj=subj,
             fig=f,
-            ax=pred_ax
+            ax=axarr[0, 3]
         )
 
         #########################################################
@@ -131,29 +126,29 @@ def subject_diagram(
         # ROW THREE
         #########################################################
         # Show the variance of the confidences for pixel samples in the bin.
-        analysis_plots.plot_avg_samplesize_vs_numbins(
-            subj=subj,
-            metrics=metrics,
-            metric_colors=metric_color_dict,
-            bin_weighting=bin_weighting,
-            ax=axarr[2, 0] 
-        )
-        # Show the variance of the confidences for pixel samples in the bin.
-        analysis_plots.plot_avg_variance_vs_numbins(
-            subj=subj,
-            metrics=metrics,
-            metric_colors=metric_color_dict,
-            bin_weighting=bin_weighting,
-            ax=axarr[2, 1] 
-        )
+        # analysis_plots.plot_avg_samplesize_vs_numbins(
+        #     subj=subj,
+        #     metrics=metrics,
+        #     metric_colors=metric_color_dict,
+        #     bin_weighting=bin_weighting,
+        #     ax=axarr[2, 0] 
+        # )
+        # # Show the variance of the confidences for pixel samples in the bin.
+        # analysis_plots.plot_avg_variance_vs_numbins(
+        #     subj=subj,
+        #     metrics=metrics,
+        #     metric_colors=metric_color_dict,
+        #     bin_weighting=bin_weighting,
+        #     ax=axarr[2, 1] 
+        # )
         # Show different kinds of statistics about your subjects.
-        analysis_plots.plot_error_vs_numbins(
-            subj=subj,
-            metrics=metrics,
-            metric_colors=metric_color_dict,
-            bin_weighting=bin_weighting,
-            ax=axarr[2, 2]
-        )
+        # analysis_plots.plot_error_vs_numbins(
+        #     subj=subj,
+        #     metrics=metrics,
+        #     metric_colors=metric_color_dict,
+        #     bin_weighting=bin_weighting,
+        #     ax=axarr[2, 2]
+        # )
         # Show a more per-pixel calibration error for each region.
         error_maps.plot_rece_map(
             subj=subj,
@@ -195,7 +190,7 @@ def aggregate_reliability_diagram(
         for subj in subject_list:
             subj_calibration_info = metric_dict[metric](
                 num_bins=num_bins,
-                pred=subj["soft_pred"],
+                conf_map=subj["conf_map"],
                 label=subj["label"],
                 measure=reliability_y_axis,
                 weighting=bin_weighting,   
@@ -278,7 +273,7 @@ def score_histogram_diagram(
         for subj in subject_list:
             subj_calibration_info = metric_dict[metric](
                 num_bins=num_bins,
-                pred=subj["soft_pred"],
+                conf_map=subj["conf_map"],
                 label=subj["label"],
                 measure=reliability_y_axis,
                 weighting=bin_weighting,   

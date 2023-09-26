@@ -16,16 +16,16 @@ def plot_ece_map(
     ax: Any,
 ):
     # Copy the soft and hard predictions
-    soft_pred = subj['soft_pred'].clone()
-    hard_pred = subj['hard_pred'].clone()
+    conf_map = subj['conf_map'].clone()
+    pred_map = subj['pred_map'].clone()
 
     # Calculate the per-pixel accuracy and where the foreground regions are.
-    acc_per_pixel = (subj['label'] == hard_pred).float()
-    pred_foreground = hard_pred.bool()
+    acc_per_pixel = (subj['label'] == pred_map).float()
+    pred_foreground = pred_map.bool()
 
     # Set the regions of the image corresponding to groundtruth label.
     ece_map = np.zeros_like(subj['label'])
-    ece_map[pred_foreground] = (soft_pred - acc_per_pixel)[pred_foreground]
+    ece_map[pred_foreground] = (conf_map - acc_per_pixel)[pred_foreground]
 
     # Get the bounds for visualization
     ece_abs_max = np.max(np.abs(ece_map))
@@ -48,15 +48,15 @@ def plot_rece_map(
     # Get the confidence bins
     conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
 
-    pred = subj['soft_pred']
-    rece_map = np.zeros_like(pred)
+    conf_map = subj['conf_map']
+    rece_map = np.zeros_like(conf_map)
 
     # Make sure bins are aligned.
     bin_width = conf_bins[1] - conf_bins[0]
     for c_bin in conf_bins:
 
         # Get the binary region of this confidence interval
-        bin_conf_region = (pred >= c_bin) & (pred < (c_bin + bin_width))
+        bin_conf_region = (conf_map >= c_bin) & (conf_map < (c_bin + bin_width))
 
         # Break it up into islands
         conf_islands = get_connected_components(bin_conf_region)
@@ -72,10 +72,10 @@ def plot_rece_map(
             if average:
                 # Calculate the accuracy and mean confidence for the island.
                 region_accuracies  = pixel_accuracy(pseudo_pred , label_region)
-                region_confidences = pred[island].mean()
+                region_confidences = conf_map[island].mean()
             else:
                 region_accuracies = (pseudo_pred == label_region).squeeze().float()
-                region_confidences = pred[island]
+                region_confidences = conf_map[island]
 
             # Place the numbers in the island.
             rece_map[island] = (region_confidences - region_accuracies)
