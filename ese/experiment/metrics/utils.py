@@ -22,9 +22,7 @@ def reduce_scores(
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
 
     # Multiply by the weights and sum.
-    average_score = (score_per_bin * bin_weights).sum()
-
-    return average_score
+    return (score_per_bin * bin_weights).sum().item()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

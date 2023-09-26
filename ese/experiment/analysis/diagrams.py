@@ -27,7 +27,7 @@ metric_color_dict = {
 }
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def subject_plot(
+def subject_diagram(
     subject_list: List[dict], 
     num_bins: int,
     reliability_y_axis: str = "Frequency",
@@ -162,7 +162,7 @@ def subject_plot(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def aggregate_reliability_plot(
+def aggregate_reliability_diagram(
     subject_list: List[dict],
     num_bins: int,
     metrics: List[str],
@@ -171,7 +171,6 @@ def aggregate_reliability_plot(
     remove_empty_bins: bool = True,
     include_background: bool = True,
     threshold: float = 0.5,
-    bar_color: str = "blue"
 ) -> None:
     
     # Consturct the subplot (just a single one)
@@ -235,6 +234,7 @@ def aggregate_reliability_plot(
                 weighting=bin_weighting
             )
 
+        # Show the reliability plots.
         reliability_plots.plot_cumulative_reliability_diagram(
             num_bins=num_bins,
             calibration_info=calibration_info,
@@ -246,32 +246,62 @@ def aggregate_reliability_plot(
             ax=axarr[m_idx],
             bar_color=metric_color_dict[metric]
         )
+    
+    # Show the plot per metric.
+    plt.show()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def aggregate_cm_plot(
-    subj_dict
-):
-    # Initialize an empty aggregate confusion matrix
-    aggregate_cm = np.zeros((2, 2), dtype=int)  # Assuming binary segmentation
+def score_histogram_diagram(
+    subject_list: List[dict],
+    num_bins: int,
+    metrics: List[str],
+    reliability_y_axis: str = "Frequency",
+    bin_weighting: str = "proportional",
+    include_background: bool = True,
+    threshold: float = 0.5,
+) -> None:
+    
+    # Go through each subject, and get the information we need.
+    score_list = [] 
+    for metric in metrics:
+        # Go through each subject, and get the information we need.
+        for subj in subject_list:
+            subj_calibration_info = metric_dict[metric](
+                num_bins=num_bins,
+                pred=subj["soft_pred"],
+                label=subj["label"],
+                measure=reliability_y_axis,
+                weighting=bin_weighting,   
+                threshold=threshold,
+                include_background=include_background
+            )
+            score_list.append({
+                "error": subj_calibration_info["score"],
+                "metric": metric
+                })
 
-    # Define class labels
-    class_labels = ['Background', 'Foreground']
+    # Melting the DataFrame to long-form for compatibility with `hue`
+    score_df = pd.DataFrame(score_list)
 
-    # Loop through each subject and calculate the confusion matrix
-    for subj in subj_dict:
-        ground_truth_np = subj['label'].cpu().numpy().flatten()
-        predictions_np = subj['hard_pred'].cpu().numpy().flatten()
-        cm = confusion_matrix(ground_truth_np, predictions_np, labels=[0, 1])
-        aggregate_cm += cm
+    # Set the size of the figure
+    plt.figure(figsize=(12, 8))
 
-    # Plot the aggregate confusion matrix on the predefined axes using seaborn
-    plt.figure(figsize=(12, 9))
+    # Show the reliability plots.
+    sns.kdeplot(
+        data=score_df,
+        x='error',
+        hue='metric',
+        common_norm=False,  # To plot each distribution independently
+        palette=metric_color_dict,
+        fill=True  # To fill under the density curve
+    )
 
-    sns.heatmap(aggregate_cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
-    plt.xlabel('Predicted Labels')
-    plt.ylabel('True Labels')
-    plt.title('Aggregate Confusion Matrix')
+    # Calculating the mean of 'error' for each unique 'metric' and adding vertical lines
+    for metric in score_df['metric'].unique():
+        mean = score_df['error'][score_df['metric'] == metric].mean()
+        plt.axvline(mean, color=metric_color_dict[metric], linestyle='--')
+        plt.text(mean + 0.01, 1, f' {metric} mean', color=metric_color_dict[metric], rotation=90)
 
-    # Display the plot
+    plt.title(f"{metric} Histogram Over Subjects")
     plt.show()

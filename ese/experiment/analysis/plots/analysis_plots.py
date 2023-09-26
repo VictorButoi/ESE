@@ -82,7 +82,7 @@ def plot_error_vs_numbins(
                     "# Bins": num_bins,
                     "Metric": metric,
                     "Weighting": bin_weighting,
-                    "Calibration Error": calibration_info["score"].item()
+                    "Calibration Error": calibration_info["score"]
                 })
 
         # Convert list to a pandas dataframe
@@ -106,7 +106,8 @@ def plot_error_vs_numbins(
         ax.set_xticks(x_ticks)
         ax.set_title("Calibration Error vs. Number of Bins")
         ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-    except:
+    except Exception as e:
+        print(e)
         pass
 
 
@@ -184,7 +185,8 @@ def plot_avg_variance_vs_numbins(
         ax.set_xticks(x_ticks)
         ax.set_title("Average Bin Variance vs. Number of Bins")
         ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-    except:
+    except Exception as e:
+        print(e)
         pass
 
 
@@ -257,5 +259,6 @@ def plot_avg_samplesize_vs_numbins(
         ax.set_xticks(x_ticks)
         ax.set_title("# of Bin Samples vs. Number of Bins")
         ax.set_xlim([num_bins_set[0], num_bins_set[-1]])
-    except:
+    except Exception as e:
+        print(e)
         pass
