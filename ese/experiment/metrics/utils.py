@@ -1,5 +1,5 @@
 # misc imports
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import validate_arguments
 import torch
 
@@ -69,12 +69,15 @@ def get_conf_region(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
+    num_bins: int,
     metric: str, 
     include_background: bool, 
-    threshold: float, 
-    num_bins: int,
+    class_type: Literal["Binary", "Multi-class"],
     conf_map: Optional[torch.Tensor] = None
     ):
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
     if metric == "ACE":
         sorted_pix_values = torch.sort(conf_map.flatten())[0]
         conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
@@ -90,7 +93,11 @@ def get_bins(
         conf_bins = torch.Tensor(bin_starts)
     else:
         # Define the bins
-        start = 0 if include_background else threshold
+        if class_type == "Multi-class":
+            start = 0
+        else:
+            start = 0 if include_background else 0.5 
+
         conf_bins = torch.linspace(start, 1, num_bins+1)[:-1] # Off by one error
 
         # Get the confidence bins
@@ -98,3 +105,29 @@ def get_bins(
         conf_bin_widths = torch.ones(num_bins) * bin_width
     
     return conf_bins, conf_bin_widths
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def process_for_scoring(
+    conf_map: torch.Tensor,
+    pred_map: torch.Tensor,
+    label: torch.Tensor,
+    class_type: Literal["Binary", "Multi-class"],
+    min_confidence: float,
+    include_background: bool,
+    ):
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
+    # Eliminate the super small predictions to get a better picture.
+    label = label[conf_map >= min_confidence]
+    pred_map = pred_map[conf_map >= min_confidence]
+    conf_map = conf_map[conf_map >= min_confidence]
+
+    if not include_background:
+        foreground_pixels = (pred_map != 0)
+        label = label[foreground_pixels]
+        conf_map = conf_map[foreground_pixels]
+        pred_map = pred_map[foreground_pixels]
+
+    return conf_map, pred_map, label

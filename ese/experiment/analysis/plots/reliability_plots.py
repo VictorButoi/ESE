@@ -1,6 +1,6 @@
 # misc imports
 import numpy as np
-from typing import Any
+from typing import Any, Literal
 from pydantic import validate_arguments
 
 # ese imports
@@ -18,12 +18,11 @@ metric_dict = {
 def reliability_diagram(
     title: str,
     calibration_info: dict,
-    y_axis: str,
+    class_type: Literal["Binary", "Multi-class"],
     metric: str, 
     num_bins: int,
     bin_weighting: str,
     ax: Any,
-    threshold: float,
     remove_empty_bins: bool,
     include_background: bool,
     bar_color: str,
@@ -40,23 +39,30 @@ def reliability_diagram(
     if "bins" not in calibration_info:
         assert metric != "ACE", "ACE requires confidence values to be passed in."
         conf_bins, conf_bin_widths = get_bins(
+            num_bins=num_bins,
             metric=metric,
             include_background=include_background,
-            threshold=threshold,
-            num_bins=num_bins
+            class_type=class_type
         )
         calibration_info["bins"] = conf_bins
         calibration_info["bin_widths"] = conf_bin_widths
 
     # Get the bins, bin widths, and bin y values for the non-empty bins
     if len(calibration_info["bins"]) > 0:
-        graph_bar_heights = calibration_info["avg_freq_per_bin"][non_empty_bins] if remove_empty_bins else calibration_info["avg_freq_per_bin"]
-        graph_bin_widths = calibration_info["bin_widths"][non_empty_bins] if remove_empty_bins else calibration_info["bin_widths"]
-        graph_bins = calibration_info["bins"][non_empty_bins] if remove_empty_bins else bin
+        target_metric = "bin_accs" if class_type == "Multi-class" else "bin_freqs"
+        graph_bar_heights = calibration_info[target_metric]
+        graph_bin_widths = calibration_info["bin_widths"]
+        graph_bins = calibration_info["bins"]
     else:
-        graph_bar_heights = np.zeros_like(calibration_info["avg_freq_per_bin"])
-        graph_bin_widths = np.zeros_like(graph_bar_heights)
-        graph_bins = np.zeros_like(graph_bar_heights)
+        graph_bar_heights = np.zeros(num_bins)
+        graph_bin_widths = np.zeros(num_bins)
+        graph_bins = np.zeros(num_bins)
+    
+    # Remove empty bins if specified
+    if remove_empty_bins:   
+        graph_bar_heights = graph_bar_heights[non_empty_bins]
+        graph_bin_widths = graph_bin_widths[non_empty_bins]
+        graph_bins = graph_bins[non_empty_bins]
 
     # Create the variable width bar plot
     for i in range(len(graph_bar_heights)):
@@ -98,9 +104,10 @@ def reliability_diagram(
     # Make sure ax is on
     ax.axis("on")
 
+    y_label = "Frequency" if class_type == "Binary" else "Accuracy"
     # Set title and axis labels
     ax.set_title(title)
-    ax.set_ylabel(y_axis)
+    ax.set_ylabel(y_label)
     ax.set_xlabel("Confidence")
 
     # Set x and y limits
@@ -112,43 +119,40 @@ def reliability_diagram(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_subj_reliability_diagram(
     num_bins: int,
-    y_axis: str,
     metric: str, 
     subj: dict,
+    class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str,
     include_background: bool,
     ax: Any,
     remove_empty_bins: bool = True,
-    threshold: float = 0.5,
     bar_color: str = 'blue',
     show_bin_amounts: bool = False,
     show_diagonal: bool = True,
 ) -> None:
 
     # Define the title
-    title = f"{y_axis} Reliability Diagram w/ {num_bins} bins:\n"
+    title = f"{class_type} Reliability Diagram w/ {num_bins} bins:\n"
 
     calibration_info = metric_dict[metric](
         num_bins=num_bins,
         conf_map=subj["conf_map"],
         pred_map=subj["pred_map"],
         label=subj["label"],
-        measure=y_axis,
+        class_type=class_type,
         weighting=bin_weighting,
-        threshold=threshold,
         include_background=include_background
     )
     
     reliability_diagram(
         title=title,
         calibration_info=calibration_info,
-        y_axis=y_axis,
+        class_type=class_type,
         metric=metric,
         num_bins=num_bins,
         bin_weighting=bin_weighting,
         remove_empty_bins=remove_empty_bins,
         include_background=include_background,
-        threshold=threshold,
         bar_color=bar_color,
         show_bin_amounts=show_bin_amounts,
         show_diagonal=show_diagonal,
@@ -160,12 +164,11 @@ def plot_subj_reliability_diagram(
 def plot_cumulative_reliability_diagram(
     num_bins: int,
     calibration_info: dict,
-    y_axis: str,
+    class_type: Literal["Binary", "Multi-class"],
     metric: str, 
     include_background: bool,
     bin_weighting: str,
     ax: Any,
-    threshold: float = 0.5,
     remove_empty_bins: bool = True,
     bar_color: str = 'blue',
     show_bin_amounts: bool = False,
@@ -173,18 +176,17 @@ def plot_cumulative_reliability_diagram(
 ) -> None:
 
     # Define the title
-    title = f"{y_axis} Cumulative Reliability Diagram w/ {num_bins} bins:\n"
+    title = f"{class_type} Cumulative Reliability Diagram w/ {num_bins} bins:\n"
 
     reliability_diagram(
         title=title,
         calibration_info=calibration_info,
-        y_axis=y_axis,
+        class_type=class_type,
         metric=metric,
         num_bins=num_bins,
         bin_weighting=bin_weighting,
         remove_empty_bins=remove_empty_bins,
         include_background=include_background,
-        threshold=threshold,
         bar_color=bar_color,
         show_bin_amounts=show_bin_amounts,
         show_diagonal=show_diagonal,

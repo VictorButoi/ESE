@@ -1,7 +1,6 @@
 # random imports
-import torch
 import numpy as np
-from typing import Any
+from typing import Any, Literal
 from pydantic import validate_arguments
 
 # local imports
@@ -12,19 +11,17 @@ from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
 
 
-measure_dict = {
-    "Accuracy": pixel_accuracy,
-    "Frequency": pixel_precision
-}
-
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_ece_map(
     subj: dict,
+    class_type: Literal["Binary", "Multi-class"],
     fig: Any,
     ax: Any,
-    include_background: bool,
-    threshold: float = 0.5,
+    include_background: bool
 ):
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
     # Copy the soft and hard predictions
     conf_map = subj['conf_map'].clone()
     pred_map = subj['pred_map'].clone()
@@ -35,7 +32,13 @@ def plot_ece_map(
 
     # Set the regions of the image corresponding to groundtruth label.
     ece_map = np.zeros_like(subj['label'])
+
+    # Fill in the areas where we want.
     ece_map[pred_foreground] = (conf_map - acc_per_pixel)[pred_foreground]
+    if include_background:
+        pred_background = ~pred_foreground
+        background_conf_map = 1 - conf_map
+        ece_map[pred_background] = (background_conf_map - acc_per_pixel)[pred_background]
 
     # Get the bounds for visualization
     ece_abs_max = np.max(np.abs(ece_map))
@@ -51,18 +54,20 @@ def plot_ece_map(
 def plot_rece_map(
     subj: dict,
     num_bins: int,
-    measure: str,
+    class_type: Literal["Binary", "Multi-class"],
     fig: Any,
     ax: Any,
-    include_background: bool,
-    threshold: float = 0.5,
+    include_background: bool
 ):
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins,
         metric="ReCE", 
+        class_type=class_type,
         include_background=include_background, 
-        threshold=threshold, 
-        num_bins=num_bins
         )
 
     conf_map = subj['conf_map']
@@ -90,7 +95,11 @@ def plot_rece_map(
 
                 # Calculate the accuracy and mean confidence for the island.
                 region_conf = region_conf_map.mean()
-                region_metric = measure_dict[measure](region_pred_map, region_label_map)
+
+                if class_type == "Multi-class":
+                    region_metric = pixel_accuracy(region_pred_map, region_label_map)
+                else:
+                    region_metric = pixel_precision(region_pred_map, region_label_map)
 
                 # Place this score in the island.
                 rece_map[island] = (region_conf - region_metric)

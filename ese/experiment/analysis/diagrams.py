@@ -1,12 +1,10 @@
 import torch
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from typing import List
+from typing import List, Literal
 from pydantic import validate_arguments
-from sklearn.metrics import confusion_matrix
 
 # ese imports
 from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
@@ -31,18 +29,16 @@ def subject_diagram(
     subject_list: List[dict], 
     num_bins: int,
     metrics: List[str],
-    multiclass: bool,
+    class_type: Literal["Binary", "Multi-class"],
     num_subjects: int = 10,
-    reliability_y_axis: str = "Frequency",
     bin_weighting: str = "proportional",
+    include_background: bool = True,
     show_bin_amounts: bool = False,
     show_analysis_plots: bool = True,
     remove_empty_bins: bool = True,
-    include_background: bool = True,
     ) -> None:
-    if reliability_y_axis == "Accuracy":
-        assert not (include_background and not multiclass), "Cannot include background when not multi-class when using Accuracy."
-    assert not (reliability_y_axis == "Precision" and multiclass), "If multi-class, then cannot use precision as y-axis."
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
     
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
@@ -122,9 +118,9 @@ def subject_diagram(
             # Plot reliability diagram with precision on y.
             reliability_plots.plot_subj_reliability_diagram(
                 num_bins=num_bins,
-                y_axis=reliability_y_axis,
                 subj=subj,
                 metric=metric,
+                class_type=class_type,
                 bin_weighting=bin_weighting,
                 remove_empty_bins=remove_empty_bins,
                 include_background=include_background,
@@ -158,6 +154,7 @@ def subject_diagram(
         error_maps.plot_ece_map(
             subj=subj,
             include_background=include_background,
+            class_type=class_type,
             fig=f,
             ax=axarr[2, 2],
         )
@@ -165,8 +162,8 @@ def subject_diagram(
         error_maps.plot_rece_map(
             subj=subj,
             num_bins=num_bins,
-            measure=reliability_y_axis,
             include_background=include_background,
+            class_type=class_type,
             fig=f,
             ax=axarr[2, 3],
         )
