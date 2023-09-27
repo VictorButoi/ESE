@@ -35,7 +35,7 @@ def plot_ece_map(
 
     # Fill in the areas where we want.
     ece_map[pred_foreground] = (conf_map - acc_per_pixel)[pred_foreground]
-    if include_background:
+    if class_type == "Binary" and include_background:
         pred_background = ~pred_foreground
         background_conf_map = 1 - conf_map
         ece_map[pred_background] = (background_conf_map - acc_per_pixel)[pred_background]

@@ -26,7 +26,7 @@ def ECE(
     class_type: Literal["Binary", "Multi-class"],
     include_background: bool,
     weighting: str = "proportional",
-    min_confidence: float = 0.05,
+    min_confidence: float = 0.001,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -113,7 +113,7 @@ def ACE(
     include_background: bool,
     class_type: Literal["Binary", "Multi-class"],
     weighting: str = "proportional",
-    min_confidence: float = 0.01,
+    min_confidence: float = 0.001,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -201,7 +201,7 @@ def ReCE(
     include_background: bool,
     class_type: Literal["Binary", "Multi-class"],
     weighting: str = "proportional",
-    min_confidence: float = 0.01
+    min_confidence: float = 0.001
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates the ReCE: Region-wise Calibration Error
