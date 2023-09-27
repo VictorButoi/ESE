@@ -14,7 +14,6 @@ metric_dict = {
     "ReCE": ReCE
 }
 
-
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reliability_diagram(
     title: str,
@@ -132,6 +131,7 @@ def plot_subj_reliability_diagram(
     calibration_info = metric_dict[metric](
         num_bins=num_bins,
         conf_map=subj["conf_map"],
+        pred_map=subj["pred_map"],
         label=subj["label"],
         measure=y_axis,
         weighting=bin_weighting,

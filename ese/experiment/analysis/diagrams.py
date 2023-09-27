@@ -31,14 +31,18 @@ def subject_diagram(
     subject_list: List[dict], 
     num_bins: int,
     metrics: List[str],
+    multiclass: bool,
     num_subjects: int = 10,
     reliability_y_axis: str = "Frequency",
     bin_weighting: str = "proportional",
     show_bin_amounts: bool = False,
+    show_analysis_plots: bool = True,
     remove_empty_bins: bool = True,
     include_background: bool = True,
     ) -> None:
-    assert not (reliability_y_axis == "Accuracy" and include_background), "Cannot include background when using accuracy as y-axis."
+    if reliability_y_axis == "Accuracy":
+        assert not (include_background and not multiclass), "Cannot include background when not multi-class when using Accuracy."
+    assert not (reliability_y_axis == "Precision" and multiclass), "If multi-class, then cannot use precision as y-axis."
     
     # if you want to see the subjects and predictions
     plt.rcParams.update({'font.size': 12})  
@@ -104,10 +108,16 @@ def subject_diagram(
         #########################################################
 
         # Show different kinds of statistics about your subjects.
-        analysis_plots.plot_confusion_matrix(
-            subj=subj,
-            ax=axarr[1, 0]
-        )
+        if show_analysis_plots:
+            analysis_plots.plot_error_vs_numbins(
+                subj=subj,
+                metrics=metrics,
+                metric_colors=metric_color_dict,
+                bin_weighting=bin_weighting,
+                ax=axarr[1, 0]
+            )
+        # Plot the different reliability diagrams for our different
+        # metrics.
         for m_idx, metric in enumerate(metrics):
             # Plot reliability diagram with precision on y.
             reliability_plots.plot_subj_reliability_diagram(
@@ -120,42 +130,45 @@ def subject_diagram(
                 include_background=include_background,
                 show_bin_amounts=show_bin_amounts,
                 bar_color=metric_color_dict[metric],
-                ax=axarr[1, 1 + m_idx]
+                ax=axarr[1,1 + m_idx]
             )
+
         #########################################################
         # ROW THREE
         #########################################################
-        # Show the variance of the confidences for pixel samples in the bin.
-        # analysis_plots.plot_avg_samplesize_vs_numbins(
-        #     subj=subj,
-        #     metrics=metrics,
-        #     metric_colors=metric_color_dict,
-        #     bin_weighting=bin_weighting,
-        #     ax=axarr[2, 0] 
-        # )
-        # # Show the variance of the confidences for pixel samples in the bin.
-        # analysis_plots.plot_avg_variance_vs_numbins(
-        #     subj=subj,
-        #     metrics=metrics,
-        #     metric_colors=metric_color_dict,
-        #     bin_weighting=bin_weighting,
-        #     ax=axarr[2, 1] 
-        # )
-        # Show different kinds of statistics about your subjects.
-        # analysis_plots.plot_error_vs_numbins(
-        #     subj=subj,
-        #     metrics=metrics,
-        #     metric_colors=metric_color_dict,
-        #     bin_weighting=bin_weighting,
-        #     ax=axarr[2, 2]
-        # )
+        # Show some statistics about what happens when number of bins change.
+        if show_analysis_plots:
+            # Show the variance of the confidences for pixel samples in the bin.
+            analysis_plots.plot_avg_samplesize_vs_numbins(
+                subj=subj,
+                metrics=metrics,
+                metric_colors=metric_color_dict,
+                bin_weighting=bin_weighting,
+                ax=axarr[2, 0] 
+            )
+            # Show the variance of the confidences for pixel samples in the bin.
+            analysis_plots.plot_avg_variance_vs_numbins(
+                subj=subj,
+                metrics=metrics,
+                metric_colors=metric_color_dict,
+                bin_weighting=bin_weighting,
+                ax=axarr[2, 1] 
+            )
+        # Show a more per-pixel calibration error for each region.
+        error_maps.plot_ece_map(
+            subj=subj,
+            include_background=include_background,
+            fig=f,
+            ax=axarr[2, 2],
+        )
         # Show a more per-pixel calibration error for each region.
         error_maps.plot_rece_map(
             subj=subj,
             num_bins=num_bins,
+            measure=reliability_y_axis,
+            include_background=include_background,
             fig=f,
             ax=axarr[2, 3],
-            average=False
         )
         
         # Adjust vertical spacing between the subplots

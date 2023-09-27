@@ -53,6 +53,21 @@ def split_tensor(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_conf_region(
+    bin_idx: int, 
+    conf_bin: torch.Tensor, 
+    conf_bin_widths: torch.Tensor, 
+    conf_map: torch.Tensor
+    ):
+    # Get the region of image corresponding to the confidence
+    if conf_bin_widths[bin_idx] == 0:
+        bin_conf_region = (conf_map == conf_bin)
+    else:
+        bin_conf_region = torch.logical_and(conf_map >= conf_bin, conf_map < conf_bin + conf_bin_widths[bin_idx])
+    return bin_conf_region
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
     metric: str, 
     include_background: bool, 

@@ -1,5 +1,5 @@
 # local imports
-from .utils import get_bins, reduce_scores
+from .utils import get_bins, get_conf_region, reduce_scores
 
 # misc imports
 import torch
@@ -16,20 +16,13 @@ measure_dict = {
     "Frequency": pixel_precision
 }
 
-def get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map):
-    # Get the region of image corresponding to the confidence
-    if conf_bin_widths[bin_idx] == 0:
-        bin_conf_region = (conf_map == conf_bin)
-    else:
-        bin_conf_region = torch.logical_and(conf_map >= conf_bin, conf_map < conf_bin + conf_bin_widths[bin_idx])
-    return bin_conf_region
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
-    num_bins: int = 10,
-    conf_map: torch.Tensor = None, 
-    label: torch.Tensor = None,
+    num_bins: int,
+    conf_map: torch.Tensor, 
+    pred_map: torch.Tensor, 
+    label: torch.Tensor,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
@@ -43,7 +36,14 @@ def ECE(
 
     # Eliminate the super small predictions to get a better picture.
     label = label[conf_map >= min_confidence]
+    pred_map = pred_map[conf_map >= min_confidence]
     conf_map = conf_map[conf_map >= min_confidence]
+
+    # If you don't want to include background pixels, remove them.
+    if not include_background:
+        label = label[conf_map >= threshold]
+        pred_map = pred_map[conf_map >= threshold]
+        conf_map = conf_map[conf_map >= threshold]
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -70,20 +70,23 @@ def ECE(
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
-            bin_confidences = conf_map[bin_conf_region]
+            bin_confs = conf_map[bin_conf_region]
+            bin_preds = pred_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
             # Calculate the accuracy and mean confidence for the island.
-            avg_metric = measure_dict[measure](bin_confidences, bin_label)
-            avg_confidence = bin_confidences.mean()
-            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label).float()
+            avg_bin_metric = measure_dict[measure](bin_preds, bin_label)
+            avg_bin_conf = bin_confs.mean()
+            bin_freqs = avg_bin_metric
 
-            ece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
-            avg_freq_per_bin[bin_idx] = avg_metric
+            # Calculate the average calibration error for the regions in the bin.
+            ece_per_bin[bin_idx] = (avg_bin_metric - avg_bin_conf).abs()
+            avg_freq_per_bin[bin_idx] = bin_freqs.mean()
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+
             # Store the frequencies and confidences for each bin.
-            freqs_per_bin[bin_idx] = pixel_frequencies 
-            confs_per_bin[bin_idx] = bin_confidences 
+            freqs_per_bin[bin_idx] = bin_freqs 
+            confs_per_bin[bin_idx] = bin_confs 
         else:
             freqs_per_bin[bin_idx] = torch.Tensor([]) 
             confs_per_bin[bin_idx] = torch.Tensor([]) 
@@ -109,9 +112,10 @@ def ECE(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ACE(
-    num_bins: int = 10,
-    conf_map: torch.Tensor = None, 
-    label: torch.Tensor = None,
+    num_bins: int,
+    conf_map: torch.Tensor,
+    pred_map: torch.Tensor,
+    label: torch.Tensor,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
@@ -125,11 +129,13 @@ def ACE(
 
     # Eliminate the super small predictions to get a better picture.
     label = label[conf_map >= min_confidence]
+    pred_map = pred_map[conf_map >= min_confidence]
     conf_map = conf_map[conf_map >= min_confidence]
 
     # If you don't want to include background pixels, remove them.
     if not include_background:
         label = label[conf_map >= threshold]
+        pred_map = pred_map[conf_map >= threshold]
         conf_map = conf_map[conf_map >= threshold]
 
     # Create the adaptive confidence bins.    
@@ -158,20 +164,23 @@ def ACE(
 
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
-            bin_confidences = conf_map[bin_conf_region]
+            bin_confs = conf_map[bin_conf_region]
+            bin_preds = pred_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
             # Calculate the accuracy and mean confidence for the island.
-            avg_metric = measure_dict[measure](bin_confidences, bin_label)
-            avg_confidence = bin_confidences.mean()
-            pixel_frequencies = (torch.ones_like(bin_confidences) == bin_label).float()
+            avg_bin_metric = measure_dict[measure](bin_preds, bin_label)
+            avg_bin_conf = bin_confs.mean()
+            bin_freqs = avg_bin_metric
 
-            ace_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
-            avg_freq_per_bin[bin_idx] = avg_metric
+            # Calculate the average calibration error for the regions in the bin.
+            ace_per_bin[bin_idx] = (avg_bin_metric - avg_bin_conf).abs()
+            avg_freq_per_bin[bin_idx] = bin_freqs.mean()
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+
             # Store the frequencies and confidences for each bin.
-            freqs_per_bin[bin_idx] = pixel_frequencies 
-            confs_per_bin[bin_idx] = bin_confidences 
+            freqs_per_bin[bin_idx] = bin_freqs 
+            confs_per_bin[bin_idx] = bin_confs 
         else:
             freqs_per_bin[bin_idx] = torch.Tensor([]) 
             confs_per_bin[bin_idx] = torch.Tensor([]) 
@@ -197,9 +206,10 @@ def ACE(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ReCE(
-    num_bins: int = 10,
-    conf_map: torch.Tensor = None,
-    label: torch.Tensor = None,
+    num_bins: int,
+    conf_map: torch.Tensor,
+    pred_map: torch.Tensor,
+    label: torch.Tensor,
     measure: str = "Frequency",
     weighting: str = "proportional",
     include_background: bool = False,
@@ -213,7 +223,14 @@ def ReCE(
 
     # Eliminate the super small predictions to get a better picture.
     label = label[conf_map >= min_confidence]
+    pred_map = pred_map[conf_map >= min_confidence]
     conf_map = conf_map[conf_map >= min_confidence]
+
+    # If you don't want to include background pixels, remove them.
+    if not include_background:
+        label = label[conf_map >= threshold]
+        pred_map = pred_map[conf_map >= threshold]
+        conf_map = conf_map[conf_map >= threshold]
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -251,21 +268,23 @@ def ReCE(
             # Iterate through each island, and get the measure for each island.
             for isl_idx, island in enumerate(conf_islands):
                 # Get the island primitives
-                bin_conf_map = conf_map[island]                
-                bin_label = label[island]
+                region_conf_map = conf_map[island]                
+                region_pred_map = pred_map[island]
+                region_label = label[island]
 
                 # Calculate the accuracy and mean confidence for the island.
-                region_metric_scores[isl_idx] = measure_dict[measure](bin_conf_map, bin_label)
-                region_conf_scores[isl_idx] = bin_conf_map.mean()
+                region_metric_scores[isl_idx] = measure_dict[measure](region_pred_map, region_label)
+                region_conf_scores[isl_idx] = region_conf_map.mean()
             
             # Get the accumulate metrics from all the islands
-            avg_metric = region_metric_scores.mean()
-            avg_confidence = region_conf_scores.mean()
+            avg_region_metric = region_metric_scores.mean()
+            avg_region_conf = region_conf_scores.mean()
             
             # Calculate the average calibration error for the regions in the bin.
-            rece_per_bin[bin_idx] = (avg_metric - avg_confidence).abs()
-            avg_freq_per_bin[bin_idx] = avg_metric
+            rece_per_bin[bin_idx] = (avg_region_metric - avg_region_conf).abs()
+            avg_freq_per_bin[bin_idx] = avg_region_metric 
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+
             # Store the frequencies and confidences for each bin.
             freqs_per_bin[bin_idx] = region_metric_scores 
             confs_per_bin[bin_idx] = region_conf_scores 

@@ -4,16 +4,26 @@ import numpy as np
 from typing import Any
 from pydantic import validate_arguments
 
+# local imports
+from ese.experiment.metrics.utils import get_bins, get_conf_region
+
 # ionpy imports
-from ionpy.metrics import pixel_accuracy
+from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
 
+
+measure_dict = {
+    "Accuracy": pixel_accuracy,
+    "Frequency": pixel_precision
+}
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_ece_map(
     subj: dict,
     fig: Any,
     ax: Any,
+    include_background: bool,
+    threshold: float = 0.5,
 ):
     # Copy the soft and hard predictions
     conf_map = subj['conf_map'].clone()
@@ -41,53 +51,55 @@ def plot_ece_map(
 def plot_rece_map(
     subj: dict,
     num_bins: int,
-    average: bool = False,
-    fig: Any = None,
-    ax: Any = None
+    measure: str,
+    fig: Any,
+    ax: Any,
+    include_background: bool,
+    threshold: float = 0.5,
 ):
-    # Get the confidence bins
-    conf_bins = torch.linspace(0, 1, num_bins+1)[:-1] # Off by one error
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        metric="ReCE", 
+        include_background=include_background, 
+        threshold=threshold, 
+        num_bins=num_bins
+        )
 
     conf_map = subj['conf_map']
+    pred_map = subj['pred_map']
+    label = subj['label']
     rece_map = np.zeros_like(conf_map)
 
-    # Make sure bins are aligned.
-    bin_width = conf_bins[1] - conf_bins[0]
-    for c_bin in conf_bins:
+    # Go through each bin, starting at the back so that we don't have to run connected components
+    for bin_idx, conf_bin in enumerate(conf_bins):
 
-        # Get the binary region of this confidence interval
-        bin_conf_region = (conf_map >= c_bin) & (conf_map < (c_bin + bin_width))
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
 
-        # Break it up into islands
-        conf_islands = get_connected_components(bin_conf_region)
+        # If there are some pixels in this confidence bin.
+        if bin_conf_region.sum() != 0:
+            # If we are not the last bin, get the connected components.
+            conf_islands = get_connected_components(bin_conf_region)
 
-        # Iterate through each island, and get the measure for each island.
-        for island in conf_islands:
+            # Iterate through each island, and get the measure for each island.
+            for island in conf_islands:
+                # Get the island primitives
+                region_conf_map = conf_map[island]                
+                region_pred_map = pred_map[island]
+                region_label_map = label[island]
 
-            # Get the label corresponding to the island and simulate ground truth and make the right shape.
-            label_region = subj["label"][island][None, None, ...]
-            pseudo_pred = torch.ones_like(label_region)
-
-            # If averaging, then everything in one island will get the same score, otherwise pixelwise.
-            if average:
                 # Calculate the accuracy and mean confidence for the island.
-                region_accuracies  = pixel_accuracy(pseudo_pred , label_region)
-                region_confidences = conf_map[island].mean()
-            else:
-                region_accuracies = (pseudo_pred == label_region).squeeze().float()
-                region_confidences = conf_map[island]
+                region_conf = region_conf_map.mean()
+                region_metric = measure_dict[measure](region_pred_map, region_label_map)
 
-            # Place the numbers in the island.
-            rece_map[island] = (region_confidences - region_accuracies)
+                # Place this score in the island.
+                rece_map[island] = (region_conf - region_metric)
 
     # Get the bounds for visualization
     rece_abs_max = np.max(np.abs(rece_map))
     rece_vmin, rece_vmax = -rece_abs_max, rece_abs_max
     rece_im = ax.imshow(rece_map, cmap="RdBu_r", interpolation="None", vmax=rece_vmax, vmin=rece_vmin)
 
-    if average:
-        ax.set_title("Averaged Region-wise Cal Error")
-    else:
-        ax.set_title("Region-wise Cal Error")
-
+    # Set the title and add a color bar
+    ax.set_title("Region-wise Cal Error")
     fig.colorbar(rece_im, ax=ax)
