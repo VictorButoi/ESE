@@ -1,9 +1,10 @@
 # Misc imports
 import einops
-import numpy as np
+import pathlib
+import copy
 import pandas as pd
 from tqdm import tqdm
-from typing import Any, Optional
+from typing import Any, Optional, List
 from pydantic import validate_arguments
 
 # torch imports
@@ -12,7 +13,6 @@ from torch.utils.data import DataLoader
 
 # local imports
 from ese.experiment.metrics import ACE, ECE, ReCE
-from ese.experiment.metrics.utils import reduce_scores
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 # ionpy imports
@@ -20,8 +20,9 @@ from ionpy.analysis import ResultsLoader
 from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.util import Config
+from ionpy.util.config import config_digest
 from ionpy.util.torchutils import to_device
-from ionpy.experiment.util import absolute_import
+from ionpy.experiment.util import absolute_import, generate_tuid
 
 # Globally used for which metrics to plot for.
 metric_dict = {
@@ -31,64 +32,81 @@ metric_dict = {
     }
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_dice_breakdown(
-    cfg: Config,
-    root: str = "/storage/vbutoi/scratch/ESE"
+def get_cal_stats(
+    config_list: List[Config],
+    root: pathlib.Path = pathlib.Path("/storage/vbutoi/scratch/ESE")
     ) -> None:
 
-    # Results loader object does everything
-    rs = ResultsLoader()
-    path = f"{root}/{cfg['model']['exp_name']}"
+    # Iterate through the configs
+    for cfg in config_list:
 
-    dfc = rs.load_configs(
-        path,
-        properties=False,
-    )
+        # Get the config dictionary
+        cfg_dict = copy.deepcopy(cfg.to_dict())
 
-    df = rs.load_metrics(dfc)
+        # Results loader object does everything
+        rs = ResultsLoader()
+        exp_name = cfg['model']['exp_name']
+        exp_path = root / exp_name
 
-    exp = rs.get_experiment(
-        df=df,
-        exp_class=CalibrationExperiment,
-        metric=cfg['model']['metric'],
-        checkpoint=cfg['model']['checkpoint'],
-        device="cuda"
-    )
+        # Get the configs of the experiment
+        dfc = rs.load_configs(
+            exp_path,
+            properties=False,
+        )
 
-    dataset_dict = cfg['dataset'].to_dict()
-    
-    # Get information about the dataset
-    dataset_class = dataset_dict.pop("_class")
-    dataset_name = dataset_class.split(".")[-1]
-    data_type = dataset_dict.pop("data_type")
+        # Get the best experiment at the checkpoint
+        # corresponding to the best metric.
+        exp = rs.get_experiment(
+            df=rs.load_metrics(dfc),
+            exp_class=CalibrationExperiment,
+            metric=cfg['model']['metric'],
+            checkpoint=cfg['model']['checkpoint'],
+            device="cuda"
+        )
 
-    # Import the dataset class
-    dataset_cls = absolute_import(dataset_class)
+        # Get information about the dataset
+        dataset_dict = cfg['dataset'].to_dict()
+        dataset_class = dataset_dict.pop("_class")
+        dataset_name = dataset_class.split(".")[-1]
+        data_type = dataset_dict.pop("data_type")
 
-    if 'task' in dataset_dict.keys():
-        print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
-    else:
-        print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
-    
-    # Build the dataset and dataloader.
-    DatasetObj = dataset_cls(**dataset_dict)
-    dataloader = DataLoader(DatasetObj, batch_size=1, shuffle=False, drop_last=False)
+        # Import the dataset class
+        dataset_cls = absolute_import(dataset_class)
 
-    # Keep track of records
-    data_records = []
-
-    with torch.no_grad():
-        for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
-            if data_type == "volume":
-                volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
-            elif data_type == "image":
-                image_forward_loop(batch, batch_idx, cfg, exp, data_records)
-            else:
-                raise ValueError(f"Data type {data_type} not supported.")
+        if 'task' in dataset_dict.keys():
+            print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
+        else:
+            print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
         
-    # Save the items in a parquet file
-    record_df = pd.DataFrame(data_records)
-    record_df.to_pickle('/storage/vbutoi/scratch/ESE/records/inference_stats.pkl')
+        # Build the dataset and dataloader.
+        DatasetObj = dataset_cls(**dataset_dict)
+        dataloader = DataLoader(DatasetObj, batch_size=1, shuffle=False, drop_last=False)
+
+        # Keep track of records
+        data_records = []
+
+        with torch.no_grad():
+            for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+                if data_type == "volume":
+                    volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
+                elif data_type == "image":
+                    image_forward_loop(batch, batch_idx, cfg, exp, data_records)
+                else:
+                    raise ValueError(f"Data type {data_type} not supported.")
+                break
+            
+        # Save the items in a parquet file
+        record_df = pd.DataFrame(data_records)
+        exp_log_dir = root / "records" / exp_name
+        if not exp_log_dir.exists():
+            exp_log_dir.mkdir(parents=True)
+
+        # Make a has for this particular inference configuration to save the stats.
+        create_time, nonce = generate_tuid()
+        digest = config_digest(cfg_dict)
+        uuid = f"{create_time}-{nonce}-{digest}.pkl"
+        cfg_log_dir = exp_log_dir / uuid
+        record_df.to_pickle(cfg_log_dir)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
