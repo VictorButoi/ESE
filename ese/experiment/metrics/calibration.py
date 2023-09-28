@@ -55,6 +55,7 @@ def ECE(
 
     # Keep track of different things for each bin.
     ece_per_bin, bin_avg_metric, bin_amounts = torch.zeros(num_bins), torch.zeros(num_bins), torch.zeros(num_bins)
+    metrics_per_bin, confs_per_bin = {}, {}
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -68,18 +69,22 @@ def ECE(
             bin_preds = pred_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
-            # Calculate the accuracy and mean confidence for the island.
-            avg_bin_conf = bin_confs.mean()
             # Calculate the average score for the regions in the bin.
             if class_type == "Multi-class":
-                avg_bin_metric = pixel_accuracy(bin_preds, bin_label)
+                avg_bin_metric, all_bin_metrics = pixel_accuracy(bin_preds, bin_label, return_all=True)
             else:
-                avg_bin_metric = pixel_precision(bin_preds, bin_label)
+                avg_bin_metric, all_bin_metrics = pixel_precision(bin_preds, bin_label, return_all=True)
+            # Record the confidences
+            avg_bin_conf = bin_confs.mean()
 
             # Calculate the average calibration error for the regions in the bin.
             ece_per_bin[bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
             bin_avg_metric[bin_idx] = avg_bin_metric
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+
+            # Keep track of accumulate metrics over the bin.
+            metrics_per_bin[bin_idx] = all_bin_metrics
+            confs_per_bin[bin_idx] = bin_confs
 
     # Finally, get the ECE score.
     ece_score = reduce_scores(
@@ -93,13 +98,16 @@ def ECE(
         "bins": conf_bins, 
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,
-        "bin_scores": ece_per_bin 
+        "bin_scores": ece_per_bin,
+        "confs_per_bin": confs_per_bin
     }
 
     if class_type == "Multi-class":
         cal_info["bin_accs"] = bin_avg_metric
+        cal_info["accs_per_bin"] = metrics_per_bin
     else:
         cal_info["bin_freqs"] = bin_avg_metric
+        cal_info["freqs_per_bin"] = metrics_per_bin
 
     return cal_info
 
@@ -143,6 +151,7 @@ def ACE(
     
     # Keep track of different things for each bin.
     ace_per_bin, bin_avg_metric, bin_amounts = torch.zeros(num_bins), torch.zeros(num_bins), torch.zeros(num_bins)
+    metrics_per_bin, confs_per_bin = {}, {}
 
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -156,18 +165,22 @@ def ACE(
             bin_preds = pred_map[bin_conf_region]
             bin_label = label[bin_conf_region]
 
-            # Calculate the accuracy and mean confidence for the island.
-            avg_bin_conf = bin_confs.mean()
             # Calculate the average score for the regions in the bin.
             if class_type == "Multi-class":
-                avg_bin_metric = pixel_accuracy(bin_preds, bin_label)
+                avg_bin_metric, all_bin_metrics = pixel_accuracy(bin_preds, bin_label, return_all=True)
             else:
-                avg_bin_metric = pixel_precision(bin_preds, bin_label)
+                avg_bin_metric, all_bin_metrics = pixel_precision(bin_preds, bin_label, return_all=True)
+            # Record the confidences
+            avg_bin_conf = bin_confs.mean()
 
             # Calculate the average calibration error for the regions in the bin.
             ace_per_bin[bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
             bin_avg_metric[bin_idx] = avg_bin_metric
             bin_amounts[bin_idx] = bin_conf_region.sum() 
+
+            # Keep track of accumulate metrics over the bin.
+            metrics_per_bin[bin_idx] = all_bin_metrics
+            confs_per_bin[bin_idx] = bin_confs
 
     # Finally, get the ReCE score.
     ace_score = reduce_scores(
@@ -181,13 +194,16 @@ def ACE(
         "bins": conf_bins, 
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,
-        "bin_scores": ace_per_bin 
+        "bin_scores": ace_per_bin,
+        "confs_per_bin": confs_per_bin
     }
 
     if class_type == "Multi-class":
         cal_info["bin_accs"] = bin_avg_metric
+        cal_info["accs_per_bin"] = metrics_per_bin
     else:
         cal_info["bin_freqs"] = bin_avg_metric
+        cal_info["freqs_per_bin"] = metrics_per_bin
 
     return cal_info
 
@@ -230,6 +246,7 @@ def ReCE(
 
     # Keep track of different things for each bin.
     rece_per_bin, bin_avg_metric, bin_amounts = torch.zeros(num_bins), torch.zeros(num_bins), torch.zeros(num_bins)
+    metrics_per_bin, confs_per_bin = {}, {}
 
     # Go through each bin, starting at the back so that we don't have to run connected components
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -255,13 +272,13 @@ def ReCE(
                 region_pred_map = pred_map[island]
                 region_label = label[island]
 
-                # Calculate the accuracy and mean confidence for the island.
-                region_confs[isl_idx] = region_conf_map.mean()
                 # Calculate the average score for the regions in the bin.
                 if class_type == "Multi-class":
                     region_metrics[isl_idx] = pixel_accuracy(region_pred_map, region_label)
                 else:
                     region_metrics[isl_idx] = pixel_precision(region_pred_map, region_label)
+                # Record the confidences
+                region_confs[isl_idx] = region_conf_map.mean()
             
             # Get the accumulate metrics from all the islands
             avg_bin_metric = region_metrics.mean()
@@ -271,6 +288,10 @@ def ReCE(
             rece_per_bin[bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
             bin_avg_metric[bin_idx] = avg_bin_metric
             bin_amounts[bin_idx] = num_islands
+
+            # Now we put the ISLAND values for the accumulation
+            metrics_per_bin[bin_idx] = region_metrics
+            confs_per_bin[bin_idx] = region_confs
 
     # Finally, get the ReCE score.
     rece_score = reduce_scores(
@@ -284,13 +305,16 @@ def ReCE(
         "bins": conf_bins, 
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,
-        "bin_scores": rece_per_bin 
+        "bin_scores": rece_per_bin,
+        "confs_per_bin": confs_per_bin
     }
 
     if class_type == "Multi-class":
         cal_info["bin_accs"] = bin_avg_metric
+        cal_info["accs_per_bin"] = metrics_per_bin
     else:
         cal_info["bin_freqs"] = bin_avg_metric
+        cal_info["freqs_per_bin"] = metrics_per_bin
 
     return cal_info
     

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -180,20 +181,21 @@ def aggregate_reliability_diagram(
     subject_list: List[dict],
     num_bins: int,
     metrics: List[str],
-    reliability_y_axis: str = "Frequency",
+    class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str = "proportional",
     remove_empty_bins: bool = True,
     include_background: bool = True,
-    threshold: float = 0.5,
 ) -> None:
-    
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
     # Consturct the subplot (just a single one)
     _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(7 * len(metrics), 7))
 
     for m_idx, metric in enumerate(metrics):
 
         conf_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
-        freq_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
+        metric_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
         amount_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
         
         # Go through each subject, and get the information we need.
@@ -201,10 +203,10 @@ def aggregate_reliability_diagram(
             subj_calibration_info = metric_dict[metric](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
+                pred_map=subj["pred_map"],
                 label=subj["label"],
-                measure=reliability_y_axis,
-                weighting=bin_weighting,   
-                threshold=threshold,
+                class_type=class_type,
+                weighting=bin_weighting,
                 include_background=include_background
             )
             # Information about the subject.
@@ -214,33 +216,43 @@ def aggregate_reliability_diagram(
 
             # Add the information to the aggregate.
             for bin_idx in range(num_bins):
-                if conf_per_bin[bin_idx] is None:
-                    conf_per_bin[bin_idx] = subj_confs_per_bin[bin_idx]
-                    freq_per_bin[bin_idx] = subj_freqs_per_bin[bin_idx]
-                    amount_per_bin[bin_idx] = subj_amounts_per_bin[bin_idx]
-                else:
-                    conf_per_bin[bin_idx] = torch.cat((conf_per_bin[bin_idx], subj_confs_per_bin[bin_idx]))
-                    freq_per_bin[bin_idx] = torch.cat((freq_per_bin[bin_idx], subj_freqs_per_bin[bin_idx]))
-                    amount_per_bin[bin_idx] += subj_amounts_per_bin[bin_idx]
+                if bin_idx in subj_confs_per_bin.keys():
+                    if conf_per_bin[bin_idx] is None:
+                        conf_per_bin[bin_idx] = subj_confs_per_bin[bin_idx]
+                        metric_per_bin[bin_idx] = subj_freqs_per_bin[bin_idx]
+                        amount_per_bin[bin_idx] = subj_amounts_per_bin[bin_idx]
+                    else:
+                        conf_per_bin[bin_idx] = torch.cat([conf_per_bin[bin_idx], subj_confs_per_bin[bin_idx]])
+                        metric_per_bin[bin_idx] = torch.cat([metric_per_bin[bin_idx], subj_freqs_per_bin[bin_idx]])
+                        amount_per_bin[bin_idx] += subj_amounts_per_bin[bin_idx]
         
         # Build the calibration info for each bin
         calibration_info = {
             "bin_amounts": torch.zeros(num_bins),
-            "avg_conf_per_bin": torch.zeros(num_bins),
-            "avg_freq_per_bin": torch.zeros(num_bins),
-            "score_per_bin": torch.zeros(num_bins)
         }
+        if class_type == "Multi-class":
+            calibration_info["bin_accs"] = torch.zeros(num_bins)
+        else:
+            calibration_info["bin_freqs"] = torch.zeros(num_bins)
+
         for b_idx in range(num_bins):
             # Reduce over the samples for confidences and frequencies.
             bin_amounts = amount_per_bin[b_idx]
-            avg_frequency = freq_per_bin[b_idx].mean()
-            avg_confidence = conf_per_bin[b_idx].mean()
-            score_per_bin = (avg_confidence - avg_frequency).abs()
-            # Store in our calibration info.
             calibration_info["bin_amounts"][b_idx] = bin_amounts
-            calibration_info["avg_conf_per_bin"][b_idx] = avg_confidence
-            calibration_info["avg_freq_per_bin"][b_idx] = avg_frequency
-            calibration_info["score_per_bin"][b_idx] = score_per_bin
+
+            # Store based on if binary of multiclass
+            avg_metric = metric_per_bin[b_idx].mean()
+            if class_type == "Multi-class":
+                calibration_info["bin_accs"][b_idx] = avg_metric 
+            else:
+                calibration_info["bin_freqs"][b_idx] = avg_metric
+
+            # Get the average confidence
+            avg_confidence = conf_per_bin[b_idx].mean()
+
+            # Get the scores.
+            score_per_bin = (avg_confidence - avg_metric).abs()
+
             # Get the calibration score
             calibration_info["score"] = metric_utils.reduce_scores(
                 score_per_bin=score_per_bin,
@@ -253,8 +265,8 @@ def aggregate_reliability_diagram(
             num_bins=num_bins,
             calibration_info=calibration_info,
             metric=metric,
+            class_type=class_type,
             bin_weighting=bin_weighting,
-            y_axis=reliability_y_axis,
             remove_empty_bins=remove_empty_bins,
             include_background=include_background,
             ax=axarr[m_idx],
@@ -270,11 +282,12 @@ def score_histogram_diagram(
     subject_list: List[dict],
     num_bins: int,
     metrics: List[str],
-    reliability_y_axis: str = "Frequency",
+    class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str = "proportional",
-    include_background: bool = True,
-    threshold: float = 0.5,
+    include_background: bool = True
 ) -> None:
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
     
     # Go through each subject, and get the information we need.
     score_list = [] 
@@ -284,10 +297,10 @@ def score_histogram_diagram(
             subj_calibration_info = metric_dict[metric](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
+                pred_map=subj["pred_map"],
                 label=subj["label"],
-                measure=reliability_y_axis,
-                weighting=bin_weighting,   
-                threshold=threshold,
+                class_type=class_type,
+                weighting=bin_weighting,
                 include_background=include_background
             )
             score_list.append({
@@ -315,7 +328,7 @@ def score_histogram_diagram(
     for metric in score_df['metric'].unique():
         mean = score_df['error'][score_df['metric'] == metric].mean()
         plt.axvline(mean, color=metric_color_dict[metric], linestyle='--')
-        plt.text(mean + 0.01, 1, f' {metric} mean', color=metric_color_dict[metric], rotation=90)
+        plt.text(mean + 0.01, 1, f' {metric} mean = {np.round(mean, 4)}', color=metric_color_dict[metric], rotation=90)
 
     plt.title(f"{metric} Histogram Over Subjects")
     plt.show()
