@@ -56,11 +56,21 @@ def get_dice_breakdown(
     )
 
     dataset_dict = cfg['dataset'].to_dict()
+    
+    # Get information about the dataset
+    dataset_class = dataset_dict.pop("_class")
+    dataset_name = dataset_class.split(".")[-1]
     data_type = dataset_dict.pop("data_type")
-    print(f"Processing {dataset_dict['task']} {dataset_dict['split']}")
+
+    # Import the dataset class
+    dataset_cls = absolute_import(dataset_class)
+
+    if 'task' in dataset_dict.keys():
+        print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
+    else:
+        print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
     
     # Build the dataset and dataloader.
-    dataset_cls = absolute_import(dataset_dict.pop("_class"))
     DatasetObj = dataset_cls(**dataset_dict)
     dataloader = DataLoader(DatasetObj, batch_size=1, shuffle=False, drop_last=False)
 
@@ -153,8 +163,8 @@ def get_calibration_item_info(
     data_idx: int,
     split: str,
     data_records: list,
-    slice_idx: Optional[int],
-    task: Optional[str]
+    slice_idx: Optional[int] = None,
+    task: Optional[str] = None
     ):
 
     # Calculate the scores we want to compare against.
@@ -195,9 +205,10 @@ def get_calibration_item_info(
                 "data_idx": data_idx,
                 "dice": dice,
                 "gt_lab_amount": lab_amount, 
+                "lab_w_accuracy": balanced_acc,
+                "num_bins": cfg["calibration"]["num_bins"],
                 "pred_lab_amount": lab_predicted,
                 "slice_idx": slice_idx,
                 "split": split,
                 "task": task,
-                "lab_w_accuracy": balanced_acc,
             })
