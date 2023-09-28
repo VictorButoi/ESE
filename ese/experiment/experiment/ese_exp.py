@@ -122,6 +122,30 @@ class CalibrationExperiment(TrainExperiment):
             #raise ValueError("Loss is too low, exiting early.")
 
         return forward_batch
+    
+    def predict(self, 
+                batch, 
+                include_probs=False):
+
+        # Get the label predictions
+        conf_map = self.model(batch) 
+
+        # Dealing with multi-class segmentation.
+        if conf_map.shape[1] > 1:
+            prob_volume = torch.softmax(conf_map, dim=1)
+            pred_map = torch.argmax(prob_volume, dim=1)
+            conf_map = torch.max(prob_volume, dim=1)[0]
+        else:
+            # Get the prediction
+            conf_map = torch.sigmoid(conf_map)
+            pred_map = (conf_map >= 0.5).float()
+
+        # Either return the probabilities or not.
+        if include_probs:
+            return pred_map, conf_map
+        else:
+            return pred_map
+
 
     def run(self):
         super().run()

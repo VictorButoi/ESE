@@ -3,7 +3,7 @@ import einops
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from typing import Optional
+from typing import Any, Optional
 from pydantic import validate_arguments
 
 # torch imports
@@ -56,6 +56,7 @@ def get_dice_breakdown(
     )
 
     dataset_dict = cfg['dataset'].to_dict()
+    data_type = dataset_dict.pop("data_type")
     print(f"Processing {dataset_dict['task']} {dataset_dict['split']}")
     
     # Build the dataset and dataloader.
@@ -67,42 +68,80 @@ def get_dice_breakdown(
     data_records = []
 
     with torch.no_grad():
-        for data_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
-            
-            # Get your image label pair and define some regions.
-            batch_x, batch_y = to_device(batch, exp.device)
-
-            # Reshape so that we will like the shape.
-            x_vol = einops.rearrange(batch_x, "b c h w -> (b c) 1 h w")
-            y_vol = einops.rearrange(batch_y, "b c h w -> (b c) 1 h w")
-
-            # Go through each slice and predict the metrics.
-            for slice_idx in tqdm(range(x_vol.shape[0]), desc="Slice loop", position=1, leave=False):
-                
-                # Extract the slices from the volumes.
-                image = x_vol[slice_idx, ...][None]
-                label = y_vol[slice_idx, ...][None]
-
-                # Get the prediction
-                conf_map = exp.model(image) 
-                conf_map = torch.sigmoid(conf_map)
-                pred_map = (conf_map >= 0.5).float()
-
-                get_calibration_item_info(
-                    cfg=cfg,
-                    conf_map=conf_map,
-                    pred_map=pred_map,
-                    label=label,
-                    data_idx=data_idx,
-                    split=cfg['dataset']['split'],
-                    data_records=data_records,
-                    slice_idx=slice_idx,
-                    task=cfg['dataset']['task']
-                )
+        for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+            if data_type == "volume":
+                volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
+            elif data_type == "image":
+                image_forward_loop(batch, batch_idx, cfg, exp, data_records)
+            else:
+                raise ValueError(f"Data type {data_type} not supported.")
         
     # Save the items in a parquet file
     record_df = pd.DataFrame(data_records)
     record_df.to_pickle('/storage/vbutoi/scratch/ESE/records/inference_stats.pkl')
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def volume_forward_loop(
+    batch: Any,
+    batch_idx: int,
+    cfg: Config,
+    exp: CalibrationExperiment,
+    data_records: list
+):
+    # Get your image label pair and define some regions.
+    batch_x, batch_y = to_device(batch, exp.device)
+
+    # Reshape so that we will like the shape.
+    x_vol = einops.rearrange(batch_x, "b c h w -> (b c) 1 h w")
+    y_vol = einops.rearrange(batch_y, "b c h w -> (b c) 1 h w")
+
+    # Go through each slice and predict the metrics.
+    for slice_idx in tqdm(range(x_vol.shape[0]), desc="Slice loop", position=1, leave=False):
+        
+        # Extract the slices from the volumes.
+        image = x_vol[slice_idx, ...][None]
+        label = y_vol[slice_idx, ...][None]
+
+        # Get the prediction
+        pred_map, conf_map = exp.predict(image, include_probs=True)
+
+        get_calibration_item_info(
+            cfg=cfg,
+            conf_map=conf_map,
+            pred_map=pred_map,
+            label=label,
+            data_idx=batch_idx,
+            split=cfg['dataset']['split'],
+            data_records=data_records,
+            slice_idx=slice_idx,
+            task=cfg['dataset']['task']
+        )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def image_forward_loop(
+    batch: Any,
+    batch_idx: int,
+    cfg: Config,
+    exp: CalibrationExperiment,
+    data_records: list
+):
+    # Get your image label pair and define some regions.
+    image, label = to_device(batch, exp.device)
+
+    # Get the prediction
+    pred_map, conf_map = exp.predict(image, include_probs=True)
+
+    get_calibration_item_info(
+        cfg=cfg,
+        conf_map=conf_map,
+        pred_map=pred_map,
+        label=label,
+        data_idx=batch_idx,
+        split=cfg['dataset']['split'],
+        data_records=data_records
+    )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -119,18 +158,18 @@ def get_calibration_item_info(
     ):
 
     # Calculate the scores we want to compare against.
-    lab_amount = y.sum().cpu().numpy().item()
-    lab_predicted = pred_map.sum().cpu().numpy().item()
+    lab_amount = label.sum()
+    lab_predicted = pred_map.sum()
     
     # Get some metrics of these predictions
-    dice = dice_score(conf_map, y).cpu().numpy().item()
-    acc = pixel_accuracy(conf_map, y).cpu().numpy().item()
-    balanced_acc = balanced_pixel_accuracy(conf_map, y).cpu().numpy().item()
+    dice = dice_score(conf_map, label)
+    acc = pixel_accuracy(conf_map, label)
+    balanced_acc = balanced_pixel_accuracy(conf_map, label)
     
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
-    y = y.squeeze()
+    label = label.squeeze()
 
     for cal_metric in cfg["calibration"]["metrics"]:
         for bin_weighting in cfg["calibration"]["bin_weightings"]:
