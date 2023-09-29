@@ -9,21 +9,9 @@ from pydantic import validate_arguments
 
 # ese imports
 from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
-from ese.experiment.metrics import ECE, ReCE
+from ese.experiment.metrics import ACE, ECE, Island_ECE, ReCE
 import ese.experiment.metrics.utils as metric_utils
 
-
-# Globally used for which metrics to plot for.
-metric_dict = {
-    "ECE": ECE,
-    "ReCE": ReCE
-}
-
-metric_color_dict = {
-    "ECE": "blue",
-    "ACE": "goldenrod",
-    "ReCE": "green" 
-}
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def subject_diagram(
@@ -31,6 +19,7 @@ def subject_diagram(
     num_bins: int,
     metrics: List[str],
     class_type: Literal["Binary", "Multi-class"],
+    metric_color_dict: dict,
     num_subjects: int = 10,
     bin_weighting: str = "proportional",
     include_background: bool = True,

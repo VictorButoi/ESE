@@ -11,12 +11,6 @@ from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
 
 
-measure_dict = {
-    "Accuracy": pixel_accuracy,
-    "Frequency": pixel_precision
-}
-
-
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
     num_bins: int,
@@ -209,7 +203,7 @@ def ACE(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ReCE(
+def Island_ECE(
     num_bins: int,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,

@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 
 # local imports
-from ese.experiment.metrics import ACE, ECE, ReCE
+from ese.experiment.metrics import ACE, ECE, Island_ECE, ReCE
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 # ionpy imports
@@ -24,12 +24,6 @@ from ionpy.util.config import config_digest
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import absolute_import, generate_tuid
 
-# Globally used for which metrics to plot for.
-metric_dict = {
-        "ACE": ACE,
-        "ECE": ECE,
-        "ReCE": ReCE
-    }
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
