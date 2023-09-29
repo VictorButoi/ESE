@@ -28,7 +28,6 @@ def ReCE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-    raise ValueError("ReCE CURRENTLY BROKEN!")
 
     # Process the inputs for scoring
     conf_map, pred_map, label = process_for_scoring(
@@ -68,6 +67,7 @@ def ReCE(
             num_islands = len(conf_islands)
             region_metrics = torch.zeros(num_islands)
             region_confs = torch.zeros(num_islands)
+            region_calibration = torch.zeros(num_islands)
 
             # Iterate through each island, and get the measure for each island.
             for isl_idx, island in enumerate(conf_islands):
@@ -85,16 +85,15 @@ def ReCE(
                 region_confs[isl_idx] = region_conf_map.mean()
 
                 # Calculate the calibration error WITHIN the island.
-                island_rece = (region_confs[isl_idx] - region_metrics[isl_idx]).abs()
+                region_calibration[isl_idx] = (region_confs[isl_idx] - region_metrics[isl_idx]).abs()
             
             # Get the accumulate metrics from all the islands
             avg_bin_metric = region_metrics.mean()
-            avg_bin_conf = region_confs.mean()
             
             # Calculate the average calibration error for the regions in the bin.
-            rece_per_bin[bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
+            rece_per_bin[bin_idx] = region_calibration.mean()
             bin_avg_metric[bin_idx] = avg_bin_metric
-            bin_amounts[bin_idx] = num_islands
+            bin_amounts[bin_idx] = num_islands 
 
             # Now we put the ISLAND values for the accumulation
             metrics_per_bin[bin_idx] = region_metrics

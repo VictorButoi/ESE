@@ -9,17 +9,16 @@ from pydantic import validate_arguments
 
 # ese imports
 from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
-from ese.experiment.metrics import ACE, ECE, Island_ECE, ReCE
 import ese.experiment.metrics.utils as metric_utils
+from ionpy.experiment.util import absolute_import
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def subject_diagram(
     subject_list: List[dict], 
     num_bins: int,
-    metrics: List[str],
+    metric_cfg: dict,
     class_type: Literal["Binary", "Multi-class"],
-    metric_color_dict: dict,
     num_subjects: int = 10,
     bin_weighting: str = "proportional",
     include_background: bool = True,
@@ -41,6 +40,10 @@ def subject_diagram(
 
     # Shorten the total subject list (to save time).
     subject_list = subject_list[:num_subjects]
+
+    # Import the caibration metrics.
+    for metric in metric_cfg.keys():
+        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
 
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_list):
@@ -94,29 +97,28 @@ def subject_diagram(
         #########################################################
 
         # Show different kinds of statistics about your subjects.
-        if show_analysis_plots:
-            analysis_plots.plot_error_vs_numbins(
-                subj=subj,
-                metrics=metrics,
-                metric_colors=metric_color_dict,
-                bin_weighting=bin_weighting,
-                ax=axarr[1, 0]
-            )
+        # if show_analysis_plots:
+        #     analysis_plots.plot_error_vs_numbins(
+        #         subj=subj,
+        #         metric_cfg=metric_cfg,
+        #         bin_weighting=bin_weighting,
+        #         ax=axarr[1, 0]
+        #     )
         # Plot the different reliability diagrams for our different
         # metrics.
-        for m_idx, metric in enumerate(metrics):
+        for m_idx, metric in enumerate(metric_cfg):
             # Plot reliability diagram with precision on y.
             reliability_plots.plot_subj_reliability_diagram(
                 num_bins=num_bins,
                 subj=subj,
-                metric=metric,
+                metric_name=metric,
+                metric_dict=metric_cfg[metric],
                 class_type=class_type,
                 bin_weighting=bin_weighting,
                 remove_empty_bins=remove_empty_bins,
                 include_background=include_background,
                 show_bin_amounts=show_bin_amounts,
-                bar_color=metric_color_dict[metric],
-                ax=axarr[1,1 + m_idx]
+                ax=axarr[1, m_idx]
             )
 
         #########################################################
@@ -127,16 +129,14 @@ def subject_diagram(
             # Show the variance of the confidences for pixel samples in the bin.
             analysis_plots.plot_avg_samplesize_vs_numbins(
                 subj=subj,
-                metrics=metrics,
-                metric_colors=metric_color_dict,
+                metric_cfg=metric_cfg,
                 bin_weighting=bin_weighting,
                 ax=axarr[2, 0] 
             )
             # Show the variance of the confidences for pixel samples in the bin.
             analysis_plots.plot_avg_variance_vs_numbins(
                 subj=subj,
-                metrics=metrics,
-                metric_colors=metric_color_dict,
+                metric_cfg=metric_cfg,
                 bin_weighting=bin_weighting,
                 ax=axarr[2, 1] 
             )
@@ -169,7 +169,7 @@ def subject_diagram(
 def aggregate_reliability_diagram(
     subject_list: List[dict],
     num_bins: int,
-    metrics: List[str],
+    metric_cfg: dict,
     class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str = "proportional",
     remove_empty_bins: bool = True,
@@ -179,9 +179,9 @@ def aggregate_reliability_diagram(
         assert include_background, "Background must be included for multi-class."
 
     # Consturct the subplot (just a single one)
-    _, axarr = plt.subplots(nrows=1, ncols=len(metrics), figsize=(7 * len(metrics), 7))
+    _, axarr = plt.subplots(nrows=1, ncols=len(metric_cfg), figsize=(7 * len(metric_cfg), 7))
 
-    for m_idx, metric in enumerate(metrics):
+    for m_idx, metric in enumerate(metric_cfg):
 
         conf_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
         metric_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
@@ -189,7 +189,7 @@ def aggregate_reliability_diagram(
         
         # Go through each subject, and get the information we need.
         for subj in subject_list:
-            subj_calibration_info = metric_dict[metric](
+            subj_calibration_info = metric_cfg[metric]['func'](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
                 pred_map=subj["pred_map"],
@@ -259,7 +259,7 @@ def aggregate_reliability_diagram(
             remove_empty_bins=remove_empty_bins,
             include_background=include_background,
             ax=axarr[m_idx],
-            bar_color=metric_color_dict[metric]
+            bar_color=metric_cfg[metric]['color']
         )
     
     # Show the plot per metric.
@@ -270,7 +270,7 @@ def aggregate_reliability_diagram(
 def score_histogram_diagram(
     subject_list: List[dict],
     num_bins: int,
-    metrics: List[str],
+    metric_cfg: dict,
     class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str = "proportional",
     include_background: bool = True
@@ -280,10 +280,10 @@ def score_histogram_diagram(
     
     # Go through each subject, and get the information we need.
     score_list = [] 
-    for metric in metrics:
+    for metric in metric_cfg:
         # Go through each subject, and get the information we need.
         for subj in subject_list:
-            subj_calibration_info = metric_dict[metric](
+            subj_calibration_info = metric_cfg[metric]['func'](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
                 pred_map=subj["pred_map"],
@@ -303,6 +303,8 @@ def score_histogram_diagram(
     # Set the size of the figure
     plt.figure(figsize=(12, 8))
 
+    metric_color_dict = {metric: metric_cfg[metric]['color'] for metric in metric_cfg.keys()}
+
     # Show the reliability plots.
     sns.kdeplot(
         data=score_df,
@@ -316,8 +318,8 @@ def score_histogram_diagram(
     # Calculating the mean of 'error' for each unique 'metric' and adding vertical lines
     for metric in score_df['metric'].unique():
         mean = score_df['error'][score_df['metric'] == metric].mean()
-        plt.axvline(mean, color=metric_color_dict[metric], linestyle='--')
-        plt.text(mean + 0.01, 1, f' {metric} mean = {np.round(mean, 4)}', color=metric_color_dict[metric], rotation=90)
+        plt.axvline(mean, color=metric_cfg[metric]['color'], linestyle='--')
+        plt.text(mean + 0.01, 1, f' {metric} mean = {np.round(mean, 4)}', color=metric_cfg[metric]['color'], rotation=90)
 
     plt.title(f"{metric} Histogram Over Subjects")
     plt.show()

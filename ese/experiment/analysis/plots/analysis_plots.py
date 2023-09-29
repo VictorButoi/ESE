@@ -10,15 +10,6 @@ from sklearn.metrics import confusion_matrix
 # ionpy imports
 from ionpy.util.islands import get_connected_components
 
-# ese imports
-from ese.experiment.metrics import ECE, ACE, ReCE
-
-# Globally used for which metrics to plot for.
-metric_dict = {
-    "ECE": ECE,
-    "ACE": ACE,
-    "ReCE": ReCE
-}
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_confusion_matrix(

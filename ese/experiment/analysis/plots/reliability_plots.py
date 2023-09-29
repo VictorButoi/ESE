@@ -4,22 +4,15 @@ from typing import Any, Literal
 from pydantic import validate_arguments
 
 # ese imports
-from ese.experiment.metrics import ECE, ACE, ReCE
 from ese.experiment.metrics.utils import get_bins
 
-# Globally used for which metrics to plot for.
-metric_dict = {
-    "ECE": ECE,
-    "ACE": ACE,
-    "ReCE": ReCE
-}
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reliability_diagram(
     title: str,
     calibration_info: dict,
     class_type: Literal["Binary", "Multi-class"],
-    metric: str, 
+    metric_name: str, 
     num_bins: int,
     bin_weighting: str,
     ax: Any,
@@ -30,17 +23,17 @@ def reliability_diagram(
     show_diagonal: bool
 ):
     # Add the metric to the title
-    title += f"{metric}: {calibration_info['score']:.5f} ({bin_weighting})"
+    title += f"{metric_name}: {calibration_info['score']:.5f} ({bin_weighting})"
 
     # Make sure to only use bins where the bin amounts are non-zero
     non_empty_bins = (calibration_info["bin_amounts"] != 0)
 
     # If bins are not defined, redefine them.
     if "bins" not in calibration_info:
-        assert metric != "ACE", "ACE requires confidence values to be passed in."
+        assert metric_name != "ACE", "ACE requires confidence values to be passed in."
         conf_bins, conf_bin_widths = get_bins(
             num_bins=num_bins,
-            metric=metric,
+            metric=metric_name,
             include_background=include_background,
             class_type=class_type
         )
@@ -119,14 +112,14 @@ def reliability_diagram(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_subj_reliability_diagram(
     num_bins: int,
-    metric: str, 
+    metric_name: str,
+    metric_dict: dict, 
     subj: dict,
     class_type: Literal["Binary", "Multi-class"],
     bin_weighting: str,
     include_background: bool,
     ax: Any,
     remove_empty_bins: bool = True,
-    bar_color: str = 'blue',
     show_bin_amounts: bool = False,
     show_diagonal: bool = True,
 ) -> None:
@@ -134,7 +127,7 @@ def plot_subj_reliability_diagram(
     # Define the title
     title = f"{class_type} Reliability Diagram w/ {num_bins} bins:\n"
 
-    calibration_info = metric_dict[metric](
+    calibration_info = metric_dict['func'](
         num_bins=num_bins,
         conf_map=subj["conf_map"],
         pred_map=subj["pred_map"],
@@ -148,12 +141,12 @@ def plot_subj_reliability_diagram(
         title=title,
         calibration_info=calibration_info,
         class_type=class_type,
-        metric=metric,
+        metric_name=metric_name,
         num_bins=num_bins,
         bin_weighting=bin_weighting,
         remove_empty_bins=remove_empty_bins,
         include_background=include_background,
-        bar_color=bar_color,
+        bar_color=metric_dict["color"],
         show_bin_amounts=show_bin_amounts,
         show_diagonal=show_diagonal,
         ax=ax
