@@ -33,80 +33,89 @@ metric_dict = {
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
-    config_list: List[Config],
-    root: pathlib.Path = pathlib.Path("/storage/vbutoi/scratch/ESE")
+    cfg: Config
     ) -> None:
 
-    # Iterate through the configs
-    for cfg in config_list:
+    # Get the config dictionary
+    cfg_dict = copy.deepcopy(cfg.to_dict())
 
-        # Get the config dictionary
-        cfg_dict = copy.deepcopy(cfg.to_dict())
+    # Results loader object does everything
+    root = pathlib.Path(cfg['log']['root'])
+    exp_name = cfg['model']['exp_name']
+    exp_path = root / exp_name
 
-        # Results loader object does everything
-        rs = ResultsLoader()
-        exp_name = cfg['model']['exp_name']
-        exp_path = root / exp_name
+    # Get the configs of the experiment
+    rs = ResultsLoader()
+    dfc = rs.load_configs(
+        exp_path,
+        properties=False,
+    )
 
-        # Get the configs of the experiment
-        dfc = rs.load_configs(
-            exp_path,
-            properties=False,
-        )
+    # Get the best experiment at the checkpoint
+    # corresponding to the best metric.
+    exp = rs.get_experiment(
+        df=rs.load_metrics(dfc),
+        exp_class=CalibrationExperiment,
+        metric=cfg['model']['metric'],
+        checkpoint=cfg['model']['checkpoint'],
+        device="cuda"
+    )
 
-        # Get the best experiment at the checkpoint
-        # corresponding to the best metric.
-        exp = rs.get_experiment(
-            df=rs.load_metrics(dfc),
-            exp_class=CalibrationExperiment,
-            metric=cfg['model']['metric'],
-            checkpoint=cfg['model']['checkpoint'],
-            device="cuda"
-        )
+    # Get information about the dataset
+    dataset_dict = cfg['dataset'].to_dict()
+    dataset_class = dataset_dict.pop("_class")
+    dataset_name = dataset_class.split(".")[-1]
+    data_type = dataset_dict.pop("data_type")
 
-        # Get information about the dataset
-        dataset_dict = cfg['dataset'].to_dict()
-        dataset_class = dataset_dict.pop("_class")
-        dataset_name = dataset_class.split(".")[-1]
-        data_type = dataset_dict.pop("data_type")
+    # Import the dataset class
+    dataset_cls = absolute_import(dataset_class)
 
-        # Import the dataset class
-        dataset_cls = absolute_import(dataset_class)
+    if 'task' in dataset_dict.keys():
+        print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
+    else:
+        print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
+    
+    # Build the dataset and dataloader.
+    DatasetObj = dataset_cls(**dataset_dict)
+    dataloader = DataLoader(
+        DatasetObj, 
+        batch_size=1, 
+        num_workers=cfg['model']['num_workers'], 
+        shuffle=False
+    )
 
-        if 'task' in dataset_dict.keys():
-            print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
-        else:
-            print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
+    # Prepare the output dir for saving the results
+    create_time, nonce = generate_tuid()
+    digest = config_digest(cfg_dict)
+    uuid = f"{create_time}-{nonce}-{digest}.pkl"
+    exp_log_dir = root / "records" / exp_name
+    cfg_log_dir = exp_log_dir / uuid
+    if not exp_log_dir.exists():
+        exp_log_dir.mkdir(parents=True)
+
+    # Keep track of records
+    data_records = []
+
+    def save_records(records):
+        # Save the items in a pickle file.  
+        df = pd.DataFrame(records)
+        # Save or overwrite the file.
+        df.to_pickle(cfg_log_dir)
+
+    # Loop through the data, gather your stats!
+    with torch.no_grad():
+        for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+            if data_type == "volume":
+                volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
+            elif data_type == "image":
+                image_forward_loop(batch, batch_idx, cfg, exp, data_records)
+            else:
+                raise ValueError(f"Data type {data_type} not supported.")
         
-        # Build the dataset and dataloader.
-        DatasetObj = dataset_cls(**dataset_dict)
-        dataloader = DataLoader(DatasetObj, batch_size=1, shuffle=False, drop_last=False)
-
-        # Keep track of records
-        data_records = []
-
-        with torch.no_grad():
-            for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
-                if data_type == "volume":
-                    volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
-                elif data_type == "image":
-                    image_forward_loop(batch, batch_idx, cfg, exp, data_records)
-                else:
-                    raise ValueError(f"Data type {data_type} not supported.")
-                break
-            
-        # Save the items in a parquet file
-        record_df = pd.DataFrame(data_records)
-        exp_log_dir = root / "records" / exp_name
-        if not exp_log_dir.exists():
-            exp_log_dir.mkdir(parents=True)
-
-        # Make a has for this particular inference configuration to save the stats.
-        create_time, nonce = generate_tuid()
-        digest = config_digest(cfg_dict)
-        uuid = f"{create_time}-{nonce}-{digest}.pkl"
-        cfg_log_dir = exp_log_dir / uuid
-        record_df.to_pickle(cfg_log_dir)
+            if batch_idx % cfg['log']['log_interval'] == 0:
+                save_records(data_records)
+    # Save the records at the end too
+    save_records(data_records)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -186,13 +195,13 @@ def get_calibration_item_info(
     ):
 
     # Calculate the scores we want to compare against.
-    lab_amount = label.sum()
-    lab_predicted = pred_map.sum()
+    gt_lab_amount = label.sum().item()
+    amount_pred_lab = pred_map.sum().item()
     
     # Get some metrics of these predictions
-    dice = dice_score(conf_map, label)
-    acc = pixel_accuracy(conf_map, label)
-    balanced_acc = balanced_pixel_accuracy(conf_map, label)
+    dice = dice_score(conf_map, label).item()
+    acc = pixel_accuracy(conf_map, label).item()
+    balanced_acc = balanced_pixel_accuracy(conf_map, label).item()
     
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
@@ -212,21 +221,20 @@ def get_calibration_item_info(
                 include_background=cfg["calibration"]["include_background"]
             ) 
             # Wrap it in an item
-            data_records.append({
+            record = {
                 "accuracy": acc,
-                "bin_counts": tuple(calibration_info["bin_amounts"]),
                 "bin_weighting": bin_weighting,
                 "cal_metric": cal_metric,
                 "cal_score": calibration_info["score"],
-                "cal_per_bin": tuple(calibration_info["bin_scores"]),
                 "class_type": cfg["calibration"]["class_type"],
                 "data_idx": data_idx,
                 "dice": dice,
-                "gt_lab_amount": lab_amount, 
+                "gt_lab_amount": gt_lab_amount, 
                 "lab_w_accuracy": balanced_acc,
                 "num_bins": cfg["calibration"]["num_bins"],
-                "pred_lab_amount": lab_predicted,
+                "pred_lab_amount": amount_pred_lab,
                 "slice_idx": slice_idx,
                 "split": split,
                 "task": task,
-            })
+            }
+            data_records.append(record)
