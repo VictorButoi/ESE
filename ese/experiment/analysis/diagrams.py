@@ -181,6 +181,10 @@ def aggregate_reliability_diagram(
     # Consturct the subplot (just a single one)
     _, axarr = plt.subplots(nrows=1, ncols=len(metric_cfg), figsize=(7 * len(metric_cfg), 7))
 
+    # Import the caibration metrics.
+    for metric in metric_cfg.keys():
+        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
+
     for m_idx, metric in enumerate(metric_cfg):
 
         conf_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
@@ -253,13 +257,13 @@ def aggregate_reliability_diagram(
         reliability_plots.plot_cumulative_reliability_diagram(
             num_bins=num_bins,
             calibration_info=calibration_info,
-            metric=metric,
+            metric_name=metric,
+            metric_dict=metric_cfg[metric],
             class_type=class_type,
             bin_weighting=bin_weighting,
             remove_empty_bins=remove_empty_bins,
             include_background=include_background,
             ax=axarr[m_idx],
-            bar_color=metric_cfg[metric]['color']
         )
     
     # Show the plot per metric.
@@ -278,6 +282,10 @@ def score_histogram_diagram(
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
     
+    # Import the caibration metrics.
+    for metric in metric_cfg.keys():
+        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
+        
     # Go through each subject, and get the information we need.
     score_list = [] 
     for metric in metric_cfg:
