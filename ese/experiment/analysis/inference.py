@@ -4,7 +4,7 @@ import pathlib
 import copy
 import pandas as pd
 from tqdm import tqdm
-from typing import Any, Optional, List
+from typing import Any, Optional
 from pydantic import validate_arguments
 
 # torch imports
@@ -12,7 +12,6 @@ import torch
 from torch.utils.data import DataLoader
 
 # local imports
-from ese.experiment.metrics import ACE, ECE, Island_ECE, ReCE
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 # ionpy imports
@@ -60,9 +59,15 @@ def get_cal_stats(
     dataset_class = dataset_dict.pop("_class")
     dataset_name = dataset_class.split(".")[-1]
     data_type = dataset_dict.pop("data_type")
+    assert data_type in ["volume", "image"], f"Data type {data_type} not supported."
 
     # Import the dataset class
     dataset_cls = absolute_import(dataset_class)
+
+    # Import the caibration metrics.
+    metric_cfg = cfg['cal_metrics'].to_dict()
+    for cal_metric in metric_cfg.keys():
+        metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
 
     if 'task' in dataset_dict.keys():
         print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
@@ -99,12 +104,16 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
-            if data_type == "volume":
-                volume_forward_loop(batch, batch_idx, cfg, exp, data_records)
-            elif data_type == "image":
-                image_forward_loop(batch, batch_idx, cfg, exp, data_records)
-            else:
-                raise ValueError(f"Data type {data_type} not supported.")
+            forward_loop_func = volume_forward_loop if data_type == "volume" else image_forward_loop
+            # Run the forward loop
+            forward_loop_func(
+                batch=batch, 
+                batch_idx=batch_idx, 
+                cfg=cfg, 
+                metric_cfg=metric_cfg,
+                exp=exp, 
+                data_records=data_records
+            )
             # Save the records every so often, to get intermediate results.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 save_records(data_records)
@@ -118,6 +127,7 @@ def volume_forward_loop(
     batch: Any,
     batch_idx: int,
     cfg: Config,
+    metric_cfg: dict,
     exp: CalibrationExperiment,
     data_records: list
 ):
@@ -146,6 +156,7 @@ def volume_forward_loop(
             data_idx=batch_idx,
             split=cfg['dataset']['split'],
             data_records=data_records,
+            metric_cfg=metric_cfg,
             slice_idx=slice_idx,
             task=cfg['dataset']['task']
         )
@@ -156,6 +167,7 @@ def image_forward_loop(
     batch: Any,
     batch_idx: int,
     cfg: Config,
+    metric_cfg: dict,
     exp: CalibrationExperiment,
     data_records: list
 ):
@@ -172,7 +184,8 @@ def image_forward_loop(
         label=label,
         data_idx=batch_idx,
         split=cfg['dataset']['split'],
-        data_records=data_records
+        data_records=data_records,
+        metric_cfg=metric_cfg
     )
 
 
@@ -185,6 +198,7 @@ def get_calibration_item_info(
     data_idx: int,
     split: str,
     data_records: list,
+    metric_cfg: dict,
     slice_idx: Optional[int] = None,
     task: Optional[str] = None
     ):
@@ -206,7 +220,7 @@ def get_calibration_item_info(
     for cal_metric in cfg["calibration"]["metrics"]:
         for bin_weighting in cfg["calibration"]["bin_weightings"]:
             # Get the calibration metric
-            calibration_info = metric_dict[cal_metric](
+            calibration_info = metric_cfg[cal_metric]['func'](
                 num_bins=cfg["calibration"]["num_bins"],
                 conf_map=conf_map,
                 pred_map=pred_map,

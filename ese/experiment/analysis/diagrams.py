@@ -42,8 +42,8 @@ def subject_diagram(
     subject_list = subject_list[:num_subjects]
 
     # Import the caibration metrics.
-    for metric in metric_cfg.keys():
-        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
+    for cal_metric in metric_cfg.keys():
+        metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
 
     # Go through each subject and plot a bunch of info about it.
     for subj_idx, subj in enumerate(subject_list):
@@ -106,13 +106,13 @@ def subject_diagram(
         #     )
         # Plot the different reliability diagrams for our different
         # metrics.
-        for m_idx, metric in enumerate(metric_cfg):
+        for m_idx, cal_metric in enumerate(metric_cfg):
             # Plot reliability diagram with precision on y.
             reliability_plots.plot_subj_reliability_diagram(
                 num_bins=num_bins,
                 subj=subj,
-                metric_name=metric,
-                metric_dict=metric_cfg[metric],
+                metric_name=cal_metric,
+                metric_dict=metric_cfg[cal_metric],
                 class_type=class_type,
                 bin_weighting=bin_weighting,
                 remove_empty_bins=remove_empty_bins,
@@ -182,10 +182,10 @@ def aggregate_reliability_diagram(
     _, axarr = plt.subplots(nrows=1, ncols=len(metric_cfg), figsize=(7 * len(metric_cfg), 7))
 
     # Import the caibration metrics.
-    for metric in metric_cfg.keys():
-        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
+    for cal_metric in metric_cfg.keys():
+        metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
 
-    for m_idx, metric in enumerate(metric_cfg):
+    for m_idx, cal_metric in enumerate(metric_cfg):
 
         conf_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
         metric_per_bin = {bin_idx: None for bin_idx in range(num_bins)}
@@ -193,7 +193,7 @@ def aggregate_reliability_diagram(
         
         # Go through each subject, and get the information we need.
         for subj in subject_list:
-            subj_calibration_info = metric_cfg[metric]['func'](
+            subj_calibration_info = metric_cfg[cal_metric]['func'](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
                 pred_map=subj["pred_map"],
@@ -257,8 +257,8 @@ def aggregate_reliability_diagram(
         reliability_plots.plot_cumulative_reliability_diagram(
             num_bins=num_bins,
             calibration_info=calibration_info,
-            metric_name=metric,
-            metric_dict=metric_cfg[metric],
+            metric_name=cal_metric,
+            metric_dict=metric_cfg[cal_metric],
             class_type=class_type,
             bin_weighting=bin_weighting,
             remove_empty_bins=remove_empty_bins,
@@ -283,15 +283,15 @@ def score_histogram_diagram(
         assert include_background, "Background must be included for multi-class."
     
     # Import the caibration metrics.
-    for metric in metric_cfg.keys():
-        metric_cfg[metric]['func'] = absolute_import(metric_cfg[metric]['func'])
+    for cal_metric in metric_cfg.keys():
+        metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
         
     # Go through each subject, and get the information we need.
     score_list = [] 
-    for metric in metric_cfg:
+    for cal_metric in metric_cfg:
         # Go through each subject, and get the information we need.
         for subj in subject_list:
-            subj_calibration_info = metric_cfg[metric]['func'](
+            subj_calibration_info = metric_cfg[cal_metric]['func'](
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
                 pred_map=subj["pred_map"],
@@ -302,7 +302,7 @@ def score_histogram_diagram(
             )
             score_list.append({
                 "error": subj_calibration_info["score"],
-                "metric": metric
+                "metric": cal_metric
                 })
 
     # Melting the DataFrame to long-form for compatibility with `hue`
@@ -324,10 +324,10 @@ def score_histogram_diagram(
     )
 
     # Calculating the mean of 'error' for each unique 'metric' and adding vertical lines
-    for metric in score_df['metric'].unique():
-        mean = score_df['error'][score_df['metric'] == metric].mean()
-        plt.axvline(mean, color=metric_cfg[metric]['color'], linestyle='--')
-        plt.text(mean + 0.01, 1, f' {metric} mean = {np.round(mean, 4)}', color=metric_cfg[metric]['color'], rotation=90)
+    for cal_metric in score_df['metric'].unique():
+        mean = score_df['error'][score_df['metric'] == cal_metric].mean()
+        plt.axvline(mean, color=metric_cfg[cal_metric]['color'], linestyle='--')
+        plt.text(mean + 0.01, 1, f' {cal_metric} mean = {np.round(mean, 4)}', color=metric_cfg[cal_metric]['color'], rotation=90)
 
-    plt.title(f"{metric} Histogram Over Subjects")
+    plt.title(f"{cal_metric} Histogram Over Subjects")
     plt.show()
