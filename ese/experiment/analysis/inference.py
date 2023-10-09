@@ -105,9 +105,10 @@ def get_cal_stats(
                 image_forward_loop(batch, batch_idx, cfg, exp, data_records)
             else:
                 raise ValueError(f"Data type {data_type} not supported.")
-        
+            # Save the records every so often, to get intermediate results.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 save_records(data_records)
+
     # Save the records at the end too
     save_records(data_records)
 
@@ -222,6 +223,7 @@ def get_calibration_item_info(
                 "cal_score": calibration_info["score"],
                 "class_type": cfg["calibration"]["class_type"],
                 "data_idx": data_idx,
+                "dataset": cfg["dataset"]["_class"],
                 "dice": dice,
                 "gt_lab_amount": gt_lab_amount, 
                 "lab_w_accuracy": balanced_acc,
