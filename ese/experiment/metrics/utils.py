@@ -191,15 +191,7 @@ def gather_pixelwise_bin_stats(
             metrics_per_bin[bin_idx] = all_bin_metrics
             confs_per_bin[bin_idx] = bin_confs
 
-    # Finally, get the ECE score.
-    calibration_score = reduce_scores(
-        score_per_bin=bin_cal_scores, 
-        amounts_per_bin=bin_amounts, 
-        weighting=weighting
-        )
-    
     cal_info = {
-        "cal_score": calibration_score,
         "bins": conf_bins, 
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,

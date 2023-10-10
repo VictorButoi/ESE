@@ -51,6 +51,120 @@ def ECE(
         include_background=include_background
     )
 
+    raise NotImplementedError("TODO: Implement TL_ECE")
+
+    # Finally, get the ECE score.
+    ece = reduce_scores(
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
+        weighting=weighting
+        )
+    cal_info['cal_score'] = ece 
+
+    return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def TL_ECE(
+    num_bins: int,
+    conf_map: torch.Tensor, 
+    pred_map: torch.Tensor, 
+    label: torch.Tensor,
+    class_type: Literal["Binary", "Multi-class"],
+    include_background: bool,
+    weighting: str = "proportional",
+    min_confidence: float = 0.001,
+    ) -> dict:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins,
+        metric="ECE", 
+        include_background=include_background, 
+        class_type=class_type
+        )
+
+    # Keep track of different things for each bin.
+    cal_info = gather_pixelwise_bin_stats(
+        num_bins=num_bins,
+        conf_bins=conf_bins,
+        conf_bin_widths=conf_bin_widths,
+        conf_map=conf_map,
+        pred_map=pred_map,
+        label=label,
+        class_type=class_type,
+        weighting=weighting,
+        min_confidence=min_confidence,
+        include_background=include_background
+    )
+
+    # Finally, get the ECE score.
+    ece = reduce_scores(
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
+        weighting=weighting
+        )
+    cal_info['cal_score'] = ece 
+
+    return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def CU_ECE(
+    num_bins: int,
+    conf_map: torch.Tensor, 
+    pred_map: torch.Tensor, 
+    label: torch.Tensor,
+    class_type: Literal["Binary", "Multi-class"],
+    include_background: bool,
+    weighting: str = "proportional",
+    min_confidence: float = 0.001,
+    ) -> dict:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    if class_type == "Multi-class": 
+        assert include_background, "Background must be included for multi-class."
+
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins,
+        metric="ECE", 
+        include_background=include_background, 
+        class_type=class_type
+        )
+
+    # Keep track of different things for each bin.
+    cal_info = gather_pixelwise_bin_stats(
+        num_bins=num_bins,
+        conf_bins=conf_bins,
+        conf_bin_widths=conf_bin_widths,
+        conf_map=conf_map,
+        pred_map=pred_map,
+        label=label,
+        class_type=class_type,
+        weighting=weighting,
+        min_confidence=min_confidence,
+        include_background=include_background
+    )
+
+    raise NotImplementedError("TODO: Implement CU_ECE")
+
+    # Finally, get the ECE score.
+    ece = reduce_scores(
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
+        weighting=weighting
+        )
+    cal_info['cal_score'] = ece 
+
     return cal_info
 
 
@@ -94,6 +208,14 @@ def ACE(
         min_confidence=min_confidence,
         include_background=include_background
     )
+
+    # Finally, get the ECE score.
+    ace = reduce_scores(
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
+        weighting=weighting
+        )
+    cal_info['cal_score'] = ace 
 
     return cal_info
 
