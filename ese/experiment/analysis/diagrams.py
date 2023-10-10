@@ -42,6 +42,7 @@ def subject_diagram(
     subject_list = subject_list[:num_subjects]
 
     # Import the caibration metrics.
+    metric_cfg = metric_cfg.copy()
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
 
@@ -182,6 +183,7 @@ def aggregate_reliability_diagram(
     _, axarr = plt.subplots(nrows=1, ncols=len(metric_cfg), figsize=(7 * len(metric_cfg), 7))
 
     # Import the caibration metrics.
+    metric_cfg = metric_cfg.copy()
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
 
@@ -283,6 +285,7 @@ def score_histogram_diagram(
         assert include_background, "Background must be included for multi-class."
     
     # Import the caibration metrics.
+    metric_cfg = metric_cfg.copy()
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
         

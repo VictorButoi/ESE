@@ -131,7 +131,7 @@ def plot_subj_reliability_diagram(
         num_bins=num_bins,
         conf_map=subj["conf_map"],
         pred_map=subj["pred_map"],
-        label=subj["label"],
+        label_map=subj["label"],
         class_type=class_type,
         weighting=bin_weighting,
         include_background=include_background

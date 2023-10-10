@@ -1,5 +1,6 @@
 # local imports
-from .utils import *
+from .utils import get_bins, reduce_scores, process_for_scoring, get_conf_region
+from .bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
 
 # misc imports
 import torch
@@ -16,7 +17,7 @@ def ECE(
     num_bins: int,
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
-    label: torch.Tensor,
+    label_map: torch.Tensor,
     class_type: Literal["Binary", "Multi-class"],
     include_background: bool,
     weighting: str = "proportional",
@@ -25,7 +26,7 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
 
@@ -44,14 +45,11 @@ def ECE(
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label=label,
+        label_map=label_map,
         class_type=class_type,
-        weighting=weighting,
         min_confidence=min_confidence,
         include_background=include_background
     )
-
-    raise NotImplementedError("TODO: Implement TL_ECE")
 
     # Finally, get the ECE score.
     ece = reduce_scores(
@@ -69,7 +67,7 @@ def TL_ECE(
     num_bins: int,
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
-    label: torch.Tensor,
+    label_map: torch.Tensor,
     class_type: Literal["Binary", "Multi-class"],
     include_background: bool,
     weighting: str = "proportional",
@@ -78,7 +76,7 @@ def TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
 
@@ -91,36 +89,40 @@ def TL_ECE(
         )
 
     # Keep track of different things for each bin.
-    cal_info = gather_pixelwise_bin_stats(
+    cal_info = gather_labelwise_pixelwise_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label=label,
+        label_map=label_map,
         class_type=class_type,
-        weighting=weighting,
         min_confidence=min_confidence,
-        include_background=include_background
     )
 
     # Finally, get the ECE score.
-    ece = reduce_scores(
-        score_per_bin=cal_info["bin_cal_scores"], 
-        amounts_per_bin=cal_info["bin_amounts"], 
-        weighting=weighting
-        )
-    cal_info['cal_score'] = ece 
-
+    num_labels = len(cal_info["bin_cal_scores"])
+    w_ece_per_label = torch.zeros(num_labels)
+    lab_amounts = cal_info['bin_amounts'].sum(dim=1)
+    for lab_idx in range(num_labels):
+        lab_ece = reduce_scores(
+            score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
+            amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
+            weighting=weighting
+            )
+        w_ece_per_label[lab_idx] = lab_ece * lab_amounts[lab_idx]
+    # Calculate tl-ece as label-weighted sum of ece per label.
+    cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
+        
     return cal_info
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def CU_ECE(
+def CW_ECE(
     num_bins: int,
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
-    label: torch.Tensor,
+    label_map: torch.Tensor,
     class_type: Literal["Binary", "Multi-class"],
     include_background: bool,
     weighting: str = "proportional",
@@ -129,7 +131,7 @@ def CU_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
 
@@ -142,28 +144,29 @@ def CU_ECE(
         )
 
     # Keep track of different things for each bin.
-    cal_info = gather_pixelwise_bin_stats(
+    cal_info = gather_labelwise_pixelwise_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label=label,
+        label_map=label_map,
         class_type=class_type,
-        weighting=weighting,
         min_confidence=min_confidence,
-        include_background=include_background
     )
 
-    raise NotImplementedError("TODO: Implement CU_ECE")
-
     # Finally, get the ECE score.
-    ece = reduce_scores(
-        score_per_bin=cal_info["bin_cal_scores"], 
-        amounts_per_bin=cal_info["bin_amounts"], 
-        weighting=weighting
-        )
-    cal_info['cal_score'] = ece 
+    num_labels = len(cal_info["bin_cal_scores"])
+    ece_per_label = torch.zeros(num_labels)
+    # Iterate through each label, calculating ECE
+    for lab_idx in range(num_labels):
+        ece_per_label[lab_idx] = reduce_scores(
+            score_per_bin=cal_info["bin_cal_scores"][lab_idx], 
+            amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
+            weighting=weighting
+            )
+    # Calculate tl-ece as label-weighted sum of ece per label.
+    cal_info['cal_score'] = ece_per_label.mean()
 
     return cal_info
 
@@ -173,7 +176,7 @@ def ACE(
     num_bins: int,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
-    label: torch.Tensor,
+    label_map: torch.Tensor,
     include_background: bool,
     class_type: Literal["Binary", "Multi-class"],
     weighting: str = "proportional",
@@ -182,7 +185,7 @@ def ACE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
 
@@ -202,9 +205,8 @@ def ACE(
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label=label,
+        label_map=label_map,
         class_type=class_type,
-        weighting=weighting,
         min_confidence=min_confidence,
         include_background=include_background
     )
@@ -225,7 +227,7 @@ def Island_ECE(
     num_bins: int,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
-    label: torch.Tensor,
+    label_map: torch.Tensor,
     include_background: bool,
     class_type: Literal["Binary", "Multi-class"],
     weighting: str = "proportional",
@@ -234,7 +236,7 @@ def Island_ECE(
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
 
@@ -247,10 +249,10 @@ def Island_ECE(
         )
 
     # Process the inputs for scoring
-    conf_map, pred_map, label = process_for_scoring(
+    conf_map, pred_map, label_map = process_for_scoring(
         conf_map=conf_map, 
         pred_map=pred_map, 
-        label=label, 
+        label_map=label_map, 
         class_type=class_type,
         min_confidence=min_confidence,
         include_background=include_background, 
@@ -282,13 +284,14 @@ def Island_ECE(
                 # Get the island primitives
                 region_conf_map = conf_map[island]                
                 region_pred_map = pred_map[island]
-                region_label = label[island]
+                region_label = label_map[island]
 
                 # Calculate the average score for the regions in the bin.
                 if class_type == "Multi-class":
                     region_metrics[isl_idx] = pixel_accuracy(region_pred_map, region_label)
                 else:
                     region_metrics[isl_idx] = pixel_precision(region_pred_map, region_label)
+
                 # Record the confidences
                 region_confs[isl_idx] = region_conf_map.mean()
             
