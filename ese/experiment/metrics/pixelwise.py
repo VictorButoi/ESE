@@ -1,15 +1,13 @@
 # local imports
 from .utils import get_bins, reduce_scores, process_for_scoring, get_conf_region
 from .bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
-
+# ionpy imports
+from ionpy.metrics import pixel_accuracy, pixel_precision
+from ionpy.util.islands import get_connected_components
 # misc imports
 import torch
 from typing import Literal
 from pydantic import validate_arguments
-
-# ionpy imports
-from ionpy.metrics import pixel_accuracy, pixel_precision
-from ionpy.util.islands import get_connected_components
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -101,16 +99,19 @@ def TL_ECE(
     )
 
     # Finally, get the ECE score.
-    num_labels = len(cal_info["bin_cal_scores"])
+    num_labels = len(cal_info["lab_bin_cal_scores"])
     w_ece_per_label = torch.zeros(num_labels)
-    lab_amounts = cal_info['bin_amounts'].sum(dim=1)
+    lab_amounts = cal_info['lab_bin_amounts'].sum(dim=1)
+
+    # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
         lab_ece = reduce_scores(
-            score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
-            amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
+            score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
+            amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
             weighting=weighting
             )
         w_ece_per_label[lab_idx] = lab_ece * lab_amounts[lab_idx]
+
     # Calculate tl-ece as label-weighted sum of ece per label.
     cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
         
@@ -318,18 +319,14 @@ def Island_ECE(
     cal_info = {
         "cal_score": rece_score,
         "bins": conf_bins, 
+        "bin_measures": bin_avg_metric,
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,
         "bin_scores": rece_per_bin,
-        "confs_per_bin": confs_per_bin
+        "confs_per_bin": confs_per_bin,
+        "measures_per_bin": metrics_per_bin,
+        "label-wise": False
     }
-
-    if class_type == "Multi-class":
-        cal_info["bin_accs"] = bin_avg_metric
-        cal_info["accs_per_bin"] = metrics_per_bin
-    else:
-        cal_info["bin_freqs"] = bin_avg_metric
-        cal_info["freqs_per_bin"] = metrics_per_bin
 
     return cal_info
     

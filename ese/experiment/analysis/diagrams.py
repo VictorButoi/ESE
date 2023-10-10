@@ -19,12 +19,12 @@ def subject_diagram(
     num_bins: int,
     metric_cfg: dict,
     class_type: Literal["Binary", "Multi-class"],
+    plot_type: Literal["bar", "line"] = "bar",
     num_subjects: int = 10,
     bin_weighting: str = "proportional",
     include_background: bool = True,
-    show_bin_amounts: bool = False,
     show_analysis_plots: bool = True,
-    remove_empty_bins: bool = True,
+    show_error_maps: bool = True
     ) -> None:
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
@@ -35,8 +35,15 @@ def subject_diagram(
     # Dimensions of the plots
     width_per_plot = 8
     height_per_plot = 7
-    num_rows = 3 
     num_cols = 4 
+    
+    # Determine the number of plots
+    num_plots = 4 + len(metric_cfg)
+    if show_analysis_plots:
+        num_plots += 2
+    if show_error_maps:
+        num_plots += 2
+    num_rows = int(np.ceil(num_plots / num_cols))
 
     # Shorten the total subject list (to save time).
     subject_list = subject_list[:num_subjects]
@@ -63,7 +70,7 @@ def subject_diagram(
             ax.axis("off")
 
         #########################################################
-        # ROW THREE
+        # ROW ONE 
         #########################################################
 
         # Define subject name and plot the image
@@ -94,20 +101,11 @@ def subject_diagram(
         )
 
         #########################################################
-        # ROW TwO 
-        #########################################################
 
-        # Show different kinds of statistics about your subjects.
-        # if show_analysis_plots:
-        #     analysis_plots.plot_error_vs_numbins(
-        #         subj=subj,
-        #         metric_cfg=metric_cfg,
-        #         bin_weighting=bin_weighting,
-        #         ax=axarr[1, 0]
-        #     )
         # Plot the different reliability diagrams for our different
         # metrics.
-        for m_idx, cal_metric in enumerate(metric_cfg):
+        plot_counter = 4
+        for cal_metric in metric_cfg:
             # Plot reliability diagram with precision on y.
             reliability_plots.plot_subj_reliability_diagram(
                 num_bins=num_bins,
@@ -115,16 +113,13 @@ def subject_diagram(
                 metric_name=cal_metric,
                 metric_dict=metric_cfg[cal_metric],
                 class_type=class_type,
+                plot_type=plot_type,
                 bin_weighting=bin_weighting,
-                remove_empty_bins=remove_empty_bins,
                 include_background=include_background,
-                show_bin_amounts=show_bin_amounts,
-                ax=axarr[1, m_idx]
+                ax=axarr[plot_counter // num_cols, plot_counter % num_cols]
             )
+            plot_counter += 1
 
-        #########################################################
-        # ROW THREE
-        #########################################################
         # Show some statistics about what happens when number of bins change.
         if show_analysis_plots:
             # Show the variance of the confidences for pixel samples in the bin.
@@ -132,32 +127,38 @@ def subject_diagram(
                 subj=subj,
                 metric_cfg=metric_cfg,
                 bin_weighting=bin_weighting,
-                ax=axarr[2, 0] 
+                ax=axarr[plot_counter // num_cols, plot_counter % num_cols] 
             )
+            plot_counter += 1
             # Show the variance of the confidences for pixel samples in the bin.
             analysis_plots.plot_avg_variance_vs_numbins(
                 subj=subj,
                 metric_cfg=metric_cfg,
                 bin_weighting=bin_weighting,
-                ax=axarr[2, 1] 
+                ax=axarr[plot_counter // num_cols, plot_counter % num_cols] 
             )
-        # Show a more per-pixel calibration error for each region.
-        error_maps.plot_ece_map(
-            subj=subj,
-            include_background=include_background,
-            class_type=class_type,
-            fig=f,
-            ax=axarr[2, 2],
-        )
-        # Show a more per-pixel calibration error for each region.
-        error_maps.plot_rece_map(
-            subj=subj,
-            num_bins=num_bins,
-            include_background=include_background,
-            class_type=class_type,
-            fig=f,
-            ax=axarr[2, 3],
-        )
+            plot_counter += 1
+
+        if show_error_maps:
+            # Show a more per-pixel calibration error for each region.
+            error_maps.plot_ece_map(
+                subj=subj,
+                include_background=include_background,
+                class_type=class_type,
+                fig=f,
+                ax=axarr[plot_counter // num_cols, plot_counter % num_cols] 
+            )
+            plot_counter += 1
+            # Show a more per-pixel calibration error for each region.
+            error_maps.plot_rece_map(
+                subj=subj,
+                num_bins=num_bins,
+                include_background=include_background,
+                class_type=class_type,
+                fig=f,
+                ax=axarr[plot_counter // num_cols, plot_counter % num_cols] 
+            )
+            plot_counter += 1
         
         # Adjust vertical spacing between the subplots
         plt.subplots_adjust(hspace=0.3)
@@ -199,7 +200,7 @@ def aggregate_reliability_diagram(
                 num_bins=num_bins,
                 conf_map=subj["conf_map"],
                 pred_map=subj["pred_map"],
-                label=subj["label"],
+                label_map=subj["label"],
                 class_type=class_type,
                 weighting=bin_weighting,
                 include_background=include_background
