@@ -6,14 +6,11 @@ import pandas as pd
 from tqdm import tqdm
 from typing import Any, Optional
 from pydantic import validate_arguments
-
 # torch imports
 import torch
 from torch.utils.data import DataLoader
-
 # local imports
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
-
 # ionpy imports
 from ionpy.analysis import ResultsLoader
 from ionpy.metrics import dice_score, pixel_accuracy
@@ -234,7 +231,7 @@ def get_calibration_item_info(
                 "accuracy": acc,
                 "bin_weighting": bin_weighting,
                 "cal_metric": cal_metric,
-                "cal_score": calibration_info["score"],
+                "cal_score": calibration_info["cal_score"],
                 "class_type": cfg["calibration"]["class_type"],
                 "data_idx": data_idx,
                 "dataset": cfg["dataset"]["_class"],

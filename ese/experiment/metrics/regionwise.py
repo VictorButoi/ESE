@@ -107,7 +107,7 @@ def ReCE(
         )
     
     cal_info = {
-        "score": rece_score,
+        "cal_score": rece_score,
         "bins": conf_bins, 
         "bin_widths": conf_bin_widths, 
         "bin_amounts": bin_amounts,

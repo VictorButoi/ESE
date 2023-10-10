@@ -23,7 +23,7 @@ def reliability_diagram(
     show_diagonal: bool
 ):
     # Add the metric to the title
-    title += f"{metric_name}: {calibration_info['score']:.5f} ({bin_weighting})"
+    title += f"{metric_name}: {calibration_info['cal_score']:.5f} ({bin_weighting})"
 
     # Make sure to only use bins where the bin amounts are non-zero
     non_empty_bins = (calibration_info["bin_amounts"] != 0)
