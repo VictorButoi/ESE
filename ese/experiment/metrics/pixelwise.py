@@ -1,5 +1,5 @@
 # local imports
-from .utils import get_bins, reduce_scores, process_for_scoring, get_conf_region
+from .utils import get_bins, reduce_scores, process_for_scoring, get_conf_region, init_stat_tracker
 from .bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
@@ -157,15 +157,17 @@ def CW_ECE(
     )
 
     # Finally, get the ECE score.
-    num_labels = len(cal_info["bin_cal_scores"])
+    num_labels = len(cal_info["lab_bin_cal_scores"])
     ece_per_label = torch.zeros(num_labels)
+
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
         ece_per_label[lab_idx] = reduce_scores(
-            score_per_bin=cal_info["bin_cal_scores"][lab_idx], 
-            amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
+            score_per_bin=cal_info["lab_bin_cal_scores"][lab_idx], 
+            amounts_per_bin=cal_info["lab_bin_amounts"][lab_idx], 
             weighting=weighting
             )
+
     # Calculate tl-ece as label-weighted sum of ece per label.
     cal_info['cal_score'] = ece_per_label.mean()
 
@@ -240,7 +242,6 @@ def Island_ECE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins,
@@ -248,7 +249,6 @@ def Island_ECE(
         class_type=class_type,
         include_background=include_background, 
         )
-
     # Process the inputs for scoring
     conf_map, pred_map, label_map = process_for_scoring(
         conf_map=conf_map, 
@@ -258,75 +258,56 @@ def Island_ECE(
         min_confidence=min_confidence,
         include_background=include_background, 
     )
-
     # Keep track of different things for each bin.
-    rece_per_bin, bin_avg_metric, bin_amounts = torch.zeros(num_bins), torch.zeros(num_bins), torch.zeros(num_bins)
-    metrics_per_bin, confs_per_bin = {}, {}
-
+    cal_info = init_stat_tracker(
+        num_bins=num_bins,
+        label_wise=False,
+        ) 
+    cal_info["bins"] = conf_bins
+    cal_info["bin_widths"] = conf_bin_widths
     # Go through each bin, starting at the back so that we don't have to run connected components
     for bin_idx, conf_bin in enumerate(conf_bins):
-        
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
-
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
-
             # If we are not the last bin, get the connected components.
             conf_islands = get_connected_components(bin_conf_region)
-
             # Iterate through each island, and get the measure for each island.
             num_islands = len(conf_islands)
             region_metrics = torch.zeros(num_islands)
             region_confs = torch.zeros(num_islands)
-
             # Iterate through each island, and get the measure for each island.
             for isl_idx, island in enumerate(conf_islands):
                 # Get the island primitives
                 region_conf_map = conf_map[island]                
                 region_pred_map = pred_map[island]
                 region_label = label_map[island]
-
                 # Calculate the average score for the regions in the bin.
                 if class_type == "Multi-class":
                     region_metrics[isl_idx] = pixel_accuracy(region_pred_map, region_label)
                 else:
                     region_metrics[isl_idx] = pixel_precision(region_pred_map, region_label)
-
                 # Record the confidences
                 region_confs[isl_idx] = region_conf_map.mean()
-            
             # Get the accumulate metrics from all the islands
-            avg_bin_metric = region_metrics.mean()
             avg_bin_conf = region_confs.mean()
-            
+            avg_bin_metric = region_metrics.mean()
             # Calculate the average calibration error for the regions in the bin.
-            rece_per_bin[bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
-            bin_avg_metric[bin_idx] = avg_bin_metric
-            bin_amounts[bin_idx] = num_islands
-
+            cal_info["bin_confs"][bin_idx] = avg_bin_conf 
+            cal_info["bin_amounts"][bin_idx] = num_islands
+            cal_info["bin_measures"][bin_idx] = avg_bin_metric
+            cal_info["bin_cal_scores"][bin_idx] = (avg_bin_conf - avg_bin_metric).abs()
             # Now we put the ISLAND values for the accumulation
-            metrics_per_bin[bin_idx] = region_metrics
-            confs_per_bin[bin_idx] = region_confs
-
+            cal_info["confs_per_bin"][bin_idx] = region_confs
+            cal_info["measures_per_bin"][bin_idx] = region_metrics
     # Finally, get the ReCE score.
     rece_score = reduce_scores(
-        score_per_bin=rece_per_bin, 
-        amounts_per_bin=bin_amounts, 
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
+    cal_info["cal_score"] = rece_score
     
-    cal_info = {
-        "cal_score": rece_score,
-        "bins": conf_bins, 
-        "bin_measures": bin_avg_metric,
-        "bin_widths": conf_bin_widths, 
-        "bin_amounts": bin_amounts,
-        "bin_scores": rece_per_bin,
-        "confs_per_bin": confs_per_bin,
-        "measures_per_bin": metrics_per_bin,
-        "label-wise": False
-    }
-
     return cal_info
     

@@ -1,7 +1,42 @@
 # misc imports
 import torch
-from typing import Optional, Literal
 from pydantic import validate_arguments
+from typing import Optional, Literal, List
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def init_stat_tracker(
+    num_bins: int,
+    label_wise: bool,
+    labels: Optional[List[int]] = None,
+    ) -> dict:
+    """
+    Initialize the dictionary that will hold the statistics for each bin.
+    """
+    # Initialize the dictionary that will hold the statistics for each bin.
+    if label_wise:
+        num_labels = len(labels)
+        bin_stats = {
+            "lab_bin_cal_scores": torch.zeros((num_labels, num_bins)),
+            "lab_bin_measures": torch.zeros((num_labels, num_bins)),
+            "lab_bin_confs": torch.zeros((num_labels, num_bins)),
+            "lab_bin_amounts": torch.zeros((num_labels, num_bins)),
+            "lab_measures_per_bin": {lab: {} for lab in labels},
+            "lab_confs_per_bin": {lab: {} for lab in labels},
+        }
+    else:
+        bin_stats = {
+            "bin_cal_scores": torch.zeros(num_bins),
+            "bin_measures": torch.zeros(num_bins),
+            "bin_confs": torch.zeros(num_bins),
+            "bin_amounts": torch.zeros(num_bins),
+            "measures_per_bin": {},
+            "confs_per_bin": {},
+        }
+    # Track if the bins are label-wise or not.
+    bin_stats["label-wise"] = label_wise
+
+    return bin_stats
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
