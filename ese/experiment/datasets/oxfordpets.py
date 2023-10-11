@@ -14,10 +14,10 @@ from ionpy.util.validation import validate_arguments_init
 @dataclass
 class OxfordPets(ThunderDataset, DatapathMixin):
 
+    split: Literal["train", "cal", "val", "test"]
     version: float = 0.2
     preload: bool = False
     num_classes: Any = "all" 
-    split: Literal["train", "cal", "val", "test"]
     transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
