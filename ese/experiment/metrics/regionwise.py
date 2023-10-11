@@ -87,11 +87,11 @@ def ReCE(
             cal_info["confs_per_bin"][bin_idx] = region_confs
             cal_info["measures_per_bin"][bin_idx] = region_measures
     # Finally, get the ReCE score.
-    rece_score = reduce_scores(
+    cal_info["cal_score"] = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-    cal_info["cal_score"] = rece_score
+    # Return the calibration information.
     return cal_info
     

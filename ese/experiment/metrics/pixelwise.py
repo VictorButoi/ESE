@@ -46,13 +46,13 @@ def ECE(
         min_confidence=min_confidence,
         include_background=include_background
     )
-    # Finally, get the ECE score.
-    ece = reduce_scores(
+    # Finally, get the calibration score.
+    cal_info['cal_score'] = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-    cal_info['cal_score'] = ece 
+    # Return the calibration information
     return cal_info
 
 
@@ -103,8 +103,9 @@ def TL_ECE(
             weighting=weighting
             )
         w_ece_per_label[lab_idx] = lab_amounts[lab_idx] * lab_ece
-    # Calculate tl-ece as label-weighted sum of ece per label.
+    # Finally, get the calibration score.
     cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
+    # Return the calibration information
     return cal_info
 
 
@@ -153,8 +154,9 @@ def CW_ECE(
             amounts_per_bin=cal_info["lab_bin_amounts"][lab_idx], 
             weighting=weighting
             )
-    # Calculate tl-ece as label-weighted sum of ece per label.
+    # Finally, get the calibration score.
     cal_info['cal_score'] = ece_per_label.sum() / num_labels
+    # Return the calibration information
     return cal_info
 
 
@@ -195,13 +197,13 @@ def ACE(
         min_confidence=min_confidence,
         include_background=include_background
     )
-    # Finally, get the ECE score.
-    ace = reduce_scores(
+    # Finally, get the calibration score.
+    cal_info['cal_score'] = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-    cal_info['cal_score'] = ace 
+    # Return the calibration information
     return cal_info
 
 
@@ -282,11 +284,11 @@ def Island_ECE(
             cal_info["confs_per_bin"][bin_idx] = region_confs
             cal_info["measures_per_bin"][bin_idx] = region_metrics
     # Finally, get the ReCE score.
-    rece_score = reduce_scores(
+    cal_info["cal_score"] = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-    cal_info["cal_score"] = rece_score
+    # Return the calibration information
     return cal_info
     
