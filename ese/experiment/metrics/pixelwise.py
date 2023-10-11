@@ -92,9 +92,9 @@ def TL_ECE(
         min_confidence=min_confidence,
     )
     # Finally, get the ECE score.
-    w_ece_per_label = torch.zeros(num_labels)
     num_labels = len(cal_info["lab_bin_cal_scores"])
     lab_amounts = cal_info['lab_bin_amounts'].sum(dim=1)
+    w_ece_per_label = torch.zeros(num_labels)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
         lab_ece = reduce_scores(
@@ -154,7 +154,7 @@ def CW_ECE(
             weighting=weighting
             )
     # Calculate tl-ece as label-weighted sum of ece per label.
-    cal_info['cal_score'] = ece_per_label.mean()
+    cal_info['cal_score'] = ece_per_label.sum() / num_labels
     return cal_info
 
 
