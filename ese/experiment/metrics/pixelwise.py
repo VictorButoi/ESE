@@ -27,7 +27,6 @@ def ECE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins,
@@ -35,7 +34,6 @@ def ECE(
         include_background=include_background, 
         class_type=class_type
         )
-
     # Keep track of different things for each bin.
     cal_info = gather_pixelwise_bin_stats(
         num_bins=num_bins,
@@ -48,7 +46,6 @@ def ECE(
         min_confidence=min_confidence,
         include_background=include_background
     )
-
     # Finally, get the ECE score.
     ece = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
@@ -56,7 +53,6 @@ def ECE(
         weighting=weighting
         )
     cal_info['cal_score'] = ece 
-
     return cal_info
 
 
@@ -77,7 +73,6 @@ def TL_ECE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins,
@@ -85,7 +80,6 @@ def TL_ECE(
         include_background=include_background, 
         class_type=class_type
         )
-
     # Keep track of different things for each bin.
     cal_info = gather_labelwise_pixelwise_bin_stats(
         num_bins=num_bins,
@@ -97,12 +91,10 @@ def TL_ECE(
         class_type=class_type,
         min_confidence=min_confidence,
     )
-
     # Finally, get the ECE score.
-    num_labels = len(cal_info["lab_bin_cal_scores"])
     w_ece_per_label = torch.zeros(num_labels)
+    num_labels = len(cal_info["lab_bin_cal_scores"])
     lab_amounts = cal_info['lab_bin_amounts'].sum(dim=1)
-
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
         lab_ece = reduce_scores(
@@ -110,11 +102,9 @@ def TL_ECE(
             amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
             weighting=weighting
             )
-        w_ece_per_label[lab_idx] = lab_ece * lab_amounts[lab_idx]
-
+        w_ece_per_label[lab_idx] = lab_amounts[lab_idx] * lab_ece
     # Calculate tl-ece as label-weighted sum of ece per label.
     cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
-        
     return cal_info
 
 
@@ -135,7 +125,6 @@ def CW_ECE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins,
@@ -143,7 +132,6 @@ def CW_ECE(
         include_background=include_background, 
         class_type=class_type
         )
-
     # Keep track of different things for each bin.
     cal_info = gather_labelwise_pixelwise_bin_stats(
         num_bins=num_bins,
@@ -155,11 +143,9 @@ def CW_ECE(
         class_type=class_type,
         min_confidence=min_confidence,
     )
-
     # Finally, get the ECE score.
     num_labels = len(cal_info["lab_bin_cal_scores"])
     ece_per_label = torch.zeros(num_labels)
-
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
         ece_per_label[lab_idx] = reduce_scores(
@@ -167,10 +153,8 @@ def CW_ECE(
             amounts_per_bin=cal_info["lab_bin_amounts"][lab_idx], 
             weighting=weighting
             )
-
     # Calculate tl-ece as label-weighted sum of ece per label.
     cal_info['cal_score'] = ece_per_label.mean()
-
     return cal_info
 
 
@@ -191,7 +175,6 @@ def ACE(
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     if class_type == "Multi-class": 
         assert include_background, "Background must be included for multi-class."
-
     # Create the adaptive confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -200,7 +183,6 @@ def ACE(
         class_type=class_type,
         conf_map=conf_map
         )
-
     # Keep track of different things for each bin.
     cal_info = gather_pixelwise_bin_stats(
         num_bins=num_bins,
@@ -213,7 +195,6 @@ def ACE(
         min_confidence=min_confidence,
         include_background=include_background
     )
-
     # Finally, get the ECE score.
     ace = reduce_scores(
         score_per_bin=cal_info["bin_cal_scores"], 
@@ -221,7 +202,6 @@ def ACE(
         weighting=weighting
         )
     cal_info['cal_score'] = ace 
-
     return cal_info
 
 
@@ -308,6 +288,5 @@ def Island_ECE(
         weighting=weighting
         )
     cal_info["cal_score"] = rece_score
-    
     return cal_info
     

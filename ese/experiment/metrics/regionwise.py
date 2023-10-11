@@ -1,11 +1,9 @@
 # local imports
 from .utils import get_bins, get_conf_region, process_for_scoring, reduce_scores, init_stat_tracker
-
 # misc imports
 import torch
 from typing import Literal, Tuple
 from pydantic import validate_arguments
-
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
