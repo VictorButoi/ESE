@@ -6,6 +6,7 @@ from thunderpack import ThunderDB
 from tqdm import tqdm
 import cv2
 from PIL import Image
+from ionpy.util import Config
 
 from typing import List, Tuple
 from sklearn.model_selection import train_test_split
@@ -83,90 +84,71 @@ def shrink_boundary(binary_mask, pixels=15):
 
 
 def proc_CityScapes(
-        data_root, 
-        version,
-        show=False, 
-        save=False,
-        num_examples=5
+        cfg: Config
         ):
 
+    config = cfg.to_dict()
+
     # Where the data is 
-    img_root = data_root / "images"
-    mask_root = data_root / "annotations" / "trimaps"
+    data_root = pathlib.Path(config['data_root'])
+    img_root = data_root / "leftImg8bit"
+    mask_root = data_root / "gtFine"
 
     # This is where we will save the processed data
-    proc_root = pathlib.Path(f"{data_root}/processed/{version}") 
-    
-    # label dict
-    lab_dict = {
-        1: 1,
-        2: 0,
-        3: 2
-    }
+    proc_root = data_root / "processed" / str(config['version'])
 
     ex_counter = 0
-    for example in tqdm(img_root.iterdir(), total=len(list(img_root.iterdir()))):
+    for split_dir in tqdm(img_root.iterdir(), total=len(list(img_root.iterdir()))):
+        for city_center_dir in tqdm(split_dir.iterdir(), total=len(list(split_dir.iterdir()))):
+            for example_dir in city_center_dir.iterdir():
+                # Read the image and label
+                try:
+                    label_dir = mask_root / split_dir.name / city_center_dir.name / example_dir.name.replace("leftImg8bit", "gtFine_labelIds")
 
-        # Define the dirs
-        img_dir = img_root / example.name
+                    img = np.array(Image.open(example_dir))
+                    label = np.array(Image.open(label_dir))
 
-        # Read the image and label
-        try:
-            ex_counter += 1
-            
-            label_dir = mask_root / example.name.replace(".jpg", ".png")
-            big_img = np.array(Image.open(img_dir))
+                    if config["show_examples"]:
+                        f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
 
-            old_label = np.array(Image.open(label_dir))
+                        # Show the original label
+                        im = axarr[0].imshow(img, interpolation='None')
+                        axarr[0].set_title("Image")
+                        f.colorbar(im, ax=axarr[0])
+                        
+                        # Show thew new label
+                        axarr[1].imshow(img)
+                        nl = axarr[1].imshow(label, alpha=0.5, interpolation='None')
+                        axarr[1].set_title("Image + Mask")
+                        f.colorbar(nl, ax=axarr[1])
 
-            for lab in lab_dict.keys():
-                old_label[old_label == lab] = lab_dict[lab]
+                        # Show thew new label
+                        lb = axarr[2].imshow(label, interpolation='None')
+                        axarr[2].set_title("Mask Only")
+                        f.colorbar(lb, ax=axarr[2])
+                        
+                        plt.show()
 
-            # Shrink the boundary and this is the label
-            big_label = shrink_boundary(old_label) 
+                        if ex_counter > config["num_examples_to_show"]:   
+                            break
+                        # Only count examples if showing examples
+                        ex_counter += 1
 
-            # resize img and label
-            img = resize_with_aspect_ratio(big_img)
-            label = resize_with_aspect_ratio(big_label).astype(int)
+                    if config["save"]:
+                        example_name = "_".join(example_dir.name.split("_")[:-1])
+                        save_root = proc_root / split_dir.name/ example_name
+                        
+                        if not save_root.exists():
+                            save_root.mkdir(parents=True)
 
-            if show:
-                f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
+                        img_save_dir = save_root / "image.npy"
+                        label_save_dir = save_root / "label.npy"
 
-                # Show the original label
-                im = axarr[0].imshow(img, interpolation='None')
-                axarr[0].set_title("Image")
-                f.colorbar(im, ax=axarr[0])
-                
-                # Show thew new label
-                axarr[1].imshow(img)
-                nl = axarr[1].imshow(label, alpha=0.5, interpolation='None')
-                axarr[1].set_title("Image + Mask")
-                f.colorbar(nl, ax=axarr[1])
+                        np.save(img_save_dir, img)
+                        np.save(label_save_dir, label)
 
-                # Show thew new label
-                lb = axarr[2].imshow(label, alpha=0.5, interpolation='None', cmap='gray')
-                axarr[2].set_title("Mask Only")
-                f.colorbar(lb, ax=axarr[2])
-                
-                plt.show()
-
-                if ex_counter > num_examples:   
-                    break
-
-            if save:
-                save_root = proc_root / (example.name).split(".")[0]
-                
-                if not save_root.exists():
-                    save_root.mkdir(parents=True)
-
-                img_save_dir = save_root / "image.npy"
-                label_save_dir = save_root / "label.npy"
-
-                np.save(img_save_dir, img)
-                np.save(label_save_dir, label)
-        
-        except Exception as e:
-            print(f"Error with {example.name}: {e}. Skipping")
+                except Exception as e:
+                    print(f"Error with {example_dir.name}: {e}. Skipping")
 
 @validate_arguments
 def data_splits(
