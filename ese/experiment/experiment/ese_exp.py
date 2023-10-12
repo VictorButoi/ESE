@@ -84,7 +84,7 @@ class CalibrationExperiment(TrainExperiment):
         else:
             self.loss_func = eval_config(self.config["loss_func"])
     
-    def run_step(self, batch_idx, batch, backward=True, augmentation=False, epoch=None, phase=None):
+    def run_step(self, batch_idx, batch, backward, augmentation, epoch=None, phase=None):
 
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
@@ -95,8 +95,9 @@ class CalibrationExperiment(TrainExperiment):
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
 
         # Add augmentation to image and label.
-        with torch.no_grad():
-            x, y = self.aug_pipeline(x, y)
+        if augmentation:
+            with torch.no_grad():
+                x, y = self.aug_pipeline(x, y)
 
         # Forward pass
         yhat = self.model(x)
