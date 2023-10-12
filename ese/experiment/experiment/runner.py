@@ -38,8 +38,8 @@ def run_ese_exp(
 
     # Run the experiment.
     slite.run_exp(
-        config=Config(cfg), 
         exp_class=CalibrationExperiment,
+        exp_object=Config(cfg), 
         gpu=gpu,
     )
 
