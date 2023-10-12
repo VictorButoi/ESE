@@ -1,5 +1,5 @@
 # local imports
-from .utils import get_bins, get_conf_region, process_for_scoring, reduce_scores, init_stat_tracker
+from ..utils.utils import get_bins, get_conf_region, process_for_scoring, reduce_scores, init_stat_tracker
 # misc imports
 import torch
 from typing import Literal, Tuple

@@ -1,6 +1,6 @@
 # local imports
-from .utils import get_bins, reduce_scores, process_for_scoring, get_conf_region, init_stat_tracker
-from .bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
+from ..utils.utils import get_bins, reduce_scores, process_for_scoring, get_conf_region, init_stat_tracker
+from ..bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
