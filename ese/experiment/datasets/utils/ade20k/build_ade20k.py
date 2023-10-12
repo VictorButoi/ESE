@@ -10,6 +10,7 @@ from ionpy.util import Config
 
 from typing import List, Tuple
 from sklearn.model_selection import train_test_split
+from .ade_utils import convertFromADE
 from pydantic import validate_arguments
 
 
@@ -131,9 +132,11 @@ def proc_ADE20K(
                 # get all of the files in scene_dir that end in .jpg
                 for image_dir in list(scene_dir.glob("*.jpg")):
                     try:
-                        img = np.array(Image.open(image_dir))
+                        raw_img = np.array(Image.open(image_dir))
                         label_dir = image_dir.parent / image_dir.name.replace(".jpg", "_seg.png")
-                        label = np.array(Image.open(label_dir))
+                        raw_lab = np.array(Image.open(label_dir))
+                        img, label = convertFromADE(raw_img, raw_lab)
+                        assert img.shape[:2] == label.shape.shape[:2], "Image and Labels should have the same shape."
 
                         if config["show_examples"]:
                             f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
@@ -173,7 +176,6 @@ def proc_ADE20K(
 
                             np.save(img_save_dir, img)
                             np.save(label_save_dir, label)
-
                     except Exception as e:
                         print(f"Error with {image_dir.name}: {e}. Skipping")
 
@@ -181,61 +183,69 @@ def proc_ADE20K(
 def thunderify_ADE20K(
     cfg: Config
 ):
+    # Get the configk
     config = cfg.to_dict()
-    # Append version to our paths
-    proc_root = pathlib.Path(config["proc_root"]) / str(config["version"])
-    dst_dir = pathlib.Path(config["dst_dir"]) / str(config["version"])
+    # Where the data is 
+    data_root = pathlib.Path(config['data_root'])
+    img_root = data_root / "ADE20K_2021_17_01/images/ADE"
 
+    dst_dir = pathlib.Path(config["dst_dir"]) / str(config["version"])
     # Append version to our paths
     splits_seed = 42
-
     # Iterate through each datacenter, axis  and build it as a task
     with ThunderDB.open(str(dst_dir), "c") as db:
-
         # Key track of the ids
         example_dict = {} 
         # Iterate through the examples.
-        for split_dir in proc_root.iterdir():
-            print("Doing split", split_dir.name)
+        for split_dir in tqdm(img_root.iterdir(), total=len(list(img_root.iterdir()))):
             example_dict[split_dir.name] = []
-            for example_dir in tqdm(split_dir.iterdir(), total=len(list(split_dir.iterdir()))):
-                # Example name
-                key = example_dir.name
-                # Paths to the image and segmentation
-                img_dir = example_dir / "image.npy"
-                seg_dir = example_dir / "label.npy"
-                try:
-                    # Load the image and segmentation.
-                    img = np.load(img_dir)
-                    img = img.transpose(2, 0, 1)
-                    seg = np.load(seg_dir)
-                    
-                    # Convert to the right type
-                    img = img.astype(np.float32)
-                    seg = seg.astype(np.int64)
+            print(f"Processing {split_dir.name}")
+            for scene_type_dir in split_dir.iterdir():
+                print(f"Processing {scene_type_dir.name}")
+                for scene_dir in scene_type_dir.iterdir():
+                    print(f"Processing {scene_dir.name}")
+                    # get all of the files in scene_dir that end in .jpg
+                    for image_dir in list(scene_dir.glob("*.jpg")):
+                        try:
+                            # Example name
+                            # load the image and label
+                            raw_img = np.array(Image.open(image_dir))
+                            label_dir = image_dir.parent / image_dir.name.replace(".jpg", "_seg.png")
+                            raw_lab = np.array(Image.open(label_dir))
+                            img, seg = convertFromADE(raw_img, raw_lab)
+                            assert img.shape[:2] == seg.shape[:2], "Image and Labels should have the same shape."
+                            # Convert to the right type
+                            img = img.astype(np.float32).transpose(2, 0, 1)
+                            seg = seg.astype(np.int64)
+                            H, W = seg.shape
 
-                    assert img.shape == (3, 1024, 2048), f"Image shape isn't correct, got {img.shape}"
-                    assert seg.shape == (1024, 2048), f"Seg shape isn't correct, got {seg.shape}"
-                    assert np.count_nonzero(seg) > 0, "Label can't be empty."
-                    
-                    # Save the datapoint to the database
-                    db[key] = (img, seg) 
-                    example_dict[split_dir.name].append(key)   
-                except Exception as e:
-                    print(f"Error with {key}: {e}. Skipping")
+                            assert img.shape == (3, H, W), f"Image shape isn't correct, got {img.shape}"
+                            assert seg.shape == (H, W), f"Seg shape isn't correct, got {seg.shape}"
+                            assert np.count_nonzero(seg) > 0, "Label can't be empty."
+
+                            # Save the datapoint to the database
+                            example_name = scene_type_dir.name + "_" + scene_dir.name + "_" + image_dir.with_suffix('').name.split("_")[-1]
+                            key = example_name
+
+                            db[key] = (img, seg) 
+                            example_dict[split_dir.name].append(key)   
+                        except Exception as e:
+                            print(f"Error with {key}: {e}. Skipping")
 
         # Split the data into train, cal, val, test
         train_examples = sorted(example_dict["train"])
-        valcal_examples = sorted(example_dict["val"])
+        valcaltest_examples = sorted(example_dict["val"])
+
+        valcal_examples, test_examples = train_test_split(valcaltest_examples, test_size=0.25, random_state=splits_seed)
         val_examples, cal_examples = train_test_split(valcal_examples, test_size=0.5, random_state=splits_seed)
-        test_examples = sorted(example_dict["test"])
 
         # Accumulate the examples
         examples = train_examples + val_examples + cal_examples + test_examples
 
         # Extract the ids
-        data_ids = ["_".join(ex.split("_")[1:]) for ex in examples]
-        cities = [ex.split("_")[0] for ex in examples]
+        data_ids = [ex.split("_")[-1] for ex in examples]
+        scene_type = [ex.split("_")[0] for ex in examples]
+        scene = ["".join(ex.split("_")[1:-1]) for ex in examples]
 
         splits = {
             "train": train_examples,
@@ -248,7 +258,8 @@ def thunderify_ADE20K(
         db["_examples"] = examples 
         db["_samples"] = examples 
         db["_ids"] = data_ids 
-        db["_cities"] = cities 
+        db["_scene_type"] = scene_type 
+        db["_scene"] = scene 
         db["_splits"] = splits
         attrs = dict(
             dataset="CityScapes",

@@ -107,6 +107,8 @@ def proc_CityScapes(
 
                     img = np.array(Image.open(example_dir))
                     label = np.array(Image.open(label_dir))
+                    print("Img shape: ", img.shape)
+                    print("Label shape: ", label.shape)
 
                     if config["show_examples"]:
                         f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
