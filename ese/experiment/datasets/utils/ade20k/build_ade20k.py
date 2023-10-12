@@ -83,6 +83,36 @@ def shrink_boundary(binary_mask, pixels=15):
     return eroded
 
 
+@validate_arguments
+def data_splits(
+    values: List[str], 
+    splits: Tuple[float, float, float, float], 
+    seed: int
+) -> Tuple[List[str], List[str], List[str], List[str]]:
+
+    if len(set(values)) != len(values):
+        raise ValueError(f"Duplicate entries found in values")
+
+    # Super weird bug, removing for now, add up to 1!
+    # if (s := sum(splits)) != 1.0:
+    #     raise ValueError(f"Splits must add up to 1.0, got {splits}->{s}")
+
+    train_size, cal_size, val_size, test_size = splits
+    values = sorted(values)
+    # First get the size of the test splut
+    traincalval, test = train_test_split(values, test_size=test_size, random_state=seed)
+    # Next size of the val split
+    val_ratio = val_size / (train_size + cal_size + val_size)
+    traincal, val = train_test_split(traincalval, test_size=val_ratio, random_state=seed)
+    # Next size of the cal split
+    cal_ratio = cal_size / (train_size + cal_size)
+    train, cal = train_test_split(traincal, test_size=cal_ratio, random_state=seed)
+
+    assert sorted(train + cal + val + test) == values, "Missing Values"
+
+    return (train, cal, val, test)
+
+
 def proc_ADE20K(
         cfg: Config,
         num_examples_to_show: int = 10
@@ -146,35 +176,6 @@ def proc_ADE20K(
 
                     except Exception as e:
                         print(f"Error with {image_dir.name}: {e}. Skipping")
-
-@validate_arguments
-def data_splits(
-    values: List[str], 
-    splits: Tuple[float, float, float, float], 
-    seed: int
-) -> Tuple[List[str], List[str], List[str], List[str]]:
-
-    if len(set(values)) != len(values):
-        raise ValueError(f"Duplicate entries found in values")
-
-    # Super weird bug, removing for now, add up to 1!
-    # if (s := sum(splits)) != 1.0:
-    #     raise ValueError(f"Splits must add up to 1.0, got {splits}->{s}")
-
-    train_size, cal_size, val_size, test_size = splits
-    values = sorted(values)
-    # First get the size of the test splut
-    traincalval, test = train_test_split(values, test_size=test_size, random_state=seed)
-    # Next size of the val split
-    val_ratio = val_size / (train_size + cal_size + val_size)
-    traincal, val = train_test_split(traincalval, test_size=val_ratio, random_state=seed)
-    # Next size of the cal split
-    cal_ratio = cal_size / (train_size + cal_size)
-    train, cal = train_test_split(traincal, test_size=cal_ratio, random_state=seed)
-
-    assert sorted(train + cal + val + test) == values, "Missing Values"
-
-    return (train, cal, val, test)
 
 
 def thunderify_ADE20K(

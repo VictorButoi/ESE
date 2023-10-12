@@ -102,6 +102,7 @@ class CalibrationExperiment(TrainExperiment):
         # Forward pass
         yhat = self.model(x)
         
+        # Calculate the loss between the pred and label map
         loss = self.loss_func(yhat, y)
 
         if backward:
@@ -117,10 +118,8 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         
-        if loss < 0.5:
-            # Run step-wise callbacks if you have them.
-            self.run_callbacks("step", batch=forward_batch)
-            #raise ValueError("Loss is too low, exiting early.")
+        # Run step-wise callbacks if you have them.
+        self.run_callbacks("step", batch=forward_batch)
 
         return forward_batch
     
