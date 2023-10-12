@@ -1,1 +1,1 @@
-from .build_cityscapes import * 
+from .build_ade20k import * 

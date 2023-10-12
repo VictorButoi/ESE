@@ -83,72 +83,69 @@ def shrink_boundary(binary_mask, pixels=15):
     return eroded
 
 
-def proc_CityScapes(
-        cfg: Config
+def proc_ADE20K(
+        cfg: Config,
+        num_examples_to_show: int = 10
         ):
-
+    # Get the configk
     config = cfg.to_dict()
-
     # Where the data is 
     data_root = pathlib.Path(config['data_root'])
-    img_root = data_root / "leftImg8bit"
-    mask_root = data_root / "gtFine"
-
+    img_root = data_root / "ADE20K_2021_17_01/images/ADE"
     # This is where we will save the processed data
     proc_root = data_root / "processed" / str(config['version'])
-
     ex_counter = 0
     for split_dir in tqdm(img_root.iterdir(), total=len(list(img_root.iterdir()))):
-        for city_center_dir in tqdm(split_dir.iterdir(), total=len(list(split_dir.iterdir()))):
-            for example_dir in city_center_dir.iterdir():
-                # Read the image and label
-                try:
-                    label_dir = mask_root / split_dir.name / city_center_dir.name / example_dir.name.replace("leftImg8bit", "gtFine_labelIds")
+        for scene_type_dir in split_dir.iterdir():
+            for scene_dir in scene_type_dir.iterdir():
+                # get all of the files in scene_dir that end in .jpg
+                for image_dir in list(scene_dir.glob("*.jpg")):
+                    try:
+                        img = np.array(Image.open(image_dir))
+                        label_dir = image_dir.parent / image_dir.name.replace(".jpg", "_seg.png")
+                        label = np.array(Image.open(label_dir))
 
-                    img = np.array(Image.open(example_dir))
-                    label = np.array(Image.open(label_dir))
+                        if config["show_examples"]:
+                            f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
 
-                    if config["show_examples"]:
-                        f, axarr = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
+                            # Show the original label
+                            im = axarr[0].imshow(img, interpolation='None')
+                            axarr[0].set_title("Image")
+                            f.colorbar(im, ax=axarr[0])
+                            
+                            # Show thew new label
+                            axarr[1].imshow(img)
+                            nl = axarr[1].imshow(label, alpha=0.5, interpolation='None')
+                            axarr[1].set_title("Image + Mask")
+                            f.colorbar(nl, ax=axarr[1])
 
-                        # Show the original label
-                        im = axarr[0].imshow(img, interpolation='None')
-                        axarr[0].set_title("Image")
-                        f.colorbar(im, ax=axarr[0])
-                        
-                        # Show thew new label
-                        axarr[1].imshow(img)
-                        nl = axarr[1].imshow(label, alpha=0.5, interpolation='None')
-                        axarr[1].set_title("Image + Mask")
-                        f.colorbar(nl, ax=axarr[1])
+                            # Show thew new label
+                            lb = axarr[2].imshow(label, interpolation='None')
+                            axarr[2].set_title("Mask Only")
+                            f.colorbar(lb, ax=axarr[2])
+                            
+                            plt.show()
 
-                        # Show thew new label
-                        lb = axarr[2].imshow(label, interpolation='None')
-                        axarr[2].set_title("Mask Only")
-                        f.colorbar(lb, ax=axarr[2])
-                        
-                        plt.show()
+                            if ex_counter > num_examples_to_show:
+                                break
+                            # Only count examples if showing examples
+                            ex_counter += 1
 
-                        if ex_counter > config["num_examples_to_show"]:   
-                            break
-                        # Only count examples if showing examples
-                        ex_counter += 1
+                        if config["save"]:
+                            example_name = "_".join(image_dir.name.split("_")[:-1])
+                            save_root = proc_root / split_dir.name/ example_name
+                            
+                            if not save_root.exists():
+                                save_root.mkdir(parents=True)
 
-                    if config["save"]:
-                        example_name = "_".join(example_dir.name.split("_")[:-1])
-                        save_root = proc_root / split_dir.name/ example_name
-                        
-                        if not save_root.exists():
-                            save_root.mkdir(parents=True)
+                            img_save_dir = save_root / "image.npy"
+                            label_save_dir = save_root / "label.npy"
 
-                        img_save_dir = save_root / "image.npy"
-                        label_save_dir = save_root / "label.npy"
+                            np.save(img_save_dir, img)
+                            np.save(label_save_dir, label)
 
-                        np.save(img_save_dir, img)
-                        np.save(label_save_dir, label)
-
-                except Exception as e:
-                    print(f"Error with {example_dir.name}: {e}. Skipping")
+                    except Exception as e:
+                        print(f"Error with {image_dir.name}: {e}. Skipping")
 
 @validate_arguments
 def data_splits(
@@ -180,7 +177,7 @@ def data_splits(
     return (train, cal, val, test)
 
 
-def thunderify_CityScapes(
+def thunderify_ADE20K(
     cfg: Config
 ):
     config = cfg.to_dict()
