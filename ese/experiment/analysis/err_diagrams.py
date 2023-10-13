@@ -2,17 +2,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from scipy.integrate import quad
 from typing import List, Optional
-from scipy.stats import gaussian_kde
 from pydantic import validate_arguments
 
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def viz_accuracy_distribution(
-    data_points: List[dict]
-    ) -> None:
-    return None
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def viz_region_size_distribution(
@@ -68,4 +60,5 @@ def viz_region_size_distribution(
                               aspect=1.5)
             g = g.map(positive_kde, "region_size", common_norm=False, fill=True)
             g.add_legend()
+            plt.title(f"Label {value}")
             plt.show()

@@ -1,10 +1,11 @@
 # Misc imports
+import copy
 import einops
 import pathlib
-import copy
+import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from typing import Any, Optional
+from tqdm.notebook import tqdm
+from typing import Any, Optional, List
 from pydantic import validate_arguments
 # torch imports
 import torch
@@ -12,13 +13,38 @@ from torch.utils.data import DataLoader
 # local imports
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 # ionpy imports
-from ionpy.analysis import ResultsLoader
-from ionpy.metrics import dice_score, pixel_accuracy
-from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.util import Config
+from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.util.torchutils import to_device
+from ionpy.metrics import dice_score, pixel_accuracy
+from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_pixelinfo_df(
+    data_points: List[dict]
+    ) -> None:
+    perppixel_records = []
+    for dp in tqdm(data_points, total=len(data_points)):
+        accuracy_map = dp['perpix_accuracies']
+        perf_per_dist = dp['perf_per_dist'] 
+        perf_per_regsize = dp['perf_per_regsize'] 
+        # iterate through (x,y) positions from 0 - 255, 0 - 255
+        for (ix, iy) in np.ndindex(dp['pred_map'].shape):
+            record = {
+                "subject_id": dp['subject_id'],
+                "x": ix,
+                "y": iy,
+                "label": dp['pred_map'][ix, iy],
+                "pred": dp['pred_map'][ix, iy],
+                "accuracy": accuracy_map[ix, iy],
+                "dist_to_boundary": perf_per_dist[ix, iy],
+                "group_size": perf_per_regsize[ix, iy],
+            }
+            perppixel_records.append(record)
+    return pd.DataFrame(perppixel_records) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
