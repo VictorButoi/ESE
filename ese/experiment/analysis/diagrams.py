@@ -8,7 +8,7 @@ from typing import List, Literal
 from pydantic import validate_arguments
 
 # ese imports
-from ese.experiment.analysis.plots import analysis_plots, error_maps, reliability_plots, simple_vis
+from ese.experiment.analysis.cal_plots import analysis_plots, error_maps, reliability_plots, simple_vis
 import ese.experiment.metrics.utils.utils as metric_utils
 from ionpy.experiment.util import absolute_import
 
