@@ -6,6 +6,7 @@ from ionpy.util import Config
 import pathlib
 import numpy as np
 import os
+from tqdm import tqdm
 from thunderpack import ThunderDB
 from scipy.ndimage import zoom
 
@@ -88,118 +89,126 @@ def normalize_volume(volume):
     return np.stack([normalize_image(volume[slice_idx, ...]) for slice_idx in range(volume.shape[0])], axis=0)
 
 
+def rotate_y_axis(array):
+    array_rot_y = np.moveaxis(array, (0, 1, 2), (2, 1, 0))
+    array_rot_y = np.rot90(array_rot_y, axes=(1, 2))
+    return array_rot_y
+
+
 def proc_OASIS(
     cfg: Config     
     ):
     # Where the data is
-    proc_root = pathlib.Path(f"/storage/vbutoi/datasets/WMH/processed/{cfg['version']}") 
+    d_root = pathlib.Path(cfg["data_root"])
+    proc_root = d_root / "processed" / str(cfg['version'])
+    example_dir = d_root / "raw_files"
     # This is where we will save the processed data
-    for ud in data_dirs:
-        # Get the datacenter
-        split_args = str(ud).split("/")
-        datacenter = split_args[-2]
-        # Go through each subject
-        for subj in ud.iterdir():
-            print(subj)
-            image_dict = {}
-            # Get the slices for each modality.
-            image_dir = subj / pathlib.Path(f"pre/FLAIR.nii.gz")
-            img_volume = resample_nib(nib.load(image_dir))
-            # Rotate the volume to be properly oriented
-            rotated_volume = np.rot90(img_volume.get_fdata(), k=3, axes=(2, 0))
-            # Normalize percentile
-            lower = np.percentile(rotated_volume[rotated_volume>0], q=0.5)
-            upper = np.percentile(rotated_volume[rotated_volume>0], q=99.5)
-            clipped_volume = np.clip(rotated_volume, a_min=lower, a_max=upper)
+    for subj in tqdm(example_dir.iterdir(), total=len(list(example_dir.iterdir()))):
+        ####################################
+        # Image
+        ####################################
+        # Get the slices for each modality.
+        image_dir = subj / "aligned_norm.nii.gz"
+        img_ngz = resample_nib(nib.load(image_dir))
+        img_numpy = img_ngz.get_fdata()
+        # Rotate the volume to be properly oriented
+        # rotated_volume = np.rot90(img_volume.get_fdata(), k=3, axes=(2, 0))
+        # Make the image square
+        max_img_dim = max(img_numpy.shape)
+        sqr_img = pad_image_numpy(img_numpy, (max_img_dim, max_img_dim, max_img_dim))
+        # Resize to 256
+        zoom_factors = np.array([256, 256, 256]) / np.array(sqr_img.shape)
+        resized_img = zoom(sqr_img, zoom_factors, order=1)  # You can adjust the 'order' parameter for interpolation quality
+        # Make the type compatible
+        resized_img = resized_img.astype(np.float32)
+        # Norm the iamge volume
+        norm_img_vol = normalize_image(resized_img)
+        # Reshape by flipping z
+        flipped_img_vol = np.flip(norm_img_vol, axis=2)
+        processed_img_vol = np.rot90(flipped_img_vol, k=3, axes=(0,2))
+        for z in range(processed_img_vol.shape[2]):
+            processed_img_vol[:, :, z] = np.rot90(processed_img_vol[:, :, z], 3)
+
+        ####################################
+        # Segmentation 
+        ####################################
+        # Get the label slice
+        seg35_dir = subj / "aligned_seg35.nii.gz"
+        seg4_dir = subj / "aligned_seg4.nii.gz"
+
+        def process_OASIS_seg(label_dir, ref_image):
+            seg_ngz = resample_mask_to(nib.load(label_dir), ref_image)
+            seg_npy = seg_ngz.get_fdata()
             # Make the image square
-            max_img_dim = max(clipped_volume.shape)
-            sqr_img = pad_image_numpy(clipped_volume, (max_img_dim, max_img_dim, max_img_dim))
+            max_seg_dim = max(seg_npy.shape)
+            sqr_seg = pad_image_numpy(seg_npy, (max_seg_dim, max_seg_dim, max_seg_dim))
             # Resize to 256
-            zoom_factors = np.array([256, 256, 256]) / np.array(sqr_img.shape)
-            resized_img = zoom(sqr_img, zoom_factors, order=1)  # You can adjust the 'order' parameter for interpolation quality
-            # Make the type compatible
-            resized_img = resized_img.astype(np.float32)
-            # Store in the dictionary
-            image_dict["img"] = resized_img
-            # Get the label slice
-            if "training" in str(ud):
-                label_versions = ["observer_o12", "observer_o3", "observer_o4"]
-            else:
-                label_versions = ["observer_o12"]
-            image_dict["segs"] = {}
-            for annotator_name in label_versions:
-                # Need to acocunt for extra annotators
-                if annotator_name != "observer_o12":
-                    split_name = str(ud).split("WMH")
-                    alternate_seg = pathlib.Path(split_name[0] + f"/WMH/additional_annotations/{annotator_name}/" + split_name[1] + f"/{subj.name}")
-                    seg_dir = alternate_seg / "result.nii.gz"
-                else:
-                    seg_dir = subj / "wmh.nii.gz"
-                seg = resample_mask_to(nib.load(seg_dir), img_volume)
-                # Rotate the volume to be properly oriented
-                rotated_seg = np.rot90(seg.get_fdata(), k=3, axes=(2, 0))
-                # Do the sliceing
-                binary_seg = np.uint8(rotated_seg== 1)
-                # Make the image square
-                max_seg_dim = max(binary_seg.shape)
-                sqr_seg = pad_image_numpy(binary_seg, (max_seg_dim, max_seg_dim, max_seg_dim))
-                # Resize to 256
-                zoom_factors = np.array([256, 256, 256]) / np.array(sqr_seg.shape)
-                resized_seg = zoom(sqr_seg, zoom_factors, order=0)  # You can adjust the 'order' parameter for interpolation quality
-                # Make the type compatible
-                resized_seg = resized_seg.astype(np.float32)
-                # Store in dictionary
-                image_dict["segs"][annotator_name] = resized_seg
-            if cfg['show_examples']:
-                # Plot the slices
-                num_segs = len(image_dict["segs"].keys())
-                for major_axis in [0, 1, 2]:
-                    # Figure out how to spin the volume.
-                    all_axes = [0, 1, 2]
-                    all_axes.remove(major_axis)
-                    tranposed_axes = tuple([major_axis] + all_axes)
-                    # Set up the figure
-                    f, axarr = plt.subplots(1, num_segs + 1, figsize=(5 * (num_segs + 1), 5))
-                    # Do the sliceing
-                    rotated_img_vol = np.transpose(image_dict["img"], tranposed_axes)
-                    norm_img_vol = normalize_volume(rotated_img_vol)
-                    img_slice = norm_img_vol[128, ...]
-                    # Show the image
-                    im = axarr[0].imshow(img_slice, cmap='gray')
-                    axarr[0].set_title("Image")
-                    f.colorbar(im, ax=axarr[0], orientation='vertical') 
-                    # Show the segs
-                    for an_idx, annotator in enumerate(image_dict["segs"].keys()):
-                        seg_vol = image_dict["segs"][annotator]
-                        rotated_seg_vol = np.transpose(seg_vol, tranposed_axes)
-                        seg_slice = rotated_seg_vol[128, ...]
-                        im = axarr[an_idx + 1].imshow(seg_slice, cmap="gray")
-                        axarr[an_idx + 1].set_title(annotator)
-                        f.colorbar(im, ax=axarr[an_idx + 1], orientation='vertical')
-                    plt.show()  
-            if cfg['save']:
-                for major_axis in [0, 1, 2]:
-                    # Figure out how to spin the volume.
-                    all_axes = [0, 1, 2]
-                    all_axes.remove(major_axis)
-                    tranposed_axes = tuple([major_axis] + all_axes)
-                    save_root = proc_root / datacenter / str(major_axis) / subj.name 
-                    if not save_root.exists():
-                        os.makedirs(save_root)
-                    # Save your image
-                    img_dir = save_root / "image.npy"
-                    rotated_img_vol =  np.transpose(image_dict["img"], tranposed_axes)
-                    normalized_img_vol = normalize_volume(rotated_img_vol) 
-                    # Make sure slice is between [0,1] and the correct dtype.
-                    np.save(img_dir, normalized_img_vol)
-                    for annotator in image_dict["segs"].keys():
-                        # This is how we organize the data.
-                        annotator_dir = save_root / annotator 
-                        if not annotator_dir.exists():
-                            os.makedirs(annotator_dir)
-                        label_dir = annotator_dir / "label.npy"
-                        rotated_mask_vol =  np.transpose(image_dict["segs"][annotator], tranposed_axes)
-                        np.save(label_dir, rotated_mask_vol)
+            zoom_factors = np.array([256, 256, 256]) / np.array(sqr_seg.shape)
+            resized_seg = zoom(sqr_seg, zoom_factors, order=0)  # You can adjust the 'order' parameter for interpolation quality
+            # Reshape by flipping z
+            flipped_seg_vol = np.flip(resized_seg, axis=2)
+            rot_seg_vol = np.rot90(flipped_seg_vol, k=3, axes=(0,2))
+            for z in range(rot_seg_vol.shape[2]):
+                rot_seg_vol[:, :, z] = np.rot90(rot_seg_vol[:, :, z], 3)
+            return rot_seg_vol
+        
+        processed_seg35_vol = process_OASIS_seg(seg35_dir, img_ngz)
+        processed_seg4_vol = process_OASIS_seg(seg4_dir, img_ngz)
+
+        if cfg['show_examples']:
+            # Set up the figure
+            f, axarr = plt.subplots(3, 3, figsize=(15, 10))
+            # Plot the slices
+            for major_axis in [0, 1, 2]:
+                # Figure out how to spin the volume.
+                all_axes = [0, 1, 2]
+                all_axes.remove(major_axis)
+                tranposed_axes = tuple([major_axis] + all_axes)
+                # Spin the volumes 
+                axis_img_vol = np.transpose(processed_img_vol, tranposed_axes)
+                axis_seg35_vol = np.transpose(processed_seg35_vol, tranposed_axes)
+                axis_seg4_vol = np.transpose(processed_seg4_vol, tranposed_axes)
+
+                # Do the slicing
+                img_slice = axis_img_vol[128, ...]
+                # Show the image
+                im = axarr[0, major_axis].imshow(img_slice, cmap='gray')
+                axarr[0, major_axis].set_title(f"Image Axis: {major_axis}")
+                f.colorbar(im, ax=axarr[0, major_axis], orientation='vertical') 
+
+                # Show the segs
+                seg35_slice = axis_seg35_vol[128, ...]
+                im = axarr[1, major_axis].imshow(seg35_slice, cmap="tab20b")
+                axarr[1, major_axis].set_title(f"35 Lab Seg Axis: {major_axis}")
+                f.colorbar(im, ax=axarr[1, major_axis], orientation='vertical')
+
+                seg4_slice = axis_seg4_vol[128, ...]
+                im = axarr[2, major_axis].imshow(seg4_slice, cmap="tab20b")
+                axarr[2, major_axis].set_title(f"4 Lab Seg Axis: {major_axis}")
+                f.colorbar(im, ax=axarr[2, major_axis], orientation='vertical')
+            plt.show()  
+
+        if cfg['save']:
+            for major_axis in [0, 1, 2]:
+                save_root = proc_root / str(major_axis) / subj.name 
+                if not save_root.exists():
+                    os.makedirs(save_root)
+                # Figure out how to spin the volume.
+                all_axes = [0, 1, 2]
+                all_axes.remove(major_axis)
+                tranposed_axes = tuple([major_axis] + all_axes)
+                # Spin the volumes 
+                axis_img_vol = np.transpose(processed_img_vol, tranposed_axes)
+                axis_seg35_vol = np.transpose(processed_seg35_vol, tranposed_axes)
+                axis_seg4_vol = np.transpose(processed_seg4_vol, tranposed_axes)
+                # Save your image
+                img_dir = save_root / "image.npy"
+                label35_dir = save_root / "label35.npy"
+                label4_dir = save_root / "label4.npy"
+                # This is how we organize the data.
+                np.save(img_dir, axis_img_vol)
+                np.save(label35_dir, axis_seg35_vol)
+                np.save(label4_dir, axis_seg4_vol)
 
 
 @validate_arguments
