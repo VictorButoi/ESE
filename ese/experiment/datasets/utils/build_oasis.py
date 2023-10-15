@@ -242,65 +242,40 @@ def data_splits(
 
 
 def thunderify_OASIS(
-        proc_root, 
-        dst,
-        version
+        cfg: Config
         ):
-
     # Append version to our paths
-    proc_root = proc_root / version
-    dst = dst / version
-
-    datacenters = proc_root.iterdir() 
+    proc_root = pathlib.Path(cfg["proc_root"]) / str(cfg['version'])
+    thunder_dst = pathlib.Path(cfg["dst_dir"]) / str(cfg['version'])
     # Train Calibration Val Test
-    splits_ratio = (0.6, 0.1, 0.2, 0.1)
+    splits_ratio = (0.7, 0.1, 0.1, 0.1)
     splits_seed = 42
-
-    for dc in datacenters:
-        dc_proc_dir = proc_root / dc.name
-        for axis_dir in dc_proc_dir.iterdir():
-            dc_dst = dst / dc.name / axis_dir.name
-            print(str(dc_dst))
-            if not dc_dst.exists():
-                os.makedirs(dc_dst)
-
+    # Iterate through all axes and the two different labeling protocols.
+    for axis_examples_dir in proc_root.iterdir():
+        for label_set in ["label35", "label4"]:
+            task_save_dir = thunder_dst / axis_examples_dir.name / label_set
+            # Make the save dir if it doesn't exist
+            if not task_save_dir.exists():
+                os.makedirs(task_save_dir)
             # Iterate through each datacenter, axis  and build it as a task
-            with ThunderDB.open(str(dc_dst), "c") as db:
-                subj_list = axis_dir.iterdir()
-
+            with ThunderDB.open(str(task_save_dir), "c") as db:
                 subjects = []
-                num_annotators = []
-
-                for subj in subj_list:
-                    key = subj.name
+                for subj in axis_examples_dir.iterdir():
+                    # Load the image
                     img_dir = subj / "image.npy"
-
-                    img = np.load(img_dir) 
-                    mask_list = list(subj.glob("observer*"))
-
-                    mask_dict = {}
-                    pp_dict = {}
-                    
-                    # Iterate through each set of ground truth
-                    for mask_dir in mask_list:
-                        seg_dir = mask_dir / "label.npy"
-                        seg = np.load(seg_dir)
-                        
-                        # Our processing has ensured that we care about axis 0.
-                        pixel_proportion = np.sum(seg, axis=(1,2))
-                        mask_dict[mask_dir.name] = seg
-                        pp_dict[mask_dir.name] = pixel_proportion
-
+                    raw_img = np.load(img_dir) 
+                    #Load the label
+                    lab_dir = subj / f"{label_set}.npy"
+                    raw_lab = np.load(lab_dir)
+                    # Convert the img and label to correct types
+                    img = raw_img.astype(np.float32)
+                    lab = raw_lab.astype(np.int64)
                     # Save the datapoint to the database
-                    db[key] = {
-                        "image": img,
-                        "masks": mask_dict,
-                        "pixel_proportions": pp_dict
-                    }
+                    key = subj.name
+                    db[key] = (img, lab) 
                     subjects.append(key)
-                    num_annotators.append(len(mask_list))
-
-                subjects, num_annotators = zip(*sorted(zip(subjects, num_annotators)))
+                # Sort the subjects and save some info.
+                subjects = sorted(subjects)
                 splits = data_splits(subjects, splits_ratio, splits_seed)
                 splits = dict(zip(("train", "cal", "val", "test"), splits))
                 db["_subjects"] = subjects
@@ -310,14 +285,11 @@ def thunderify_OASIS(
                     "seed": splits_seed
                     }
                 attrs = dict(
-                    dataset="WMH",
-                    version=version,
-                    group=dc.name,
-                    modality="FLAIR",
-                    axis=axis_dir.name,
-                    resolution=256,
+                    dataset="OASIS",
+                    version=cfg['version'],
+                    label_set=label_set,
+                    axis=axis_examples_dir.name
                 )
-                db["_num_annotators"] = num_annotators 
                 db["_subjects"] = subjects
                 db["_samples"] = subjects
                 db["_splits"] = splits
