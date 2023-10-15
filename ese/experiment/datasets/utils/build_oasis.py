@@ -270,6 +270,24 @@ def thunderify_OASIS(
                     # Convert the img and label to correct types
                     img = raw_img.astype(np.float32)
                     lab = raw_lab.astype(np.int64)
+
+                    if cfg['show_examples']:
+                        # Set up the figure
+                        f, axarr = plt.subplots(1, 2, figsize=(10, 5))
+                        # Do the slicing
+                        img_slice = img[128, ...]
+                        # Show the image
+                        im = axarr[0].imshow(img_slice, cmap='gray')
+                        axarr[0].set_title(f"Image Axis: {axis_examples_dir.name}")
+                        f.colorbar(im, ax=axarr[0], orientation='vertical') 
+                        # Show the seg
+                        seg_slice = lab[128, ...]
+                        im = axarr[1].imshow(seg_slice, cmap="tab20b")
+                        axarr[1].set_title("Label")
+                        f.colorbar(im, ax=axarr[1], orientation='vertical')
+                        # Show the figure
+                        plt.show()  
+
                     # Save the datapoint to the database
                     key = subj.name
                     db[key] = (img, lab) 

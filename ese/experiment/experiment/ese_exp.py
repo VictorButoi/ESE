@@ -91,14 +91,14 @@ class CalibrationExperiment(TrainExperiment):
         
         if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
-            img = einops.rearrange(img, "b c h w -> (b c) 1 h w")
+            x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
 
         # Add augmentation to image and label.
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
-
+        
         # Forward pass
         yhat = self.model(x)
         

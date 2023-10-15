@@ -26,8 +26,7 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)
-        # min_label_density
-        subjects: List[str] = self._db["_splits"][self.split]
+        subjects = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
 
@@ -59,7 +58,7 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"WMH/thunder_oasis/{self.version}/{self.axis}/{self.label_set}"
+        return f"OASIS/thunder_oasis/{self.version}/{self.axis}/{self.label_set}"
 
     @property
     def signature(self):

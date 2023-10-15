@@ -27,9 +27,7 @@ def ShowPredictions(
         # Move the channel dimension to the last dimension
         x = batch["x"].detach().cpu()
         x = x.permute(0, 2, 3, 1)
-
-        # Get the true label
-        y = batch["ytrue"].detach().cpu()
+        y = batch["ytrue"].detach().cpu().numpy()
 
         # Get the predicted label
         yhat = batch["ypred"].detach().cpu()
@@ -39,27 +37,29 @@ def ShowPredictions(
         # Prints some metric stuff
         print("Loss: ", batch["loss"].item())
 
-        if num_pred_classes > 1:
-            assert not show_soft_pred, "Can't show soft predictions for multiclass"
-            yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1)
+        # If x is rgb
+        if x.shape[-1] == 3:
             x = x.numpy().astype(np.uint8)
+            img_cmap = None
         else:
             x = x.numpy()
-            yhat = torch.sigmoid(yhat)
+            img_cmap = "gray"
+
+        if num_pred_classes > 1:
+            assert not show_soft_pred, "Can't show soft predictions for multiclass"
+            yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1).numpy()
+        else:
+            yhat = torch.sigmoid(yhat).numpy()
         
         num_cols = 4 if show_soft_pred else 3
         f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
-
-        # Prepare the tensors
-        y = y.numpy()
-        yhat = yhat.numpy()
 
         # Go through each item in the batch.
         for b_idx in range(bs):
 
             if bs == 1:
                 axarr[0].set_title("Image")
-                im1 = axarr[0].imshow(x.squeeze(), interpolation='None')
+                im1 = axarr[0].imshow(x.squeeze(), cmap=img_cmap, interpolation='None')
                 f.colorbar(im1, ax=axarr[0], orientation='vertical')
 
                 axarr[1].set_title("Label")
