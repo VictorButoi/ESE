@@ -186,12 +186,16 @@ class CalibrationExperiment(TrainExperiment):
         # Visualize the examples in 3 rows (imags, labels, preds).
         f, ax = plt.subplots(num_examples, 3, figsize=(3 * height, num_examples * height))
         for idx, (x, y, pred_map) in enumerate(examples):
+            # image
             ax[idx, 0].imshow(x[0, 0].cpu().numpy(), cmap='gray')
             ax[idx, 0].set_title(f"Example {idx}")
+            # label
             ax[idx, 1].imshow(y[0, 0].cpu().numpy(), cmap='gray')
             ax[idx, 1].set_title(f"Label {idx}")
+            # prediction
             ax[idx, 2].imshow(pred_map[0, 0].cpu().numpy(), cmap='gray')
             ax[idx, 2].set_title(f"Prediction {idx}")
+            # Set the axes off.
             ax[idx, 0].axis('off')
             ax[idx, 1].axis('off')
             ax[idx, 2].axis('off')
