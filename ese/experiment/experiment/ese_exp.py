@@ -1,4 +1,5 @@
 # local imports
+from typing import Literal
 from ..augmentation import augmentations_from_config
 
 # torch imports
@@ -33,16 +34,18 @@ class CalibrationExperiment(TrainExperiment):
     def build_data(self):
         # Get the data and transforms we want to apply
         data_cfg = self.config["data"].to_dict()
-
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(data_cfg.pop("_class"))
-        
         # Build the datasets, apply the transforms
         self.train_dataset = dataset_cls(split="train", **data_cfg)
         self.cal_dataset = dataset_cls(split="cal", **data_cfg)
         self.val_dataset = dataset_cls(split="val", **data_cfg)
     
     def build_dataloader(self):
+        # If the datasets aren't built, build them
+        if not hasattr(self, "train_dataset"):
+            self.build_data()
+        # Build the dataloaders
         dl_cfg = self.config["dataloader"]
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
@@ -51,11 +54,9 @@ class CalibrationExperiment(TrainExperiment):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
-
         # Get the model and data configs.
         model_config = total_config["model"]
         data_config = total_config["data"]
-
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
             in_channels = data_config.pop("in_channels")
@@ -63,9 +64,8 @@ class CalibrationExperiment(TrainExperiment):
             assert out_channels > 1, "Must be multi-class segmentation!"
             model_config["in_channels"] = in_channels
             model_config["out_channels"] = out_channels 
-
+        # Set important things about the model.
         self.config = Config(total_config)
-
         self.model = eval_config(self.config["model"])
         self.properties["num_params"] = num_params(self.model)
     
@@ -85,31 +85,27 @@ class CalibrationExperiment(TrainExperiment):
             self.loss_func = eval_config(self.config["loss_func"])
     
     def run_step(self, batch_idx, batch, backward, augmentation, epoch=None, phase=None):
-
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
-        
+        # For volume datasets, sometimes want to treat different slices as a batch.
         if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-
         # Add augmentation to image and label.
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
-        
         # Forward pass
         yhat = self.model(x)
-        
         # Calculate the loss between the pred and label map
         loss = self.loss_func(yhat, y)
-
+        # If backward then backprop the gradients.
         if backward:
             loss.backward()
             self.optim.step()
             self.optim.zero_grad()
-        
+        # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,
             "ytrue": y,
@@ -117,8 +113,6 @@ class CalibrationExperiment(TrainExperiment):
             "loss": loss,
             "batch_idx": batch_idx,
         }
-        
-        # Run step-wise callbacks if you have them.
         self.run_callbacks("step", batch=forward_batch)
 
         return forward_batch
@@ -156,7 +150,6 @@ class CalibrationExperiment(TrainExperiment):
         y='dice_score',
         height=12,
     ):
-
         # Show a lineplot of the loss curves.
         g = sns.relplot(
             data=self.logs,
@@ -166,7 +159,26 @@ class CalibrationExperiment(TrainExperiment):
             kind='line',
             height=height,
             )
-
         # Set column spacing
         g.fig.subplots_adjust(wspace=0.05)
         g.set(ylim=(0, 1))
+    
+    def vis_predictions(
+        self,
+        phase: Literal['train', 'val', 'cal'],
+        num_examples: int = 5,
+        ):
+        # Set the model to eval mode.
+        self.model.eval()
+        # Get the data loader.
+        dataloader = self.val_dl if phase == 'val' else self.train_dl
+        # Get the examples.
+        examples = []
+        for idx, batch in enumerate(dataloader):
+            # Get the predictions
+            with torch.no_grad():
+                x, y = to_device(batch, self.device)
+                pred_map = self.predict(x)
+                examples.append((x, y, pred_map))
+            if idx >= num_examples - 1:
+                break
