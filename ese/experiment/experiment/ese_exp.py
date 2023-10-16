@@ -16,8 +16,10 @@ from ionpy.util.torchutils import to_device
 
 # misc imports
 import einops
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -42,12 +44,13 @@ class CalibrationExperiment(TrainExperiment):
         self.cal_dataset = dataset_cls(split="cal", **data_cfg)
         self.val_dataset = dataset_cls(split="val", **data_cfg)
     
-    def build_dataloader(self):
+    def build_dataloader(self, dl_cfg=None):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
             self.build_data()
         # Build the dataloaders
-        dl_cfg = self.config["dataloader"]
+        if dl_cfg is None:
+            dl_cfg = self.config["dataloader"]
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
@@ -165,11 +168,14 @@ class CalibrationExperiment(TrainExperiment):
         self,
         phase: Literal['train', 'val', 'cal'],
         num_examples: int = 5,
+        width: int = 4,
         height: int = 4,
         ):
         # Get the dataloader.
         if not hasattr(self, "train_dl"):
-            self.build_dataloader()
+            dl_cfg = self.config["dataloader"].to_dict()
+            dl_cfg['batch_size'] = 1 
+            self.build_dataloader(dl_cfg)
         dataloader = self.val_dl if phase == 'val' else self.train_dl
         # Set the model to eval mode.
         self.model.eval()
@@ -178,22 +184,45 @@ class CalibrationExperiment(TrainExperiment):
         for idx, batch in enumerate(dataloader):
             # Get the predictions
             with torch.no_grad():
+                # Get an image and label and predict for it.
                 x, y = to_device(batch, self.device)
                 pred_map = self.predict(x)
+                # Prepare the data for plotting.
+                x = x.permute(0, 2, 3, 1).squeeze().cpu().numpy()
+                # If x is rgb
+                if x.shape[-1] == 3:
+                    x = x.astype(np.uint8)
+                    img_cm = None
+                else:
+                    img_cm = "gray"
+                # Prepare the label and prediction for plotting. 
+                y = y.squeeze().cpu().numpy()
+                pred_map = pred_map.squeeze().cpu().numpy()
+                # Add the example to the list.
                 examples.append((x, y, pred_map))
             if idx >= num_examples - 1:
                 break
+
+        # Generate a list of random colors, starting with black for background
+        num_pred_classes = self.config['model']['out_channels']
+        if num_pred_classes == 2:
+            colors = [(0, 0, 0), (1, 1, 1)]
+        else:
+            colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+        cmap_name = "seg_map"
+        label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
+        
         # Visualize the examples in 3 rows (imags, labels, preds).
-        f, ax = plt.subplots(num_examples, 3, figsize=(3 * height, num_examples * height))
+        f, ax = plt.subplots(num_examples, 3, figsize=(width * height, num_examples * height))
         for idx, (x, y, pred_map) in enumerate(examples):
             # image
-            ax[idx, 0].imshow(x[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 0].imshow(x, cmap=img_cm)
             ax[idx, 0].set_title(f"Example {idx}")
             # label
-            ax[idx, 1].imshow(y[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 1].imshow(y, cmap=label_cm)
             ax[idx, 1].set_title(f"Label {idx}")
             # prediction
-            ax[idx, 2].imshow(pred_map[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 2].imshow(pred_map, cmap=label_cm)
             ax[idx, 2].set_title(f"Prediction {idx}")
             # Set the axes off.
             ax[idx, 0].axis('off')
