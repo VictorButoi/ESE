@@ -17,6 +17,7 @@ from ionpy.util.torchutils import to_device
 # misc imports
 import einops
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -120,10 +121,8 @@ class CalibrationExperiment(TrainExperiment):
     def predict(self, 
                 batch, 
                 include_probs=False):
-
         # Get the label predictions
         conf_map = self.model(batch) 
-
         # Dealing with multi-class segmentation.
         if conf_map.shape[1] > 1:
             prob_volume = torch.softmax(conf_map, dim=1)
@@ -133,7 +132,6 @@ class CalibrationExperiment(TrainExperiment):
             # Get the prediction
             conf_map = torch.sigmoid(conf_map)
             pred_map = (conf_map >= 0.5).float()
-
         # Either return the probabilities or not.
         if include_probs:
             return pred_map, conf_map
@@ -167,11 +165,14 @@ class CalibrationExperiment(TrainExperiment):
         self,
         phase: Literal['train', 'val', 'cal'],
         num_examples: int = 5,
+        height: int = 4,
         ):
+        # Get the dataloader.
+        if not hasattr(self, "train_dl"):
+            self.build_dataloader()
+        dataloader = self.val_dl if phase == 'val' else self.train_dl
         # Set the model to eval mode.
         self.model.eval()
-        # Get the data loader.
-        dataloader = self.val_dl if phase == 'val' else self.train_dl
         # Get the examples.
         examples = []
         for idx, batch in enumerate(dataloader):
@@ -182,3 +183,15 @@ class CalibrationExperiment(TrainExperiment):
                 examples.append((x, y, pred_map))
             if idx >= num_examples - 1:
                 break
+        # Visualize the examples in 3 rows (imags, labels, preds).
+        f, ax = plt.subplots(num_examples, 3, figsize=(3 * height, num_examples * height))
+        for idx, (x, y, pred_map) in enumerate(examples):
+            ax[idx, 0].imshow(x[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 0].set_title(f"Example {idx}")
+            ax[idx, 1].imshow(y[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 1].set_title(f"Label {idx}")
+            ax[idx, 2].imshow(pred_map[0, 0].cpu().numpy(), cmap='gray')
+            ax[idx, 2].set_title(f"Prediction {idx}")
+            ax[idx, 0].axis('off')
+            ax[idx, 1].axis('off')
+            ax[idx, 2].axis('off')
