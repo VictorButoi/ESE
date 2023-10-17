@@ -202,7 +202,6 @@ class CalibrationExperiment(TrainExperiment):
                 examples.append((x, y, pred_map))
             if idx >= num_examples - 1:
                 break
-
         # Generate a list of random colors, starting with black for background
         num_pred_classes = self.config['model']['out_channels']
         if num_pred_classes == 2:
@@ -216,13 +215,13 @@ class CalibrationExperiment(TrainExperiment):
         f, ax = plt.subplots(num_examples, 3, figsize=(width * height, num_examples * height))
         for idx, (x, y, pred_map) in enumerate(examples):
             # image
-            ax[idx, 0].imshow(x, cmap=img_cm)
+            ax[idx, 0].imshow(x, cmap=img_cm, interpolation='None')
             ax[idx, 0].set_title(f"Example {idx}")
             # label
-            ax[idx, 1].imshow(y, cmap=label_cm)
+            ax[idx, 1].imshow(y, cmap=label_cm, interpolation='None')
             ax[idx, 1].set_title(f"Label {idx}")
             # prediction
-            ax[idx, 2].imshow(pred_map, cmap=label_cm)
+            ax[idx, 2].imshow(pred_map, cmap=label_cm, interpolation='None')
             ax[idx, 2].set_title(f"Prediction {idx}")
             # Set the axes off.
             ax[idx, 0].axis('off')

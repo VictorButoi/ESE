@@ -48,7 +48,6 @@ def viz_region_size_distribution(
             aspect=1.5)
         g = g.map(positive_kde, "region_size", fill=True)
         g.add_legend()
-        plt.show()
     else:
         for value in regions_df[row_split].unique():
             print("For {row_split} = {value}".format(row_split=row_split, value=value))
