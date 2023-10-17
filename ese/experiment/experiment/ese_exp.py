@@ -167,6 +167,7 @@ class CalibrationExperiment(TrainExperiment):
     def vis_predictions(
         self,
         phase: Literal['train', 'val', 'cal'],
+        seg_type: Literal['binary', 'multi-class'],
         num_examples: int = 5,
         width: int = 4,
         height: int = 4,
@@ -202,15 +203,19 @@ class CalibrationExperiment(TrainExperiment):
                 examples.append((x, y, pred_map))
             if idx >= num_examples - 1:
                 break
+        # Get the number of classes.
+        if seg_type == "binary":
+            num_pred_classes = 2
+        else:
+            num_pred_classes = self.config['model']['out_channels']
         # Generate a list of random colors, starting with black for background
-        num_pred_classes = self.config['model']['out_channels']
         if num_pred_classes == 2:
             colors = [(0, 0, 0), (1, 1, 1)]
         else:
             colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+        # Define the colormap
         cmap_name = "seg_map"
         label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
-        
         # Visualize the examples in 3 rows (imags, labels, preds).
         f, ax = plt.subplots(num_examples, 3, figsize=(width * height, num_examples * height))
         for idx, (x, y, pred_map) in enumerate(examples):
