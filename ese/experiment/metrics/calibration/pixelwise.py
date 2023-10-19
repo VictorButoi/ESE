@@ -62,8 +62,8 @@ def TL_ECE(
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
-    class_type: Literal["Binary", "Multi-class"],
-    include_background: bool,
+    class_type: Literal["Binary", "Multi-class"] = "Multi-class",
+    include_background: bool = True,
     weighting: str = "proportional",
     min_confidence: float = 0.001,
     ) -> dict:
