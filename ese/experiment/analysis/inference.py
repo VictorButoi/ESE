@@ -20,6 +20,8 @@ from ionpy.util.torchutils import to_device
 from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
+from ese.experiment.metrics.grouping.regions import get_label_region_sizes
+from ese.experiment.metrics.grouping.portion_loss import get_perpix_boundary_dist, get_perpix_group_size
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -45,6 +47,75 @@ def get_pixelinfo_df(
             }
             perppixel_records.append(record)
     return pd.DataFrame(perppixel_records) 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_dataset_perf(
+        exp, 
+        split="val",
+        threshold=0.5,
+        rearrange_channel_dim=False
+        ):
+    dataloader = exp.val_dl if split=="val" else exp.train_dl
+    items = []
+    with torch.no_grad():
+        for subj_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
+            # Get your image label pair and define some regions.
+            x, y = to_device(batch, exp.device)
+
+            # Some datasets where we consider multi-slice we want to batch different slices.
+            if rearrange_channel_dim:
+                x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
+                y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
+
+            # Get the prediction
+            y_logits = exp.model(x)  
+
+            # Extract predictions
+            n_channels = y_logits.shape[1]
+            if n_channels > 1:
+                y_hat = torch.softmax(y_logits, dim=1) 
+                y_pred = torch.argmax(y_hat, dim=1)
+            else:
+                y_hat = torch.sigmoid(y_logits)
+                y_pred = (y_hat > threshold).float()
+
+            # Get the max conf map (flip background for binary case).
+            if n_channels > 1:
+                probs = torch.max(y_hat, dim=1)
+            else:
+                probs = y_hat.clone()
+                probs[probs < 0.5] = 1 - probs[probs < 0.5]
+            
+            # Squeeze our tensors
+            image = x.squeeze().cpu().numpy()
+            label_map = y.squeeze().cpu().numpy()
+            conf_map = probs.squeeze().cpu().numpy()
+            pred_map = y_pred.squeeze().cpu().numpy() 
+
+            # Get some performance metrics
+            accuracy_map = (pred_map == label_map).astype(np.float32)
+            perf_per_dist = get_perpix_boundary_dist(y_pred=pred_map)
+            perf_per_regsize = get_perpix_group_size(y_pred=pred_map)
+
+            # Get region sizes
+            gt_lab_region_sizes = get_label_region_sizes(label_map=label_map)
+            pred_lab_region_sizes = get_label_region_sizes(label_map=pred_map)
+
+            # Wrap it in an item
+            items.append({
+                "subject_id": subj_idx,
+                "image": image,
+                "label_map": label_map,
+                "conf_map": conf_map,
+                "pred_map": pred_map,
+                "perpix_accuracies": accuracy_map,
+                "perf_per_dist": perf_per_dist,
+                "perf_per_regsize": perf_per_regsize,
+                "gt_lab_region_sizes": gt_lab_region_sizes,
+                "pred_lab_region_sizes": pred_lab_region_sizes
+            })
+    return items
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
