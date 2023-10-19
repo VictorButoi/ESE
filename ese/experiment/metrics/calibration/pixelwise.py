@@ -1,6 +1,6 @@
 # local imports
 from ..utils.utils import get_bins, reduce_scores, process_for_scoring, get_conf_region, init_stat_tracker
-from ..bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
+from ..utils.bin_stats import gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
 from ionpy.util.islands import get_connected_components
@@ -16,8 +16,8 @@ def ECE(
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
-    class_type: Literal["Binary", "Multi-class"],
-    include_background: bool,
+    class_type: Literal["Binary", "Multi-class"] = "Multi-class",
+    include_background: bool = True,
     weighting: str = "proportional",
     min_confidence: float = 0.001,
     ) -> dict:

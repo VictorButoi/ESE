@@ -1,5 +1,5 @@
 # local imports
-from .utils.utils import process_for_scoring, get_conf_region, init_stat_tracker
+from .utils import process_for_scoring, get_conf_region, init_stat_tracker
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
 # misc imports
@@ -44,8 +44,7 @@ def gather_pixelwise_bin_stats(
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.
             avg_bin_conf = conf_map[bin_conf_region].mean()
-            measure_func = pixel_accuracy if class_type == "Multi-class" else pixel_precision     
-            avg_bin_measure, all_bin_measures = measure_func(
+            avg_bin_measure, all_bin_measures = pixel_accuracy(
                 pred_map[bin_conf_region], 
                 label_map[bin_conf_region], 
                 return_all=True
