@@ -26,7 +26,8 @@ from ese.experiment.metrics.grouping.portion_loss import get_perpix_boundary_dis
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_pixelinfo_df(
-    data_points: List[dict]
+    data_points: List[dict],
+    num_bins: 1
     ) -> None:
     perppixel_records = []
     for dp in tqdm(data_points, total=len(data_points)):
