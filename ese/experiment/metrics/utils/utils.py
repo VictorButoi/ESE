@@ -107,9 +107,10 @@ def get_conf_region(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
     num_bins: int,
-    metric: str, 
-    include_background: bool, 
     class_type: Literal["Binary", "Multi-class"],
+    metric: str = "ECE", 
+    include_background: bool = True, 
+    num_labels: Optional[int] = None,
     conf_map: Optional[torch.Tensor] = None
     ):
     if class_type == "Multi-class": 
@@ -129,7 +130,7 @@ def get_bins(
     else:
         # Define the bins
         if class_type == "Multi-class":
-            start = 0
+            start = 1 / num_labels 
         else:
             start = 0 if include_background else 0.5 
         conf_bins = torch.linspace(start, 1, num_bins+1)[:-1] # Off by one error
@@ -137,6 +138,33 @@ def get_bins(
         bin_width = conf_bins[1] - conf_bins[0]
         conf_bin_widths = torch.ones(num_bins) * bin_width
     return conf_bins, conf_bin_widths
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def find_bins(confidences, bin_starts, bin_widths):
+    """
+    Given an array of confidence values, bin start positions, and individual bin widths, 
+    find the bin index for each confidence.
+    Args:
+    - confidences (numpy.ndarray): A numpy array of confidence values.
+    - bin_starts (torch.Tensor): A 1D tensor representing the start position of each confidence bin.
+    - bin_widths (torch.Tensor): A 1D tensor representing the width of each confidence bin.
+    Returns:
+    - numpy.ndarray: A numpy array of bin indices corresponding to each confidence value. 
+      If a confidence doesn't fit in any bin, its bin index is set to -1.
+    """
+    # Ensure that the bin_starts and bin_widths tensors have the same shape
+    assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
+    # Convert the numpy confidences array to a PyTorch tensor
+    confidences_tensor = torch.tensor(confidences)
+    # Expand dimensions for broadcasting
+    expanded_confidences = confidences_tensor.unsqueeze(-1)
+    # Compare confidences against all bin ranges using broadcasting
+    valid_bins = (expanded_confidences >= bin_starts) & (expanded_confidences < (bin_starts + bin_widths))
+    # Get bin indices; if no valid bin is found for a confidence, the value will be -1
+    bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
+    # Convert the resulting tensor back to a numpy array for the output
+    return bin_indices.numpy() + 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

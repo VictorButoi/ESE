@@ -10,8 +10,6 @@ from pydantic import validate_arguments
 # torch imports
 import torch
 from torch.utils.data import DataLoader
-# local imports
-from ese.experiment.experiment.ese_exp import CalibrationExperiment
 # ionpy imports
 from ionpy.util import Config
 from ionpy.analysis import ResultsLoader
@@ -20,6 +18,9 @@ from ionpy.util.torchutils import to_device
 from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
+# local imports
+from ese.experiment.metrics.utils.utils import get_bins, find_bins
+from ese.experiment.experiment.ese_exp import CalibrationExperiment
 from ese.experiment.metrics.grouping.regions import get_label_region_sizes
 from ese.experiment.metrics.grouping.portion_loss import get_perpix_boundary_dist, get_perpix_group_size
 
@@ -27,26 +28,43 @@ from ese.experiment.metrics.grouping.portion_loss import get_perpix_boundary_dis
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_pixelinfo_df(
     data_points: List[dict],
-    num_bins: 1
+    num_labels: int,
+    num_bins: int = 1
     ) -> None:
+    # Get the different confidence bins.
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins,
+        class_type="Multi-class",
+        num_labels=num_labels
+        )
+    # Go through each datapoint and register information about the pixels.
     perppixel_records = []
     for dp in tqdm(data_points, total=len(data_points)):
+        # Get the interesting info.
         accuracy_map = dp['perpix_accuracies']
         perf_per_dist = dp['perf_per_dist'] 
         perf_per_regsize = dp['perf_per_regsize'] 
+        bin_info_map = find_bins(
+            confidences=dp['conf_map'], 
+            bin_starts=conf_bins,
+            bin_widths=conf_bin_widths
+            )
         # iterate through (x,y) positions from 0 - 255, 0 - 255
         for (ix, iy) in np.ndindex(dp['pred_map'].shape):
-            record = {
-                "subject_id": dp['subject_id'],
-                "x": ix,
-                "y": iy,
-                "label": dp['pred_map'][ix, iy],
-                "conf": dp['conf_map'][ix, iy],
-                "accuracy": accuracy_map[ix, iy],
-                "dist_to_boundary": perf_per_dist[ix, iy],
-                "group_size": perf_per_regsize[ix, iy],
-            }
-            perppixel_records.append(record)
+            # Record all important info.
+            if bin_info_map[ix, iy] > 0: # Weird bug where we fall in no bin.
+                record = {
+                    "subject_id": dp['subject_id'],
+                    "x": ix,
+                    "y": iy,
+                    "bin": bin_info_map[ix, iy],
+                    "label": dp['pred_map'][ix, iy],
+                    "conf": dp['conf_map'][ix, iy],
+                    "accuracy": accuracy_map[ix, iy],
+                    "dist_to_boundary": perf_per_dist[ix, iy],
+                    "group_size": perf_per_regsize[ix, iy],
+                }
+                perppixel_records.append(record)
     return pd.DataFrame(perppixel_records) 
 
 
@@ -123,22 +141,18 @@ def get_dataset_perf(
 def get_cal_stats(
     cfg: Config
     ) -> None:
-
     # Get the config dictionary
     cfg_dict = copy.deepcopy(cfg.to_dict())
-
     # Results loader object does everything
     root = pathlib.Path(cfg['log']['root'])
     exp_name = cfg['model']['exp_name']
     exp_path = root / exp_name
-
     # Get the configs of the experiment
     rs = ResultsLoader()
     dfc = rs.load_configs(
         exp_path,
         properties=False,
     )
-
     # Get the best experiment at the checkpoint
     # corresponding to the best metric.
     exp = rs.get_experiment(
@@ -148,7 +162,6 @@ def get_cal_stats(
         checkpoint=cfg['model']['checkpoint'],
         device="cuda"
     )
-
     # Get information about the dataset
     dataset_dict = cfg['dataset'].to_dict()
     dataset_class = dataset_dict.pop("_class")
