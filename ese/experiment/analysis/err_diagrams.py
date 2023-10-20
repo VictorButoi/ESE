@@ -61,3 +61,44 @@ def viz_region_size_distribution(
             g.add_legend()
             plt.title(f"Label {value}")
             plt.show()
+
+
+def viz_accuracy_vs_confidence(
+
+):
+    # Calculate average conf and accuracy for each bin
+    avg_values = pixel_preds_df.groupby('bin').agg({'conf': 'mean', 'accuracy': 'mean'}).reset_index()
+
+    # Prepare a list to store the new rows
+    new_rows = []
+
+    # Create new rows for the averages with a special label 'avg'
+    for _, row in avg_values.iterrows():
+        new_rows.append({'bin': row['bin'], 'conf': row['conf'], 'accuracy': row['accuracy'], 'label': 'avg'})
+
+    # Concatenate the original DataFrame with the new rows
+    pixel_preds_df = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
+
+    # Melt the DataFrame
+    pixel_preds_df_melted = pixel_preds_df.melt(id_vars=['bin', 'bin_num', 'label'], value_vars=['conf', 'accuracy'], var_name='metric', value_name='value')
+    pixel_preds_df_melted = pixel_preds_df_melted.sort_values('bin_num')
+
+    # Define a custom palette
+    unique_labels = pixel_preds_df_melted['label'].unique()
+    palette_colors = sns.color_palette('viridis', n_colors=len(unique_labels) - 1)  # -1 because we'll assign a distinct color to 'avg'
+    palette_dict = {label: color for label, color in zip(unique_labels, palette_colors)}
+    palette_dict['avg'] = 'gray'  # Assigning red color for 'avg' label
+
+    # Using relplot to create a FacetGrid of scatter plots
+    g = sns.catplot(data=pixel_preds_df_melted, 
+                    x='metric', 
+                    y='value', 
+                    hue='label',
+                    col='bin', 
+                    col_wrap=5, 
+                    kind='bar', 
+                    height=5,
+                    palette=palette_dict)
+    # Adjusting the titles
+    g.fig.subplots_adjust(top=0.9)
+    g.fig.suptitle('WMH Confidence vs. Accuracy per Bin', fontsize=16)
