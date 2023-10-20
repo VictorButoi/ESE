@@ -64,7 +64,7 @@ def get_pixelinfo_df(
                     "label": dp['pred_map'][ix, iy],
                     "conf": dp['conf_map'][ix, iy],
                     "accuracy": accuracy_map[ix, iy],
-                    "dist_to_boundary": perf_per_dist[ix, iy],
+                    "dist to boundary": perf_per_dist[ix, iy],
                     "group_size": perf_per_regsize[ix, iy],
                 }
                 perppixel_records.append(record)
