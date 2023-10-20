@@ -19,6 +19,7 @@ from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
+from .utils import count_matching_neighbors
 from ese.experiment.metrics.utils.utils import get_bins, find_bins
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 from ese.experiment.metrics.grouping.regions import get_label_region_sizes
@@ -44,6 +45,7 @@ def get_pixelinfo_df(
         accuracy_map = dp['perpix_accuracies']
         perf_per_dist = dp['perf_per_dist'] 
         perf_per_regsize = dp['perf_per_regsize'] 
+        matching_neighbors = count_matching_neighbors(dp['pred_map'])
         bin_info_map = find_bins(
             confidences=dp['conf_map'], 
             bin_starts=conf_bins,
@@ -62,6 +64,8 @@ def get_pixelinfo_df(
                     "bin_num": bin_n + 1,
                     "bin": f"{bin_n + 1}, {bin_ends}",
                     "label": dp['pred_map'][ix, iy],
+                    "num_neighbors": matching_neighbors[ix, iy],
+                    "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{matching_neighbors[ix, iy]}",
                     "conf": dp['conf_map'][ix, iy],
                     "accuracy": accuracy_map[ix, iy],
                     "dist to boundary": perf_per_dist[ix, iy],

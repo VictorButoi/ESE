@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import validate_arguments
 
 
@@ -63,32 +63,41 @@ def viz_region_size_distribution(
 
 def viz_accuracy_vs_confidence(
     preds_df: pd.DataFrame,
-    per_label: bool,
     per_bin: bool,
-    label_palette: dict
+    hue: Union[str, List[str]],
+    label_palette: Optional[dict] = None
 ):
     # Make a clone of the dataframe to not overwrite the original.
     pixel_preds_df = preds_df.copy()
     # Calculate average conf and accuracy for each bin
-    avg_values = pixel_preds_df.groupby('bin').agg({'conf': 'mean', 'accuracy': 'mean'}).reset_index()
+    avg_bin_values = pixel_preds_df.groupby('bin').agg({'conf': 'mean', 'accuracy': 'mean'}).reset_index()
     # Prepare a list to store the new rows
     new_rows = []
     # Create new rows for the averages with a special label 'avg'
-    for _, row in avg_values.iterrows():
-        new_rows.append({'bin': row['bin'], 'conf': row['conf'], 'accuracy': row['accuracy'], 'label': 'avg'})
+    for _, row in avg_bin_values.iterrows():
+        new_rows.append({
+            'bin': row['bin'], 
+            'conf': row['conf'], 
+            'accuracy': row['accuracy'], 
+            'num_neighbors': 'avg',
+            'label': 'avg'
+            })
     # Concatenate the original DataFrame with the new rows
     pixel_preds_df = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
+    pixel_preds_df_sorted = pixel_preds_df.sort_values(by=['bin_num', 'label', 'num_neighbors'], ascending=[True, True, True])
     # Melt the DataFrame
-    pixel_preds_df_melted = pixel_preds_df.melt(id_vars=['bin', 'bin_num', 'label'], value_vars=['conf', 'accuracy'], var_name='metric', value_name='value')
-    pixel_preds_df_melted = pixel_preds_df_melted.sort_values('bin_num')
-    
+    pixel_preds_df_melted = pixel_preds_df_sorted.melt(
+        id_vars=['bin', 'bin_num', 'num_neighbors', 'label', 'label,num_neighbors'], 
+        value_vars=['conf', 'accuracy'], 
+        var_name='metric', 
+        value_name='value'
+        ) 
     # Using relplot to create a FacetGrid of scatter plots
-    hue_val = 'label' if per_label else None
     col_val = 'bin' if per_bin else None
     g = sns.catplot(data=pixel_preds_df_melted, 
                     x='metric', 
                     y='value', 
-                    hue=hue_val,
+                    hue=hue,
                     col=col_val, 
                     col_wrap=5, 
                     kind='bar', 
