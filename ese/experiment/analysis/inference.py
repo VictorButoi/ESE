@@ -57,21 +57,23 @@ def get_pixelinfo_df(
             if bin_info_map[ix, iy] > 0: # Weird bug where we fall in no bin.
                 bin_n = int(bin_info_map[ix, iy].item()) - 1
                 bin_ends = [np.round(conf_bins[bin_n].item(), 2), np.round(conf_bins[bin_n].item() + conf_bin_widths[bin_n].item(), 2)]
-                record = {
-                    "subject_id": dp['subject_id'],
-                    "x": ix,
-                    "y": iy,
-                    "bin_num": bin_n + 1,
-                    "bin": f"{bin_n + 1}, {bin_ends}",
-                    "label": dp['pred_map'][ix, iy],
-                    "num_neighbors": matching_neighbors[ix, iy],
-                    "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{matching_neighbors[ix, iy]}",
-                    "conf": dp['conf_map'][ix, iy],
-                    "accuracy": accuracy_map[ix, iy],
-                    "dist to boundary": perf_per_dist[ix, iy],
-                    "group_size": perf_per_regsize[ix, iy],
-                }
-                perppixel_records.append(record)
+                for measure in ["conf", "accuracy"]:
+                    val = dp['conf_map'][ix, iy] if measure == "conf" else accuracy_map[ix, iy]
+                    record = {
+                        "subject_id": dp['subject_id'],
+                        "x": ix,
+                        "y": iy,
+                        "bin_num": bin_n + 1,
+                        "bin": f"{bin_n + 1}, {bin_ends}",
+                        "label": dp['pred_map'][ix, iy],
+                        "num_neighbors": matching_neighbors[ix, iy],
+                        "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{matching_neighbors[ix, iy]}",
+                        "measure": measure,
+                        "value": val,
+                        "dist to boundary": perf_per_dist[ix, iy],
+                        "group_size": perf_per_regsize[ix, iy],
+                    }
+                    perppixel_records.append(record)
     return pd.DataFrame(perppixel_records) 
 
 

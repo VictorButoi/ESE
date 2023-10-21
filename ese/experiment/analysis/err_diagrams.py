@@ -64,45 +64,41 @@ def viz_region_size_distribution(
 def viz_accuracy_vs_confidence(
     preds_df: pd.DataFrame,
     per_bin: bool,
+    x: str,
     hue: Union[str, List[str]],
-    label_palette: Optional[dict] = None
+    title: str
 ):
     # Make a clone of the dataframe to not overwrite the original.
     pixel_preds_df = preds_df.copy()
     # Calculate average conf and accuracy for each bin
-    avg_bin_values = pixel_preds_df.groupby('bin').agg({'conf': 'mean', 'accuracy': 'mean'}).reset_index()
+    avg_bin_values = pixel_preds_df.groupby(['bin', 'measure']).agg({'value': 'mean'}).reset_index()
     # Prepare a list to store the new rows
     new_rows = []
     # Create new rows for the averages with a special label 'avg'
     for _, row in avg_bin_values.iterrows():
         new_rows.append({
             'bin': row['bin'], 
-            'conf': row['conf'], 
-            'accuracy': row['accuracy'], 
+            'measure': row['measure'],
+            'value': row['value'], 
+            'label': 'avg',
             'num_neighbors': 'avg',
-            'label': 'avg'
+            'label,num_neighbors': 'avg'
             })
     # Concatenate the original DataFrame with the new rows
     pixel_preds_df = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
-    pixel_preds_df_sorted = pixel_preds_df.sort_values(by=['bin_num', 'label', 'num_neighbors'], ascending=[True, True, True])
-    # Melt the DataFrame
-    pixel_preds_df_melted = pixel_preds_df_sorted.melt(
-        id_vars=['bin', 'bin_num', 'num_neighbors', 'label', 'label,num_neighbors'], 
-        value_vars=['conf', 'accuracy'], 
-        var_name='metric', 
-        value_name='value'
-        ) 
-    # Using relplot to create a FacetGrid of scatter plots
+    # Concatenate the original DataFrame with the new rows
+    pixel_preds_df_sorted = pixel_preds_df.sort_values(by=['bin_num', 'label', 'num_neighbors', 'label,num_neighbors'], ascending=[True, True, True, True])
+
+     # Using relplot to create a FacetGrid of bar plots
     col_val = 'bin' if per_bin else None
-    g = sns.catplot(data=pixel_preds_df_melted, 
-                    x='metric', 
+    g = sns.catplot(data=pixel_preds_df_sorted, 
+                    x=x, 
                     y='value', 
                     hue=hue,
                     col=col_val, 
                     col_wrap=5, 
                     kind='bar', 
-                    height=5,
-                    palette=label_palette)
+                    height=5)
     # Adjusting the titles
     g.fig.subplots_adjust(top=0.9)
-    g.fig.suptitle('WMH Confidence vs. Accuracy per Bin', fontsize=16)
+    g.fig.suptitle(title, fontsize=16)
