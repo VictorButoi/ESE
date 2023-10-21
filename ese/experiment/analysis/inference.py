@@ -43,9 +43,6 @@ def get_pixelinfo_df(
     for dp in tqdm(data_points, total=len(data_points)):
         # Get the interesting info.
         accuracy_map = dp['perpix_accuracies']
-        perf_per_dist = dp['perf_per_dist'] 
-        perf_per_regsize = dp['perf_per_regsize'] 
-        matching_neighbors = count_matching_neighbors(dp['pred_map'])
         bin_info_map = find_bins(
             confidences=dp['conf_map'], 
             bin_starts=conf_bins,
@@ -66,12 +63,10 @@ def get_pixelinfo_df(
                         "bin_num": bin_n + 1,
                         "bin": f"{bin_n + 1}, {bin_ends}",
                         "label": dp['pred_map'][ix, iy],
-                        "num_neighbors": matching_neighbors[ix, iy],
-                        "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{matching_neighbors[ix, iy]}",
+                        "num_neighbors": dp['matching_neighbors'][ix, iy],
+                        "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{dp['matching_neighbors'][ix, iy]}",
                         "measure": measure,
                         "value": val,
-                        "dist to boundary": perf_per_dist[ix, iy],
-                        "group_size": perf_per_regsize[ix, iy],
                     }
                     perppixel_records.append(record)
     return pd.DataFrame(perppixel_records) 
@@ -110,7 +105,7 @@ def get_dataset_perf(
 
             # Get the max conf map (flip background for binary case).
             if n_channels > 1:
-                probs = torch.max(y_hat, dim=1)
+                probs = torch.max(y_hat, dim=1).values
             else:
                 probs = y_hat.clone()
                 probs[probs < 0.5] = 1 - probs[probs < 0.5]
@@ -123,12 +118,13 @@ def get_dataset_perf(
 
             # Get some performance metrics
             accuracy_map = (pred_map == label_map).astype(np.float32)
-            perf_per_dist = get_perpix_boundary_dist(y_pred=pred_map)
-            perf_per_regsize = get_perpix_group_size(y_pred=pred_map)
+            matching_neighbors = count_matching_neighbors(pred_map)
+            # perf_per_dist = get_perpix_boundary_dist(y_pred=pred_map)
+            # perf_per_regsize = get_perpix_group_size(y_pred=pred_map)
 
             # Get region sizes
-            gt_lab_region_sizes = get_label_region_sizes(label_map=label_map)
-            pred_lab_region_sizes = get_label_region_sizes(label_map=pred_map)
+            # gt_lab_region_sizes = get_label_region_sizes(label_map=label_map)
+            # pred_lab_region_sizes = get_label_region_sizes(label_map=pred_map)
 
             # Wrap it in an item
             items.append({
@@ -137,11 +133,8 @@ def get_dataset_perf(
                 "label_map": label_map,
                 "conf_map": conf_map,
                 "pred_map": pred_map,
+                "matching_neighbors": matching_neighbors,
                 "perpix_accuracies": accuracy_map,
-                "perf_per_dist": perf_per_dist,
-                "perf_per_regsize": perf_per_regsize,
-                "gt_lab_region_sizes": gt_lab_region_sizes,
-                "pred_lab_region_sizes": pred_lab_region_sizes
             })
     return items
 

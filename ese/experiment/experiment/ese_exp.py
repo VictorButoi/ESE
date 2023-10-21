@@ -44,13 +44,16 @@ class CalibrationExperiment(TrainExperiment):
         self.cal_dataset = dataset_cls(split="cal", **data_cfg)
         self.val_dataset = dataset_cls(split="val", **data_cfg)
     
-    def build_dataloader(self, dl_cfg=None):
+    def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
             self.build_data()
-        # Build the dataloaders
-        if dl_cfg is None:
-            dl_cfg = self.config["dataloader"]
+        dl_cfg = self.config["dataloader"].to_dict()
+
+        # Optionally manually set the batch size.
+        if batch_size is not None:
+            dl_cfg["batch_size"] =  batch_size
+
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
