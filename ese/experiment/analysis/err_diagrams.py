@@ -70,27 +70,32 @@ def viz_accuracy_vs_confidence(
 ):
     # Make a clone of the dataframe to not overwrite the original.
     pixel_preds_df = preds_df.copy()
+
     # Calculate average conf and accuracy for each bin
-    avg_bin_values = pixel_preds_df.groupby(['bin', 'measure']).agg({'value': 'mean'}).reset_index()
+    avg_bin_values = pixel_preds_df.groupby(['bin_num', 'bin', 'measure']).agg({'value': 'mean'}).reset_index()
+
     # Prepare a list to store the new rows
     new_rows = []
     # Create new rows for the averages with a special label 'avg'
     for _, row in avg_bin_values.iterrows():
         new_rows.append({
             'bin': row['bin'], 
+            'bin_num': row['bin_num'],
             'measure': row['measure'],
             'value': row['value'], 
             'label': 'avg',
             'num_neighbors': 'avg',
             'label,num_neighbors': 'avg'
             })
+
     # Concatenate the original DataFrame with the new rows
-    pixel_preds_df = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
+    pixel_preds_df_combined = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
+
     # Concatenate the original DataFrame with the new rows
-    pixel_preds_df_sorted = pixel_preds_df.sort_values(by=['bin_num', 'label', 'num_neighbors', 'label,num_neighbors'], ascending=[True, True, True, True])
+    pixel_preds_df_sorted = pixel_preds_df_combined.sort_values(by=[x, 'bin_num'], ascending=[True, True])
 
      # Using relplot to create a FacetGrid of bar plots
-    col_val = 'bin' if per_bin else None
+    col_val = 'bin_num' if per_bin else None
     g = sns.catplot(data=pixel_preds_df_sorted, 
                     x=x, 
                     y='value', 
