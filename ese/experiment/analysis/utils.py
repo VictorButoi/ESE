@@ -1,27 +1,20 @@
 import numpy as np
-from scipy.ndimage import convolve
+from scipy.signal import convolve2d
 
-
-def count_matching_neighbors(img):
-    # Define a kernel that sums up all 8 neighbors
-    kernel = np.array([
-        [1, 1, 1],
-        [1, 0, 1],
-        [1, 1, 1]
-    ])
-
-    # Convolve the image with the kernel. This will give a sum of all 8 neighbors for each pixel.
-    neighbor_sums = convolve(np.ones_like(img), kernel, mode='constant', cval=0)
-
-    # Create a mask where the original image matches its neighbors
-    matching_neighbors = (img == np.roll(img, 1, axis=0)) | \
-                         (img == np.roll(img, -1, axis=0)) | \
-                         (img == np.roll(img, 1, axis=1)) | \
-                         (img == np.roll(img, -1, axis=1)) | \
-                         (img == np.roll(np.roll(img, 1, axis=0), 1, axis=1)) | \
-                         (img == np.roll(np.roll(img, -1, axis=0), 1, axis=1)) | \
-                         (img == np.roll(np.roll(img, 1, axis=0), -1, axis=1)) | \
-                         (img == np.roll(np.roll(img, -1, axis=0), -1, axis=1))
-
-    # Use the mask to filter out the sums
-    return neighbor_sums * matching_neighbors
+def count_matching_neighbors(label_map):
+    # Get unique labels
+    unique_labels = np.unique(label_map)
+    # Create an array to store the counts
+    count_array = np.zeros_like(label_map)
+    # Define a 3x3 kernel of ones
+    kernel = np.ones((3, 3))
+    for label in unique_labels:
+        # Create a binary mask for the current label
+        mask = (label_map == label).astype(float)
+        # Convolve the mask with the kernel to get the neighbor count
+        neighbor_count = convolve2d(mask, kernel, mode='same')
+        # Update the count_array where the label_map matches the current label
+        count_array[label_map == label] = neighbor_count[label_map == label]
+    # Subtract 1 because the center pixel is included in the 3x3 neighborhood count
+    count_array -= 1
+    return count_array

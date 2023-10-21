@@ -22,8 +22,6 @@ from ionpy.experiment.util import absolute_import, generate_tuid
 from .utils import count_matching_neighbors
 from ese.experiment.metrics.utils.utils import get_bins, find_bins
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
-from ese.experiment.metrics.grouping.regions import get_label_region_sizes
-from ese.experiment.metrics.grouping.portion_loss import get_perpix_boundary_dist, get_perpix_group_size
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
