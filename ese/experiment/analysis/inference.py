@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
 from pydantic import validate_arguments
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Optional, List, Tuple
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -62,7 +62,7 @@ def get_pixelinfo_df(
     for dp in tqdm(data_points, total=len(data_points)):
         # Get the interesting info.
         accuracy_map = dp['perpix_accuracies']
-        bin_info_map = find_bins(
+        bin_ownership_map = find_bins(
             confidences=dp['conf_map'], 
             bin_starts=conf_bins,
             bin_widths=conf_bin_widths
@@ -70,8 +70,8 @@ def get_pixelinfo_df(
         # iterate through (x,y) positions from 0 - 255, 0 - 255
         for (ix, iy) in np.ndindex(dp['pred_map'].shape):
             # Record all important info.
-            if bin_info_map[ix, iy] > 0: # Weird bug where we fall in no bin.
-                bin_n = int(bin_info_map[ix, iy].item()) - 1
+            if bin_ownership_map[ix, iy] > 0: # Weird bug where we fall in no bin.
+                bin_n = int(bin_ownership_map[ix, iy].item()) - 1
                 bin_ends = [np.round(conf_bins[bin_n].item(), 2), np.round(conf_bins[bin_n].item() + conf_bin_widths[bin_n].item(), 2)]
                 for measure in ["conf", "accuracy"]:
                     val = dp['conf_map'][ix, iy] if measure == "conf" else accuracy_map[ix, iy]
