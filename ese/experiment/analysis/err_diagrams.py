@@ -86,7 +86,7 @@ def viz_accuracy_vs_confidence(
             new_rows.append({
                 'bin': row['bin'], 
                 'bin_num': row['bin_num'],
-                'measure': f"avg_{row['measure']}",
+                'measure': f"avg {row['measure']}",
                 'value': row['value'], 
                 'label': 'avg',
                 'num_neighbors': 'avg',
@@ -127,11 +127,11 @@ def viz_accuracy_vs_confidence(
                 # Filter the average_df for this particular 'col' (or 'bin_num')
                 subset_avg = average_df[average_df['bin_num'] == bin_num]
                 # Get average confidence for this 'bin_num'
-                avg_conf_value = subset_avg[subset_avg['measure'] == 'avg_conf']['value'].mean()
-                ax.axhline(avg_conf_value, color='red', linestyle='--', label='Avg Confidence')
+                avg_conf_value = subset_avg[subset_avg['measure'] == 'avg conf']['value'].mean()
+                ax.axhline(avg_conf_value, color='red', linestyle='--', label='avg conf', zorder=0)
                 # Get average accuracy for this 'bin_num'
-                avg_acc_value = subset_avg[subset_avg['measure'] == 'avg_accuracy']['value'].mean()
-                ax.axhline(avg_acc_value, color='green', linestyle='--', label='Avg Accuracy')
+                avg_acc_value = subset_avg[subset_avg['measure'] == 'avg accuracy']['value'].mean()
+                ax.axhline(avg_acc_value, color='green', linestyle='--', label='avg accuracy', zorder=0)
 
             # Get the existing handles and labels from one of the subplots (if they exist)
             handles, labels = g.axes.flat[0].get_legend_handles_labels()
@@ -141,7 +141,7 @@ def viz_accuracy_vs_confidence(
             handles = [blue_line, orange_line] + handles
             labels = ['conf', 'accuracy'] + labels
             # Add the legend to the FacetGrid
-            g.fig.legend(handles=handles, labels=labels, loc='center right', borderaxespad=0.1)
+            g.fig.legend(handles=handles, labels=labels, loc='center right', title='measure', borderaxespad=0.1, frameon=False)
             # Adjust figure to make space for the legend on the right
             g.fig.subplots_adjust(right=0.92)
     else:
