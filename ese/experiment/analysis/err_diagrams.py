@@ -68,7 +68,7 @@ def viz_accuracy_vs_confidence(
     title: str,
     x: str,
     hue: Union[str, List[str]],
-    kind: Literal["bar", "box", "line"],
+    kind: Literal["bar", "line"],
     add_average: bool = False,
     x_labels: bool = True,
     style: Optional[str] = None,
@@ -103,7 +103,15 @@ def viz_accuracy_vs_confidence(
     pixel_preds_df_sorted = pixel_preds_df.sort_values(by=[x, 'bin_num'], ascending=[True, True])
 
      # Using relplot to create a FacetGrid of bar plots
-    if kind in ['bar', 'box']:
+    if kind in ['bar']:
+        sharex = True
+        sharey = True
+        if facet_kws is not None:
+            if not facet_kws["sharex"]:
+                sharex = False
+            if not facet_kws["sharey"]:
+                sharey = False
+        # Plot the bar plots
         g = sns.catplot(data=pixel_preds_df_sorted, 
                         x=x, 
                         y='value', 
@@ -112,6 +120,8 @@ def viz_accuracy_vs_confidence(
                         col_wrap=5, 
                         kind='bar', 
                         height=5,
+                        sharex=sharex,
+                        sharey=sharey,
                         facet_kws=facet_kws)
     elif kind in ["line"]:
         g = sns.relplot(data=pixel_preds_df_sorted, 
