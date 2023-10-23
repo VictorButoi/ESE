@@ -69,9 +69,11 @@ def viz_accuracy_vs_confidence(
     x: str,
     hue: Union[str, List[str]],
     kind: Literal["bar", "box", "line"],
-    col: Optional[Literal["bin_num"]] = None,
     add_average: bool = False,
-    x_labels: bool = True
+    x_labels: bool = True,
+    style: Optional[str] = None,
+    col: Optional[Literal["bin_num"]] = None,
+    facet_kws: Optional[dict] = None,
 ):
     # Make a clone of the dataframe to not overwrite the original.
     pixel_preds_df = preds_df.copy()
@@ -109,7 +111,8 @@ def viz_accuracy_vs_confidence(
                         col=col, 
                         col_wrap=5, 
                         kind='bar', 
-                        height=5)
+                        height=5,
+                        facet_kws=facet_kws)
     elif kind in ["line"]:
         g = sns.relplot(data=pixel_preds_df_sorted, 
                         x=x, 
@@ -117,9 +120,10 @@ def viz_accuracy_vs_confidence(
                         hue=hue,
                         col=col, 
                         col_wrap=5, 
+                        style=style,
                         kind='line', 
                         height=5,
-                        legend=(not add_average))
+                        facet_kws=facet_kws)
         if add_average:
             for ax, (bin_num_info, _) in zip(g.axes.flat, g.facet_data()):
                 # Get the bin num
@@ -132,18 +136,6 @@ def viz_accuracy_vs_confidence(
                 # Get average accuracy for this 'bin_num'
                 avg_acc_value = subset_avg[subset_avg['measure'] == 'avg accuracy']['value'].mean()
                 ax.axhline(avg_acc_value, color='green', linestyle='--', label='avg accuracy', zorder=0)
-
-            # Get the existing handles and labels from one of the subplots (if they exist)
-            handles, labels = g.axes.flat[0].get_legend_handles_labels()
-            # Add new handles for the solid blue and orange lines
-            blue_line = Line2D([0], [0], color='#1f77b4', lw=2)
-            orange_line = Line2D([0], [0], color='#ff7f0e', lw=2)
-            handles = [blue_line, orange_line] + handles
-            labels = ['conf', 'accuracy'] + labels
-            # Add the legend to the FacetGrid
-            g.fig.legend(handles=handles, labels=labels, loc='center right', title='measure', borderaxespad=0.1, frameon=False)
-            # Adjust figure to make space for the legend on the right
-            g.fig.subplots_adjust(right=0.92)
     else:
         raise NotImplementedError("Haven't configured that kind of plot yet.") 
     
