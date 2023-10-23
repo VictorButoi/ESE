@@ -16,12 +16,12 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     axis: Literal[0, 1, 2]
     label_set: Literal["label4", "label35"]
-    split: Literal["train", "cal", "val", "test"]
     slicing: Literal["midslice", "central", "full"]
+    split: Literal["train", "cal", "val", "test"]
     num_slices: int = 1
     replace: bool = False
     central_width: int = 32 
-    version: float = 0.2
+    version: float = 0.1
     preload: bool = False
     slice_batch_size: Optional[int] = 1 
     transforms: Optional[List[Any]] = None

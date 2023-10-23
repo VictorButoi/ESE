@@ -5,8 +5,7 @@ import matplotlib.colors as mcolors
 
 
 def ShowPredictions(
-        experiment, 
-        show_soft_pred=False
+        experiment
         ):
 
     # Get the experiment config
@@ -46,17 +45,15 @@ def ShowPredictions(
             img_cmap = "gray"
 
         if num_pred_classes > 1:
-            assert not show_soft_pred, "Can't show soft predictions for multiclass"
             yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1).numpy()
         else:
             yhat = torch.sigmoid(yhat).numpy()
         
-        num_cols = 4 if show_soft_pred else 3
+        num_cols =  3
         f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
 
         # Go through each item in the batch.
         for b_idx in range(bs):
-
             if bs == 1:
                 axarr[0].set_title("Image")
                 im1 = axarr[0].imshow(x.squeeze(), cmap=img_cmap, interpolation='None')
@@ -69,11 +66,6 @@ def ShowPredictions(
                 axarr[2].set_title("Prediction")
                 im3 = axarr[2].imshow(yhat.squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im3, ax=axarr[2], orientation='vertical')
-
-                if show_soft_pred:
-                    axarr[3].set_title("Soft Prediction")
-                    im4 = axarr[3].imshow(yhat.squeeze(), cmap="gray")
-                    f.colorbar(im4, ax=axarr[3], orientation='vertical')
             else:
                 axarr[b_idx, 0].set_title("Image")
                 im1 = axarr[b_idx, 0].imshow(x[b_idx].squeeze(), interpolation='None')
@@ -86,12 +78,6 @@ def ShowPredictions(
                 axarr[b_idx, 2].set_title("Prediction")
                 im3 = axarr[b_idx, 2].imshow(yhat[b_idx].squeeze(), cmap=cm, interpolation='None')
                 f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
-
-                if show_soft_pred:
-                    axarr[b_idx, 3].set_title("Soft Prediction")
-                    im4 = axarr[b_idx, 3].imshow(yhat[b_idx, ...], cmap="gray")
-                    f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
-
         plt.show()
 
     return ShowPredictionsCallback

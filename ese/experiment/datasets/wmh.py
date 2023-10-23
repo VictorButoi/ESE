@@ -16,19 +16,18 @@ from ionpy.util.validation import validate_arguments_init
 @dataclass
 class WMH(ThunderDataset, DatapathMixin):
 
+    axis: Literal[0, 1, 2]
     task: str 
-    annotator: str = "observer_o12"
-    axis: Literal[0, 1, 2] = 0
-    split: Literal["train", "cal", "val", "test"] = "train"
     slicing: str
+    split: Literal["train", "cal", "val", "test"]
+    annotator: str = "observer_o12"
     num_slices: int = 1
     replace: bool = False
     central_width: int = 32 
-    version: float = 0.2
-    preload: bool = False
-    dataset: Literal["WMH"] = "WMH"
     slice_batch_size: Optional[int] = 1 
     transforms: Optional[List[Any]] = None
+    version: float = 0.2
+    preload: bool = False
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
