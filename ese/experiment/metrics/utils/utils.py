@@ -107,15 +107,12 @@ def get_conf_region(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
     num_bins: int,
-    class_type: Literal["Binary", "Multi-class"],
-    metric: str = "ECE", 
-    include_background: bool = True, 
-    num_labels: Optional[int] = None,
+    start: float = 0.0,
+    end: float = 1.0,
+    adaptive: bool = False,
     conf_map: Optional[torch.Tensor] = None
     ):
-    if class_type == "Multi-class": 
-        assert include_background, "Background must be included for multi-class."
-    if metric == "ACE":
+    if adaptive:
         sorted_pix_values = torch.sort(conf_map.flatten())[0]
         conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
         # Get the ranges of the confidences bins.
@@ -128,12 +125,7 @@ def get_bins(
         conf_bin_widths = torch.Tensor(bin_widths)
         conf_bins = torch.Tensor(bin_starts)
     else:
-        # Define the bins
-        if class_type == "Multi-class":
-            start = 1 / num_labels 
-        else:
-            start = 0 if include_background else 0.5 
-        conf_bins = torch.linspace(start, 1, num_bins+1)[:-1] # Off by one error
+        conf_bins = torch.linspace(start, end, num_bins+1)[:-1] # Off by one error
         # Get the confidence bins
         bin_width = conf_bins[1] - conf_bins[0]
         conf_bin_widths = torch.ones(num_bins) * bin_width

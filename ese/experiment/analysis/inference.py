@@ -5,8 +5,8 @@ import pathlib
 import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
-from typing import Any, Dict, Optional, List
 from pydantic import validate_arguments
+from typing import Any, Dict, Optional, List, Tuple
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -20,36 +20,42 @@ from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import count_matching_neighbors
-from ese.experiment.metrics.utils.utils import get_bins, find_bins
-from ese.experiment.experiment.ese_exp import CalibrationExperiment
+from ..metrics.utils.utils import get_bins, find_bins
+from ..experiment.ese_exp import CalibrationExperiment
 
 
-# @validate_arguments(config=dict(arbitrary_types_allowed=True))
-# def get_pixel_metric_dict(
-#     data_points: List[dict],
-#     num_unique_labels: int,
-#     num_bins: int = 1
-#     ) -> Dict[MeterDict]:
-#     # Get the different confidence bins.
-#     conf_bins, conf_bin_widths = get_bins(
-#         num_bins=num_bins,
-#         class_type="Multi-class",
-#         num_labels=num_unique_labels
-#         )
-
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def compute_pixel_meter_dict(
+    data_points: List[dict],
+    num_bins: int,
+    conf_interval: List[float]
+    ) -> dict[MeterDict]:
+    # Get the different confidence bins.
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
+    # Go through each datapoint and register information about the pixels.
+    meter_dict ={}
+    # for label in unique_labels:
+    #     meter_dict[label] = MeterDict()
+    # Build the dict.
+    
+    return meter_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_pixelinfo_df(
     data_points: List[dict],
-    num_unique_labels: int,
-    num_bins: int = 1
-    ) -> None:
+    num_bins: int,
+    conf_interval: List[float]
+    ) -> pd.DataFrame:
     # Get the different confidence bins.
     conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins,
-        class_type="Multi-class",
-        num_labels=num_unique_labels
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
         )
     # Go through each datapoint and register information about the pixels.
     perppixel_records = []
@@ -87,11 +93,12 @@ def get_pixelinfo_df(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_dataset_perf(
-        exp, 
-        split="val",
-        threshold=0.5,
-        rearrange_channel_dim=False
-        ):
+    exp, 
+    split="val",
+    threshold=0.5,
+    rearrange_channel_dim=False
+    ) -> Tuple[List[dict], List[int]]:
+    # Choose the dataloader from the experiment.
     dataloader = exp.val_dl if split=="val" else exp.train_dl
     items = []
     unique_labels = set([])
