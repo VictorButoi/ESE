@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from typing import List, Optional, Union
+from matplotlib.lines import Line2D
 from pydantic import validate_arguments
+from typing import List, Optional, Union, Literal
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -61,49 +62,97 @@ def viz_region_size_distribution(
             plt.show()
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def viz_accuracy_vs_confidence(
     preds_df: pd.DataFrame,
-    per_bin: bool,
+    title: str,
     x: str,
     hue: Union[str, List[str]],
-    title: str
+    kind: Literal["bar", "box", "line"],
+    col: Optional[Literal["bin_num"]] = None,
+    add_average: bool = False,
+    x_labels: bool = True
 ):
     # Make a clone of the dataframe to not overwrite the original.
     pixel_preds_df = preds_df.copy()
 
-    # Calculate average conf and accuracy for each bin
-    avg_bin_values = pixel_preds_df.groupby(['bin_num', 'bin', 'measure']).agg({'value': 'mean'}).reset_index()
-
-    # Prepare a list to store the new rows
-    new_rows = []
-    # Create new rows for the averages with a special label 'avg'
-    for _, row in avg_bin_values.iterrows():
-        new_rows.append({
-            'bin': row['bin'], 
-            'bin_num': row['bin_num'],
-            'measure': row['measure'],
-            'value': row['value'], 
-            'label': 'avg',
-            'num_neighbors': 'avg',
-            'label,num_neighbors': 'avg'
-            })
+    if add_average:
+        # Calculate average conf and accuracy for each bin
+        avg_bin_values = pixel_preds_df.groupby(['bin_num', 'bin', 'measure']).agg({'value': 'mean'}).reset_index()
+        # Prepare a list to store the new rows
+        new_rows = []
+        # Create new rows for the averages with a special label 'avg'
+        for _, row in avg_bin_values.iterrows():
+            new_rows.append({
+                'bin': row['bin'], 
+                'bin_num': row['bin_num'],
+                'measure': f"avg_{row['measure']}",
+                'value': row['value'], 
+                'label': 'avg',
+                'num_neighbors': 'avg',
+                'label,num_neighbors': 'avg'
+                })
+        average_df = pd.DataFrame(new_rows)
+        # Concatenate the original DataFrame with the new rows if box/bar plot
+        if kind in ['bar', 'box']:
+            pixel_preds_df = pd.concat([pixel_preds_df, average_df], ignore_index=True)
 
     # Concatenate the original DataFrame with the new rows
-    pixel_preds_df_combined = pd.concat([pixel_preds_df, pd.DataFrame(new_rows)], ignore_index=True)
-
-    # Concatenate the original DataFrame with the new rows
-    pixel_preds_df_sorted = pixel_preds_df_combined.sort_values(by=[x, 'bin_num'], ascending=[True, True])
+    pixel_preds_df_sorted = pixel_preds_df.sort_values(by=[x, 'bin_num'], ascending=[True, True])
 
      # Using relplot to create a FacetGrid of bar plots
-    col_val = 'bin_num' if per_bin else None
-    g = sns.catplot(data=pixel_preds_df_sorted, 
-                    x=x, 
-                    y='value', 
-                    hue=hue,
-                    col=col_val, 
-                    col_wrap=5, 
-                    kind='bar', 
-                    height=5)
+    if kind in ['bar', 'box']:
+        g = sns.catplot(data=pixel_preds_df_sorted, 
+                        x=x, 
+                        y='value', 
+                        hue=hue,
+                        col=col, 
+                        col_wrap=5, 
+                        kind='bar', 
+                        height=5)
+    elif kind in ["line"]:
+        g = sns.relplot(data=pixel_preds_df_sorted, 
+                        x=x, 
+                        y='value', 
+                        hue=hue,
+                        col=col, 
+                        col_wrap=5, 
+                        kind='line', 
+                        height=5,
+                        legend=(not add_average))
+        if add_average:
+            for ax, (bin_num_info, _) in zip(g.axes.flat, g.facet_data()):
+                # Get the bin num
+                bin_num = bin_num_info[1] + 1
+                # Filter the average_df for this particular 'col' (or 'bin_num')
+                subset_avg = average_df[average_df['bin_num'] == bin_num]
+                # Get average confidence for this 'bin_num'
+                avg_conf_value = subset_avg[subset_avg['measure'] == 'avg_conf']['value'].mean()
+                ax.axhline(avg_conf_value, color='red', linestyle='--', label='Avg Confidence')
+                # Get average accuracy for this 'bin_num'
+                avg_acc_value = subset_avg[subset_avg['measure'] == 'avg_accuracy']['value'].mean()
+                ax.axhline(avg_acc_value, color='green', linestyle='--', label='Avg Accuracy')
+
+            # Get the existing handles and labels from one of the subplots (if they exist)
+            handles, labels = g.axes.flat[0].get_legend_handles_labels()
+            # Add new handles for the solid blue and orange lines
+            blue_line = Line2D([0], [0], color='#1f77b4', lw=2)
+            orange_line = Line2D([0], [0], color='#ff7f0e', lw=2)
+            handles = [blue_line, orange_line] + handles
+            labels = ['conf', 'accuracy'] + labels
+            # Add the legend to the FacetGrid
+            g.fig.legend(handles=handles, labels=labels, loc='center right', borderaxespad=0.1)
+            # Adjust figure to make space for the legend on the right
+            g.fig.subplots_adjust(right=0.92)
+    else:
+        raise NotImplementedError("Haven't configured that kind of plot yet.") 
+    
+    # Optionally remove the x labels
+    if not x_labels:
+        # Disable the x-ticks
+        g.set_xticklabels([])
+
     # Adjusting the titles
     g.fig.subplots_adjust(top=0.9)
     g.fig.suptitle(title, fontsize=16)
+    plt.show()
