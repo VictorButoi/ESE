@@ -83,16 +83,16 @@ def viz_accuracy_vs_confidence(
         avg_bin_values = pixel_preds_df.groupby(['bin_num', 'bin', 'measure']).agg({'value': 'mean'}).reset_index()
         # Prepare a list to store the new rows
         new_rows = []
-        # Create new rows for the averages with a special label 'avg'
+        # Create new rows for the averages with a special pred label 'avg'
         for _, row in avg_bin_values.iterrows():
             new_rows.append({
                 'bin': row['bin'], 
                 'bin_num': row['bin_num'],
                 'measure': f"avg {row['measure']}",
                 'value': row['value'], 
-                'label': 'avg',
+                'pred_label': 'avg',
                 'num_neighbors': 'avg',
-                'label,num_neighbors': 'avg'
+                'pred_label,num_neighbors': 'avg'
                 })
         average_df = pd.DataFrame(new_rows)
         # Concatenate the original DataFrame with the new rows if box/bar plot

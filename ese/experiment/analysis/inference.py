@@ -77,7 +77,7 @@ def get_pixelinfo_df(
                         "bin": f"{bin_n + 1}, {bin_ends}",
                         "pred_label": dp['pred_map'][ix, iy],
                         "num_neighbors": dp['matching_neighbors'][ix, iy],
-                        "label,num_neighbors": f"{dp['pred_map'][ix, iy]},{dp['matching_neighbors'][ix, iy]}",
+                        "pred_label,num_neighbors": f"{dp['pred_map'][ix, iy]},{dp['matching_neighbors'][ix, iy]}",
                         "measure": measure,
                         "value": val,
                     }
