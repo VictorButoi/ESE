@@ -16,9 +16,11 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     axis: Literal[0, 1, 2]
     label_set: Literal["label4", "label35"]
-    split: Literal["train", "cal", "val", "test"] = "train"
-    slicing: Literal["midslice", "full"] = "midslice"
+    split: Literal["train", "cal", "val", "test"]
+    slicing: Literal["midslice", "central", "full"]
     num_slices: int = 1
+    replace: bool = False
+    central_width: int = 32 
     version: float = 0.2
     preload: bool = False
     slice_batch_size: Optional[int] = 1 
@@ -37,15 +39,19 @@ class OASIS(ThunderDataset, DatapathMixin):
         subj = self.subjects[key]
         img_vol, mask_vol = self._db[subj]
 
-        # Dense slice sampling means that you sample proportional to how much
-        # label there is.
+        # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
             slice_indices = np.array([128])
-        # Uniform slice sampling means that we sample all non-zero slices equally.
+        # Sample an image and label slice from around a central region.
+        elif self.slicing == "central":
+            central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
+            slice_indices = np.random.choice(central_slices, size=self.num_slices, replace=self.replace)
+        # Return the entire image and label volumes.
         elif self.slicing == "full":
             slice_indices = np.arange(256)
+        # Throw an error if the slicing method is unknown.
         else:
-            raise ValueError(f"Unknown slicing method {self.slicing}")
+            raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
         img = img_vol[slice_indices, ...].astype(np.float32)

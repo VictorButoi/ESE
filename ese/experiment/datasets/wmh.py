@@ -20,8 +20,10 @@ class WMH(ThunderDataset, DatapathMixin):
     annotator: str = "observer_o12"
     axis: Literal[0, 1, 2] = 0
     split: Literal["train", "cal", "val", "test"] = "train"
-    slicing: Literal["dense", "uniform", "midslice", "full"] = "dense"
+    slicing: str
     num_slices: int = 1
+    replace: bool = False
+    central_width: int = 32 
     version: float = 0.2
     preload: bool = False
     dataset: Literal["WMH"] = "WMH"
@@ -49,21 +51,28 @@ class WMH(ThunderDataset, DatapathMixin):
         mask_vol = subj_dict['masks'][self.annotator]
 
         label_amounts = subj_dict['pixel_proportions'][self.annotator]
-        allow_replacement = self.num_slices > len(label_amounts[label_amounts> 0])
+        allow_replacement = self.replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
 
-        # Dense slice sampling means that you sample proportional to how much
-        # label there is.
-        if self.slicing == "dense":
+        # Slice the image and label volumes down the middle.
+        if self.slicing == "midslice":
+            slice_indices = np.array([128])
+        # Sample an image and label slice from around a central region.
+        elif self.slicing == "central":
+            central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
+            slice_indices = np.random.choice(central_slices, size=self.num_slices, replace=allow_replacement)
+        # Sample the slice proportional to how much label they have.
+        elif self.slicing == "dense":
             label_probs = label_amounts / np.sum(label_amounts)
             slice_indices = np.random.choice(np.arange(256), size=self.num_slices, p=label_probs, replace=allow_replacement)
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
+        # Return the entire image and label volumes.
         elif self.slicing == "full":
             slice_indices = np.arange(256)
-        # Otherwise slice  down the middle.
+        # Throw an error if the slicing method is unknown.
         else:
-            slice_indices = np.array([128])
+            raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
         img = img_vol[slice_indices, ...].astype(np.float32)
