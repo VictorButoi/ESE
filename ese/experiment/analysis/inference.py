@@ -5,13 +5,13 @@ import pathlib
 import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
-from typing import Any, Optional, List
+from typing import Any, Dict, Optional, List
 from pydantic import validate_arguments
 # torch imports
 import torch
 from torch.utils.data import DataLoader
 # ionpy imports
-from ionpy.util import Config
+from ionpy.util import Config, MeterDict
 from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.util.torchutils import to_device
@@ -24,17 +24,32 @@ from ese.experiment.metrics.utils.utils import get_bins, find_bins
 from ese.experiment.experiment.ese_exp import CalibrationExperiment
 
 
+# @validate_arguments(config=dict(arbitrary_types_allowed=True))
+# def get_pixel_metric_dict(
+#     data_points: List[dict],
+#     num_unique_labels: int,
+#     num_bins: int = 1
+#     ) -> Dict[MeterDict]:
+#     # Get the different confidence bins.
+#     conf_bins, conf_bin_widths = get_bins(
+#         num_bins=num_bins,
+#         class_type="Multi-class",
+#         num_labels=num_unique_labels
+#         )
+
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_pixelinfo_df(
     data_points: List[dict],
-    num_labels: int,
+    num_unique_labels: int,
     num_bins: int = 1
     ) -> None:
     # Get the different confidence bins.
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins,
         class_type="Multi-class",
-        num_labels=num_labels
+        num_labels=num_unique_labels
         )
     # Go through each datapoint and register information about the pixels.
     perppixel_records = []
@@ -79,6 +94,7 @@ def get_dataset_perf(
         ):
     dataloader = exp.val_dl if split=="val" else exp.train_dl
     items = []
+    unique_labels = set([])
     with torch.no_grad():
         for subj_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
             # Get your image label pair and define some regions.
@@ -114,15 +130,13 @@ def get_dataset_perf(
             conf_map = probs.squeeze().cpu().numpy()
             pred_map = y_pred.squeeze().cpu().numpy() 
 
+            # Get the unique labels and merge using set union.
+            new_unique_labels = set(np.unique(label_map))
+            unique_labels = unique_labels.union(new_unique_labels)
+
             # Get some performance metrics
             accuracy_map = (pred_map == label_map).astype(np.float32)
             matching_neighbors = count_matching_neighbors(pred_map)
-            # perf_per_dist = get_perpix_boundary_dist(y_pred=pred_map)
-            # perf_per_regsize = get_perpix_group_size(y_pred=pred_map)
-
-            # Get region sizes
-            # gt_lab_region_sizes = get_label_region_sizes(label_map=label_map)
-            # pred_lab_region_sizes = get_label_region_sizes(label_map=pred_map)
 
             # Wrap it in an item
             items.append({
@@ -134,7 +148,8 @@ def get_dataset_perf(
                 "matching_neighbors": matching_neighbors,
                 "perpix_accuracies": accuracy_map,
             })
-    return items
+    # Return the subject info and labels.
+    return items, list(unique_labels)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

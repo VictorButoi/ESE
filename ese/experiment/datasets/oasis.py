@@ -16,8 +16,8 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     axis: Literal[0, 1, 2]
     label_set: Literal["label4", "label35"]
-    slicing: Literal["midslice", "central", "full"]
     split: Literal["train", "cal", "val", "test"]
+    slicing: Literal["midslice", "central", "full"] = "midslice"
     num_slices: int = 1
     replace: bool = False
     central_width: int = 32 

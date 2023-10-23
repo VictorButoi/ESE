@@ -28,6 +28,7 @@ class WMH(ThunderDataset, DatapathMixin):
     transforms: Optional[List[Any]] = None
     version: float = 0.2
     preload: bool = False
+    dataset: str = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
