@@ -384,6 +384,10 @@ def get_calibration_item_info(
     # PIXEL LEVEL TRACKING
     ######################
     if pixel_meter_dict is not None:
+        # numpy-ize our tensors
+        conf_map = conf_map.cpu().numpy()
+        pred_map = pred_map.cpu().numpy()
+        label_map = label_map.cpu().numpy()
         # Get the interesting info.
         acc_map = (pred_map == label_map).astype(np.float32)
         matching_neighbors = count_matching_neighbors(pred_map)
@@ -396,14 +400,16 @@ def get_calibration_item_info(
         # iterate through (x,y) positions of the image.
         conf_meter = pixel_meter_dict["confs"]
         acc_meter = pixel_meter_dict["accs"]
+
+        # Iterate through each pixel in the image.
         for (ix, iy) in np.ndindex(pred_map):
 
             # Record all important info.
-            pix_bin_n = int(bin_ownership_map[ix, iy].item())
-            pix_conf = conf_map[ix, iy]
-            pix_acc = acc_map[ix, iy]
-            pix_pred_lab = pred_map[ix, iy]
-            pix_num_sim_neighbors = matching_neighbors[ix, iy]
+            pix_bin_n = bin_ownership_map[ix, iy].item()
+            pix_conf = conf_map[ix, iy].item()
+            pix_acc = acc_map[ix, iy].item()
+            pix_pred_lab = pred_map[ix, iy].item()
+            pix_num_sim_neighbors = matching_neighbors[ix, iy].item()
 
             # Build the dictionaries when we see new labels.
             if pix_pred_lab not in conf_meter.keys():
