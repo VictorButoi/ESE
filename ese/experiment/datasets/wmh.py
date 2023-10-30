@@ -38,6 +38,7 @@ class WMH(ThunderDataset, DatapathMixin):
         subjects: List[str] = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
+        self.return_data_id = False
 
     def __len__(self):
         return len(self.samples)
@@ -90,7 +91,10 @@ class WMH(ThunderDataset, DatapathMixin):
         img = torch.from_numpy(img)
         mask = torch.from_numpy(mask)
 
-        return img, mask
+        if self.return_data_id:
+            return img, mask, subj
+        else:
+            return img, mask
 
     @property
     def _folder_name(self):

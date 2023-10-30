@@ -31,6 +31,7 @@ class OASIS(ThunderDataset, DatapathMixin):
         subjects = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
+        self.return_data_id = False
 
     def __len__(self):
         return len(self.samples)
@@ -62,7 +63,14 @@ class OASIS(ThunderDataset, DatapathMixin):
         if self.transforms:
             img, mask = self.transforms(img, mask)
 
-        return torch.from_numpy(img), torch.from_numpy(mask)
+        # Convert to torch tensors
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
+
+        if self.return_data_id:
+            return img, mask, subj
+        else:
+            return img, mask
 
     @property
     def _folder_name(self):

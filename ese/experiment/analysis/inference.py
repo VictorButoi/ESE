@@ -152,17 +152,19 @@ def get_dataset_perf(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
-    cfg: Config
+    cfg: Config, 
+    uuid: Optional[str] = None,
+    data_split: Optional[int] = 0
     ) -> None:
-
     ###################
     # BUILD THE MODEL #
     ###################
     # Get the config dictionary
-    cfg_dict = copy.deepcopy(cfg.to_dict())
+    cfg_dict = cfg.to_dict()
+
     # Results loader object does everything
-    root = pathlib.Path(cfg['log']['root'])
-    exp_name = cfg['model']['exp_name']
+    root = pathlib.Path(cfg_dict['log']['root'])
+    exp_name = cfg_dict['model']['exp_name']
     exp_path = root / exp_name
     # Get the configs of the experiment
     rs = ResultsLoader()
@@ -180,7 +182,7 @@ def get_cal_stats(
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = cfg['dataset'].to_dict()
+    new_dset_options = cfg_dict['dataset']
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     exp_data_cfg = best_exp.config['data'].to_dict()
@@ -189,33 +191,43 @@ def get_cal_stats(
     # Make sure we aren't sampling for evaluation. 
     if "slicing" in exp_data_cfg.keys():
         assert exp_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
+
     # Get the dataset class and build the transforms
     dataset_cls = exp_data_cfg.pop("_class")
-    # Build the datasets, apply the transforms
     dataset_obj = absolute_import(dataset_cls)(**exp_data_cfg)
+    exp_data_cfg["_class"] = dataset_cls        
+    cfg_dict['dataset'] = exp_data_cfg
+    dataset_obj.return_data_id = True
     # Build the dataset and dataloader.
     dataloader = DataLoader(
         dataset_obj, 
         batch_size=1, 
-        num_workers=cfg['model']['num_workers'], 
+        num_workers=cfg_dict['model']['num_workers'], 
         shuffle=False
     )
     # Set the looping function based on the input type.
     forward_loop_func = volume_forward_loop if input_type == "volume" else image_forward_loop
 
-    # Import the caibration metrics.
-    metric_cfg = cfg['cal_metrics'].to_dict()
+    #####################
+    # DEFINE THE OUTPUT #
+    #####################
+    # Prepare the output dir for saving the results
+    if uuid is None:
+        create_time, nonce = generate_tuid()
+        digest = config_digest(cfg_dict)
+        uuid = f"{create_time}-{nonce}-{digest}.pkl"
+    # make sure to add inference in front of the exp name (easy grep).
+    inf_cfg_output_dir = root / "Inference_" + exp_name / uuid
+    cfg_log_dir = inf_cfg_output_dir / data_split 
+    if not inf_cfg_output_dir.exists():
+        inf_cfg_output_dir.mkdir(parents=True)
+
+    ##################################
+    # INITIALIZE CALIBRATION METRICS #
+    ##################################
+    metric_cfg = cfg_dict['cal_metrics']
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
-
-    # Prepare the output dir for saving the results
-    create_time, nonce = generate_tuid()
-    digest = config_digest(cfg_dict)
-    uuid = f"{create_time}-{nonce}-{digest}.pkl"
-    exp_log_dir = root / "records" / exp_name
-    cfg_log_dir = exp_log_dir / uuid
-    if not exp_log_dir.exists():
-        exp_log_dir.mkdir(parents=True)
 
     # Keep track of records
     data_records = []
@@ -228,17 +240,18 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
-            # Run the forward loop
-            forward_loop_func(
-                batch=batch, 
-                batch_idx=batch_idx, 
-                cfg=cfg, 
-                metric_cfg=metric_cfg,
-                exp=best_exp, 
-                data_records=data_records,
-                dataset_cls=dataset_cls
-            )
-            # Save the records every so often, to get intermediate results.
+            # Only run the loop if we are using all the data or if the batch_id is in the data_ids.
+            if data_ids is None or batch[2] in data_ids:
+                # Run the forward loop
+                forward_loop_func(
+                    exp=best_exp, 
+                    batch=batch, 
+                    inference_cfg=cfg_dict, 
+                    metric_cfg=metric_cfg,
+                    data_records=data_records,
+                )
+            # Save the records every so often, to get intermediate results. Note, because of data_ids
+            # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 save_records(data_records)
     # Save the records at the end too
@@ -247,81 +260,75 @@ def get_cal_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
-    batch: Any,
-    batch_idx: int,
-    cfg: Config,
-    metric_cfg: dict,
     exp: CalibrationExperiment,
-    data_records: list,
-    dataset_cls: str
+    batch: Any,
+    cfg: dict,
+    metric_cfg: dict,
+    data_records: list
 ):
+    # Get the batch info
+    image_vol, label_vol, batch_data_id = batch
+    data_id = batch_data_id[0]
     # Get your image label pair and define some regions.
-    batch_x, batch_y = to_device(batch, exp.device)
+    img_vol_cuda , label_vol_cuda = to_device((image_vol, label_vol), exp.device)
     # Reshape so that we will like the shape.
-    x_vol = einops.rearrange(batch_x, "b c h w -> (b c) 1 h w")
-    y_vol = einops.rearrange(batch_y, "b c h w -> (b c) 1 h w")
+    x_batch = einops.rearrange(img_vol_cuda, "b c h w -> (b c) 1 h w")
+    y_batch = einops.rearrange(label_vol_cuda, "b c h w -> (b c) 1 h w")
     # Go through each slice and predict the metrics.
-    for slice_idx in tqdm(range(x_vol.shape[0]), desc="Slice loop", position=1, leave=False):
+    for slice_idx in tqdm(range(x_batch.shape[0]), desc="Slice loop", position=1, leave=False):
         # Extract the slices from the volumes.
-        image = x_vol[slice_idx, ...][None]
-        label_map = y_vol[slice_idx, ...][None]
+        image_cuda = x_batch[slice_idx, ...][None]
+        label_map_cuda = y_batch[slice_idx, ...][None]
         # Get the prediction
-        pred_map, conf_map = exp.predict(image, multi_class=True, include_probs=True)
+        pred_map, conf_map = exp.predict(image_cuda, multi_class=True, include_probs=True)
         get_calibration_item_info(
             cfg=cfg,
             conf_map=conf_map,
             pred_map=pred_map,
-            label_map=label_map,
-            data_idx=batch_idx,
-            split=cfg['dataset']['split'],
+            label_map=label_map_cuda,
+            data_id=data_id,
             data_records=data_records,
             metric_cfg=metric_cfg,
-            slice_idx=slice_idx,
-            task=cfg['dataset']['task'],
-            dataset_cls=dataset_cls
+            slice_idx=slice_idx
         )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_forward_loop(
-    batch: Any,
-    batch_idx: int,
-    cfg: Config,
-    metric_cfg: dict,
     exp: CalibrationExperiment,
+    batch: Any,
+    cfg: dict,
+    metric_cfg: dict,
     data_records: list,
-    dataset_cls: str
 ):
+    # Get the batch info
+    image, label_map, batch_data_id = batch
+    data_id = batch_data_id[0]
     # Get your image label pair and define some regions.
-    image, label = to_device(batch, exp.device)
+    image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction
-    pred_map, conf_map = exp.predict(image, multi_class=True, include_probs=True)
+    pred_map, conf_map = exp.predict(image_cuda, multi_class=True, include_probs=True)
     get_calibration_item_info(
-        cfg=cfg,
         conf_map=conf_map,
         pred_map=pred_map,
-        label=label,
-        data_idx=batch_idx,
-        split=cfg['dataset']['split'],
+        label_map=label_map_cuda,
+        data_id=data_id,
         data_records=data_records,
-        metric_cfg=metric_cfg,
-        dataset_cls=dataset_cls
+        cfg=cfg,
+        metric_cfg=metric_cfg
     )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
-    cfg: Config,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
-    data_idx: int,
-    split: str,
-    data_records: list,
+    data_id: str,
+    inference_cfg: dict,
     metric_cfg: dict,
-    dataset_cls: str,
+    data_records: list,
     slice_idx: Optional[int] = None,
-    task: Optional[str] = None
     ):
     # Get some metrics of these predictions
     dice = dice_score(conf_map, label_map).item()
@@ -332,29 +339,28 @@ def get_calibration_item_info(
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
     # Go through each calibration metric and calculate the score.
-    for cal_metric in cfg["cal_metrics"]:
-        for bin_weighting in cfg["calibration"]["bin_weightings"]:
+    for cal_metric in inference_cfg["cal_metrics"]:
+        for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
             # Get the calibration metric
-            calibration_info = metric_cfg[cal_metric]['func'](
-                num_bins=cfg["calibration"]["num_bins"],
+            cal_score = metric_cfg[cal_metric]['func'](
+                num_bins=inference_cfg["calibration"]["num_bins"],
                 conf_map=conf_map,
                 pred_map=pred_map,
                 label_map=label_map,
                 weighting=bin_weighting,
-            ) 
+            )['cal_score'] 
             # Wrap it in an item
             record = {
                 "accuracy": acc,
                 "bin_weighting": bin_weighting,
                 "cal_metric": cal_metric,
-                "cal_score": calibration_info["cal_score"],
-                "data_idx": data_idx,
-                "dataset_cls": dataset_cls,
+                "cal_score": cal_score,
+                "data_id": data_id,
                 "dice": dice,
                 "lab_w_accuracy": balanced_acc,
-                "num_bins": cfg["calibration"]["num_bins"],
+                "num_bins": inference_cfg["calibration"]["num_bins"],
                 "slice_idx": slice_idx,
-                "split": split,
-                "task": task,
             }
+            record.extend(inference_cfg["dataset"].to_dict())
+            print(record)
             data_records.append(record)

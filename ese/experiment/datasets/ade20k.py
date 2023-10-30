@@ -38,6 +38,8 @@ class ADE20K(ThunderDataset, DatapathMixin):
         else:
             self.samples = samples 
             self.sample_cities = sample_cities 
+        
+        self.return_data_id = False
 
     def __len__(self):
         return len(self.samples)
@@ -55,8 +57,15 @@ class ADE20K(ThunderDataset, DatapathMixin):
 
         assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
         assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
+
         # Convert to torch tensors
-        return torch.from_numpy(img), torch.from_numpy(mask)
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
+
+        if self.return_data_id:
+            return img, mask, example_name 
+        else:
+            return img, mask
 
     @property
     def _folder_name(self):

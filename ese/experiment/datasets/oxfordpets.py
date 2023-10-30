@@ -39,6 +39,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
             self.samples = samples 
             self.classes = classes
         self.class_map = {c: (i + 1) for i, c in enumerate(np.unique(classes))} # 1 -> 38 (0 background)
+        self.return_data_id = False
 
     def __len__(self):
         return len(self.samples)
@@ -58,10 +59,15 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         mask = mask.astype(np.float32)
         assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
         assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
+
         # Convert to torch tensors
         img = torch.from_numpy(img)
         mask = torch.from_numpy(mask)
-        return img, mask
+
+        if self.return_data_id:
+            return img, mask, example_name 
+        else:
+            return img, mask
 
     @property
     def _folder_name(self):
