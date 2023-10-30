@@ -2,8 +2,6 @@
 import torch
 from pydantic import validate_arguments
 from typing import Optional, Literal, List
-# local imports
-from .utils import process_for_scoring, get_conf_region, init_stat_tracker
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
 # misc imports
