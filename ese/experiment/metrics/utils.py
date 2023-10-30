@@ -1,12 +1,11 @@
 # misc imports
 import torch
 from pydantic import validate_arguments
-from typing import Optional, Literal, List
+from typing import Optional, List
 # ionpy imports
-from ionpy.metrics import pixel_accuracy, pixel_precision
+from ionpy.metrics import pixel_accuracy
 # misc imports
 import torch
-from typing import Literal
 from pydantic import validate_arguments
 
 
@@ -18,18 +17,14 @@ def gather_pixelwise_bin_stats(
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
-    class_type: Literal["Binary", "Multi-class"],
-    min_confidence: float = 0.001,
-    include_background: bool = True,
+    min_confidence: float = 0.001
     ) -> dict:
     # Process the inputs for scoring
-    conf_map, pred_map, label_map = process_for_scoring(
+    conf_map, pred_map, label_map = threshold_min_conf(
         conf_map=conf_map, 
         pred_map=pred_map, 
         label_map=label_map, 
-        class_type=class_type,
         min_confidence=min_confidence,
-        include_background=include_background, 
     )
     # Keep track of different things for each bin.
     cal_info = init_stat_tracker(
@@ -71,18 +66,14 @@ def gather_labelwise_pixelwise_bin_stats(
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
-    class_type: Literal["Binary", "Multi-class"],
     min_confidence: float = 0.001,
-    include_background: bool = True,
     ) -> dict:
     # Process the inputs for scoring
-    conf_map, pred_map, label_map = process_for_scoring(
+    conf_map, pred_map, label_map = threshold_min_conf(
         conf_map=conf_map, 
         pred_map=pred_map, 
         label_map=label_map, 
-        class_type=class_type,
         min_confidence=min_confidence,
-        include_background=include_background, 
     )
     # Keep track of different things for each bin.
     pred_labels = pred_map.unique().tolist()
@@ -110,8 +101,7 @@ def gather_labelwise_pixelwise_bin_stats(
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 avg_bin_conf = conf_map[bin_conf_region].mean()
-                measure_func = pixel_accuracy if class_type == "Multi-class" else pixel_precision     
-                avg_bin_measure, all_bin_measures = measure_func(
+                avg_bin_measure, all_bin_measures = pixel_accuracy(
                     pred_map[bin_conf_region], 
                     label_map[bin_conf_region], 
                     return_all=True
@@ -284,23 +274,14 @@ def find_bins(confidences, bin_starts, bin_widths):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def process_for_scoring(
+def threshold_min_conf(
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
-    class_type: Literal["Binary", "Multi-class"],
     min_confidence: float,
-    include_background: bool,
     ):
-    if class_type == "Multi-class": 
-        assert include_background, "Background must be included for multi-class."
     # Eliminate the super small predictions to get a better picture.
     label_map = label_map[conf_map >= min_confidence]
     pred_map = pred_map[conf_map >= min_confidence]
     conf_map = conf_map[conf_map >= min_confidence]
-    if not include_background:
-        foreground_pixels = (pred_map != 0)
-        label_map = label_map[foreground_pixels]
-        conf_map = conf_map[foreground_pixels]
-        pred_map = pred_map[foreground_pixels]
     return conf_map, pred_map, label_map

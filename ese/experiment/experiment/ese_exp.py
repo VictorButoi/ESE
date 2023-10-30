@@ -126,9 +126,12 @@ class CalibrationExperiment(TrainExperiment):
     
     def predict(self, 
                 batch, 
+                multi_class,
+                threshold=0.5,
                 include_probs=False):
         # Get the label predictions
         conf_map = self.model(batch) 
+
         # Dealing with multi-class segmentation.
         if conf_map.shape[1] > 1:
             prob_volume = torch.softmax(conf_map, dim=1)
@@ -137,7 +140,10 @@ class CalibrationExperiment(TrainExperiment):
         else:
             # Get the prediction
             conf_map = torch.sigmoid(conf_map)
-            pred_map = (conf_map >= 0.5).float()
+            pred_map = (conf_map >= threshold).float()
+            if multi_class:
+                conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0]
+
         # Either return the probabilities or not.
         if include_probs:
             return pred_map, conf_map
