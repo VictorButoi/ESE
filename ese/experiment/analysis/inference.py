@@ -41,7 +41,6 @@ def compute_pixel_meter_dict(
     # for label in unique_labels:
     #     meter_dict[label] = MeterDict()
     # Build the dict.
-    
     return meter_dict
 
 
@@ -106,15 +105,12 @@ def get_dataset_perf(
         for subj_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
             # Get your image label pair and define some regions.
             x, y = to_device(batch, exp.device)
-
             # Some datasets where we consider multi-slice we want to batch different slices.
             if rearrange_channel_dim:
                 x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
                 y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-
             # Get the prediction
             y_logits = exp.model(x)  
-
             # Extract predictions
             n_channels = y_logits.shape[1]
             if n_channels > 1:
@@ -123,28 +119,23 @@ def get_dataset_perf(
             else:
                 y_hat = torch.sigmoid(y_logits)
                 y_pred = (y_hat > threshold).float()
-
             # Get the max conf map (flip background for binary case).
             if n_channels > 1:
                 probs = torch.max(y_hat, dim=1).values
             else:
                 probs = y_hat.clone()
                 probs[probs < 0.5] = 1 - probs[probs < 0.5]
-            
             # Squeeze our tensors
             image = x.squeeze().cpu().numpy()
             label_map = y.squeeze().cpu().numpy()
             conf_map = probs.squeeze().cpu().numpy()
             pred_map = y_pred.squeeze().cpu().numpy() 
-
             # Get the unique labels and merge using set union.
             new_unique_labels = set(np.unique(label_map))
             unique_labels = unique_labels.union(new_unique_labels)
-
             # Get some performance metrics
             accuracy_map = (pred_map == label_map).astype(np.float32)
             matching_neighbors = count_matching_neighbors(pred_map)
-
             # Wrap it in an item
             items.append({
                 "subject_id": subj_idx,
@@ -175,43 +166,48 @@ def get_cal_stats(
         exp_path,
         properties=False,
     )
+
+    ###################
+    # BUILD THE MODEL
+    ###################
+    df = rs.load_metrics(dfc)
     # Get the best experiment at the checkpoint
     # corresponding to the best metric.
-    exp = rs.get_experiment(
-        df=rs.load_metrics(dfc),
+    best_exp = rs.get_best_experiment(
+        df=df,
         exp_class=CalibrationExperiment,
-        metric=cfg['model']['metric'],
-        checkpoint=cfg['model']['checkpoint'],
         device="cuda"
     )
-    # Get information about the dataset
-    dataset_dict = cfg['dataset'].to_dict()
-    dataset_class = dataset_dict.pop("_class")
-    dataset_name = dataset_class.split(".")[-1]
-    data_type = dataset_dict.pop("data_type")
-    assert data_type in ["volume", "image"], f"Data type {data_type} not supported."
 
-    # Import the dataset class
-    dataset_cls = absolute_import(dataset_class)
+    ###################
+    # BUILD THE DATASET
+    ###################
+    # Rebuild the experiments dataset with the new cfg modifications.
+    new_dset_options = cfg['dataset'].to_dict()
+    input_type = new_dset_options.pop("input_type")
+    assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
+    exp_data_cfg = best_exp.config['data'].to_dict()
+    for key in new_dset_options.keys():
+        exp_data_cfg[key] = new_dset_options[key]
+    # Make sure we aren't sampling for evaluation. 
+    if "slicing" in exp_data_cfg.keys():
+        assert exp_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
+    # Get the dataset class and build the transforms
+    dataset_cls = absolute_import(exp_data_cfg.pop("_class"))
+    # Build the datasets, apply the transforms
+    dataset_obj = dataset_cls(**exp_data_cfg)
+    # Build the dataset and dataloader.
+    dataloader = DataLoader(
+        dataset_obj, 
+        batch_size=1, 
+        num_workers=cfg['model']['num_workers'], 
+        shuffle=False
+    )
 
     # Import the caibration metrics.
     metric_cfg = cfg['cal_metrics'].to_dict()
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
-
-    if 'task' in dataset_dict.keys():
-        print(f"Processing {dataset_name}, task: {dataset_dict['task']}, split: {dataset_dict['split']}")
-    else:
-        print(f"Processing {dataset_name}, split: {dataset_dict['split']}")
-    
-    # Build the dataset and dataloader.
-    DatasetObj = dataset_cls(**dataset_dict)
-    dataloader = DataLoader(
-        DatasetObj, 
-        batch_size=1, 
-        num_workers=cfg['model']['num_workers'], 
-        shuffle=False
-    )
 
     # Prepare the output dir for saving the results
     create_time, nonce = generate_tuid()
@@ -224,7 +220,6 @@ def get_cal_stats(
 
     # Keep track of records
     data_records = []
-
     def save_records(records):
         # Save the items in a pickle file.  
         df = pd.DataFrame(records)
@@ -247,7 +242,6 @@ def get_cal_stats(
             # Save the records every so often, to get intermediate results.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 save_records(data_records)
-
     # Save the records at the end too
     save_records(data_records)
 
@@ -263,21 +257,16 @@ def volume_forward_loop(
 ):
     # Get your image label pair and define some regions.
     batch_x, batch_y = to_device(batch, exp.device)
-
     # Reshape so that we will like the shape.
     x_vol = einops.rearrange(batch_x, "b c h w -> (b c) 1 h w")
     y_vol = einops.rearrange(batch_y, "b c h w -> (b c) 1 h w")
-
     # Go through each slice and predict the metrics.
     for slice_idx in tqdm(range(x_vol.shape[0]), desc="Slice loop", position=1, leave=False):
-        
         # Extract the slices from the volumes.
         image = x_vol[slice_idx, ...][None]
         label = y_vol[slice_idx, ...][None]
-
         # Get the prediction
         pred_map, conf_map = exp.predict(image, include_probs=True)
-
         get_calibration_item_info(
             cfg=cfg,
             conf_map=conf_map,
@@ -303,10 +292,8 @@ def image_forward_loop(
 ):
     # Get your image label pair and define some regions.
     image, label = to_device(batch, exp.device)
-
     # Get the prediction
     pred_map, conf_map = exp.predict(image, include_probs=True)
-
     get_calibration_item_info(
         cfg=cfg,
         conf_map=conf_map,
@@ -332,21 +319,17 @@ def get_calibration_item_info(
     slice_idx: Optional[int] = None,
     task: Optional[str] = None
     ):
-
     # Calculate the scores we want to compare against.
     gt_lab_amount = label.sum().item()
     amount_pred_lab = pred_map.sum().item()
-    
     # Get some metrics of these predictions
     dice = dice_score(conf_map, label).item()
     acc = pixel_accuracy(conf_map, label).item()
     balanced_acc = balanced_pixel_accuracy(conf_map, label).item()
-    
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label = label.squeeze()
-
     for cal_metric in cfg["calibration"]["metrics"]:
         for bin_weighting in cfg["calibration"]["bin_weightings"]:
             # Get the calibration metric

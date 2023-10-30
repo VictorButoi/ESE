@@ -46,6 +46,8 @@ class OASIS(ThunderDataset, DatapathMixin):
         elif self.slicing == "central":
             central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
             slice_indices = np.random.choice(central_slices, size=self.num_slices, replace=self.replace)
+        elif self.slicing == "full_central":
+            slice_indices = np.arange(128 - self.central_width, 128 + self.central_width)
         # Return the entire image and label volumes.
         elif self.slicing == "full":
             slice_indices = np.arange(256)

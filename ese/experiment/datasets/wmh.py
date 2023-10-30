@@ -68,6 +68,8 @@ class WMH(ThunderDataset, DatapathMixin):
         elif self.slicing == "uniform":
             slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
         # Return the entire image and label volumes.
+        elif self.slicing == "full_labeled":
+            slice_indices = np.where(label_amounts > 0)[0]
         elif self.slicing == "full":
             slice_indices = np.arange(256)
         # Throw an error if the slicing method is unknown.
