@@ -20,7 +20,7 @@ from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import count_matching_neighbors
-from ..metrics.utils.utils import get_bins, find_bins
+from ..metrics.utils import get_bins, find_bins
 from ..experiment.ese_exp import CalibrationExperiment
 
 

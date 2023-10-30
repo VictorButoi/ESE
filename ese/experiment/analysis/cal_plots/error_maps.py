@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import validate_arguments
 
 # local imports
-from ese.experiment.metrics.utils.utils import get_bins, get_conf_region
+from ESE.ese.experiment.metrics.utils import get_bins, get_conf_region
 
 # ionpy imports
 from ionpy.metrics import pixel_accuracy, pixel_precision
