@@ -154,7 +154,8 @@ def get_dataset_perf(
 def get_cal_stats(
     cfg: Config, 
     uuid: Optional[str] = None,
-    data_split: Optional[int] = 0
+    data_split: Optional[int] = 0,
+    split_data_ids: Optional[List[str]] = None
     ) -> None:
     ###################
     # BUILD THE MODEL #
@@ -217,8 +218,8 @@ def get_cal_stats(
         digest = config_digest(cfg_dict)
         uuid = f"{create_time}-{nonce}-{digest}.pkl"
     # make sure to add inference in front of the exp name (easy grep).
-    inf_cfg_output_dir = root / "Inference_" + exp_name / uuid
-    cfg_log_dir = inf_cfg_output_dir / data_split 
+    inf_cfg_output_dir = root / ("Inference_" + exp_name) / uuid
+    cfg_log_dir = inf_cfg_output_dir / str(data_split)
     if not inf_cfg_output_dir.exists():
         inf_cfg_output_dir.mkdir(parents=True)
 
@@ -240,8 +241,11 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+            # Get the batch info
+            _, _, batch_data_id = batch
             # Only run the loop if we are using all the data or if the batch_id is in the data_ids.
-            if data_ids is None or batch[2] in data_ids:
+            # we do [0] because the batchsize is 1.
+            if split_data_ids is None or batch_data_id[0] in split_data_ids:
                 # Run the forward loop
                 forward_loop_func(
                     exp=best_exp, 
@@ -262,7 +266,7 @@ def get_cal_stats(
 def volume_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
-    cfg: dict,
+    inference_cfg: dict,
     metric_cfg: dict,
     data_records: list
 ):
@@ -282,14 +286,14 @@ def volume_forward_loop(
         # Get the prediction
         pred_map, conf_map = exp.predict(image_cuda, multi_class=True, include_probs=True)
         get_calibration_item_info(
-            cfg=cfg,
             conf_map=conf_map,
             pred_map=pred_map,
             label_map=label_map_cuda,
             data_id=data_id,
-            data_records=data_records,
+            slice_idx=slice_idx,
+            inference_cfg=inference_cfg,
             metric_cfg=metric_cfg,
-            slice_idx=slice_idx
+            data_records=data_records,
         )
 
 
@@ -297,7 +301,7 @@ def volume_forward_loop(
 def image_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
-    cfg: dict,
+    inference_cfg: dict,
     metric_cfg: dict,
     data_records: list,
 ):
@@ -314,7 +318,7 @@ def image_forward_loop(
         label_map=label_map_cuda,
         data_id=data_id,
         data_records=data_records,
-        cfg=cfg,
+        inference_cfg=inference_cfg,
         metric_cfg=metric_cfg
     )
 
@@ -350,7 +354,7 @@ def get_calibration_item_info(
                 weighting=bin_weighting,
             )['cal_score'] 
             # Wrap it in an item
-            record = {
+            cal_record = {
                 "accuracy": acc,
                 "bin_weighting": bin_weighting,
                 "cal_metric": cal_metric,
@@ -361,6 +365,8 @@ def get_calibration_item_info(
                 "num_bins": inference_cfg["calibration"]["num_bins"],
                 "slice_idx": slice_idx,
             }
-            record.extend(inference_cfg["dataset"].to_dict())
+            print(cal_record)
+            # Add the dataset info to the record
+            record = {**cal_record, **inference_cfg["dataset"]}
             print(record)
             data_records.append(record)
