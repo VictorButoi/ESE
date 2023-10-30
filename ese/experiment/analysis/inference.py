@@ -1,5 +1,5 @@
 # Misc imports
-import copy
+import pickle
 import einops
 import pathlib
 import numpy as np
@@ -24,24 +24,16 @@ from ..metrics.utils import get_bins, find_bins
 from ..experiment.ese_exp import CalibrationExperiment
 
 
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def compute_pixel_meter_dict(
-    data_points: List[dict],
-    num_bins: int,
-    conf_interval: List[float]
-    ) -> dict[MeterDict]:
-    # Get the different confidence bins.
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
-    # Go through each datapoint and register information about the pixels.
-    meter_dict ={}
-    # for label in unique_labels:
-    #     meter_dict[label] = MeterDict()
-    # Build the dict.
-    return meter_dict
+def save_records(records, log_dir):
+    # Save the items in a pickle file.  
+    df = pd.DataFrame(records)
+    # Save or overwrite the file.
+    df.to_pickle(log_dir)
+
+def save_dict(dict, log_dir):
+    # save the dictionary to a pickl file at logdir
+    with open(log_dir, 'wb') as f:
+        pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -94,7 +86,6 @@ def get_pixelinfo_df(
 def get_dataset_perf(
     exp, 
     split="val",
-    threshold=0.5,
     rearrange_channel_dim=False
     ) -> Tuple[List[dict], List[int]]:
     # Choose the dataloader from the experiment.
@@ -109,27 +100,13 @@ def get_dataset_perf(
             if rearrange_channel_dim:
                 x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
                 y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-            # Get the prediction
-            y_logits = exp.model(x)  
             # Extract predictions
-            n_channels = y_logits.shape[1]
-            if n_channels > 1:
-                y_hat = torch.softmax(y_logits, dim=1) 
-                y_pred = torch.argmax(y_hat, dim=1)
-            else:
-                y_hat = torch.sigmoid(y_logits)
-                y_pred = (y_hat > threshold).float()
-            # Get the max conf map (flip background for binary case).
-            if n_channels > 1:
-                probs = torch.max(y_hat, dim=1).values
-            else:
-                probs = y_hat.clone()
-                probs[probs < 0.5] = 1 - probs[probs < 0.5]
+            pred_map, conf_map = exp.predict(x, multi_class=True, include_probs=True)
             # Squeeze our tensors
             image = x.squeeze().cpu().numpy()
             label_map = y.squeeze().cpu().numpy()
-            conf_map = probs.squeeze().cpu().numpy()
-            pred_map = y_pred.squeeze().cpu().numpy() 
+            conf_map = conf_map.squeeze().cpu().numpy()
+            pred_map = pred_map.squeeze().cpu().numpy() 
             # Get the unique labels and merge using set union.
             new_unique_labels = set(np.unique(label_map))
             unique_labels = unique_labels.union(new_unique_labels)
@@ -217,27 +194,34 @@ def get_cal_stats(
         create_time, nonce = generate_tuid()
         digest = config_digest(cfg_dict)
         uuid = f"{create_time}-{nonce}-{digest}.pkl"
-    # make sure to add inference in front of the exp name (easy grep).
-    inf_cfg_output_dir = root / ("Inference_" + exp_name) / uuid
-    cfg_log_dir = inf_cfg_output_dir / str(data_split)
-    if not inf_cfg_output_dir.exists():
-        inf_cfg_output_dir.mkdir(parents=True)
+    # make sure to add inference in front of the exp name (easy grep). We have multiple
+    # data splits so that we can potentially parralelize the inference.
+    task_root = root / ("Inference_" + exp_name) / uuid
+    image_level_dir = task_root / f"image_stats_split:{data_split}.pkl"
+    pixel_level_dir = task_root / f"pixel_stats_split:{data_split}.pkl"
+    if not task_root.exists():
+        task_root.mkdir(parents=True)
 
+    # Setup trackers for both or either of image level statistics and pixel level statistics.
+    image_level_records = None
+    pixel_meter_dict = None
+    if cfg_dict["log"]["track_image_level"]:
+        image_level_records = []
+    if cfg_dict["log"]["track_pixel_level"]:
+        pixel_meter_dict = {"confs": {}, "accs": {}}
+        
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
     metric_cfg = cfg_dict['cal_metrics']
     for cal_metric in metric_cfg.keys():
         metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
-
-    # Keep track of records
-    data_records = []
-    def save_records(records):
-        # Save the items in a pickle file.  
-        df = pd.DataFrame(records)
-        # Save or overwrite the file.
-        df.to_pickle(cfg_log_dir)
-
+    # Define the confidence bins and bin widths.
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=cfg_dict['calibration']['num_bins'], 
+        start=cfg_dict['calibration']['conf_interval'][0], 
+        end=cfg_dict['calibration']['conf_interval'][1]
+        )
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
@@ -252,14 +236,23 @@ def get_cal_stats(
                     batch=batch, 
                     inference_cfg=cfg_dict, 
                     metric_cfg=metric_cfg,
-                    data_records=data_records,
+                    conf_bins=conf_bins,
+                    conf_bin_widths=conf_bin_widths,
+                    image_level_records=image_level_records,
+                    pixel_meter_dict=pixel_meter_dict
                 )
             # Save the records every so often, to get intermediate results. Note, because of data_ids
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
-                save_records(data_records)
+                if image_level_records is not None:
+                    save_records(image_level_records, image_level_dir)
+                if pixel_meter_dict is not None:
+                    save_dict(pixel_meter_dict, pixel_level_dir)
     # Save the records at the end too
-    save_records(data_records)
+    if image_level_records is not None:
+        save_records(image_level_records, image_level_dir)
+    if pixel_meter_dict is not None:
+        save_dict(pixel_meter_dict, pixel_level_dir)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -268,7 +261,10 @@ def volume_forward_loop(
     batch: Any,
     inference_cfg: dict,
     metric_cfg: dict,
-    data_records: list
+    conf_bins: torch.Tensor,
+    conf_bin_widths: torch.Tensor,
+    image_level_records: list,
+    pixel_meter_dict: dict
 ):
     # Get the batch info
     image_vol, label_vol, batch_data_id = batch
@@ -290,10 +286,13 @@ def volume_forward_loop(
             pred_map=pred_map,
             label_map=label_map_cuda,
             data_id=data_id,
-            slice_idx=slice_idx,
             inference_cfg=inference_cfg,
             metric_cfg=metric_cfg,
-            data_records=data_records,
+            conf_bins=conf_bins,
+            conf_bin_widths=conf_bin_widths,
+            image_level_records=image_level_records,
+            pixel_meter_dict=pixel_meter_dict,
+            slice_idx=slice_idx,
         )
 
 
@@ -303,7 +302,10 @@ def image_forward_loop(
     batch: Any,
     inference_cfg: dict,
     metric_cfg: dict,
-    data_records: list,
+    conf_bins: torch.Tensor,
+    conf_bin_widths: torch.Tensor,
+    image_level_records: list,
+    pixel_meter_dict: dict
 ):
     # Get the batch info
     image, label_map, batch_data_id = batch
@@ -317,9 +319,12 @@ def image_forward_loop(
         pred_map=pred_map,
         label_map=label_map_cuda,
         data_id=data_id,
-        data_records=data_records,
         inference_cfg=inference_cfg,
-        metric_cfg=metric_cfg
+        metric_cfg=metric_cfg,
+        conf_bins=conf_bins,
+        conf_bin_widths=conf_bin_widths,
+        image_level_records=image_level_records,
+        pixel_meter_dict=pixel_meter_dict
     )
 
 
@@ -331,7 +336,10 @@ def get_calibration_item_info(
     data_id: str,
     inference_cfg: dict,
     metric_cfg: dict,
-    data_records: list,
+    conf_bins: torch.Tensor,
+    conf_bin_widths: torch.Tensor,
+    image_level_records: list,
+    pixel_meter_dict: dict,
     slice_idx: Optional[int] = None,
     ):
     # Get some metrics of these predictions
@@ -342,31 +350,75 @@ def get_calibration_item_info(
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
-    # Go through each calibration metric and calculate the score.
-    for cal_metric in inference_cfg["cal_metrics"]:
-        for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
-            # Get the calibration metric
-            cal_score = metric_cfg[cal_metric]['func'](
-                num_bins=inference_cfg["calibration"]["num_bins"],
-                conf_map=conf_map,
-                pred_map=pred_map,
-                label_map=label_map,
-                weighting=bin_weighting,
-            )['cal_score'] 
-            # Wrap it in an item
-            cal_record = {
-                "accuracy": acc,
-                "bin_weighting": bin_weighting,
-                "cal_metric": cal_metric,
-                "cal_score": cal_score,
-                "data_id": data_id,
-                "dice": dice,
-                "lab_w_accuracy": balanced_acc,
-                "num_bins": inference_cfg["calibration"]["num_bins"],
-                "slice_idx": slice_idx,
-            }
-            print(cal_record)
-            # Add the dataset info to the record
-            record = {**cal_record, **inference_cfg["dataset"]}
-            print(record)
-            data_records.append(record)
+    ######################
+    # IMAGE LEVEL TRACKING 
+    ######################
+    if image_level_records is not None:
+        # Go through each calibration metric and calculate the score.
+        for cal_metric in inference_cfg["cal_metrics"]:
+            for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
+                # Get the calibration metric
+                cal_score = metric_cfg[cal_metric]['func'](
+                    num_bins=inference_cfg["calibration"]["num_bins"],
+                    conf_map=conf_map,
+                    pred_map=pred_map,
+                    label_map=label_map,
+                    weighting=bin_weighting,
+                )['cal_score'] 
+                # Wrap it in an item
+                cal_record = {
+                    "accuracy": acc,
+                    "bin_weighting": bin_weighting,
+                    "cal_metric": cal_metric,
+                    "cal_score": cal_score,
+                    "data_id": data_id,
+                    "dice": dice,
+                    "lab_w_accuracy": balanced_acc,
+                    "num_bins": inference_cfg["calibration"]["num_bins"],
+                    "slice_idx": slice_idx,
+                }
+                # Add the dataset info to the record
+                record = {**cal_record, **inference_cfg["dataset"]}
+                image_level_records.append(record)
+    ######################
+    # PIXEL LEVEL TRACKING
+    ######################
+    if pixel_meter_dict is not None:
+        # Get the interesting info.
+        acc_map = (pred_map == label_map).astype(np.float32)
+        matching_neighbors = count_matching_neighbors(pred_map)
+        # Figure out where each pixel belongs (in confidence)
+        bin_ownership_map = find_bins(
+            confidences=conf_map, 
+            bin_starts=conf_bins,
+            bin_widths=conf_bin_widths
+            )
+        # iterate through (x,y) positions of the image.
+        conf_meter = pixel_meter_dict["confs"]
+        acc_meter = pixel_meter_dict["accs"]
+        for (ix, iy) in np.ndindex(pred_map):
+
+            # Record all important info.
+            pix_bin_n = int(bin_ownership_map[ix, iy].item())
+            pix_conf = conf_map[ix, iy]
+            pix_acc = acc_map[ix, iy]
+            pix_pred_lab = pred_map[ix, iy]
+            pix_num_sim_neighbors = matching_neighbors[ix, iy]
+
+            # Build the dictionaries when we see new labels.
+            if pix_pred_lab not in conf_meter.keys():
+                conf_meter[pix_pred_lab] = {}
+                conf_meter[pix_pred_lab] = {}
+            lab_conf_meter = conf_meter[pix_pred_lab]
+            lab_acc_meter = acc_meter[pix_pred_lab]
+            
+            # Build the dictionaries when we see new nums of neighbors.
+            if pix_num_sim_neighbors not in lab_conf_meter.keys():
+                lab_conf_meter[pix_num_sim_neighbors] = MeterDict() 
+                lab_acc_meter[pix_num_sim_neighbors] = MeterDict() 
+            nn_lab_conf_meter = lab_conf_meter[pix_num_sim_neighbors]
+            nn_lab_acc_meter = lab_acc_meter[pix_num_sim_neighbors]
+
+            # Finally, add the points to the meters.
+            nn_lab_conf_meter[pix_bin_n].add(pix_conf)
+            nn_lab_acc_meter[pix_bin_n].add(pix_acc)
