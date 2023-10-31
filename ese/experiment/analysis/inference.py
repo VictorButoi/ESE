@@ -68,6 +68,7 @@ def load_pixel_stats(log_dir, dataframe=True):
             pixel_records.append({
                 "pred_label": pred_label,
                 "num_neighbors": num_neighbors,
+                "pred_label,num_neighbors": f"{pred_label},{num_neighbors}",
                 "bin_num": bin_num, 
                 "measure": measure,
                 "value": bin_value,

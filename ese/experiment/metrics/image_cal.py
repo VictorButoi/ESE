@@ -1,12 +1,12 @@
 # local imports
-from .utils import get_bins, reduce_scores, threshold_min_conf, get_conf_region, init_stat_tracker, \
-gather_pixelwise_bin_stats, gather_labelwise_pixelwise_bin_stats
+from .pix_stats import bin_stats, label_bin_stats, label_neighbors_bin_stats
+from .utils import get_bins, reduce_scores, get_conf_region, init_stat_tracker
 # ionpy imports
 from ionpy.metrics import pixel_accuracy
 from ionpy.util.islands import get_connected_components
 # misc imports
-from typing import Tuple
 import torch
+from typing import Tuple
 from pydantic import validate_arguments
 
 
@@ -22,7 +22,8 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -30,7 +31,7 @@ def ECE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = gather_pixelwise_bin_stats(
+    cal_info = bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
@@ -60,7 +61,8 @@ def TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -68,7 +70,7 @@ def TL_ECE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = gather_labelwise_pixelwise_bin_stats(
+    cal_info = label_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
@@ -77,19 +79,18 @@ def TL_ECE(
         label_map=label_map
     )
     # Finally, get the ECE score.
-    num_labels = len(cal_info["lab_bin_cal_scores"])
-    lab_amounts = cal_info['lab_bin_amounts'].sum(dim=1)
-    w_ece_per_label = torch.zeros(num_labels)
+    num_labels, _ = cal_info["bin_cal_scores"].shape
+    w_ece = torch.zeros(num_labels)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
-        lab_ece = reduce_scores(
+        ece = reduce_scores(
             score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
             amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
             weighting=weighting
             )
-        w_ece_per_label[lab_idx] = lab_amounts[lab_idx] * lab_ece
+        w_ece[lab_idx] = lab_amounts[lab_idx] * lab_ece
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
+    cal_info['cal_score'] =  w_ece.sum() / lab_amounts.sum() 
     # Return the calibration information
     return cal_info
 
@@ -100,14 +101,15 @@ def TENCE(
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
+    neighborhood_width: int,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
-    raise NotImplementedError("TENCE is not yet implemented.")
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -115,28 +117,29 @@ def TENCE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = gather_labelwise_pixelwise_bin_stats(
+    cal_info = label_neighbors_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label_map=label_map
+        label_map=label_map,
+        neighborhood_width=neighborhood_width
     )
     # Finally, get the ECE score.
-    num_labels = len(cal_info["lab_bin_cal_scores"])
-    lab_amounts = cal_info['lab_bin_amounts'].sum(dim=1)
-    w_ece_per_label = torch.zeros(num_labels)
+    num_labels, num_neighbors, _ = cal_info["bin_cal_scores"].shape
+    w_ece = torch.zeros(num_labels * num_neighbors)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
-        lab_ece = reduce_scores(
-            score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
-            amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
-            weighting=weighting
-            )
-        w_ece_per_label[lab_idx] = lab_amounts[lab_idx] * lab_ece
+        for num_neighb in range(num_labels):
+            ece = reduce_scores(
+                score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
+                amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
+                weighting=weighting
+                )
+            w_ece[lab_idx, num_neighb] = lab_amounts[lab_idx] * ece 
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece_per_label.sum() / lab_amounts.sum() 
+    cal_info['cal_score'] =  w_ece.sum() / lab_amounts.sum() 
     # Return the calibration information
     return cal_info
 
@@ -153,7 +156,8 @@ def CW_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -161,7 +165,7 @@ def CW_ECE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = gather_labelwise_pixelwise_bin_stats(
+    cal_info = label_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
@@ -171,16 +175,16 @@ def CW_ECE(
     )
     # Finally, get the ECE score.
     num_labels = len(cal_info["lab_bin_cal_scores"])
-    ece_per_label = torch.zeros(num_labels)
+    w_ece = torch.zeros(num_labels)
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
-        ece_per_label[lab_idx] = reduce_scores(
+        w_ece[lab_idx] = reduce_scores(
             score_per_bin=cal_info["lab_bin_cal_scores"][lab_idx], 
             amounts_per_bin=cal_info["lab_bin_amounts"][lab_idx], 
             weighting=weighting
             )
     # Finally, get the calibration score.
-    cal_info['cal_score'] = ece_per_label.sum() / num_labels
+    cal_info['cal_score'] = w_ece.sum() / num_labels
     # Return the calibration information
     return cal_info
 
@@ -197,7 +201,8 @@ def ACE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the adaptive confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -205,7 +210,7 @@ def ACE(
         conf_map=conf_map
         )
     # Keep track of different things for each bin.
-    cal_info = gather_pixelwise_bin_stats(
+    cal_info = bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
@@ -235,7 +240,8 @@ def Island_ECE(
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -304,7 +310,8 @@ def ReCE(
     """
     Calculates the ReCE: Region-wise Calibration Error
     """
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape, f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
+        f"conf_map and label must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
