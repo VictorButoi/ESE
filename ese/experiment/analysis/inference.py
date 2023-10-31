@@ -193,7 +193,7 @@ def get_cal_stats(
     if uuid is None:
         create_time, nonce = generate_tuid()
         digest = config_digest(cfg_dict)
-        uuid = f"{create_time}-{nonce}-{digest}.pkl"
+        uuid = f"{create_time}-{nonce}-{digest}"
     # make sure to add inference in front of the exp name (easy grep). We have multiple
     # data splits so that we can potentially parralelize the inference.
     task_root = root / ("Inference_" + exp_name) / uuid
@@ -400,9 +400,8 @@ def get_calibration_item_info(
         # iterate through (x,y) positions of the image.
         conf_meter = pixel_meter_dict["confs"]
         acc_meter = pixel_meter_dict["accs"]
-
         # Iterate through each pixel in the image.
-        for (ix, iy) in np.ndindex(pred_map):
+        for (ix, iy) in np.ndindex(pred_map.shape):
 
             # Record all important info.
             pix_bin_n = bin_ownership_map[ix, iy].item()
@@ -414,7 +413,7 @@ def get_calibration_item_info(
             # Build the dictionaries when we see new labels.
             if pix_pred_lab not in conf_meter.keys():
                 conf_meter[pix_pred_lab] = {}
-                conf_meter[pix_pred_lab] = {}
+                acc_meter[pix_pred_lab] = {}
             lab_conf_meter = conf_meter[pix_pred_lab]
             lab_acc_meter = acc_meter[pix_pred_lab]
             
