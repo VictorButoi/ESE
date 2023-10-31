@@ -1,5 +1,4 @@
 # Misc imports
-import math
 import pickle
 import einops
 import pathlib
@@ -394,9 +393,9 @@ def get_calibration_item_info(
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
-    ######################
-    # IMAGE LEVEL TRACKING 
-    ######################
+    ########################
+    # IMAGE LEVEL TRACKING #
+    ########################
     if image_level_records is not None:
         # Go through each calibration metric and calculate the score.
         for cal_metric in inference_cfg["cal_metrics"]:
@@ -417,7 +416,7 @@ def get_calibration_item_info(
                     "cal_score": cal_score,
                     "data_id": data_id,
                     "dice": dice,
-                    "lab_w_accuracy": balanced_acc,
+                    "w_accuracy": balanced_acc,
                     "num_bins": inference_cfg["calibration"]["num_bins"],
                     "slice_idx": slice_idx,
                 }
