@@ -1,4 +1,5 @@
 # Misc imports
+import math
 import pickle
 import einops
 import pathlib
@@ -11,7 +12,7 @@ from typing import Any, Optional, List, Tuple
 import torch
 from torch.utils.data import DataLoader
 # ionpy imports
-from ionpy.util import Config, MeterDict
+from ionpy.util import Config, StatsMeter
 from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.util.torchutils import to_device
@@ -34,6 +35,49 @@ def save_dict(dict, log_dir):
     # save the dictionary to a pickl file at logdir
     with open(log_dir, 'wb') as f:
         pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
+
+
+def load_pixel_stats(log_dir, dataframe=True):
+    log_dir = pathlib.Path(log_dir)
+    pixel_stats_df = pd.DataFrame([])
+    for log_set in log_dir.iterdir():
+        running_meter_dict = None
+        for pixel_split in log_set.glob("pixel_stats_split*"):
+            # Load the pkl file
+            with open(pixel_split, 'rb') as f:
+                pixel_meter_dict = pickle.load(f)
+            # Combine the different data splits.
+            if running_meter_dict is None:
+                running_meter_dict = pixel_meter_dict
+            else:
+                # Go through all keys and combine the meters.
+                for key in pixel_meter_dict.keys():
+                    if key not in running_meter_dict.keys():
+                        running_meter_dict[key] = pixel_meter_dict[key]
+                    else:
+                        running_meter_dict[key] += pixel_meter_dict[key] 
+        # Loop thorugh all the keys and get the stats.
+        pixel_records = []
+        for pixel_key_combo in running_meter_dict.keys():
+            pred_label, num_neighbors, bin_num, measure = pixel_key_combo
+            pixel_meter = running_meter_dict[pixel_key_combo]
+            # Get the statistics from the meter.
+            bin_value = pixel_meter.mean
+            bin_std = pixel_meter.std
+            bin_samples = pixel_meter.n
+            # Append record to the df. 
+            pixel_records.append({
+                "pred_label": pred_label,
+                "num_neighbors": num_neighbors,
+                "bin_num": bin_num, 
+                "measure": measure,
+                "value": bin_value,
+                "value_std": bin_std,
+                "num_samples": bin_samples
+            })
+        # Concatenate the pixel stats df with the running df.
+        pixel_stats_df = pd.concat([pixel_stats_df, pd.DataFrame(pixel_records)], axis=0)
+    return pixel_stats_df 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -208,7 +252,7 @@ def get_cal_stats(
     if cfg_dict["log"]["track_image_level"]:
         image_level_records = []
     if cfg_dict["log"]["track_pixel_level"]:
-        pixel_meter_dict = {"confs": {}, "accs": {}}
+        pixel_meter_dict = {}
         
     ##################################
     # INITIALIZE CALIBRATION METRICS #
@@ -380,9 +424,9 @@ def get_calibration_item_info(
                 # Add the dataset info to the record
                 record = {**cal_record, **inference_cfg["dataset"]}
                 image_level_records.append(record)
-    ######################
-    # PIXEL LEVEL TRACKING
-    ######################
+    ########################
+    # PIXEL LEVEL TRACKING #
+    ########################
     if pixel_meter_dict is not None:
         # numpy-ize our tensors
         conf_map = conf_map.cpu().numpy()
@@ -397,33 +441,22 @@ def get_calibration_item_info(
             bin_starts=conf_bins,
             bin_widths=conf_bin_widths
             )
-        # iterate through (x,y) positions of the image.
-        conf_meter = pixel_meter_dict["confs"]
-        acc_meter = pixel_meter_dict["accs"]
         # Iterate through each pixel in the image.
         for (ix, iy) in np.ndindex(pred_map.shape):
-
-            # Record all important info.
-            pix_bin_n = bin_ownership_map[ix, iy].item()
-            pix_conf = conf_map[ix, iy].item()
+            # Calibration info for the pixel.
             pix_acc = acc_map[ix, iy].item()
-            pix_pred_lab = pred_map[ix, iy].item()
-            pix_num_sim_neighbors = matching_neighbors[ix, iy].item()
-
-            # Build the dictionaries when we see new labels.
-            if pix_pred_lab not in conf_meter.keys():
-                conf_meter[pix_pred_lab] = {}
-                acc_meter[pix_pred_lab] = {}
-            lab_conf_meter = conf_meter[pix_pred_lab]
-            lab_acc_meter = acc_meter[pix_pred_lab]
-            
-            # Build the dictionaries when we see new nums of neighbors.
-            if pix_num_sim_neighbors not in lab_conf_meter.keys():
-                lab_conf_meter[pix_num_sim_neighbors] = MeterDict() 
-                lab_acc_meter[pix_num_sim_neighbors] = MeterDict() 
-            nn_lab_conf_meter = lab_conf_meter[pix_num_sim_neighbors]
-            nn_lab_acc_meter = lab_acc_meter[pix_num_sim_neighbors]
-
+            pix_conf = conf_map[ix, iy].item()
+            # Get the label, neighbors, and confidence bin for this pixel.
+            pix_pred_label = pred_map[ix, iy].item()
+            pix_c_bin = bin_ownership_map[ix, iy].item()
+            pix_lab_neighbors = matching_neighbors[ix, iy].item()
+            # Create a unique key for the combination of label, neighbors, and confidence_bin
+            acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
+            conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
+            # If this key doesn't exist in the dictionary, add it
+            if conf_key not in pixel_meter_dict:
+                pixel_meter_dict[acc_key] = StatsMeter()
+                pixel_meter_dict[conf_key] = StatsMeter()
             # Finally, add the points to the meters.
-            nn_lab_conf_meter[pix_bin_n].add(pix_conf)
-            nn_lab_acc_meter[pix_bin_n].add(pix_acc)
+            pixel_meter_dict[acc_key].add(pix_acc) 
+            pixel_meter_dict[conf_key].add(pix_conf)

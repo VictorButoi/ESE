@@ -80,13 +80,12 @@ def viz_accuracy_vs_confidence(
 
     if add_average:
         # Calculate average conf and accuracy for each bin
-        avg_bin_values = pixel_preds_df.groupby(['bin_num', 'bin', 'measure']).agg({'value': 'mean'}).reset_index()
+        avg_bin_values = pixel_preds_df.groupby(['bin_num', 'measure']).agg({'value': 'mean'}).reset_index()
         # Prepare a list to store the new rows
         new_rows = []
         # Create new rows for the averages with a special pred label 'avg'
         for _, row in avg_bin_values.iterrows():
             new_rows.append({
-                'bin': row['bin'], 
                 'bin_num': row['bin_num'],
                 'measure': f"avg {row['measure']}",
                 'value': row['value'], 
