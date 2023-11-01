@@ -10,7 +10,6 @@ from pydantic import validate_arguments
 from typing import Any, Optional, List, Tuple
 # torch imports
 import torch
-from torch.utils.data import DataLoader
 # ionpy imports
 from ionpy.util import Config, StatsMeter
 from ionpy.analysis import ResultsLoader
@@ -20,6 +19,7 @@ from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
+from .utils import dataloader_from_exp
 from ..metrics.utils import get_bins, find_bins, count_matching_neighbors
 from ..experiment.ese_exp import CalibrationExperiment
 
@@ -66,11 +66,16 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
         cfg_df = pd.DataFrame(flat_cfg, index=[0])
         metadata_df = pd.concat([metadata_df, cfg_df])
 
+        # Loop through the different splits and load the image stats.
+        image_stats_df = pd.DataFrame([])
+        for image_stats_split in log_set.glob("image_stats_split*"):
+            image_split_df = pd.read_pickle(image_stats_split)
+            image_stats_df = pd.concat([image_stats_df, image_split_df])
+
         # Loop through each of the different splits, and accumulate the bin 
         # pixel data.
         running_meter_dict = None
         for pixel_split in log_set.glob("pixel_stats_split*"):
-            print(pixel_split)
             # Load the pkl file
             with open(pixel_split, 'rb') as f:
                 pixel_meter_dict = pickle.load(f)
@@ -88,9 +93,9 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
         inference_pixel_dicts[log_set.name] = running_meter_dict
     # Return all of the pixel dicts
     if return_metadata:
-        return inference_pixel_dicts, metadata_df 
+        return inference_pixel_dicts, image_stats_df, metadata_df 
     else:
-        return inference_pixel_dicts 
+        return inference_pixel_dicts, image_stats_df
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -118,24 +123,23 @@ def get_pixelinfo_df(
         # iterate through (x,y) positions from 0 - 255, 0 - 255
         for (ix, iy) in np.ndindex(dp['pred_map'].shape):
             # Record all important info.
-            if bin_ownership_map[ix, iy] > 0: # Weird bug where we fall in no bin.
-                bin_n = int(bin_ownership_map[ix, iy].item()) - 1
-                bin_ends = [np.round(conf_bins[bin_n].item(), 2), np.round(conf_bins[bin_n].item() + conf_bin_widths[bin_n].item(), 2)]
-                for measure in ["conf", "accuracy"]:
-                    val = dp['conf_map'][ix, iy] if measure == "conf" else accuracy_map[ix, iy]
-                    record = {
-                        "subject_id": dp['subject_id'],
-                        "x": ix,
-                        "y": iy,
-                        "bin_num": bin_n + 1,
-                        "bin": f"{bin_n + 1}, {bin_ends}",
-                        "pred_label": dp['pred_map'][ix, iy],
-                        "num_neighbors": dp['matching_neighbors'][ix, iy],
-                        "pred_label,num_neighbors": f"{dp['pred_map'][ix, iy]},{dp['matching_neighbors'][ix, iy]}",
-                        "measure": measure,
-                        "value": val,
-                    }
-                    perppixel_records.append(record)
+            bin_n = int(bin_ownership_map[ix, iy].item())
+            bin_ends = [np.round(conf_bins[bin_n].item(), 2), np.round(conf_bins[bin_n].item() + conf_bin_widths[bin_n].item(), 2)]
+            for measure in ["confidence", "accuracy"]:
+                val = dp['conf_map'][ix, iy] if measure == "confidence" else accuracy_map[ix, iy]
+                record = {
+                    "subject_id": dp['subject_id'],
+                    "x": ix,
+                    "y": iy,
+                    "bin_num": bin_n,
+                    "bin": f"{bin_n}, {bin_ends}",
+                    "pred_label": dp['pred_map'][ix, iy],
+                    "num_neighbors": dp['matching_neighbors'][ix, iy],
+                    "pred_label,num_neighbors": f"{dp['pred_map'][ix, iy]},{dp['matching_neighbors'][ix, iy]}",
+                    "measure": measure,
+                    "value": val,
+                }
+                perppixel_records.append(record)
     return pd.DataFrame(perppixel_records) 
 
 
@@ -143,10 +147,17 @@ def get_pixelinfo_df(
 def get_dataset_perf(
     exp, 
     split="val",
+    dataset_cfg: dict = None,
     rearrange_channel_dim=False
     ) -> Tuple[List[dict], List[int]]:
-    # Choose the dataloader from the experiment.
-    dataloader = exp.val_dl if split=="val" else exp.train_dl
+    if dataset_cfg is None:
+        # Choose the dataloader from the experiment.
+        dataloader = exp.val_dl if split=="val" else exp.train_dl
+    else:
+        dataloader = dataloader_from_exp(
+            exp, 
+            new_dset_options=dataset_cfg
+            )
     items = []
     unique_labels = set([])
     with torch.no_grad():
@@ -220,26 +231,12 @@ def get_cal_stats(
     new_dset_options = cfg_dict['dataset']
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
-    exp_data_cfg = best_exp.config['data'].to_dict()
-    for key in new_dset_options.keys():
-        exp_data_cfg[key] = new_dset_options[key]
-    # Make sure we aren't sampling for evaluation. 
-    if "slicing" in exp_data_cfg.keys():
-        assert exp_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
-
-    # Get the dataset class and build the transforms
-    dataset_cls = exp_data_cfg.pop("_class")
-    dataset_obj = absolute_import(dataset_cls)(**exp_data_cfg)
-    exp_data_cfg["_class"] = dataset_cls        
-    cfg_dict['dataset'] = exp_data_cfg
-    dataset_obj.return_data_id = True
-    # Build the dataset and dataloader.
-    dataloader = DataLoader(
-        dataset_obj, 
-        batch_size=1, 
-        num_workers=cfg_dict['model']['num_workers'], 
-        shuffle=False
-    )
+    dataloader, modified_cfg = dataloader_from_exp( 
+        best_exp,
+        new_dset_options=new_dset_options, 
+        num_workers=cfg_dict['model']['num_workers']
+        )
+    cfg_dict['dataset'] = modified_cfg 
     # Set the looping function based on the input type.
     forward_loop_func = volume_forward_loop if input_type == "volume" else image_forward_loop
 
