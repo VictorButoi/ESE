@@ -1,6 +1,6 @@
 # local imports
 from .pix_stats import bin_stats, label_bin_stats, label_neighbors_bin_stats
-from .utils import get_bins, reduce_scores, get_conf_region, init_stat_tracker
+from .utils import get_bins, reduce_scores, get_conf_region
 # ionpy imports
 from ionpy.metrics import pixel_accuracy
 from ionpy.util.islands import get_connected_components
@@ -88,9 +88,9 @@ def TL_ECE(
             amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
             weighting=weighting
             )
-        w_ece[lab_idx] = lab_amounts[lab_idx] * lab_ece
+        w_ece[lab_idx] = ece * cal_info['lab_bin_amounts'][lab_idx].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / lab_amounts.sum() 
+    cal_info['cal_score'] =  w_ece.sum() / cal_info['lab_bin_amounts'].sum() 
     # Return the calibration information
     return cal_info
 
@@ -137,9 +137,9 @@ def TENCE(
                 amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
                 weighting=weighting
                 )
-            w_ece[lab_idx, num_neighb] = lab_amounts[lab_idx] * ece 
+            w_ece[lab_idx, num_neighb] = ece * cal_info['lab_bin_amounts'][lab_idx, num_neighb].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / lab_amounts.sum() 
+    cal_info['cal_score'] =  w_ece.sum() / cal_info['lab_bin_amounts'].sum() 
     # Return the calibration information
     return cal_info
 
@@ -249,10 +249,12 @@ def Island_ECE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = init_stat_tracker(
-        num_bins=num_bins,
-        label_wise=False,
-        ) 
+    cal_info = {
+        "bin_confs": torch.zeros(num_bins),
+        "bin_amounts": torch.zeros(num_bins),
+        "bin_measures": torch.zeros(num_bins),
+        "bin_cal_scores": torch.zeros(num_bins),
+    }
     cal_info["bins"] = conf_bins
     cal_info["bin_widths"] = conf_bin_widths
     # Go through each bin, starting at the back so that we don't have to run connected components
@@ -319,10 +321,12 @@ def ReCE(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = init_stat_tracker(
-        num_bins=num_bins,
-        label_wise=False,
-        ) 
+    cal_info = {
+        "bin_confs": torch.zeros(num_bins),
+        "bin_amounts": torch.zeros(num_bins),
+        "bin_measures": torch.zeros(num_bins),
+        "bin_cal_scores": torch.zeros(num_bins),
+    }
     cal_info["bins"] = conf_bins
     cal_info["bin_widths"] = conf_bin_widths
     # Go through each bin, starting at the back so that we don't have to run connected components

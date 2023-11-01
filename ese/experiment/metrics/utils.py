@@ -1,9 +1,8 @@
+# local imports
+from ..analysis.utils import count_matching_neighbors
 # misc imports
 import torch
-from pydantic import validate_arguments
-from typing import Optional, List
-# misc imports
-import torch
+from typing import Optional 
 from pydantic import validate_arguments
 
 
@@ -62,14 +61,21 @@ def get_conf_region(
     conf_map: torch.Tensor,
     pred_map: Optional[torch.Tensor] = None,
     label: Optional[int] = None,
+    num_neighbors: Optional[int] = None 
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
         bin_conf_region = (conf_map == conf_bin) 
     else:
         bin_conf_region = torch.logical_and(conf_map >= conf_bin, conf_map < conf_bin + conf_bin_widths[bin_idx])
+    # If we want to only pick things which match the label.
     if label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, pred_map==label)
+    # If we only want the pixels with this particular number of neighbords that match the label
+    if num_neighbors is not None:
+        matching_neighbors_map = count_matching_neighbors(pred_map)
+        bin_conf_region = torch.logical_and(bin_conf_region, matching_neighbors_map==num_neighbors)
+    # The final region is the intersection of the conditions.
     return bin_conf_region
 
 
