@@ -154,7 +154,7 @@ def get_dataset_perf(
         # Choose the dataloader from the experiment.
         dataloader = exp.val_dl if split=="val" else exp.train_dl
     else:
-        dataloader = dataloader_from_exp(
+        dataloader, _ = dataloader_from_exp(
             exp, 
             new_dset_options=dataset_cfg
             )
@@ -234,6 +234,7 @@ def get_cal_stats(
     dataloader, modified_cfg = dataloader_from_exp( 
         best_exp,
         new_dset_options=new_dset_options, 
+        return_data_id=True,
         num_workers=cfg_dict['model']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
