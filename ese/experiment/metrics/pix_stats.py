@@ -28,7 +28,12 @@ def bin_stats(
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(conf_bins):
         # Get the region of image corresponding to the confidence
-        bin_conf_region = get_conf_region(bin_idx, conf_bin, conf_bin_widths, conf_map)
+        bin_conf_region = get_conf_region(
+            bin_idx=bin_idx, 
+            conf_bin=conf_bin, 
+            conf_bin_widths=conf_bin_widths, 
+            conf_map=conf_map
+            )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.

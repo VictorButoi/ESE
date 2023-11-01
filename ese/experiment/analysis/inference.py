@@ -19,8 +19,7 @@ from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from .utils import count_matching_neighbors
-from ..metrics.utils import get_bins, find_bins
+from ..metrics.utils import get_bins, find_bins, count_matching_neighbors
 from ..experiment.ese_exp import CalibrationExperiment
 
 
@@ -404,6 +403,7 @@ def get_calibration_item_info(
                 # Get the calibration metric
                 cal_score = metric_cfg[cal_metric]['func'](
                     num_bins=inference_cfg["calibration"]["num_bins"],
+                    conf_interval=inference_cfg["calibration"]["conf_interval"],
                     conf_map=conf_map,
                     pred_map=pred_map,
                     label_map=label_map,

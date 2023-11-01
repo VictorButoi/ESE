@@ -84,13 +84,13 @@ def TL_ECE(
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
         ece = reduce_scores(
-            score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
-            amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
+            score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
+            amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
             weighting=weighting
             )
-        w_ece[lab_idx] = ece * cal_info['lab_bin_amounts'][lab_idx].sum()
+        w_ece[lab_idx] = ece * cal_info['bin_amounts'][lab_idx].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / cal_info['lab_bin_amounts'].sum() 
+    cal_info['cal_score'] =  w_ece.sum() / cal_info['bin_amounts'].sum() 
     # Return the calibration information
     return cal_info
 
@@ -101,8 +101,8 @@ def TENCE(
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
-    neighborhood_width: int,
     conf_interval: Tuple[float, float],
+    neighborhood_width: int = 3,
     weighting: str = "proportional",
     ) -> dict:
     """
@@ -128,18 +128,18 @@ def TENCE(
     )
     # Finally, get the ECE score.
     num_labels, num_neighbors, _ = cal_info["bin_cal_scores"].shape
-    w_ece = torch.zeros(num_labels * num_neighbors)
+    w_ece = torch.zeros((num_labels, num_neighbors))
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
         for num_neighb in range(num_labels):
             ece = reduce_scores(
-                score_per_bin=cal_info['lab_bin_cal_scores'][lab_idx], 
-                amounts_per_bin=cal_info['lab_bin_amounts'][lab_idx], 
+                score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
+                amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
                 weighting=weighting
                 )
-            w_ece[lab_idx, num_neighb] = ece * cal_info['lab_bin_amounts'][lab_idx, num_neighb].sum()
+            w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / cal_info['lab_bin_amounts'].sum() 
+    cal_info['cal_score'] =  w_ece.sum() / cal_info['bin_amounts'].sum() 
     # Return the calibration information
     return cal_info
 
@@ -174,13 +174,13 @@ def CW_ECE(
         label_map=label_map,
     )
     # Finally, get the ECE score.
-    num_labels = len(cal_info["lab_bin_cal_scores"])
+    num_labels, _ = cal_info["bin_cal_scores"].shape
     w_ece = torch.zeros(num_labels)
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
         w_ece[lab_idx] = reduce_scores(
-            score_per_bin=cal_info["lab_bin_cal_scores"][lab_idx], 
-            amounts_per_bin=cal_info["lab_bin_amounts"][lab_idx], 
+            score_per_bin=cal_info["bin_cal_scores"][lab_idx], 
+            amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
             weighting=weighting
             )
     # Finally, get the calibration score.

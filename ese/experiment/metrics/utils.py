@@ -1,8 +1,9 @@
-# local imports
-from ..analysis.utils import count_matching_neighbors
 # misc imports
 import torch
-from typing import Optional 
+import numpy as np
+from typing import Optional, Union 
+import torch.nn.functional as F
+from scipy.signal import convolve2d
 from pydantic import validate_arguments
 
 
@@ -57,11 +58,11 @@ def split_tensor(
 def get_conf_region(
     bin_idx: int, 
     conf_bin: torch.Tensor, 
-    conf_bin_widths: torch.Tensor, 
     conf_map: torch.Tensor,
-    pred_map: Optional[torch.Tensor] = None,
+    conf_bin_widths: torch.Tensor, 
     label: Optional[int] = None,
-    num_neighbors: Optional[int] = None 
+    num_neighbors: Optional[int] = None,
+    pred_map: Optional[torch.Tensor] = None
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
@@ -133,6 +134,45 @@ def find_bins(confidences, bin_starts, bin_widths):
     # Convert the resulting tensor back to a numpy array for the output
     assert torch.all(bin_indices >= 0), "All bin indices should be greater than 0."
     return bin_indices.numpy() # Return + 1 so that we can talk about bun number #N
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def count_matching_neighbors(
+    label_map: Union[torch.Tensor, np.ndarray]
+    ):
+    # Optionally take in numpy array, convert to torch tensor
+    if isinstance(label_map, np.ndarray):
+        label_map = torch.from_numpy(label_map)
+        return_numpy = True
+    else:
+        return_numpy = False
+    # Ensure label_map is on the correct device (e.g., CUDA if using GPU)
+    device = label_map.device
+    # Get unique labels (assuming label_map is already a long tensor with discrete labels)
+    label_map = label_map.long()
+    unique_labels = label_map.unique()
+    # Create an array to store the counts
+    count_array = torch.zeros_like(label_map)
+    # Define a 3x3 kernel of ones for the convolution
+    kernel = torch.ones((1, 1, 3, 3), device=device)
+    for label in unique_labels:
+        # Create a binary mask for the current label
+        mask = (label_map == label).float()
+        # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
+        mask_unsqueezed = mask.unsqueeze(0).unsqueeze(0)
+        # Convolve the mask with the kernel to get the neighbor count using 2D convolution
+        neighbor_count = F.conv2d(mask_unsqueezed, kernel, padding=1)
+        # Squeeze the result back to the original shape (Height x Width)
+        neighbor_count_squeezed = neighbor_count.squeeze().long()
+        # Update the count_array where the label_map matches the current label
+        count_array[label_map == label] = neighbor_count_squeezed[label_map == label]
+    # Subtract 1 because the center pixel is included in the 3x3 neighborhood count
+    count_array -= 1
+    # Return the count_array
+    if return_numpy:
+        return count_array.numpy()
+    else:
+        return count_array
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
