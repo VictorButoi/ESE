@@ -116,6 +116,7 @@ def viz_accuracy_vs_confidence(
                             col_wrap=5, 
                             kind='bar', 
                             height=5,
+                            errorbar='sd',  # Add standard deviation bars
                             sharex=sharex,
                             sharey=sharey,
                             facet_kws=facet_kws)
@@ -179,7 +180,7 @@ def viz_accuracy_vs_confidence(
                         else:
                             bin_acc_meter += value
                     # Place the average of the averages in the avg_data_dict.
-                    avg_data_dict[int(bin_num)][str(pred_label)][measure] = (y.mean, y.variance) 
+                    avg_data_dict[int(bin_num)][str(pred_label)][measure] = (y.mean, y.std) 
             # Place the average of the averages in the avg_data_dict.
             avg_data_dict[bin_num]["avg_label"]["confidence"] = (bin_conf_meter.mean, bin_conf_meter.std)
             avg_data_dict[bin_num]["avg_label"]["accuracy"] = (bin_acc_meter.mean, bin_acc_meter.std)
@@ -195,7 +196,7 @@ def viz_accuracy_vs_confidence(
         if facet_kws is not None:
             sharex = facet_kws["sharex"]
             sharey = facet_kws["sharey"]
-        fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(num_cols*5, num_rows*5), sharex=sharex, sharey=sharey)
+        fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(num_cols*6, num_rows*6), sharex=sharex, sharey=sharey)
         # Loop through the subplots and plot the data.
         for ax_idx, (bin_num, pred_labels) in enumerate(sorted_data):
             ax = axes[ax_idx // 5, ax_idx % 5]
@@ -219,21 +220,21 @@ def viz_accuracy_vs_confidence(
 
             # Add some text for labels, title and axes ticks
             ax.set_title(f'{col} = {bin_num}')
+            ax.set_ylabel('value')
+            ax.set_xlabel(x)
             # Optionally remove the x labels
-             # Calculate the y-axis limits for the current subplot
-            y_min, y_max = ax.get_ylim()
-            ax.set_yticks(np.arange(y_min, y_max, 0.1))
             if x_labels:
                 ax.set_xticks(ind + width * (num_measures - 1) / 2)
                 ax.set_xticklabels(labels)
 
         # Adjusting the titles
         plt.legend(
-            title='Measure',
-            bbox_to_anchor=(1.5, 1),  # Adjust the position of the legend
+            title='measure',
+            bbox_to_anchor=(1.4, 1),  # Adjust the position of the legend
             loc='center right',  # Specify the legend location
             frameon=False,  # Remove the legend background
         )
         plt.subplots_adjust(top=0.9)
         plt.suptitle(title, fontsize=16)
+        plt.tight_layout()
         plt.show()
