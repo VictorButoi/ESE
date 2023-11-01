@@ -1,4 +1,5 @@
 # Misc imports
+import yaml
 import pickle
 import einops
 import pathlib
@@ -13,7 +14,7 @@ from torch.utils.data import DataLoader
 # ionpy imports
 from ionpy.util import Config, StatsMeter
 from ionpy.analysis import ResultsLoader
-from ionpy.util.config import config_digest
+from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.metrics import dice_score, pixel_accuracy
 from ionpy.metrics.segmentation import balanced_pixel_accuracy
@@ -23,11 +24,18 @@ from ..metrics.utils import get_bins, find_bins, count_matching_neighbors
 from ..experiment.ese_exp import CalibrationExperiment
 
 
+def list2tuple(val):
+    if isinstance(val, list):
+        return tuple(map(list2tuple, val))
+    return val
+    
+
 def save_records(records, log_dir):
     # Save the items in a pickle file.  
     df = pd.DataFrame(records)
     # Save or overwrite the file.
     df.to_pickle(log_dir)
+
 
 def save_dict(dict, log_dir):
     # save the dictionary to a pickl file at logdir
@@ -35,12 +43,34 @@ def save_dict(dict, log_dir):
         pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
 
 
-def load_pixel_stats(log_dir, dataframe=True):
+def load_cal_inference_stats(log_dir, return_metadata=True):
     log_dir = pathlib.Path(log_dir)
-    pixel_stats_df = pd.DataFrame([])
+
+    inference_pixel_dicts = {}
+    metadata_df = pd.DataFrame([])
+    # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
+
+        # Load the metadata file (json) and add it to the metadata dataframe.
+        log_mdata_yaml = log_set / "metadata.yaml"
+        with open(log_mdata_yaml, 'r') as stream:
+            cfg_yaml = yaml.safe_load(stream)
+        cfg = HDict(cfg_yaml)
+        flat_cfg = valmap(list2tuple, cfg.flatten())
+        flat_cfg["log_set"] = log_set.name
+        # Remove some columns we don't care about.
+        flat_cfg.pop("cal_metrics")
+        if "calibration.bin_weightings" in flat_cfg.keys():
+            flat_cfg.pop("calibration.bin_weightings")
+        # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
+        cfg_df = pd.DataFrame(flat_cfg, index=[0])
+        metadata_df = pd.concat([metadata_df, cfg_df])
+
+        # Loop through each of the different splits, and accumulate the bin 
+        # pixel data.
         running_meter_dict = None
         for pixel_split in log_set.glob("pixel_stats_split*"):
+            print(pixel_split)
             # Load the pkl file
             with open(pixel_split, 'rb') as f:
                 pixel_meter_dict = pickle.load(f)
@@ -54,29 +84,13 @@ def load_pixel_stats(log_dir, dataframe=True):
                         running_meter_dict[key] = pixel_meter_dict[key]
                     else:
                         running_meter_dict[key] += pixel_meter_dict[key] 
-        # Loop thorugh all the keys and get the stats.
-        pixel_records = []
-        for pixel_key_combo in running_meter_dict.keys():
-            pred_label, num_neighbors, bin_num, measure = pixel_key_combo
-            pixel_meter = running_meter_dict[pixel_key_combo]
-            # Get the statistics from the meter.
-            bin_value = pixel_meter.mean
-            bin_std = pixel_meter.std
-            bin_samples = pixel_meter.n
-            # Append record to the df. 
-            pixel_records.append({
-                "pred_label": pred_label,
-                "num_neighbors": num_neighbors,
-                "pred_label,num_neighbors": f"{pred_label},{num_neighbors}",
-                "bin_num": bin_num, 
-                "measure": measure,
-                "value": bin_value,
-                "value_std": bin_std,
-                "num_samples": bin_samples
-            })
-        # Concatenate the pixel stats df with the running df.
-        pixel_stats_df = pd.concat([pixel_stats_df, pd.DataFrame(pixel_records)], axis=0)
-    return pixel_stats_df 
+        # Add the running meter dict to the inference pixel dicts.
+        inference_pixel_dicts[log_set.name] = running_meter_dict
+    # Return all of the pixel dicts
+    if return_metadata:
+        return inference_pixel_dicts, metadata_df 
+    else:
+        return inference_pixel_dicts 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -240,10 +254,13 @@ def get_cal_stats(
     # make sure to add inference in front of the exp name (easy grep). We have multiple
     # data splits so that we can potentially parralelize the inference.
     task_root = root / ("Inference_" + exp_name) / uuid
+    metadata_dir = task_root / "metadata.yaml"
     image_level_dir = task_root / f"image_stats_split:{data_split}.pkl"
     pixel_level_dir = task_root / f"pixel_stats_split:{data_split}.pkl"
     if not task_root.exists():
         task_root.mkdir(parents=True)
+        with open(metadata_dir, 'w') as metafile:
+            yaml.dump(cfg_dict, metafile, default_flow_style=False) 
 
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     image_level_records = None
@@ -256,15 +273,18 @@ def get_cal_stats(
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    metric_cfg = cfg_dict['cal_metrics']
-    for cal_metric in metric_cfg.keys():
-        metric_cfg[cal_metric]['func'] = absolute_import(metric_cfg[cal_metric]['func'])
+    metric_cfgs = cfg_dict['cal_metrics']
+    for cal_metric in metric_cfgs:
+        for metric_key in cal_metric.keys():
+            cal_metric[metric_key]['func'] = absolute_import(cal_metric[metric_key]['func'])
+
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
         num_bins=cfg_dict['calibration']['num_bins'], 
-        start=cfg_dict['calibration']['conf_interval'][0], 
-        end=cfg_dict['calibration']['conf_interval'][1]
+        start=cfg_dict['calibration']['conf_interval_start'], 
+        end=cfg_dict['calibration']['conf_interval_end']
         )
+
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
@@ -278,7 +298,7 @@ def get_cal_stats(
                     exp=best_exp, 
                     batch=batch, 
                     inference_cfg=cfg_dict, 
-                    metric_cfg=metric_cfg,
+                    metric_cfgs=metric_cfgs,
                     conf_bins=conf_bins,
                     conf_bin_widths=conf_bin_widths,
                     image_level_records=image_level_records,
@@ -303,7 +323,7 @@ def volume_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    metric_cfg: dict,
+    metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: list,
@@ -330,7 +350,7 @@ def volume_forward_loop(
             label_map=label_map_cuda,
             data_id=data_id,
             inference_cfg=inference_cfg,
-            metric_cfg=metric_cfg,
+            metric_cfgs=metric_cfgs,
             conf_bins=conf_bins,
             conf_bin_widths=conf_bin_widths,
             image_level_records=image_level_records,
@@ -344,7 +364,7 @@ def image_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    metric_cfg: dict,
+    metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: list,
@@ -363,7 +383,7 @@ def image_forward_loop(
         label_map=label_map_cuda,
         data_id=data_id,
         inference_cfg=inference_cfg,
-        metric_cfg=metric_cfg,
+        metric_cfgs=metric_cfgs,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         image_level_records=image_level_records,
@@ -378,7 +398,7 @@ def get_calibration_item_info(
     label_map: torch.Tensor,
     data_id: str,
     inference_cfg: dict,
-    metric_cfg: dict,
+    metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: list,
@@ -398,12 +418,16 @@ def get_calibration_item_info(
     ########################
     if image_level_records is not None:
         # Go through each calibration metric and calculate the score.
-        for cal_metric in inference_cfg["cal_metrics"]:
+        for cal_metric in metric_cfgs:
+            metric_name = list(cal_metric.keys())[0] # kind of hacky
             for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
                 # Get the calibration metric
-                cal_score = metric_cfg[cal_metric]['func'](
+                cal_score = cal_metric[metric_name]['func'](
                     num_bins=inference_cfg["calibration"]["num_bins"],
-                    conf_interval=inference_cfg["calibration"]["conf_interval"],
+                    conf_interval=[
+                        inference_cfg["calibration"]["conf_interval_start"],
+                        inference_cfg["calibration"]["conf_interval_end"]
+                    ],
                     conf_map=conf_map,
                     pred_map=pred_map,
                     label_map=label_map,
@@ -418,7 +442,6 @@ def get_calibration_item_info(
                     "data_id": data_id,
                     "dice": dice,
                     "w_accuracy": balanced_acc,
-                    "num_bins": inference_cfg["calibration"]["num_bins"],
                     "slice_idx": slice_idx,
                 }
                 # Add the dataset info to the record
