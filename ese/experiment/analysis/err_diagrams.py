@@ -217,43 +217,61 @@ def viz_accuracy_vs_confidence(
             sharey = facet_kws["sharey"]
         # Setup the subplot array.
         fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(num_cols*6, num_rows*6), sharex=sharex, sharey=sharey)
+        # Define the colors for the plot.
+        metric_colors = {
+            "confidence": "blue",
+            "accuracy": "darkorange",
+            "proportion": "forestgreen",
+            "avg confidence": "royalblue",
+            "avg accuracy": "sandybrown",
+            "avg proportion": "darkseagreen",
+        }
         # Loop through the subplots and plot the data.
         for ax_idx, (bin_num, x_var_set) in enumerate(sorted_data):
             ax = axes[ax_idx // 5, ax_idx % 5]
             sorted_x_vars = sorted(list(x_var_set.keys()))
             if kind == "bar":
-                measures = ["confidence", "accuracy"] 
+                measures = ["confidence", "accuracy"]
                 if add_proportion:
                     measures.append("proportion")
-                width = 0.8 / len(measures)# Width of bars, distributed over the number of measures
+                width = 0.8 / len(measures)  # Width of bars, distributed over the number of measures
                 # Loop through both measures and plot them.
                 for i, measure in enumerate(measures):
                     inds = np.arange(len(sorted_x_vars))  # the x locations for the groups
-                    if measure == "proportion":
-                        values = [x_var_set[x_var][measure] for x_var in sorted_x_vars]
-                        std_values = [x_var_set[x_var][measure] for x_var in sorted_x_vars]
-                        ax.bar(
-                            inds + i * width,
-                            values,
-                            width,
-                            label=f"{measure}"
-                        )
-                    else:
-                        values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars]
-                        std_values = [x_var_set[x_var][measure][1] for x_var in sorted_x_vars]
-                        ax.bar(
-                            inds + i * width,
-                            values,
-                            width,
-                            label=f"{measure}",
-                            yerr=std_values,  # Add standard deviation bars
-                            capsize=5,  # Customize the cap size of error bars
-                        )
+                    for j, x_var in enumerate(sorted_x_vars):
+                        # Determine the color and label based on whether the x_var is 'avg' or not
+                        if x_var == 'avg':
+                            bar_color = metric_colors[f'avg {measure}']
+                            bar_label = f'avg {measure}'
+                        else:
+                            bar_color = metric_colors[measure]
+                            bar_label = measure if j == 0 else ""  # Label only once for other measures
+                        
+                        if measure == "proportion":
+                            value = x_var_set[x_var][measure]
+                            ax.bar(
+                                inds[j] + i * width,
+                                value,
+                                width,
+                                label=bar_label,
+                                color=bar_color,
+                            )
+                        else:
+                            value, std_value = x_var_set[x_var][measure]
+                            ax.bar(
+                                inds[j] + i * width,
+                                value,
+                                width,
+                                label=bar_label,
+                                yerr=std_value,  # Add standard deviation bars
+                                capsize=3,  # Customize the cap size of error bars
+                                color=bar_color,
+                            )
             elif kind == "line":
                 assert not add_proportion, "add_proportion not implemented for line plot."
                 measures = ["confidence", "accuracy"] 
-                ax.axhline(x_var_set["avg"]["confidence"][0], color='red', linestyle='--', label='avg confidence', zorder=0)
-                ax.axhline(x_var_set["avg"]["accuracy"][0], color='green', linestyle='--', label='avg accuracy', zorder=0)
+                ax.axhline(x_var_set["avg"]["confidence"][0], color=metric_colors["avg confidence"], linestyle='--', label='avg confidence', zorder=0)
+                ax.axhline(x_var_set["avg"]["accuracy"][0], color=metric_colors["avg accuracy"], linestyle='--', label='avg accuracy', zorder=0)
                 for i, measure in enumerate(measures):
                     x_vars = [x_var for x_var in sorted_x_vars if x_var != "avg"]
                     values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars if x_var != "avg"]
@@ -263,6 +281,7 @@ def viz_accuracy_vs_confidence(
                         values,
                         label=f"{measure}",
                         marker='o',
+                        color=metric_colors[measure],
                     )
             else:
                 raise NotImplementedError("Haven't configured that kind of plot yet.") 
