@@ -71,12 +71,14 @@ def viz_accuracy_vs_confidence(
     hue: Union[str, List[str]],
     kind: Literal["bar", "line"],
     add_average: bool = False,
+    add_proportion: bool = False,
     x_labels: bool = True,
     style: Optional[str] = None,
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
 ):
     if isinstance(pixel_preds, pd.core.frame.DataFrame):
+        assert not add_proportion, "add_proportion not implemented for DataFrame input."
         # Make a clone of the dataframe to not overwrite the original.
         pixel_preds_df = pixel_preds.copy()
         if add_average:
@@ -156,7 +158,6 @@ def viz_accuracy_vs_confidence(
         # Organize data into a structure for plotting
         # Structure: data_dict[bin_num][pred_label][measure] = list of values
         data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-
         for (pred_label, num_neighbors, bin_num, measure), value in pixel_preds.items():
             if x == "pred_label":
                 data_dict[bin_num][pred_label][measure].append(value)
@@ -166,27 +167,43 @@ def viz_accuracy_vs_confidence(
                 data_dict[bin_num][f"{pred_label},{num_neighbors}"][measure].append(value)
             else:
                 raise NotImplementedError(f"Haven't configured {x} for bar plot.")
-
         # Calculate the average for each pred_label and measure within each bin_num
         avg_data_dict = defaultdict(lambda: defaultdict(dict))
-        # Loop through the bins
+        # Loop through the bins storing information.
+        bin_samples = {}
         for bin_num, x_var_set in data_dict.items():
-            bin_conf_meter = StatsMeter()
-            bin_acc_meter = StatsMeter()
+            bin_meters = {
+                "confidence": StatsMeter(),
+                "accuracy": StatsMeter()
+            }
             for x_var, measures in x_var_set.items():
                 for measure, values in measures.items():
                     y = StatsMeter()
                     for value in values:
                         y += value
-                        if measure == "confidence":
-                            bin_conf_meter += value
-                        else:
-                            bin_acc_meter += value
+                        bin_meters[measure] += value
                     # Place the average of the averages in the avg_data_dict.
                     avg_data_dict[int(bin_num)][str(x_var)][measure] = (y.mean, y.std) 
+                if add_proportion:
+                    avg_data_dict[int(bin_num)][str(x_var)]["proportion"] = y.n
             # Place the average of the averages in the avg_data_dict.
-            avg_data_dict[bin_num][f"avg_{x}"]["confidence"] = (bin_conf_meter.mean, bin_conf_meter.std)
-            avg_data_dict[bin_num][f"avg_{x}"]["accuracy"] = (bin_acc_meter.mean, bin_acc_meter.std)
+            if add_average:
+                for measure in ["confidence", "accuracy"]:
+                    avg_data_dict[int(bin_num)]["avg"][measure] = (bin_meters[measure].mean, bin_meters[measure].std)
+                if add_proportion:
+                    num_bin_samples = bin_meters["confidence"].n
+                    avg_data_dict[int(bin_num)]["avg"]["proportion"] = num_bin_samples
+                    bin_samples[int(bin_num)] = num_bin_samples
+        # Keep track of the total number of samples in the experiment.
+        total_samples = sum(bin_samples.values())
+        # if we added the proportions, now we have to normalize them by the total, both
+        # by bin and by x variable.
+        if add_proportion:
+            for bin_num, x_var_set in avg_data_dict.items():
+                for x_var in x_var_set.keys():
+                    if x_var != "avg":
+                        avg_data_dict[bin_num][x_var]["proportion"] /= bin_samples[bin_num]
+                avg_data_dict[bin_num]["avg"]["proportion"] /= total_samples
         # Sort the avg_data_dict indices by col
         sorted_data = sorted(avg_data_dict.items(), key=lambda x: x[0])
         # Plotting
@@ -204,29 +221,42 @@ def viz_accuracy_vs_confidence(
         for ax_idx, (bin_num, x_var_set) in enumerate(sorted_data):
             ax = axes[ax_idx // 5, ax_idx % 5]
             sorted_x_vars = sorted(list(x_var_set.keys()))
-            measures = ["confidence", "accuracy"] 
-            num_measures = len(measures)
-            width = 0.8 / num_measures  # Width of bars, distributed over the number of measures
             if kind == "bar":
+                measures = ["confidence", "accuracy"] 
+                if add_proportion:
+                    measures.append("proportion")
+                width = 0.8 / len(measures)# Width of bars, distributed over the number of measures
                 # Loop through both measures and plot them.
                 for i, measure in enumerate(measures):
-                    values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars]
-                    std_values = [x_var_set[x_var][measure][1] for x_var in sorted_x_vars]
                     inds = np.arange(len(sorted_x_vars))  # the x locations for the groups
-                    ax.bar(
-                        inds + i * width,
-                        values,
-                        width,
-                        label=f"{measure}",
-                        yerr=std_values,  # Add standard deviation bars
-                        capsize=5,  # Customize the cap size of error bars
-                    )
+                    if measure == "proportion":
+                        values = [x_var_set[x_var][measure] for x_var in sorted_x_vars]
+                        std_values = [x_var_set[x_var][measure] for x_var in sorted_x_vars]
+                        ax.bar(
+                            inds + i * width,
+                            values,
+                            width,
+                            label=f"{measure}"
+                        )
+                    else:
+                        values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars]
+                        std_values = [x_var_set[x_var][measure][1] for x_var in sorted_x_vars]
+                        ax.bar(
+                            inds + i * width,
+                            values,
+                            width,
+                            label=f"{measure}",
+                            yerr=std_values,  # Add standard deviation bars
+                            capsize=5,  # Customize the cap size of error bars
+                        )
             elif kind == "line":
-                ax.axhline(x_var_set[f"avg_{x}"]["confidence"][0], color='red', linestyle='--', label='avg confidence', zorder=0)
-                ax.axhline(x_var_set[f"avg_{x}"]["accuracy"][0], color='green', linestyle='--', label='avg accuracy', zorder=0)
+                assert not add_proportion, "add_proportion not implemented for line plot."
+                measures = ["confidence", "accuracy"] 
+                ax.axhline(x_var_set["avg"]["confidence"][0], color='red', linestyle='--', label='avg confidence', zorder=0)
+                ax.axhline(x_var_set["avg"]["accuracy"][0], color='green', linestyle='--', label='avg accuracy', zorder=0)
                 for i, measure in enumerate(measures):
-                    x_vars = [x_var for x_var in sorted_x_vars if x_var != f"avg_{x}"]
-                    values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars if x_var != f"avg_{x}"]
+                    x_vars = [x_var for x_var in sorted_x_vars if x_var != "avg"]
+                    values = [x_var_set[x_var][measure][0] for x_var in sorted_x_vars if x_var != "avg"]
                     inds = np.arange(len(sorted_x_vars) - 1)  # the x vars without the average.
                     ax.plot(
                         x_vars,
@@ -239,12 +269,14 @@ def viz_accuracy_vs_confidence(
             # Add some text for labels, title and axes ticks
             ax.set_title(f'{col} = {bin_num}')
             ax.set_ylabel('value')
-            ax.set_xlabel(x)
             # Optionally remove the x labels
             if x_labels:
+                ax.set_xlabel(x)
                 if kind == "bar":
-                    ax.set_xticks(inds + width * (num_measures - 1) / 2)
+                    ax.set_xticks(inds + width * (len(measures) - 1) / 2)
                     ax.set_xticklabels(sorted_x_vars)
+            else:
+                ax.set_xticklabels([])
         # Adjusting the titles
         plt.legend(
             title='measure',

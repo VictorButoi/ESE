@@ -1,7 +1,9 @@
+from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 from ionpy.experiment.util import absolute_import
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
         exp, 
         new_dset_options=None, 
