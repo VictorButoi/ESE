@@ -153,10 +153,6 @@ def viz_accuracy_vs_confidence(
         g.fig.suptitle(title, fontsize=16)
         plt.show()
     else:
-        # We are dealing with a dictionary of pixel predictions as meters
-        # for different criteria.
-        key = ("pred_label", "num_neighbors", "bin_num", "measure")
-
         # Organize data into a structure for plotting
         # Structure: data_dict[bin_num][pred_label][measure] = list of values
         data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))

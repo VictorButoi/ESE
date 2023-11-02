@@ -68,7 +68,12 @@ def get_conf_region(
     if conf_bin_widths[bin_idx] == 0:
         bin_conf_region = (conf_map == conf_bin) 
     else:
-        bin_conf_region = torch.logical_and(conf_map >= conf_bin, conf_map < conf_bin + conf_bin_widths[bin_idx])
+        upper_condition = conf_map <= conf_bin + conf_bin_widths[bin_idx]
+        if bin_idx == 0:
+            lower_condition = conf_map >= conf_bin
+        else:
+            lower_condition = conf_map > conf_bin
+        bin_conf_region = torch.logical_and(lower_condition, upper_condition)
     # If we want to only pick things which match the label.
     if label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, pred_map==label)
