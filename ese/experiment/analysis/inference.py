@@ -286,6 +286,7 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+            print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Get the batch info
             _, _, batch_data_id = batch
             # Only run the loop if we are using all the data or if the batch_id is in the data_ids.
