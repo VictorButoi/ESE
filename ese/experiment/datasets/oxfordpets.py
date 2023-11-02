@@ -108,7 +108,11 @@ class BinaryPets(OxfordPets):
         # Convert to torch tensors
         img = torch.from_numpy(img)
         mask = torch.from_numpy(mask)
-        return img, mask
+
+        if self.return_data_id:
+            return img, mask, example_name 
+        else:
+            return img, mask
 
     @property
     def _folder_name(self):
