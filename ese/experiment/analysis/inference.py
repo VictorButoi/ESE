@@ -209,13 +209,12 @@ def get_cal_stats(
     cfg_dict = cfg.to_dict()
 
     # Results loader object does everything
-    root = pathlib.Path(cfg_dict['log']['root'])
-    exp_name = cfg_dict['model']['exp_name']
-    exp_path = root / exp_name
+    save_root = pathlib.Path(cfg_dict['log']['root'])
+    root = save_root.parent
     # Get the configs of the experiment
     rs = ResultsLoader()
     dfc = rs.load_configs(
-        exp_path,
+        root / cfg_dict['model']['exp_name'],
         properties=False,
     )
     best_exp = rs.get_best_experiment(
@@ -249,9 +248,10 @@ def get_cal_stats(
         create_time, nonce = generate_tuid()
         digest = config_digest(cfg_dict)
         uuid = f"{create_time}-{nonce}-{digest}"
+
     # make sure to add inference in front of the exp name (easy grep). We have multiple
     # data splits so that we can potentially parralelize the inference.
-    task_root = root / ("Inference_" + exp_name) / uuid
+    task_root = save_root / uuid
     metadata_dir = task_root / "metadata.yaml"
     image_level_dir = task_root / f"image_stats_split:{data_split}.pkl"
     pixel_level_dir = task_root / f"pixel_stats_split:{data_split}.pkl"
@@ -309,6 +309,7 @@ def get_cal_stats(
                     save_records(image_level_records, image_level_dir)
                 if pixel_meter_dict is not None:
                     save_dict(pixel_meter_dict, pixel_level_dir)
+
     # Save the records at the end too
     if image_level_records is not None:
         save_records(image_level_records, image_level_dir)
