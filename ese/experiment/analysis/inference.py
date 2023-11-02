@@ -50,47 +50,47 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
     metadata_df = pd.DataFrame([])
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
+        if log_set.name != "submitit":
+            # Load the metadata file (json) and add it to the metadata dataframe.
+            log_mdata_yaml = log_set / "metadata.yaml"
+            with open(log_mdata_yaml, 'r') as stream:
+                cfg_yaml = yaml.safe_load(stream)
+            cfg = HDict(cfg_yaml)
+            flat_cfg = valmap(list2tuple, cfg.flatten())
+            flat_cfg["log_set"] = log_set.name
+            # Remove some columns we don't care about.
+            flat_cfg.pop("cal_metrics")
+            if "calibration.bin_weightings" in flat_cfg.keys():
+                flat_cfg.pop("calibration.bin_weightings")
+            # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
+            cfg_df = pd.DataFrame(flat_cfg, index=[0])
+            metadata_df = pd.concat([metadata_df, cfg_df])
 
-        # Load the metadata file (json) and add it to the metadata dataframe.
-        log_mdata_yaml = log_set / "metadata.yaml"
-        with open(log_mdata_yaml, 'r') as stream:
-            cfg_yaml = yaml.safe_load(stream)
-        cfg = HDict(cfg_yaml)
-        flat_cfg = valmap(list2tuple, cfg.flatten())
-        flat_cfg["log_set"] = log_set.name
-        # Remove some columns we don't care about.
-        flat_cfg.pop("cal_metrics")
-        if "calibration.bin_weightings" in flat_cfg.keys():
-            flat_cfg.pop("calibration.bin_weightings")
-        # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-        cfg_df = pd.DataFrame(flat_cfg, index=[0])
-        metadata_df = pd.concat([metadata_df, cfg_df])
+            # Loop through the different splits and load the image stats.
+            image_stats_df = pd.DataFrame([])
+            for image_stats_split in log_set.glob("image_stats_split*"):
+                image_split_df = pd.read_pickle(image_stats_split)
+                image_stats_df = pd.concat([image_stats_df, image_split_df])
 
-        # Loop through the different splits and load the image stats.
-        image_stats_df = pd.DataFrame([])
-        for image_stats_split in log_set.glob("image_stats_split*"):
-            image_split_df = pd.read_pickle(image_stats_split)
-            image_stats_df = pd.concat([image_stats_df, image_split_df])
-
-        # Loop through each of the different splits, and accumulate the bin 
-        # pixel data.
-        running_meter_dict = None
-        for pixel_split in log_set.glob("pixel_stats_split*"):
-            # Load the pkl file
-            with open(pixel_split, 'rb') as f:
-                pixel_meter_dict = pickle.load(f)
-            # Combine the different data splits.
-            if running_meter_dict is None:
-                running_meter_dict = pixel_meter_dict
-            else:
-                # Go through all keys and combine the meters.
-                for key in pixel_meter_dict.keys():
-                    if key not in running_meter_dict.keys():
-                        running_meter_dict[key] = pixel_meter_dict[key]
-                    else:
-                        running_meter_dict[key] += pixel_meter_dict[key] 
-        # Add the running meter dict to the inference pixel dicts.
-        inference_pixel_dicts[log_set.name] = running_meter_dict
+            # Loop through each of the different splits, and accumulate the bin 
+            # pixel data.
+            running_meter_dict = None
+            for pixel_split in log_set.glob("pixel_stats_split*"):
+                # Load the pkl file
+                with open(pixel_split, 'rb') as f:
+                    pixel_meter_dict = pickle.load(f)
+                # Combine the different data splits.
+                if running_meter_dict is None:
+                    running_meter_dict = pixel_meter_dict
+                else:
+                    # Go through all keys and combine the meters.
+                    for key in pixel_meter_dict.keys():
+                        if key not in running_meter_dict.keys():
+                            running_meter_dict[key] = pixel_meter_dict[key]
+                        else:
+                            running_meter_dict[key] += pixel_meter_dict[key] 
+            # Add the running meter dict to the inference pixel dicts.
+            inference_pixel_dicts[log_set.name] = running_meter_dict
     # Return all of the pixel dicts
     if return_metadata:
         return inference_pixel_dicts, image_stats_df, metadata_df 
