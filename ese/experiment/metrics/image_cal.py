@@ -131,10 +131,10 @@ def TENCE(
     w_ece = torch.zeros((num_labels, num_neighbors))
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
-        for num_neighb in range(num_labels):
+        for num_neighb in range(neighborhood_width**2):
             ece = reduce_scores(
-                score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
-                amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
+                score_per_bin=cal_info['bin_cal_scores'][lab_idx, num_neighb], 
+                amounts_per_bin=cal_info['bin_amounts'][lab_idx, num_neighb], 
                 weighting=weighting
                 )
             w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()

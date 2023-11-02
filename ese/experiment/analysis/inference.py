@@ -5,7 +5,6 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
-from tqdm.notebook import tqdm
 from pydantic import validate_arguments
 from typing import Any, Optional, List, Tuple
 # torch imports
@@ -112,7 +111,7 @@ def get_pixelinfo_df(
         )
     # Go through each datapoint and register information about the pixels.
     perppixel_records = []
-    for dp in tqdm(data_points, total=len(data_points)):
+    for dp in data_points:
         # Get the interesting info.
         accuracy_map = dp['perpix_accuracies']
         bin_ownership_map = find_bins(
@@ -161,7 +160,7 @@ def get_dataset_perf(
     items = []
     unique_labels = set([])
     with torch.no_grad():
-        for subj_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
+        for subj_idx, batch in enumerate(dataloader):
             # Get your image label pair and define some regions.
             x, y = to_device(batch, exp.device)
             # Some datasets where we consider multi-slice we want to batch different slices.
@@ -285,7 +284,7 @@ def get_cal_stats(
 
     # Loop through the data, gather your stats!
     with torch.no_grad():
-        for batch_idx, batch in tqdm(enumerate(dataloader), desc="Data Loop", total=len(dataloader)):
+        for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Get the batch info
             _, _, batch_data_id = batch
@@ -338,7 +337,9 @@ def volume_forward_loop(
     x_batch = einops.rearrange(img_vol_cuda, "b c h w -> (b c) 1 h w")
     y_batch = einops.rearrange(label_vol_cuda, "b c h w -> (b c) 1 h w")
     # Go through each slice and predict the metrics.
-    for slice_idx in tqdm(range(x_batch.shape[0]), desc="Slice loop", position=1, leave=False):
+    num_slices = x_batch.shape[0]
+    for slice_idx in range(num_slices):
+        print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Extract the slices from the volumes.
         image_cuda = x_batch[slice_idx, ...][None]
         label_map_cuda = y_batch[slice_idx, ...][None]
