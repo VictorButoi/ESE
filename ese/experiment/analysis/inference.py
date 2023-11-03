@@ -71,7 +71,7 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
             for image_stats_split in log_set.glob("image_stats_split*"):
                 image_split_df = pd.read_pickle(image_stats_split)
                 image_stats_df = pd.concat([image_stats_df, image_split_df])
-            image_stats_df[log_set.name] = image_stats_df
+            image_stats_df["log_set"] = log_set.name
             inference_image_df = pd.concat([inference_image_df, image_stats_df])
 
             # Loop through each of the different splits, and accumulate the bin 

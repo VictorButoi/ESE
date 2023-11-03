@@ -333,16 +333,18 @@ def viz_cal_metric_corr(
     # Combine the two
     subject_correlations = pd.concat([acc_correlations, dice_correlations])
 
+    # Plot the correlations
     g = sns.catplot(data=subject_correlations, 
                     x="eval_metric", 
                     y="correlation", 
                     hue='cal_metric', 
-                    col="split", 
-                    row="task",
                     kind="bar", 
                     height=8, 
                     aspect=1)
 
     # Set the y lim between - 1 and 1
     g.set(ylim=(-1, 1))
-    g.title(title)
+    # Adjusting the titles
+    g.fig.subplots_adjust(top=0.9)
+    g.fig.suptitle(title, fontsize=16)
+    plt.show()
