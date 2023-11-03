@@ -90,7 +90,7 @@ def TL_ECE(
             )
         w_ece[lab_idx] = ece * cal_info['bin_amounts'][lab_idx].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / cal_info['bin_amounts'].sum() 
+    cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
     return cal_info
 
@@ -139,7 +139,7 @@ def TENCE(
                 )
             w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  w_ece.sum() / cal_info['bin_amounts'].sum() 
+    cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
     return cal_info
 
@@ -184,7 +184,7 @@ def CW_ECE(
             weighting=weighting
             )
     # Finally, get the calibration score.
-    cal_info['cal_score'] = w_ece.sum() / num_labels
+    cal_info['cal_score'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
     return cal_info
 

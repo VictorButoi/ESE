@@ -312,3 +312,37 @@ def viz_accuracy_vs_confidence(
         plt.suptitle(title, fontsize=16)
         plt.tight_layout()
         plt.show()
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def viz_cal_metric_corr(
+    pixel_preds: pd.DataFrame,
+    title: str,
+):
+    # Group the metrics by important factors
+    grouped_preds = pixel_preds.groupby(['cal_metric'])
+    
+    # Accuracy correlations 
+    acc_correlations = grouped_preds.apply(lambda x: x['accuracy'].corr(x['cal_score'])).reset_index(name='correlation')
+    acc_correlations['eval_metric'] = 'accuracy'
+
+    # Dice correlations
+    dice_correlations = grouped_preds.apply(lambda x: x['dice'].corr(x['cal_score'])).reset_index(name='correlation')
+    dice_correlations['eval_metric'] = 'dice'
+
+    # Combine the two
+    subject_correlations = pd.concat([acc_correlations, dice_correlations])
+
+    g = sns.catplot(data=subject_correlations, 
+                    x="eval_metric", 
+                    y="correlation", 
+                    hue='cal_metric', 
+                    col="split", 
+                    row="task",
+                    kind="bar", 
+                    height=8, 
+                    aspect=1)
+
+    # Set the y lim between - 1 and 1
+    g.set(ylim=(-1, 1))
+    g.title(title)

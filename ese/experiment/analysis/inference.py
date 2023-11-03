@@ -46,6 +46,7 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
     log_dir = pathlib.Path(log_dir)
 
     inference_pixel_dicts = {}
+    inference_image_df = pd.DataFrame([])
     metadata_df = pd.DataFrame([])
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
@@ -70,6 +71,8 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
             for image_stats_split in log_set.glob("image_stats_split*"):
                 image_split_df = pd.read_pickle(image_stats_split)
                 image_stats_df = pd.concat([image_stats_df, image_split_df])
+            image_stats_df[log_set.name] = image_stats_df
+            inference_image_df = pd.concat([inference_image_df, image_stats_df])
 
             # Loop through each of the different splits, and accumulate the bin 
             # pixel data.
@@ -92,9 +95,9 @@ def load_cal_inference_stats(log_dir, return_metadata=True):
             inference_pixel_dicts[log_set.name] = running_meter_dict
     # Return all of the pixel dicts
     if return_metadata:
-        return inference_pixel_dicts, image_stats_df, metadata_df 
+        return inference_pixel_dicts, inference_image_df, metadata_df 
     else:
-        return inference_pixel_dicts, image_stats_df
+        return inference_pixel_dicts, inference_image_df 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -325,8 +328,8 @@ def volume_forward_loop(
     metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
-    image_level_records: list,
-    pixel_meter_dict: dict
+    image_level_records: Optional[list] = None,
+    pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
     image_vol, label_vol, batch_data_id = batch
@@ -368,8 +371,8 @@ def image_forward_loop(
     metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
-    image_level_records: list,
-    pixel_meter_dict: dict
+    image_level_records: Optional[list],
+    pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
     image, label_map, batch_data_id = batch
@@ -402,8 +405,8 @@ def get_calibration_item_info(
     metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
-    image_level_records: list,
-    pixel_meter_dict: dict,
+    image_level_records: Optional[list] = None,
+    pixel_meter_dict: Optional[dict] = None,
     slice_idx: Optional[int] = None,
     ):
     # Get some metrics of these predictions
@@ -438,7 +441,7 @@ def get_calibration_item_info(
                 cal_record = {
                     "accuracy": acc,
                     "bin_weighting": bin_weighting,
-                    "cal_metric": cal_metric,
+                    "cal_metric": metric_name,
                     "cal_score": cal_score,
                     "data_id": data_id,
                     "dice": dice,
