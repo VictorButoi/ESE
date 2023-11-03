@@ -226,9 +226,14 @@ def viz_accuracy_vs_confidence(
             "avg accuracy": "sandybrown",
             "avg proportion": "darkseagreen",
         }
+        # Loop through the axes, and if there isn't a bin number for that axis, remove it. 
+        bin_nums = [bin_num for bin_num, _ in sorted_data] 
+        for ax_idx, ax in enumerate(axes.flat):
+            if ax_idx not in bin_nums:
+                fig.delaxes(ax)
         # Loop through the subplots and plot the data.
-        for ax_idx, (bin_num, x_var_set) in enumerate(sorted_data):
-            ax = axes[ax_idx // 5, ax_idx % 5]
+        for bin_num, x_var_set in sorted_data:
+            ax = axes[bin_num // 5, bin_num % 5]
             sorted_x_vars = sorted(list(x_var_set.keys()))
             if kind == "bar":
                 measures = ["confidence", "accuracy"]
