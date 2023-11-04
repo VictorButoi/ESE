@@ -214,11 +214,10 @@ def get_cal_stats(
 
     # Results loader object does everything
     save_root = pathlib.Path(cfg_dict['log']['root'])
-    root = save_root.parent
     # Get the configs of the experiment
     rs = ResultsLoader()
     dfc = rs.load_configs(
-        root / cfg_dict['model']['exp_name'],
+        cfg_dict['model']['exp_root'],
         properties=False,
     )
     best_exp = rs.get_best_experiment(
