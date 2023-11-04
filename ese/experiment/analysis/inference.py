@@ -44,62 +44,69 @@ def save_dict(dict, log_dir):
         pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
 
 
-def load_cal_inference_stats(log_dir, return_metadata=True):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def load_cal_inference_stats(
+    log_dir: pathlib.Path, 
+    pixel_stats: bool,
+    image_stats: bool,
+    return_metadata: bool = True
+    ) -> dict:
     log_dir = pathlib.Path(log_dir)
 
-    inference_pixel_dicts = {}
-    inference_image_df = pd.DataFrame([])
-    metadata_df = pd.DataFrame([])
+    cal_info_dict = {}
+    if pixel_stats:
+        cal_info_dict["pixel_info_dicts"] = {}
+    if image_stats:
+        cal_info_dict["image_info_df"] = pd.DataFrame([])
+    if return_metadata:
+        cal_info_dict["metadata"] = pd.DataFrame([])
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
         if log_set.name != "submitit":
             # Load the metadata file (json) and add it to the metadata dataframe.
-            log_mdata_yaml = log_set / "metadata.yaml"
-            with open(log_mdata_yaml, 'r') as stream:
-                cfg_yaml = yaml.safe_load(stream)
-            cfg = HDict(cfg_yaml)
-            flat_cfg = valmap(list2tuple, cfg.flatten())
-            flat_cfg["log_set"] = log_set.name
-            # Remove some columns we don't care about.
-            flat_cfg.pop("cal_metrics")
-            if "calibration.bin_weightings" in flat_cfg.keys():
-                flat_cfg.pop("calibration.bin_weightings")
-            # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-            cfg_df = pd.DataFrame(flat_cfg, index=[0])
-            metadata_df = pd.concat([metadata_df, cfg_df])
-
+            if return_metadata:
+                log_mdata_yaml = log_set / "metadata.yaml"
+                with open(log_mdata_yaml, 'r') as stream:
+                    cfg_yaml = yaml.safe_load(stream)
+                cfg = HDict(cfg_yaml)
+                flat_cfg = valmap(list2tuple, cfg.flatten())
+                flat_cfg["log_set"] = log_set.name
+                # Remove some columns we don't care about.
+                flat_cfg.pop("cal_metrics")
+                if "calibration.bin_weightings" in flat_cfg.keys():
+                    flat_cfg.pop("calibration.bin_weightings")
+                # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
+                cfg_df = pd.DataFrame(flat_cfg, index=[0])
+                cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
             # Loop through the different splits and load the image stats.
-            image_stats_df = pd.DataFrame([])
-            for image_stats_split in log_set.glob("image_stats_split*"):
-                image_split_df = pd.read_pickle(image_stats_split)
-                image_stats_df = pd.concat([image_stats_df, image_split_df])
-            image_stats_df["log_set"] = log_set.name
-            inference_image_df = pd.concat([inference_image_df, image_stats_df])
-
+            if image_stats:
+                image_stats_df = pd.DataFrame([])
+                for image_stats_split in log_set.glob("image_stats_split*"):
+                    image_split_df = pd.read_pickle(image_stats_split)
+                    image_stats_df = pd.concat([image_stats_df, image_split_df])
+                image_stats_df["log_set"] = log_set.name
+                cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], image_stats_df])
             # Loop through each of the different splits, and accumulate the bin 
             # pixel data.
-            running_meter_dict = None
-            for pixel_split in log_set.glob("pixel_stats_split*"):
-                # Load the pkl file
-                with open(pixel_split, 'rb') as f:
-                    pixel_meter_dict = pickle.load(f)
-                # Combine the different data splits.
-                if running_meter_dict is None:
-                    running_meter_dict = pixel_meter_dict
-                else:
-                    # Go through all keys and combine the meters.
-                    for key in pixel_meter_dict.keys():
-                        if key not in running_meter_dict.keys():
-                            running_meter_dict[key] = pixel_meter_dict[key]
-                        else:
-                            running_meter_dict[key] += pixel_meter_dict[key] 
-            # Add the running meter dict to the inference pixel dicts.
-            inference_pixel_dicts[log_set.name] = running_meter_dict
-    # Return all of the pixel dicts
-    if return_metadata:
-        return inference_pixel_dicts, inference_image_df, metadata_df 
-    else:
-        return inference_pixel_dicts, inference_image_df 
+            if pixel_stats:
+                running_meter_dict = None
+                for pixel_split in log_set.glob("pixel_stats_split*"):
+                    # Load the pkl file
+                    with open(pixel_split, 'rb') as f:
+                        pixel_meter_dict = pickle.load(f)
+                    # Combine the different data splits.
+                    if running_meter_dict is None:
+                        running_meter_dict = pixel_meter_dict
+                    else:
+                        # Go through all keys and combine the meters.
+                        for key in pixel_meter_dict.keys():
+                            if key not in running_meter_dict.keys():
+                                running_meter_dict[key] = pixel_meter_dict[key]
+                            else:
+                                running_meter_dict[key] += pixel_meter_dict[key] 
+                cal_info_dict["pixel_info_dicts"][log_set.name] = running_meter_dict
+    # Finally, return the dictionary of inference info.
+    return cal_info_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -150,9 +157,9 @@ def get_pixelinfo_df(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_dataset_perf(
     exp, 
-    split="val",
+    split: bool = "val",
     dataset_cfg: dict = None,
-    rearrange_channel_dim=False
+    rearrange_channel_dim: bool = False
     ) -> Tuple[List[dict], List[int]]:
     if dataset_cfg is None:
         # Choose the dataloader from the experiment.
