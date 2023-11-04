@@ -5,6 +5,8 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
+import pandas as pd
+import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List, Tuple
 # torch imports
@@ -410,9 +412,9 @@ def get_calibration_item_info(
     slice_idx: Optional[int] = None,
     ):
     # Get some metrics of these predictions
-    dice = dice_score(conf_map, label_map).item()
-    acc = pixel_accuracy(conf_map, label_map).item()
-    balanced_acc = balanced_pixel_accuracy(conf_map, label_map).item()
+    dice = dice_score(pred_map, label_map).item()
+    acc = pixel_accuracy(pred_map, label_map).item()
+    balanced_acc = balanced_pixel_accuracy(pred_map, label_map).item()
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
