@@ -1,12 +1,19 @@
+# local imports
+from .utils import reorder_splits
+
+# ionpy imports
+from ionpy.util import StatsMeter
+
+# misc. imports
 import math
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from ionpy.util import StatsMeter
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from pydantic import validate_arguments
 from typing import List, Optional, Union, Literal, Any
+
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def viz_region_size_distribution(
@@ -333,6 +340,10 @@ def viz_cal_metric_corr(
     # Dice correlations
     dice_correlations = grouped_preds.apply(lambda x: x['dice'].corr(x['cal_score'])).reset_index(name='correlation')
     dice_correlations['eval_metric'] = 'dice'
+
+    if col == 'split':
+        acc_correlations = reorder_splits(acc_correlations)
+        dice_correlations = reorder_splits(dice_correlations)
 
     # Combine the two
     subject_correlations = pd.concat([acc_correlations, dice_correlations])

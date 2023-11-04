@@ -1,3 +1,4 @@
+import pandas as pd
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 from ionpy.experiment.util import absolute_import
@@ -30,3 +31,11 @@ def dataloader_from_exp(
         shuffle=False
     )
     return dataloader, exp_data_cfg
+
+
+def reorder_splits(df):
+    train_logs = df[df['split'] == 'train']
+    val_logs = df[df['split'] == 'val']
+    cal_logs = df[df['split'] == 'cal']
+    fixed_df = pd.concat([train_logs, val_logs, cal_logs])
+    return fixed_df
