@@ -318,9 +318,13 @@ def viz_accuracy_vs_confidence(
 def viz_cal_metric_corr(
     pixel_preds: pd.DataFrame,
     title: str,
+    col: Optional[str] = None,
 ):
     # Group the metrics by important factors
-    grouped_preds = pixel_preds.groupby(['cal_metric'])
+    if col is None:
+        grouped_preds = pixel_preds.groupby(['cal_metric'])
+    else:
+        grouped_preds = pixel_preds.groupby([col, 'cal_metric'])
     
     # Accuracy correlations 
     acc_correlations = grouped_preds.apply(lambda x: x['accuracy'].corr(x['cal_score'])).reset_index(name='correlation')
@@ -339,6 +343,7 @@ def viz_cal_metric_corr(
                     y="correlation", 
                     hue='cal_metric', 
                     kind="bar", 
+                    col=col,
                     height=8, 
                     aspect=1)
 
