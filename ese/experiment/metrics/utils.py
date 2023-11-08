@@ -143,8 +143,9 @@ def find_bins(confidences, bin_starts, bin_widths):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
-    label_map: Union[torch.Tensor, np.ndarray]
-    ):
+    label_map: Union[torch.Tensor, np.ndarray],
+    reflect_boundaries: bool
+):
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(label_map, np.ndarray):
         label_map = torch.from_numpy(label_map)
@@ -160,13 +161,17 @@ def count_matching_neighbors(
     count_array = torch.zeros_like(label_map)
     # Define a 3x3 kernel of ones for the convolution
     kernel = torch.ones((1, 1, 3, 3), device=device)
+    # Reflective padding if reflect_boundaries is True
+    padding_mode = 'reflect' if reflect_boundaries else 'constant'
     for label in unique_labels:
         # Create a binary mask for the current label
         mask = (label_map == label).float()
         # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
         mask_unsqueezed = mask.unsqueeze(0).unsqueeze(0)
+        # Apply padding
+        padded_mask = F.pad(mask_unsqueezed, pad=(1, 1, 1, 1), mode=padding_mode)
         # Convolve the mask with the kernel to get the neighbor count using 2D convolution
-        neighbor_count = F.conv2d(mask_unsqueezed, kernel, padding=1)
+        neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
         # Squeeze the result back to the original shape (Height x Width)
         neighbor_count_squeezed = neighbor_count.squeeze().long()
         # Update the count_array where the label_map matches the current label
