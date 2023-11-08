@@ -1,9 +1,9 @@
 # misc imports
 import torch
 import numpy as np
-from typing import Optional, Union 
 import torch.nn.functional as F
-from scipy.signal import convolve2d
+from scipy.ndimage import label
+from typing import Optional, Union 
 from pydantic import validate_arguments
 
 
@@ -61,8 +61,9 @@ def get_conf_region(
     conf_map: torch.Tensor,
     conf_bin_widths: torch.Tensor, 
     label: Optional[int] = None,
+    pred_map: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
-    pred_map: Optional[torch.Tensor] = None
+    num_neighbors_map: Optional[torch.Tensor] = None,
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
@@ -79,8 +80,8 @@ def get_conf_region(
         bin_conf_region = torch.logical_and(bin_conf_region, pred_map==label)
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
-        matching_neighbors_map = count_matching_neighbors(pred_map)
-        bin_conf_region = torch.logical_and(bin_conf_region, matching_neighbors_map==num_neighbors)
+        assert num_neighbors_map is not None, "If num_neighbors is not None, reflect_boundaries must be specified."
+        bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map==num_neighbors)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
@@ -184,6 +185,82 @@ def count_matching_neighbors(
     else:
         return count_array
 
+
+# Get a distribution of per-pixel accuracy as a function of the size of the instance that it was 
+# predicted in.
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_perpix_group_size(
+    label_map: Union[torch.Tensor, np.ndarray],
+):
+    # Optionally take in numpy array, convert to torch tensor
+    if isinstance(label_map, torch.Tensor):
+        label_map = label_map.numpy()
+        return_numpy = False 
+    else:
+        return_numpy = True
+    # Create an empty tensor with the same shape as the input
+    size_map = np.zeros_like(label_map)
+    # Get unique labels in the segmentation map
+    unique_labels = np.unique(label_map)
+    for label_val in unique_labels:
+        # Create a mask for the current label
+        mask = (label_map == label_val)
+        # Find connected components for the current mask
+        labeled_array, num_features = label(mask)
+        for i in range(1, num_features + 1):
+            component_mask = (labeled_array == i)
+            # Compute the size of the current component
+            size = component_mask.sum().item()
+            # Replace the pixels of the component with its size in the size_map tensor
+            size_map[mask & component_mask] = size
+    # Return the size_map 
+    if return_numpy:
+        return size_map
+    else:
+        return torch.from_numpy(size_map)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_nw_pix_props(
+    label_map: Union[torch.Tensor, np.ndarray],
+    num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
+    reflect_boundaries: bool = True
+):
+    # Optionally take in numpy array, convert to torch tensor
+    if isinstance(label_map, np.ndarray):
+        label_map = torch.from_numpy(label_map)
+        return_numpy = True
+    else:
+        return_numpy = False
+
+    # If we haven't already calculate num_neighbors map, get it.
+    if num_neighbors_map is None:
+        num_neighbors_map = count_matching_neighbors(label_map, reflect_boundaries)
+
+    # Get the unique number of neighbors
+    num_unique_nn = len(torch.unique(num_neighbors_map))
+
+    # Get a map where each pixel corresponds to the amount of pixels with that label who have 
+    # that number of neighbors, and the total amount of pixels with that label.
+    label_nn_count_map = torch.zeros_like(label_map)
+    label_count_map = torch.zeros_like(label_map)
+    # Loop through each unique label and its number of neighbors.
+    for label in torch.unique(label_map):
+        label_group = (label_map==label)
+        label_count_map[label_group] = (label_group).sum()
+        for nn in torch.unique(num_neighbors_map):
+            label_nn_group = (label_group) & (num_neighbors_map==nn)
+            label_nn_count_map[label_nn_group] = (label_nn_group).sum()
+
+    # Num-neighbor balanced weights map
+    nn_balanced_weights_map = label_count_map / (label_nn_count_map * num_unique_nn)
+
+    # Return the count_array
+    if return_numpy:
+        return nn_balanced_weights_map.numpy()
+    else:
+        return nn_balanced_weights_map
+    
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def threshold_min_conf(

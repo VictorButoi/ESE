@@ -174,9 +174,9 @@ def viz_accuracy_vs_confidence(
                 data_dict[bin_num][f"{pred_label},{num_neighbors}"][measure].append(value)
             else:
                 raise NotImplementedError(f"Haven't configured {x} for bar plot.")
+
         # Calculate the average for each pred_label and measure within each bin_num
         avg_data_dict = defaultdict(lambda: defaultdict(dict))
-        # Loop through the bins storing information.
         bin_samples = {}
         for bin_num, x_var_set in data_dict.items():
             bin_meters = {
@@ -201,18 +201,22 @@ def viz_accuracy_vs_confidence(
                     num_bin_samples = bin_meters["confidence"].n
                     avg_data_dict[int(bin_num)]["avg"]["proportion"] = num_bin_samples
                     bin_samples[int(bin_num)] = num_bin_samples
-        # Keep track of the total number of samples in the experiment.
-        total_samples = sum(bin_samples.values())
+
         # if we added the proportions, now we have to normalize them by the total, both
         # by bin and by x variable.
         if add_proportion:
+            # Keep track of the total number of samples in the experiment.
+            total_samples = sum(bin_samples.values())
+            total_weighted_samples = sum(weighted_bin_samples.values())
+            assert total_samples == total_weighted_samples, "Total samples and total weighted samples should be the same."
             for bin_num, x_var_set in avg_data_dict.items():
                 for x_var in x_var_set.keys():
                     if x_var != "avg":
                         avg_data_dict[bin_num][x_var]["proportion"] /= bin_samples[bin_num]
+                        avg_data_dict[bin_num][x_var]["weighted proportion"] /= weighted_bin_samples[bin_num]
                 avg_data_dict[bin_num]["avg"]["proportion"] /= total_samples
-        # Sort the avg_data_dict indices by col
-        sorted_data = sorted(avg_data_dict.items(), key=lambda x: x[0])
+                avg_data_dict[bin_num]["avg"]["weighted proportion"] /= total_weighted_samples
+
         # Plotting
         num_bins = len(avg_data_dict)
         num_rows = math.ceil(num_bins/5)
@@ -233,7 +237,8 @@ def viz_accuracy_vs_confidence(
             "avg accuracy": "sandybrown",
             "avg proportion": "darkseagreen",
         }
-        # Loop through the axes, and if there isn't a bin number for that axis, remove it. 
+        # Loop through the axes, and if there isn't a bin number for that axis, remove it first sorting the avg_data_dict indices by col.
+        sorted_data = sorted(avg_data_dict.items(), key=lambda x: x[0])
         bin_nums = [bin_num for bin_num, _ in sorted_data] 
         for ax_idx, ax in enumerate(axes.flat):
             if ax_idx not in bin_nums:

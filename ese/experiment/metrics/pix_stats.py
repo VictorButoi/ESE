@@ -1,5 +1,5 @@
 # local imports 
-from .utils import get_conf_region
+from .utils import get_conf_region, count_matching_neighbors
 # ionpy imports
 from ionpy.metrics import pixel_accuracy
 # misc. imports
@@ -113,6 +113,8 @@ def label_neighbors_bin_stats(
         "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins)),
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
     }
+    # Get a map of which pixels match their neighbors and how often. 
+    matching_neighbors_map = count_matching_neighbors(pred_map, reflect_boundaries=False)
     # Get the regions of the prediction corresponding to each bin of confidence,
     # AND each prediction label.
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -124,9 +126,10 @@ def label_neighbors_bin_stats(
                     conf_bin=conf_bin, 
                     conf_bin_widths=conf_bin_widths, 
                     conf_map=conf_map,
-                    pred_map=pred_map,
                     label=p_label,
-                    num_neighbors=num_neighb
+                    pred_map=pred_map,
+                    num_neighbors=num_neighb,
+                    num_neighbors_map=matching_neighbors_map,
                     )
                 # If there are some pixels in this confidence bin.
                 if bin_conf_region.sum() > 0:

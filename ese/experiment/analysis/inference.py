@@ -21,7 +21,7 @@ from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import dataloader_from_exp
-from ..metrics.utils import get_bins, find_bins, count_matching_neighbors
+from ..metrics.utils import get_bins, find_bins, count_matching_neighbors, get_nw_pix_props
 from ..experiment.ese_exp import CalibrationExperiment
 
 
@@ -63,6 +63,7 @@ def load_cal_inference_stats(
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
         if log_set.name != "submitit":
+
             # Load the metadata file (json) and add it to the metadata dataframe.
             if return_metadata:
                 log_mdata_yaml = log_set / "metadata.yaml"
@@ -78,6 +79,7 @@ def load_cal_inference_stats(
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
+
             # Loop through the different splits and load the image stats.
             if image_stats:
                 image_stats_df = pd.DataFrame([])
@@ -86,6 +88,7 @@ def load_cal_inference_stats(
                     image_stats_df = pd.concat([image_stats_df, image_split_df])
                 image_stats_df["log_set"] = log_set.name
                 cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], image_stats_df])
+
             # Loop through each of the different splits, and accumulate the bin 
             # pixel data.
             if pixel_stats:
@@ -105,6 +108,7 @@ def load_cal_inference_stats(
                             else:
                                 running_meter_dict[key] += pixel_meter_dict[key] 
                 cal_info_dict["pixel_info_dicts"][log_set.name] = running_meter_dict
+
     # Finally, return the dictionary of inference info.
     return cal_info_dict
 
@@ -425,6 +429,7 @@ def get_calibration_item_info(
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
+    
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -459,6 +464,7 @@ def get_calibration_item_info(
                 # Add the dataset info to the record
                 record = {**cal_record, **inference_cfg["dataset"]}
                 image_level_records.append(record)
+    
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
@@ -467,9 +473,18 @@ def get_calibration_item_info(
         conf_map = conf_map.cpu().numpy()
         pred_map = pred_map.cpu().numpy()
         label_map = label_map.cpu().numpy()
-        # Get the interesting info.
+        # Get the pixel-wise accuracy.
         acc_map = (pred_map == label_map).astype(np.float32)
-        matching_neighbors = count_matching_neighbors(pred_map)
+        # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
+        matching_neighbors_0pad = count_matching_neighbors(
+            pred_map, 
+            reflect_boundaries=False
+            )
+        # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
+        nn_w_pix_proportions = get_nw_pix_props(
+            pred_map, 
+            reflect_boundaries=True
+            )
         # Figure out where each pixel belongs (in confidence)
         bin_ownership_map = find_bins(
             confidences=conf_map, 
@@ -481,17 +496,23 @@ def get_calibration_item_info(
             # Calibration info for the pixel.
             pix_acc = acc_map[ix, iy].item()
             pix_conf = conf_map[ix, iy].item()
-            # Get the label, neighbors, and confidence bin for this pixel.
+            # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
             pix_pred_label = pred_map[ix, iy].item()
             pix_c_bin = bin_ownership_map[ix, iy].item()
-            pix_lab_neighbors = matching_neighbors[ix, iy].item()
+            pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
+            pix_nw_proportion = nn_w_pix_proportions[ix, iy].item()
             # Create a unique key for the combination of label, neighbors, and confidence_bin
             acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
             conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
+            weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
+            weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
             # If this key doesn't exist in the dictionary, add it
             if conf_key not in pixel_meter_dict:
-                pixel_meter_dict[acc_key] = StatsMeter()
-                pixel_meter_dict[conf_key] = StatsMeter()
+                for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
+                    pixel_meter_dict[meter_key] = StatsMeter()
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(pix_acc) 
             pixel_meter_dict[conf_key].add(pix_conf)
+            # Add the weighted metrics.
+            pixel_meter_dict[weighted_acc_key].add(pix_acc, n=pix_nw_proportion) 
+            pixel_meter_dict[weighted_conf_key].add(pix_conf, n=pix_nw_proportion)
