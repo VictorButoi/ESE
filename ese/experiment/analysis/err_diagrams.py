@@ -79,6 +79,7 @@ def viz_accuracy_vs_confidence(
     kind: Literal["bar", "line"],
     add_average: bool = False,
     add_proportion: bool = False,
+    add_weighted_metrics: bool = False,
     x_labels: bool = True,
     style: Optional[str] = None,
     col: Optional[Literal["bin_num"]] = None,
@@ -174,41 +175,51 @@ def viz_accuracy_vs_confidence(
                 data_dict[bin_num][f"{pred_label},{num_neighbors}"][measure].append(value)
             else:
                 raise NotImplementedError(f"Haven't configured {x} for bar plot.")
-
         # Calculate the average for each pred_label and measure within each bin_num
         avg_data_dict = defaultdict(lambda: defaultdict(dict))
         bin_samples = {}
+        weighted_bin_samples = {}
+        # Go through each bin_num and each x variable. 
         for bin_num, x_var_set in data_dict.items():
-            bin_meters = {
+            # Some stats meters to keep track of the average of the averages.
+            avg_bin_meters = {
                 "confidence": StatsMeter(),
-                "accuracy": StatsMeter()
+                "accuracy": StatsMeter(),
             }
+            if add_weighted_metrics:
+                avg_bin_meters["weighted confidence"] = StatsMeter(),
+                avg_bin_meters["weighted accuracy"] =  StatsMeter()
+            # Go through each x variable and each kind of measure.
             for x_var, measures in x_var_set.items():
                 for measure, values in measures.items():
                     y = StatsMeter()
                     for value in values:
                         y += value
-                        bin_meters[measure] += value
-                    # Place the average of the averages in the avg_data_dict.
+                        avg_bin_meters[measure] += value
+                    # Record the mean, std, and n for the bin.
                     avg_data_dict[int(bin_num)][str(x_var)][measure] = (y.mean, y.std) 
-                if add_proportion:
-                    avg_data_dict[int(bin_num)][str(x_var)]["proportion"] = y.n
+                    if add_proportion:
+                        avg_data_dict[int(bin_num)][str(x_var)][measure] = y.n
             # Place the average of the averages in the avg_data_dict.
             if add_average:
-                for measure in ["confidence", "accuracy"]:
-                    avg_data_dict[int(bin_num)]["avg"][measure] = (bin_meters[measure].mean, bin_meters[measure].std)
-                if add_proportion:
-                    num_bin_samples = bin_meters["confidence"].n
-                    avg_data_dict[int(bin_num)]["avg"]["proportion"] = num_bin_samples
-                    bin_samples[int(bin_num)] = num_bin_samples
+                for measure in avg_bin_meters.keys():
+                    avg_data_dict[int(bin_num)]["avg"][measure] = (avg_bin_meters[measure].mean, avg_bin_meters[measure].std)
+                    if add_proportion:
+                        num_bin_samples = avg_bin_meters[measure].n
+                        if "weighted" in measure:
+                            weighted_bin_samples[int(bin_num)] = num_bin_samples
+                            avg_data_dict[int(bin_num)]["avg"]["weighted proportion"] = num_bin_samples
+                        else:
+                            bin_samples[int(bin_num)] = num_bin_samples
+                            avg_data_dict[int(bin_num)]["avg"]["proportion"] = num_bin_samples
 
-        # if we added the proportions, now we have to normalize them by the total, both
-        # by bin and by x variable.
+        # NORMALIZE THE PROPORTION BY THE TOTAL NUMBER OF SAMPLES IN THE EXPERIMENT.
         if add_proportion:
             # Keep track of the total number of samples in the experiment.
             total_samples = sum(bin_samples.values())
             total_weighted_samples = sum(weighted_bin_samples.values())
             assert total_samples == total_weighted_samples, "Total samples and total weighted samples should be the same."
+            # Loop through every bin and x_var
             for bin_num, x_var_set in avg_data_dict.items():
                 for x_var in x_var_set.keys():
                     if x_var != "avg":
@@ -231,10 +242,13 @@ def viz_accuracy_vs_confidence(
         # Define the colors for the plot.
         metric_colors = {
             "confidence": "blue",
-            "accuracy": "darkorange",
-            "proportion": "forestgreen",
+            "weighted confidence": "royalblue",
             "avg confidence": "royalblue",
+            "accuracy": "darkorange",
+            "weighted accuracy": "sandybrown",
             "avg accuracy": "sandybrown",
+            "proportion": "forestgreen",
+            "weighted proportion": "darkseagreen",
             "avg proportion": "darkseagreen",
         }
         # Loop through the axes, and if there isn't a bin number for that axis, remove it first sorting the avg_data_dict indices by col.
@@ -247,10 +261,12 @@ def viz_accuracy_vs_confidence(
         for bin_num, x_var_set in sorted_data:
             ax = axes[bin_num // 5, bin_num % 5]
             sorted_x_vars = sorted(list(x_var_set.keys()))
+            # Bar plots so we can see the difference in heights.
             if kind == "bar":
+                # Define the measures to plot.
                 measures = ["confidence", "accuracy"]
                 if add_proportion:
-                    measures.append("proportion")
+                    measures += ["proportion", "weighted proportion"]
                 width = 0.8 / len(measures)  # Width of bars, distributed over the number of measures
                 # Loop through both measures and plot them.
                 for i, measure in enumerate(measures):
@@ -263,8 +279,8 @@ def viz_accuracy_vs_confidence(
                         else:
                             bar_color = metric_colors[measure]
                             bar_label = measure if j == 0 else ""  # Label only once for other measures
-                        
-                        if measure == "proportion":
+                        # If plotting the porportions, plot the proportion, otherwise plot the mean and std.        
+                        if  "proportion" in measure:
                             value = x_var_set[x_var][measure]
                             ax.bar(
                                 inds[j] + i * width,
