@@ -183,16 +183,16 @@ def viz_accuracy_vs_confidence(
     metric_colors = {
         "confidence": "blue",
         "weighted confidence": "royalblue",
-        "avg confidence": "royalblue",
-        "avg weighted confidence": "royalblue",
+        "avg confidence": "lightsteelblue",
+        "avg weighted confidence": "lavender",
         "accuracy": "darkorange",
-        "weighted accuracy": "sandybrown",
+        "weighted accuracy": "orange",
         "avg accuracy": "sandybrown",
-        "avg weighted accuracy": "sandybrown",
-        "proportion": "forestgreen",
-        "weighted proportion": "darkseagreen",
+        "avg weighted accuracy": "peachpuff",
+        "proportion": "darkgreen",
+        "weighted proportion": "seagreen",
         "avg proportion": "darkseagreen",
-        "avg weighted proportion": "darkseagreen",
+        "avg weighted proportion": "lightgreen",
     }
 
     # Loop through the axes, and if there isn't a bin number for that axis, remove it first sorting the avg_data_dict indices by col.
@@ -221,11 +221,10 @@ def viz_accuracy_vs_confidence(
                         bar_color = metric_colors[measure]
                         bar_label = measure if (x_idx == 0) else ""  # Label only once for other measures
                     # If plotting the porportions, plot the proportion, otherwise plot the mean and std.        
-                    x_var_info = x_var_set[x_var][measure]
                     if  "proportion" in measure:
                         ax.bar(
                             inds[x_idx] + m_idx * width,
-                            x_var_info,
+                            x_var_set[x_var][measure],
                             width,
                             label=bar_label,
                             color=bar_color,
@@ -233,10 +232,9 @@ def viz_accuracy_vs_confidence(
                     else:
                         ax.bar(
                             inds[x_idx] + m_idx * width,
-                            x_var_info["mean"],
+                            x_var_set[x_var][measure]["mean"],
                             width,
                             label=bar_label,
-                            yerr=x_var_info["std"],  # Add standard deviation bars
                             capsize=3,  # Customize the cap size of error bars
                             color=bar_color,
                         )
@@ -256,7 +254,7 @@ def viz_accuracy_vs_confidence(
     # Adjusting the titles
     plt.legend(
         title='measure',
-        bbox_to_anchor=(1.4, 1),  # Adjust the position of the legend
+        bbox_to_anchor=(1.6, 1),  # Adjust the position of the legend
         loc='center right',  # Specify the legend location
         frameon=False,  # Remove the legend background
     )
