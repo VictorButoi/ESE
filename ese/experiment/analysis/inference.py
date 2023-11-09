@@ -473,6 +473,7 @@ def get_calibration_item_info(
             reflect_boundaries=False
             )
         # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
+        # NOTE: This is a FLOAT tensor where pred_map is Long.
         nn_w_pix_proportions = get_nw_pix_props(
             pred_map, 
             reflect_boundaries=True
