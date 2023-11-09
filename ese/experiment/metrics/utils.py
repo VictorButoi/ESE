@@ -237,23 +237,27 @@ def get_nw_pix_props(
     if num_neighbors_map is None:
         num_neighbors_map = count_matching_neighbors(label_map, reflect_boundaries)
 
-    # Get the unique number of neighbors
-    num_unique_nn = len(torch.unique(num_neighbors_map))
-
     # Get a map where each pixel corresponds to the amount of pixels with that label who have 
     # that number of neighbors, and the total amount of pixels with that label.
-    label_nn_count_map = torch.zeros_like(label_map)
-    label_count_map = torch.zeros_like(label_map)
+    nn_balanced_weights_map = torch.zeros_like(label_map).float()
     # Loop through each unique label and its number of neighbors.
     for label in torch.unique(label_map):
         label_group = (label_map==label)
-        label_count_map[label_group] = (label_group).sum()
-        for nn in torch.unique(num_neighbors_map):
+        unique_label_nns = torch.unique(num_neighbors_map[label_group])
+        num_unique_neighbors = len(unique_label_nns)
+        # print("Label {} has {} unique neighbors".format(label, len(unique_label_nns)))
+        # print("----------------------------------")
+        for nn in unique_label_nns:
             label_nn_group = (label_group) & (num_neighbors_map==nn)
-            label_nn_count_map[label_nn_group] = (label_nn_group).sum()
-
-    # Num-neighbor balanced weights map
-    nn_balanced_weights_map = label_count_map / (label_nn_count_map * num_unique_nn)
+            # Get the quanities for balancing the pixel weights.
+            amount_label = label_group.sum().item()
+            amount_label_with_nn = label_nn_group.sum().item()
+            pix_weights = amount_label / (amount_label_with_nn * num_unique_neighbors)
+            # Set this region of the map to the pixel weights.
+            nn_balanced_weights_map[label_nn_group] = pix_weights
+            # print("Label: {} and NN: {} Pixel Class Has Weight: {}".format(label, nn, pix_weights))
+            # print(f"(Amount label: {amount_label}) / (Amount label with nn: {amount_label_with_nn}) * (Number of unique neighbors: {num_unique_neighbors})")
+            # print()
 
     # Return the count_array
     if return_numpy:
