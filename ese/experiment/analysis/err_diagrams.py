@@ -77,9 +77,9 @@ def viz_accuracy_vs_confidence(
     x: str,
     hue: Union[str, List[str]],
     kind: Literal["bar", "line"],
-    add_average: bool = False,
-    add_proportion: bool = False,
-    add_weighted_metrics: bool = False,
+    add_average: bool = True,
+    add_proportion: bool = True,
+    add_weighted_metrics: bool = True,
     x_labels: bool = True,
     style: Optional[str] = None,
     col: Optional[Literal["bin_num"]] = None,
@@ -175,134 +175,153 @@ def viz_accuracy_vs_confidence(
                 data_dict[bin_num][f"{pred_label},{num_neighbors}"][measure].append(value)
             else:
                 raise NotImplementedError(f"Haven't configured {x} for bar plot.")
+
         # Calculate the average for each pred_label and measure within each bin_num
         avg_data_dict = defaultdict(lambda: defaultdict(dict))
-        bin_samples = {}
-        weighted_bin_samples = {}
+
+        # These are the metrics we care about for each x group.
+        measure_names = ["confidence", "accuracy"]
+        if add_weighted_metrics:
+            measure_names += ["weighted confidence", "weighted accuracy"]
+        
+        # Helpful trackers for counting samples in each bin.
+        bin_samples = {
+            "uniform": {},
+            "weighted": {}
+        }
         # Go through each bin_num and each x variable. 
         for bin_num, x_var_set in data_dict.items():
-            # Some stats meters to keep track of the average of the averages.
-            avg_bin_meters = {
-                "confidence": StatsMeter(),
-                "accuracy": StatsMeter(),
-            }
-            if add_weighted_metrics:
-                avg_bin_meters["weighted confidence"] = StatsMeter(),
-                avg_bin_meters["weighted accuracy"] =  StatsMeter()
-            # Go through each x variable and each kind of measure.
+            # SETUP A METER FOR EACH X GROUP, THIS WILL TRACK ONLY THE MEAN, STD, AND N
+            # FOR EACH GROUP IN THIS BIN.
+            avg_bin_met_meters = {measure_group: StatsMeter() for measure_group in measure_names}
             for x_var, measures in x_var_set.items():
                 for measure, values in measures.items():
-                    y = StatsMeter()
+                    bin_x_group_stats = StatsMeter()
+                    # Accumulate all of the values in this group, and at to our total bin trackers.
                     for value in values:
-                        y += value
-                        avg_bin_meters[measure] += value
+                        bin_x_group_stats += value
+                        avg_bin_met_meters[measure] += value
                     # Record the mean, std, and n for the bin.
-                    avg_data_dict[int(bin_num)][str(x_var)][measure] = (y.mean, y.std) 
-                    if add_proportion:
-                        avg_data_dict[int(bin_num)][str(x_var)][measure] = y.n
-            # Place the average of the averages in the avg_data_dict.
-            if add_average:
-                for measure in avg_bin_meters.keys():
-                    avg_data_dict[int(bin_num)]["avg"][measure] = (avg_bin_meters[measure].mean, avg_bin_meters[measure].std)
-                    if add_proportion:
-                        num_bin_samples = avg_bin_meters[measure].n
-                        if "weighted" in measure:
-                            weighted_bin_samples[int(bin_num)] = num_bin_samples
-                            avg_data_dict[int(bin_num)]["avg"]["weighted proportion"] = num_bin_samples
-                        else:
-                            bin_samples[int(bin_num)] = num_bin_samples
-                            avg_data_dict[int(bin_num)]["avg"]["proportion"] = num_bin_samples
+                    avg_data_dict[int(bin_num)][str(x_var)][measure] = {
+                        "mean": bin_x_group_stats.mean, 
+                        "std": bin_x_group_stats.std, 
+                        "n_samples": bin_x_group_stats.n
+                    } 
+            #  GET THE AVERAGE FOR EACH CONFIDENCE BIN.
+            for mes in measure_names:
+                avg_data_dict[int(bin_num)]["avg"][mes] = {
+                    "mean": avg_bin_met_meters[mes].mean, 
+                    "std": avg_bin_met_meters[mes].std, 
+                    "n_samples": avg_bin_met_meters[mes].n
+                    }
+                # Add the number of samples, both unwieghted and weighted. NOTE: We only do this for 
+                # confidence because otherwise we would be double counting the samples.
+                if "confidence" in mes:
+                    if "weighted" in mes:
+                        bin_samples_key = "weighted"
+                    else:  
+                        bin_samples_key = "uniform"
+                    # Add the number of samples in this bin.
+                    bin_samples[bin_samples_key][bin_num] = avg_bin_met_meters[mes].n
 
         # NORMALIZE THE PROPORTION BY THE TOTAL NUMBER OF SAMPLES IN THE EXPERIMENT.
+        total_uniform = sum(bin_samples["uniform"].values())
+        total_weighted = sum(bin_samples["weighted"].values())
+        assert total_uniform == total_weighted,\
+            f"Total uniform samples: {total_uniform} and Total weighted samples: {total_weighted} should be the same."
+        # Loop through every bin and x_var
+        for bin_num, x_var_set in avg_data_dict.items():
+            for x_var in x_var_set.keys():
+                # Normalize by number of samples in the bin.
+                bin_x_samples = avg_data_dict[bin_num][x_var]["confidence"]["n_samples"]
+                avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / bin_samples["uniform"][bin_num]
+                # Normalize by the total weighted samples of the bin.
+                weighted_x_samples = avg_data_dict[bin_num][x_var]["weighted confidence"]["n_samples"]
+                avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_x_samples / bin_samples["weighted"][bin_num]
+            # Finally, normalize by the total number of samples.
+            avg_data_dict[bin_num]["avg"]["proportion"] = bin_samples["uniform"][bin_num] / total_uniform 
+            avg_data_dict[bin_num]["avg"]["weighted proportion"] = bin_samples["weighted"][bin_num] / total_weighted 
+        # Add the proportion to the measures list.
         if add_proportion:
-            # Keep track of the total number of samples in the experiment.
-            total_samples = sum(bin_samples.values())
-            total_weighted_samples = sum(weighted_bin_samples.values())
-            assert total_samples == total_weighted_samples, "Total samples and total weighted samples should be the same."
-            # Loop through every bin and x_var
-            for bin_num, x_var_set in avg_data_dict.items():
-                for x_var in x_var_set.keys():
-                    if x_var != "avg":
-                        avg_data_dict[bin_num][x_var]["proportion"] /= bin_samples[bin_num]
-                        avg_data_dict[bin_num][x_var]["weighted proportion"] /= weighted_bin_samples[bin_num]
-                avg_data_dict[bin_num]["avg"]["proportion"] /= total_samples
-                avg_data_dict[bin_num]["avg"]["weighted proportion"] /= total_weighted_samples
+            measure_names += ["proportion", "weighted proportion"]
 
-        # Plotting
+        # Set a bunch of information for plotting the graphs.
         num_bins = len(avg_data_dict)
-        num_rows = math.ceil(num_bins/5)
-        num_cols = 5
-        sharex = True
-        sharey = True
+        num_rows, num_cols = math.ceil(num_bins/5), 5
+        sharex, sharey = True, True
         if facet_kws is not None:
-            sharex = facet_kws["sharex"]
-            sharey = facet_kws["sharey"]
+            sharex, sharey = facet_kws["sharex"], facet_kws["sharey"]
         # Setup the subplot array.
-        fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(num_cols*6, num_rows*6), sharex=sharex, sharey=sharey)
+        fig, axes = plt.subplots(
+            nrows=num_rows, 
+            ncols=num_cols, 
+            figsize=(num_cols*6, num_rows*6), 
+            sharex=sharex, 
+            sharey=sharey
+            )
         # Define the colors for the plot.
         metric_colors = {
             "confidence": "blue",
             "weighted confidence": "royalblue",
             "avg confidence": "royalblue",
+            "avg weighted confidence": "royalblue",
             "accuracy": "darkorange",
             "weighted accuracy": "sandybrown",
             "avg accuracy": "sandybrown",
+            "avg weighted accuracy": "sandybrown",
             "proportion": "forestgreen",
             "weighted proportion": "darkseagreen",
             "avg proportion": "darkseagreen",
+            "avg weighted proportion": "darkseagreen",
         }
+
         # Loop through the axes, and if there isn't a bin number for that axis, remove it first sorting the avg_data_dict indices by col.
-        sorted_data = sorted(avg_data_dict.items(), key=lambda x: x[0])
-        bin_nums = [bin_num for bin_num, _ in sorted_data] 
+        data_sorted_by_bin_num = sorted(avg_data_dict.items(), key=lambda x: x[0])
+        bin_nums = [bin_num for bin_num, _ in data_sorted_by_bin_num] 
         for ax_idx, ax in enumerate(axes.flat):
             if ax_idx not in bin_nums:
                 fig.delaxes(ax)
+
         # Loop through the subplots and plot the data.
-        for bin_num, x_var_set in sorted_data:
+        for bin_num, x_var_set in data_sorted_by_bin_num:
             ax = axes[bin_num // 5, bin_num % 5]
             sorted_x_vars = sorted(list(x_var_set.keys()))
             # Bar plots so we can see the difference in heights.
             if kind == "bar":
-                # Define the measures to plot.
-                measures = ["confidence", "accuracy"]
-                if add_proportion:
-                    measures += ["proportion", "weighted proportion"]
-                width = 0.8 / len(measures)  # Width of bars, distributed over the number of measures
-                # Loop through both measures and plot them.
-                for i, measure in enumerate(measures):
-                    inds = np.arange(len(sorted_x_vars))  # the x locations for the groups
-                    for j, x_var in enumerate(sorted_x_vars):
+                inds = np.arange(len(sorted_x_vars))  # the x locations for the groups
+                width = 0.8 / len(measure_names)  # the widths of these x groups
+                # Loop through  measure_names and plot them.
+                for x_idx, x_var in enumerate(sorted_x_vars):
+                    for m_idx, measure in enumerate(measure_names):
                         # Determine the color and label based on whether the x_var is 'avg' or not
                         if x_var == 'avg':
                             bar_color = metric_colors[f'avg {measure}']
                             bar_label = f'avg {measure}'
                         else:
                             bar_color = metric_colors[measure]
-                            bar_label = measure if j == 0 else ""  # Label only once for other measures
+                            bar_label = measure if (x_idx == 0) else ""  # Label only once for other measures
                         # If plotting the porportions, plot the proportion, otherwise plot the mean and std.        
+                        x_var_info = x_var_set[x_var][measure]
                         if  "proportion" in measure:
-                            value = x_var_set[x_var][measure]
                             ax.bar(
-                                inds[j] + i * width,
-                                value,
+                                inds[x_idx] + m_idx * width,
+                                x_var_info,
                                 width,
                                 label=bar_label,
                                 color=bar_color,
                             )
                         else:
-                            value, std_value = x_var_set[x_var][measure]
                             ax.bar(
-                                inds[j] + i * width,
-                                value,
+                                inds[x_idx] + m_idx * width,
+                                x_var_info["mean"],
                                 width,
                                 label=bar_label,
-                                yerr=std_value,  # Add standard deviation bars
+                                yerr=x_var_info["std"],  # Add standard deviation bars
                                 capsize=3,  # Customize the cap size of error bars
                                 color=bar_color,
                             )
             elif kind == "line":
                 assert not add_proportion, "add_proportion not implemented for line plot."
-                measures = ["confidence", "accuracy"] 
                 ax.axhline(x_var_set["avg"]["confidence"][0], color=metric_colors["avg confidence"], linestyle='--', label='avg confidence', zorder=0)
                 ax.axhline(x_var_set["avg"]["accuracy"][0], color=metric_colors["avg accuracy"], linestyle='--', label='avg accuracy', zorder=0)
                 for i, measure in enumerate(measures):

@@ -58,7 +58,6 @@ def load_cal_inference_stats(
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
         if log_set.name != "submitit":
-
             # Load the metadata file (json) and add it to the metadata dataframe.
             log_mdata_yaml = log_set / "metadata.yaml"
             with open(log_mdata_yaml, 'r') as stream:
@@ -99,6 +98,7 @@ def load_cal_inference_stats(
                             running_meter_dict[key] = pixel_meter_dict[key]
                         else:
                             running_meter_dict[key] += pixel_meter_dict[key] 
+            # Set the pixel dict of the log set.
             cal_info_dict["pixel_info_dicts"][log_set.name] = running_meter_dict
 
     # Finally, return the dictionary of inference info.
