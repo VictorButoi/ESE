@@ -505,4 +505,6 @@ def get_calibration_item_info(
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(pix_acc) 
             pixel_meter_dict[conf_key].add(pix_conf)
-            pixel_meter_dict[weighted_acc_key].add(pix_acc, n=pix_nw_proportion) 
+            # Add the weighted accuracy
+            weighted_pix_acc = pix_nw_proportion * pix_acc
+            pixel_meter_dict[weighted_acc_key].add(weighted_pix_acc, n=pix_nw_proportion) 
