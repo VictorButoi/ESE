@@ -240,19 +240,21 @@ def get_nw_pix_props(
     # Get a map where each pixel corresponds to the amount of pixels with that label who have 
     # that number of neighbors, and the total amount of pixels with that label.
     nn_balanced_weights_map = torch.zeros_like(label_map).float()
+    total_amount = label_map.numel()
+    unique_labels = torch.unique(label_map)
+    L = len(unique_labels)
     # Loop through each unique label and its number of neighbors.
-    for label in torch.unique(label_map):
+    for label in unique_labels:
         label_group = (label_map==label)
         unique_label_nns = torch.unique(num_neighbors_map[label_group])
-        num_unique_neighbors = len(unique_label_nns)
+        NN = len(unique_label_nns)
         # print("Label {} has {} unique neighbors".format(label, len(unique_label_nns)))
         # print("----------------------------------")
         for nn in unique_label_nns:
             label_nn_group = (label_group) & (num_neighbors_map==nn)
             # Get the quanities for balancing the pixel weights.
-            amount_label = label_group.sum().item()
-            amount_label_with_nn = label_nn_group.sum().item()
-            pix_weights = amount_label / (amount_label_with_nn * num_unique_neighbors)
+            amount_label_and_nn = label_nn_group.sum().item()
+            pix_weights = (total_amount / amount_label_and_nn) * (1 / (NN * L))
             # Set this region of the map to the pixel weights.
             nn_balanced_weights_map[label_nn_group] = pix_weights
             # print("Label: {} and NN: {} Pixel Class Has Weight: {}".format(label, nn, pix_weights))

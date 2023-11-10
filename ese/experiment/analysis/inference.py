@@ -495,17 +495,14 @@ def get_calibration_item_info(
             pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
             pix_nw_proportion = nn_w_pix_proportions[ix, iy].item()
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
             conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
+            acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
             weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
-            weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
             # If this key doesn't exist in the dictionary, add it
             if conf_key not in pixel_meter_dict:
-                for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
+                for meter_key in [acc_key, conf_key, weighted_acc_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(pix_acc) 
             pixel_meter_dict[conf_key].add(pix_conf)
-            # Add the weighted metrics.
             pixel_meter_dict[weighted_acc_key].add(pix_acc, n=pix_nw_proportion) 
-            pixel_meter_dict[weighted_conf_key].add(pix_conf, n=pix_nw_proportion)

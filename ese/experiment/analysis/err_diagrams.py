@@ -101,7 +101,7 @@ def viz_accuracy_vs_confidence(
     # These are the metrics we care about for each x group.
     measure_names = ["confidence", "accuracy"]
     if add_weighted_metrics:
-        measure_names += ["weighted confidence", "weighted accuracy"]
+        measure_names.append("weighted accuracy")
     
     # Helpful trackers for counting samples in each bin.
     bin_samples = {
@@ -135,7 +135,7 @@ def viz_accuracy_vs_confidence(
                 }
             # Add the number of samples, both unwieghted and weighted. NOTE: We only do this for 
             # confidence because otherwise we would be double counting the samples.
-            if "confidence" in mes:
+            if "accuracy" in mes:
                 if "weighted" in mes:
                     bin_samples_key = "weighted"
                 else:  
@@ -152,10 +152,10 @@ def viz_accuracy_vs_confidence(
     for bin_num, x_var_set in avg_data_dict.items():
         for x_var in x_var_set.keys():
             # Normalize by number of samples in the bin.
-            bin_x_samples = avg_data_dict[bin_num][x_var]["confidence"]["n_samples"]
+            bin_x_samples = avg_data_dict[bin_num][x_var]["accuracy"]["n_samples"]
             avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / bin_samples["uniform"][bin_num]
             # Normalize by the total weighted samples of the bin.
-            weighted_x_samples = avg_data_dict[bin_num][x_var]["weighted confidence"]["n_samples"]
+            weighted_x_samples = avg_data_dict[bin_num][x_var]["weighted accuracy"]["n_samples"]
             avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_x_samples / bin_samples["weighted"][bin_num]
         # Finally, normalize by the total number of samples.
         avg_data_dict[bin_num]["avg"]["proportion"] = bin_samples["uniform"][bin_num] / total_uniform 
@@ -182,9 +182,7 @@ def viz_accuracy_vs_confidence(
     # Define the colors for the plot.
     metric_colors = {
         "confidence": "blue",
-        "weighted confidence": "royalblue",
-        "avg confidence": "lightsteelblue",
-        "avg weighted confidence": "lavender",
+        "avg confidence": "dodgerblue",
         "accuracy": "darkorange",
         "weighted accuracy": "orange",
         "avg accuracy": "sandybrown",
