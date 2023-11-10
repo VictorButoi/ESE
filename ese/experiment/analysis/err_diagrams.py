@@ -99,7 +99,7 @@ def viz_accuracy_vs_confidence(
     avg_data_dict = defaultdict(lambda: defaultdict(dict))
 
     # These are the metrics we care about for each x group.
-    measure_names = ["confidence", "accuracy", "weighted accuracy"]
+    measure_names = ["confidence", "accuracy", "weighted confidence", "weighted accuracy"]
     
     # Helpful trackers for counting samples in each bin.
     bin_samples = {
@@ -173,7 +173,8 @@ def viz_accuracy_vs_confidence(
 
     # Add the proportion to the measures list.
     if add_proportion:
-        measure_names += ["proportion", "weighted proportion"]
+        measure_names = ["confidence", "accuracy", "proportion"]
+        measure_names += ["weighted confidence", "weighted accuracy", "weighted proportion"]
 
     # Set a bunch of information for plotting the graphs.
     num_bins = len(avg_data_dict)
@@ -191,14 +192,15 @@ def viz_accuracy_vs_confidence(
         )
     # Define the colors for the plot.
     metric_colors = {
-        "confidence": "blue",
+        "confidence": "cornflowerblue",
+        "weighted confidence": "mediumblue",
         "avg confidence": "dodgerblue",
-        "accuracy": "darkorange",
-        "weighted accuracy": "orange",
+        "accuracy": "sandybrown",
+        "weighted accuracy": "darkorange",
         "avg accuracy": "sandybrown",
         "avg weighted accuracy": "peachpuff",
-        "proportion": "darkgreen",
-        "weighted proportion": "seagreen",
+        "proportion": "lightgreen",
+        "weighted proportion": "darkgreen",
         "avg proportion": "darkseagreen",
         "avg weighted proportion": "lightgreen",
     }
