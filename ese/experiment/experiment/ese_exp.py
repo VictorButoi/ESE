@@ -152,11 +152,11 @@ class CalibrationExperiment(TrainExperiment):
 
         # Either return the probabilities or not.
         if include_probs:
-            assert x.shape == conf_map.shape, "x and conf_map are misaligned, x.shape = {} conf_map.shape = {}.".format(x.shape, conf_map.shape)
-            assert x.shape == pred_map.shape, "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
+            assert len(x.shape) == len(conf_map.shape), "x and conf_map are misaligned, x.shape = {} conf_map.shape = {}.".format(x.shape, conf_map.shape)
+            assert len(x.shape) == len(pred_map.shape), "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
             return pred_map, conf_map
         else:
-            assert x.shape == pred_map.shape, "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
+            assert len(x.shape) == len(pred_map.shape), "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
             return pred_map
 
     def run(self):
