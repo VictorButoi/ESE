@@ -76,8 +76,8 @@ def viz_accuracy_vs_confidence(
     title: str,
     x: str,
     kind: Literal["bar", "line"],
+    add_avg: bool,
     add_proportion: bool = True,
-    add_weighted_metrics: bool = True,
     x_labels: bool = True,
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
@@ -99,9 +99,7 @@ def viz_accuracy_vs_confidence(
     avg_data_dict = defaultdict(lambda: defaultdict(dict))
 
     # These are the metrics we care about for each x group.
-    measure_names = ["confidence", "accuracy"]
-    if add_weighted_metrics:
-        measure_names.append("weighted accuracy")
+    measure_names = ["confidence", "accuracy", "weighted accuracy"]
     
     # Helpful trackers for counting samples in each bin.
     bin_samples = {
@@ -128,11 +126,6 @@ def viz_accuracy_vs_confidence(
                 } 
         #  GET THE AVERAGE FOR EACH CONFIDENCE BIN.
         for mes in measure_names:
-            avg_data_dict[int(bin_num)]["avg"][mes] = {
-                "mean": avg_bin_met_meters[mes].mean, 
-                "std": avg_bin_met_meters[mes].std, 
-                "n_samples": avg_bin_met_meters[mes].n
-                }
             # Add the number of samples, both unwieghted and weighted. NOTE: We only do this for 
             # confidence because otherwise we would be double counting the samples.
             if "accuracy" in mes:
@@ -142,6 +135,13 @@ def viz_accuracy_vs_confidence(
                     bin_samples_key = "uniform"
                 # Add the number of samples in this bin.
                 bin_samples[bin_samples_key][bin_num] = avg_bin_met_meters[mes].n
+            # Optionally add the average to the data_dict. 
+            if add_avg:
+                avg_data_dict[int(bin_num)]["avg"][mes] = {
+                    "mean": avg_bin_met_meters[mes].mean, 
+                    "std": avg_bin_met_meters[mes].std, 
+                    "n_samples": avg_bin_met_meters[mes].n
+                    }
 
     # NORMALIZE THE PROPORTION BY THE TOTAL NUMBER OF SAMPLES IN THE EXPERIMENT.
     total_uniform = sum(bin_samples["uniform"].values())
@@ -151,15 +151,25 @@ def viz_accuracy_vs_confidence(
     # Loop through every bin and x_var
     for bin_num, x_var_set in avg_data_dict.items():
         for x_var in x_var_set.keys():
-            # Normalize by number of samples in the bin.
+            # NORMALIZE THE STANDARD PROPORTIONS
             bin_x_samples = avg_data_dict[bin_num][x_var]["accuracy"]["n_samples"]
-            avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / bin_samples["uniform"][bin_num]
-            # Normalize by the total weighted samples of the bin.
-            weighted_x_samples = avg_data_dict[bin_num][x_var]["weighted accuracy"]["n_samples"]
-            avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_x_samples / bin_samples["weighted"][bin_num]
-        # Finally, normalize by the total number of samples.
-        avg_data_dict[bin_num]["avg"]["proportion"] = bin_samples["uniform"][bin_num] / total_uniform 
-        avg_data_dict[bin_num]["avg"]["weighted proportion"] = bin_samples["weighted"][bin_num] / total_weighted 
+            if add_avg:
+                # In this case, we weigh within the bin because the avg is being added to each bin anyways.
+                avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / bin_samples["uniform"][bin_num]
+            else:
+                avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / total_weighted
+
+            # NORMALIZE THE WEIGHTED PROPORTIONS
+            weighted_bin_x_samples = avg_data_dict[bin_num][x_var]["weighted accuracy"]["n_samples"]
+            if add_avg:
+                # In this case, we weigh within the bin because the avg is being added to each bin anyways.
+                avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_bin_x_samples / bin_samples["weighted"][bin_num]
+            else:
+                avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_bin_x_samples / total_weighted
+        # We are adding the avg to each bin, normalize by the total number of samples.
+        if add_avg:
+            avg_data_dict[bin_num]["avg"]["proportion"] = bin_samples["uniform"][bin_num] / total_uniform 
+            avg_data_dict[bin_num]["avg"]["weighted proportion"] = bin_samples["weighted"][bin_num] / total_weighted 
 
     # Add the proportion to the measures list.
     if add_proportion:
