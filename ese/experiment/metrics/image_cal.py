@@ -147,7 +147,7 @@ def SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
-    uni_w_attributes: List[str],
+    uni_w_attributes: List[str] = ["labels", "neighbors"],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ) -> dict:
@@ -213,7 +213,7 @@ def TL_SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighborhood"]
+        uni_w_attributes=["neighbors"]
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_scores"].shape
@@ -262,7 +262,7 @@ def CW_SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighborhood"]
+        uni_w_attributes=["neighbors"]
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_scores"].shape
