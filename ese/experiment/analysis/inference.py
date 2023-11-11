@@ -442,11 +442,13 @@ def get_calibration_item_info(
                     label_map=label_map,
                     weighting=bin_weighting,
                 )['cal_score'] 
-                # Wrap it in an item
+                # Modify the metric name to remove underscores.
+                mod_metric_name = metric_name.replace("_", " ")
+                # Wrap all image-level info in a record.
                 cal_record = {
                     "accuracy": acc,
                     "bin_weighting": bin_weighting,
-                    "cal_metric": metric_name,
+                    "cal_metric": mod_metric_name,
                     "cal_score": cal_score,
                     "data_id": data_id,
                     "dice": dice,
