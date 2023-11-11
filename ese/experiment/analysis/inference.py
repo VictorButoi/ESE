@@ -21,7 +21,7 @@ from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import dataloader_from_exp
-from ..metrics.utils import get_bins, find_bins, count_matching_neighbors, get_nw_pix_props
+from ..metrics.utils import get_bins, find_bins, count_matching_neighbors, get_uni_pixel_weights
 from ..experiment.ese_exp import CalibrationExperiment
 
 
@@ -474,8 +474,10 @@ def get_calibration_item_info(
             )
         # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
         # NOTE: This is a FLOAT tensor where pred_map is Long.
-        nn_w_pix_proportions = get_nw_pix_props(
+        pix_weights = get_uni_pixel_weights(
             pred_map, 
+            uni_w_attributes=["labels", "neighbors"],
+            neighborhood_width=3,
             reflect_boundaries=True
             )
         # Figure out where each pixel belongs (in confidence)
@@ -493,7 +495,7 @@ def get_calibration_item_info(
             pix_pred_label = pred_map[ix, iy].item()
             pix_c_bin = bin_ownership_map[ix, iy].item()
             pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
-            pix_nw_proportion = nn_w_pix_proportions[ix, iy].item()
+            pix_w = pix_weights[ix, iy].item()
             # Create a unique key for the combination of label, neighbors, and confidence_bin
             conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
             acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
@@ -507,5 +509,5 @@ def get_calibration_item_info(
             pixel_meter_dict[acc_key].add(pix_acc) 
             pixel_meter_dict[conf_key].add(pix_conf)
             # Add the weighted accuracy and confidence
-            pixel_meter_dict[weighted_acc_key].add(pix_acc, weight=pix_nw_proportion) 
-            pixel_meter_dict[weighted_conf_key].add(pix_conf, weight=pix_nw_proportion) 
+            pixel_meter_dict[weighted_acc_key].add(pix_acc, weight=pix_w) 
+            pixel_meter_dict[weighted_conf_key].add(pix_conf, weight=pix_w) 

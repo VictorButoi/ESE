@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from scipy.ndimage import label
-from typing import Optional, Union 
+from typing import Optional, Union, List
 from pydantic import validate_arguments
 
 
@@ -145,7 +145,8 @@ def find_bins(confidences, bin_starts, bin_widths):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
     label_map: Union[torch.Tensor, np.ndarray],
-    reflect_boundaries: bool
+    reflect_boundaries: bool,
+    neighborhood_width: int = 3,
 ):
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(label_map, np.ndarray):
@@ -161,7 +162,7 @@ def count_matching_neighbors(
     # Create an array to store the counts
     count_array = torch.zeros_like(label_map)
     # Define a 3x3 kernel of ones for the convolution
-    kernel = torch.ones((1, 1, 3, 3), device=device)
+    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=device)
     # Reflective padding if reflect_boundaries is True
     padding_mode = 'reflect' if reflect_boundaries else 'constant'
     for label in unique_labels:
@@ -221,46 +222,81 @@ def get_perpix_group_size(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_nw_pix_props(
+def get_uni_pixel_weights(
     label_map: Union[torch.Tensor, np.ndarray],
+    uni_w_attributes: List[str],
+    reflect_boundaries: bool,
+    neighborhood_width: Optional[int] = None,
     num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
-    reflect_boundaries: bool = True
 ):
+    """
+    Get a map of pixel weights for each unique label in the label map. The weights are calculated
+    based on the number of pixels with that label and the number of pixels with that label and
+    a particular number of neighbors. The weights are normalized such that the sum of the weights
+    for each label is 1.0.
+    Args:
+    - label_map (torch.Tensor): A 2D tensor of labels.
+    - uni_w_attributes (List[str]): A list of unique label attributes to use for weighting.
+    - reflect_boundaries (bool): Whether to reflect the boundaries of the label map when counting
+        neighbors.
+    - neighborhood_width (int): The width of the neighborhood to use when counting neighbors.
+    - num_neighbors_map (torch.Tensor): A 2D tensor of the number of neighbors for each pixel in
+        the label map.
+    Returns:
+    - torch.Tensor: A 2D tensor of pixel weights for each pixel in the label map.
+    """
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(label_map, np.ndarray):
         label_map = torch.from_numpy(label_map)
         return_numpy = True
     else:
         return_numpy = False
-
     # If we haven't already calculate num_neighbors map, get it.
-    if num_neighbors_map is None:
-        num_neighbors_map = count_matching_neighbors(label_map, reflect_boundaries)
-
+    if num_neighbors_map is None and "neighbors" in uni_w_attributes:
+        num_neighbors_map = count_matching_neighbors(
+            label_map, 
+            neighborhood_width=neighborhood_width,
+            reflect_boundaries=reflect_boundaries
+            )
     # Get a map where each pixel corresponds to the amount of pixels with that label who have 
     # that number of neighbors, and the total amount of pixels with that label.
     nn_balanced_weights_map = torch.zeros_like(label_map).float()
-    total_amount = label_map.numel()
-    unique_labels = torch.unique(label_map)
-    L = len(unique_labels)
-    # Loop through each unique label and its number of neighbors.
-    for label in unique_labels:
-        label_group = (label_map==label)
-        unique_label_nns = torch.unique(num_neighbors_map[label_group])
-        NN = len(unique_label_nns)
-        # print("Label {} has {} unique neighbors".format(label, len(unique_label_nns)))
-        # print("----------------------------------")
-        for nn in unique_label_nns:
-            label_nn_group = (label_group) & (num_neighbors_map==nn)
-            # Get the quanities for balancing the pixel weights.
-            amount_label_and_nn = label_nn_group.sum().item()
-            pix_weights = (total_amount / amount_label_and_nn) * (1 / (NN * L))
-            # Set this region of the map to the pixel weights.
-            nn_balanced_weights_map[label_nn_group] = pix_weights
-            # print("Label: {} and NN: {} Pixel Class Has Weight: {}".format(label, nn, pix_weights))
-            # print(f"(Amount label: {amount_label}) / (Amount label with nn: {amount_label_with_nn}) * (Number of unique neighbors: {num_unique_neighbors})")
-            # print()
-
+    NUM_SAMPLES = label_map.numel()
+    # Choose how you uniformly condition. 
+    neighbor_condition = "neighbors" in uni_w_attributes
+    label_condition = "label" in uni_w_attributes
+    neighbor_and_label_condition = neighbor_condition and label_condition
+    # If we are conditioning on both.
+    if neighbor_and_label_condition:
+        unique_labels = torch.unique(label_map)
+        NUM_L = len(unique_labels)
+        # Loop through each unique label and its number of neighbors.
+        for label in unique_labels:
+            label_group = (label_map==label)
+            unique_label_nns = torch.unique(num_neighbors_map[label_group])
+            NUM_NN = len(unique_label_nns)
+            for nn in unique_label_nns:
+                label_nn_group = (label_group) & (num_neighbors_map==nn)
+                pix_weights = (NUM_SAMPLES / label_nn_group.sum().item()) * (1 / (NUM_NN * NUM_L))
+                nn_balanced_weights_map[label_nn_group] = pix_weights
+    # If we are conditioning ONLY on number of neighbors. 
+    elif neighbor_condition:
+        unique_nns = torch.unique(num_neighbors_map)
+        # Loop through each number of neighbors.
+        NUM_NN = len(unique_label_nns)
+        for nn in unique_nns:
+            nn_group = (num_neighbors_map==nn)
+            nn_balanced_weights_map[nn_group] = (NUM_SAMPLES / nn_group.sum().item()) * (1 / NUM_NN)
+    # If we are conditioning ONLY on amount of label.
+    elif label_condition:
+        unique_labels = torch.unique(label_map)
+        NUM_L = len(unique_labels)
+        # Loop through each label.
+        for label in unique_labels:
+            label_group = (label_map==label)
+            nn_balanced_weights_map[label_group] = (NUM_SAMPLES / label_group.sum().item()) * (1 / NUM_L)
+    else:
+        raise ValueError(f"Uniform conditioning must be one of 'neighbors', 'label', or both, got {uni_w_attributes} instead.")
     # Return the count_array
     if return_numpy:
         return nn_balanced_weights_map.numpy()

@@ -6,7 +6,7 @@ from ionpy.metrics import pixel_accuracy
 from ionpy.util.islands import get_connected_components
 # misc imports
 import torch
-from typing import Tuple
+from typing import Tuple, List
 from pydantic import validate_arguments
 
 
@@ -147,6 +147,7 @@ def SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    uni_w_attributes: List[str],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ) -> dict:
@@ -162,29 +163,22 @@ def SUME(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = label_neighbors_bin_stats(
+    cal_info = bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        neighborhood_width=neighborhood_width
+        neighborhood_width=neighborhood_width,
+        uni_w_attributes=uni_w_attributes
     )
-    # Finally, get the ECE score.
-    num_labels, num_neighbors, _ = cal_info["bin_cal_scores"].shape
-    w_ece = torch.zeros((num_labels, num_neighbors))
-    # Iterate through each label and calculate the weighted ece.
-    for lab_idx in range(num_labels):
-        for num_neighb in range(neighborhood_width**2):
-            ece = reduce_scores(
-                score_per_bin=cal_info['bin_cal_scores'][lab_idx, num_neighb], 
-                amounts_per_bin=cal_info['bin_amounts'][lab_idx, num_neighb], 
-                weighting=weighting
-                )
-            w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
+    cal_info['cal_score'] = reduce_scores(
+        score_per_bin=cal_info["bin_cal_scores"], 
+        amounts_per_bin=cal_info["bin_amounts"], 
+        weighting=weighting
+        )
     # Return the calibration information
     return cal_info
 
@@ -211,27 +205,27 @@ def TL_SUME(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = label_neighbors_bin_stats(
+    cal_info = label_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        neighborhood_width=neighborhood_width
+        neighborhood_width=neighborhood_width,
+        uni_w_attributes=["neighborhood"]
     )
     # Finally, get the ECE score.
-    num_labels, num_neighbors, _ = cal_info["bin_cal_scores"].shape
-    w_ece = torch.zeros((num_labels, num_neighbors))
+    num_labels, _ = cal_info["bin_cal_scores"].shape
+    w_ece = torch.zeros(num_labels)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
-        for num_neighb in range(neighborhood_width**2):
-            ece = reduce_scores(
-                score_per_bin=cal_info['bin_cal_scores'][lab_idx, num_neighb], 
-                amounts_per_bin=cal_info['bin_amounts'][lab_idx, num_neighb], 
-                weighting=weighting
-                )
-            w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()
+        ece = reduce_scores(
+            score_per_bin=cal_info['bin_cal_scores'][lab_idx], 
+            amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
+            weighting=weighting
+            )
+        w_ece[lab_idx] = ece * cal_info['bin_amounts'][lab_idx].sum()
     # Finally, get the calibration score.
     cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
@@ -260,28 +254,27 @@ def CW_SUME(
         end=conf_interval[1]
         )
     # Keep track of different things for each bin.
-    cal_info = label_neighbors_bin_stats(
+    cal_info = label_bin_stats(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        neighborhood_width=neighborhood_width
+        neighborhood_width=neighborhood_width,
+        uni_w_attributes=["neighborhood"]
     )
     # Finally, get the ECE score.
-    num_labels, num_neighbors, _ = cal_info["bin_cal_scores"].shape
-    w_ece = torch.zeros((num_labels, num_neighbors))
-    # Iterate through each label and calculate the weighted ece.
+    num_labels, _ = cal_info["bin_cal_scores"].shape
+    w_ece = torch.zeros(num_labels)
+    # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
-        for num_neighb in range(neighborhood_width**2):
-            ece = reduce_scores(
-                score_per_bin=cal_info['bin_cal_scores'][lab_idx, num_neighb], 
-                amounts_per_bin=cal_info['bin_amounts'][lab_idx, num_neighb], 
-                weighting=weighting
-                )
-            w_ece[lab_idx, num_neighb] = ece * cal_info['bin_amounts'][lab_idx, num_neighb].sum()
+        w_ece[lab_idx] = reduce_scores(
+            score_per_bin=cal_info["bin_cal_scores"][lab_idx], 
+            amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
+            weighting=weighting
+            )
     # Finally, get the calibration score.
-    cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
+    cal_info['cal_score'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
     return cal_info
