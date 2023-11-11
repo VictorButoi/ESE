@@ -282,40 +282,4 @@ def viz_cal_metric_corr(
     hue: Optional[str] = None,
     col: Optional[str] = None,
 ):
-    # Group the metrics by important factors
-    if col is None:
-        grouped_preds = pixel_preds.groupby(['cal_metric'])
-    else:
-        grouped_preds = pixel_preds.groupby([col, 'cal_metric'])
-    
-    # Accuracy correlations 
-    acc_correlations = grouped_preds.apply(lambda x: x['accuracy'].corr(x['cal_score'])).reset_index(name='correlation')
-    acc_correlations['eval_metric'] = 'accuracy'
-
-    # Dice correlations
-    dice_correlations = grouped_preds.apply(lambda x: x['dice'].corr(x['cal_score'])).reset_index(name='correlation')
-    dice_correlations['eval_metric'] = 'dice'
-
-    if col == 'split':
-        acc_correlations = reorder_splits(acc_correlations)
-        dice_correlations = reorder_splits(dice_correlations)
-
-    # Combine the two
-    subject_correlations = pd.concat([acc_correlations, dice_correlations])
-
-    # Plot the correlations
-    g = sns.catplot(data=subject_correlations, 
-                    x=x, 
-                    y="correlation", 
-                    hue=hue,
-                    kind="bar", 
-                    col=col,
-                    height=8, 
-                    aspect=1)
-
-    # Set the y lim between - 1 and 1
-    g.set(ylim=(-1, 1))
-    # Adjusting the titles
-    g.fig.subplots_adjust(top=0.9)
-    g.fig.suptitle(title, fontsize=16)
-    plt.show()
+    pass 

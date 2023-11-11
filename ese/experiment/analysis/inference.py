@@ -5,8 +5,6 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
-import pandas as pd
-import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List, Tuple
 # torch imports
@@ -414,24 +412,25 @@ def get_calibration_item_info(
     slice_idx: Optional[int] = None,
     ):
     # Get some metrics of these predictions
-    dice = dice_score(pred_map, label_map).item()
-    acc = pixel_accuracy(pred_map, label_map).item()
-    balanced_acc = balanced_pixel_accuracy(pred_map, label_map).item()
+    quality_metrics_dict = {
+        "dice" : dice_score(pred_map, label_map).item(),
+        "accuracy" : pixel_accuracy(pred_map, label_map).item(),
+        "w_accuracy" : balanced_pixel_accuracy(pred_map, label_map).item()
+    }
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
-    
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
     if image_level_records is not None:
         # Go through each calibration metric and calculate the score.
         for cal_metric in metric_cfgs:
-            metric_name = list(cal_metric.keys())[0] # kind of hacky
+            cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
             for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
                 # Get the calibration metric
-                cal_score = cal_metric[metric_name]['func'](
+                cal_score = cal_metric[cal_metric_name]['func'](
                     num_bins=inference_cfg["calibration"]["num_bins"],
                     conf_interval=[
                         inference_cfg["calibration"]["conf_interval_start"],
@@ -443,22 +442,21 @@ def get_calibration_item_info(
                     weighting=bin_weighting,
                 )['cal_score'] 
                 # Modify the metric name to remove underscores.
-                mod_metric_name = metric_name.replace("_", " ")
+                mod_cal_metric_name = cal_metric_name.replace("_", " ")
                 # Wrap all image-level info in a record.
-                cal_record = {
-                    "accuracy": acc,
-                    "bin_weighting": bin_weighting,
-                    "cal_metric": mod_metric_name,
-                    "cal_score": cal_score,
-                    "data_id": data_id,
-                    "dice": dice,
-                    "w_accuracy": balanced_acc,
-                    "slice_idx": slice_idx,
-                }
-                # Add the dataset info to the record
-                record = {**cal_record, **inference_cfg["dataset"]}
-                image_level_records.append(record)
-    
+                for quality_metric in ["accuracy", "dice", "w_accuracy"]:
+                    cal_record = {
+                        "bin_weighting": bin_weighting,
+                        "cal_metric": mod_cal_metric_name,
+                        "cal_score": cal_score,
+                        "qual_metric": quality_metric,
+                        "qual_score": quality_metrics_dict[quality_metric],
+                        "data_id": data_id,
+                        "slice_idx": slice_idx,
+                    }
+                    # Add the dataset info to the record
+                    record = {**cal_record, **inference_cfg["dataset"]}
+                    image_level_records.append(record)
     ########################
     # PIXEL LEVEL TRACKING #
     ########################

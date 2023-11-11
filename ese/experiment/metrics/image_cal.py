@@ -1,9 +1,6 @@
 # local imports
-from .pix_stats import bin_stats, label_bin_stats, label_neighbors_bin_stats
-from .utils import get_bins, reduce_scores, get_conf_region
-# ionpy imports
-from ionpy.metrics import pixel_accuracy
-from ionpy.util.islands import get_connected_components
+from .pix_stats import bin_stats, label_bin_stats
+from .utils import get_bins, reduce_scores
 # misc imports
 import torch
 from typing import Tuple, List
