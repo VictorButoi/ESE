@@ -278,8 +278,42 @@ def viz_accuracy_vs_confidence(
 def viz_cal_metric_corr(
     pixel_preds: pd.DataFrame,
     title: str,
-    x: str,
-    hue: Optional[str] = None,
-    col: Optional[str] = None,
-):
-    pass 
+    height: int = 5,
+    aspect: float = 1,
+) -> None:
+    # Group by split, cal_metric, and qual_metric, then compute correlation
+    grouped = pixel_preds.groupby(['split', 'cal_metric', 'qual_metric'])
+    correlations = grouped.apply(lambda g: g['cal_score'].corr(g['qual_score']))
+
+    # Reset index to convert Series to DataFrame and name the correlation column
+    correlations = correlations.reset_index(name='correlation')
+    # Pivot the data.
+    correlations_pivoted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], columns='split', values='correlation').reset_index()
+    # Melt the DataFrame to make it compatible with FacetGrid
+    correlations_melted = correlations_pivoted.melt(id_vars=['cal_metric', 'qual_metric'], var_name='split', value_name='correlation')
+
+    # Initialize the FacetGrid with the reshaped DataFrame
+    sorted_correlations_melted = reorder_splits(correlations_melted)
+    g = sns.FacetGrid(sorted_correlations_melted, col="split", height=height, aspect=aspect)
+    # Define the plot_heatmap function with annotations
+    def plot_heatmap(data, **kwargs):
+        pivot_data = data.pivot(index='cal_metric', columns='qual_metric', values='correlation')
+        # Annotate each cell with the numeric value using `annot=True`
+        # Choose the text color ('white' or 'black') based on a threshold for better contrast
+        sns.heatmap(pivot_data, annot=True, fmt=".2f", 
+                    cmap=sns.diverging_palette(220, 20, as_cmap=True),
+                    annot_kws={"color": "black", "weight": "bold", "fontsize":10},
+                    **kwargs)
+    # Use map_dataframe to draw heatmaps
+    g.map_dataframe(plot_heatmap)
+
+    # Adjusting the plot aesthetics
+    g.set_titles(col_template="{col_name}")
+    # Set the title for the entire FacetGrid
+    plt.suptitle(title, fontsize=16)
+    # Adjust layout to make room for the title
+    plt.subplots_adjust(top=0.85)
+    # Show plot
+    plt.show()
+
+
