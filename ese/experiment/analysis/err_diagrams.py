@@ -280,6 +280,8 @@ def viz_cal_metric_corr(
     title: str,
     height: int = 5,
     aspect: float = 1,
+    negate: bool = False,
+    row: Optional[str] = None,
 ) -> None:
     # Group by split, cal_metric, and qual_metric, then compute correlation
     grouped = pixel_preds.groupby(['split', 'cal_metric', 'qual_metric'])
@@ -291,31 +293,43 @@ def viz_cal_metric_corr(
     correlations_pivoted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], columns='split', values='correlation').reset_index()
     # Melt the DataFrame to make it compatible with FacetGrid
     correlations_melted = correlations_pivoted.melt(id_vars=['cal_metric', 'qual_metric'], var_name='split', value_name='correlation')
+    correlations_melted = reorder_splits(correlations_melted)
+
+    # Add a new column for cal_metric_type if row is specified
+    if row:
+        correlations_melted[row] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
 
     # Initialize the FacetGrid with the reshaped DataFrame
-    sorted_correlations_melted = reorder_splits(correlations_melted)
-    g = sns.FacetGrid(sorted_correlations_melted, col="split", height=height, aspect=aspect)
+    grid_kwargs = {'col': "split", 'height': height, 'aspect': aspect, 'sharey': False}
+    if row:
+        grid_kwargs.update({'row': row})
+
+    g = sns.FacetGrid(correlations_melted, **grid_kwargs)
+
     # Define the plot_heatmap function with annotations
     def plot_heatmap(data, **kwargs):
         pivot_data = data.pivot(index='cal_metric', columns='qual_metric', values='correlation')
-         # Create a custom diverging colormap with red for -1 and green for 1
+        if negate:
+            pivot_data *= -1
+        # Create a custom diverging colormap with red for -1 and green for 1
         custom_cmap = sns.diverging_palette(h_neg=10, h_pos=120, s=90, l=40, as_cmap=True)
         # Annotate each cell with the numeric value using `annot=True`
-        # Choose the text color ('white' or 'black') based on a threshold for better contrast
-        sns.heatmap(pivot_data, annot=True, fmt=".2f", 
+        sns.heatmap(pivot_data, annot=True, fmt=".2f",
                     cmap=custom_cmap,
                     center=0,
+                    vmin=-1, vmax=1,
                     annot_kws={"color": "black", "weight": "bold", "fontsize":10},
                     **kwargs)
+
     # Use map_dataframe to draw heatmaps
     g.map_dataframe(plot_heatmap)
 
     # Adjusting the plot aesthetics
-    g.set_titles(col_template="{col_name}")
+    g.set_titles(col_template="{col_name}", row_template="{row_name}")
     # Set the title for the entire FacetGrid
     plt.suptitle(title, fontsize=16)
     # Adjust layout to make room for the title
-    plt.subplots_adjust(top=0.85)
+    plt.subplots_adjust(top=0.9)
     # Show plot
     plt.show()
 

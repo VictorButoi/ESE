@@ -442,12 +442,14 @@ def get_calibration_item_info(
                     weighting=bin_weighting,
                 )['cal_score'] 
                 # Modify the metric name to remove underscores.
-                mod_cal_metric_name = cal_metric_name.replace("_", " ")
+                cal_met_type = cal_metric.splt("_")[-1]
+                clean_met_name = cal_metric_name.replace("_", " ")
                 # Wrap all image-level info in a record.
                 for quality_metric in ["accuracy", "dice", "w_accuracy"]:
                     cal_record = {
                         "bin_weighting": bin_weighting,
-                        "cal_metric": mod_cal_metric_name,
+                        "cal_metric_type": cal_met_type,
+                        "cal_metric": clean_met_name,
                         "cal_score": cal_score,
                         "qual_metric": quality_metric,
                         "qual_score": quality_metrics_dict[quality_metric],
