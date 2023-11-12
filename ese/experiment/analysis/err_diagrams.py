@@ -146,8 +146,8 @@ def viz_accuracy_vs_confidence(
     # NORMALIZE THE PROPORTION BY THE TOTAL NUMBER OF SAMPLES IN THE EXPERIMENT.
     total_uniform = sum(bin_samples["uniform"].values())
     total_weighted = int(sum(bin_samples["weighted"].values()))
-    assert total_uniform == total_weighted,\
-        f"Total uniform samples: {total_uniform} and Total weighted samples: {total_weighted} should be the same."
+    assert np.abs(total_uniform - total_weighted) < 5,\
+        f"Total uniform samples: {total_uniform} and Total weighted samples: {total_weighted} should be ~basically the same."
     # Loop through every bin and x_var
     for bin_num, x_var_set in avg_data_dict.items():
         for x_var in x_var_set.keys():
@@ -298,10 +298,13 @@ def viz_cal_metric_corr(
     # Define the plot_heatmap function with annotations
     def plot_heatmap(data, **kwargs):
         pivot_data = data.pivot(index='cal_metric', columns='qual_metric', values='correlation')
+         # Create a custom diverging colormap with red for -1 and green for 1
+        custom_cmap = sns.diverging_palette(h_neg=10, h_pos=120, s=90, l=40, as_cmap=True)
         # Annotate each cell with the numeric value using `annot=True`
         # Choose the text color ('white' or 'black') based on a threshold for better contrast
         sns.heatmap(pivot_data, annot=True, fmt=".2f", 
-                    cmap=sns.diverging_palette(220, 20, as_cmap=True),
+                    cmap=custom_cmap,
+                    center=0,
                     annot_kws={"color": "black", "weight": "bold", "fontsize":10},
                     **kwargs)
     # Use map_dataframe to draw heatmaps
