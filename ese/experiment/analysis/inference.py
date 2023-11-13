@@ -383,7 +383,8 @@ def image_forward_loop(
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction
-    pred_map, conf_map = exp.predict(image_cuda, multi_class=True, include_probs=True)
+    conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
+    # Get the calibration item info for the prediction.
     get_calibration_item_info(
         conf_map=conf_map,
         pred_map=pred_map,
@@ -456,7 +457,6 @@ def get_calibration_item_info(
     # Get the max channel of conf_map if it is multi-class.
     if conf_map.shape[0] > 1:
         conf_map = torch.max(conf_map, dim=0)[0]
-
     ########################
     # IMAGE LEVEL TRACKING #
     ########################

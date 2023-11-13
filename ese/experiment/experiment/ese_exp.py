@@ -134,8 +134,8 @@ class CalibrationExperiment(TrainExperiment):
         # Dealing with multi-class segmentation.
         if conf_map.shape[1] > 1:
             conf_map = torch.softmax(conf_map, dim=1)
-            pred_map = torch.argmax(conf_map, dim=1)
             # Add back the channel dimension (1)
+            pred_map = torch.argmax(conf_map, dim=1)
             pred_map = einops.rearrange(pred_map, "b h w -> b 1 h w")
         else:
             # Get the prediction
