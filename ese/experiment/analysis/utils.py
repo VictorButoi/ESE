@@ -34,8 +34,11 @@ def dataloader_from_exp(
 
 
 def reorder_splits(df):
-    train_logs = df[df['split'] == 'train']
-    val_logs = df[df['split'] == 'val']
-    cal_logs = df[df['split'] == 'cal']
-    fixed_df = pd.concat([train_logs, val_logs, cal_logs])
-    return fixed_df
+    if 'split' in df.keys():
+        train_logs = df[df['split'] == 'train']
+        val_logs = df[df['split'] == 'val']
+        cal_logs = df[df['split'] == 'cal']
+        fixed_df = pd.concat([train_logs, val_logs, cal_logs])
+        return fixed_df
+    else:
+        return df

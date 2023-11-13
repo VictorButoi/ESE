@@ -283,24 +283,34 @@ def viz_cal_metric_corr(
     negate: bool = False,
     row: Optional[str] = None,
 ) -> None:
-    # Group by split, cal_metric, and qual_metric, then compute correlation
-    grouped = pixel_preds.groupby(['split', 'cal_metric', 'qual_metric'])
+    
+    if 'split' in pixel_preds.keys(): 
+        # Group by split, cal_metric, and qual_metric, then compute correlation
+        grouped = pixel_preds.groupby(['split', 'cal_metric', 'qual_metric'])
+    else:
+        grouped = pixel_preds.groupby(['cal_metric', 'qual_metric'])
+
     correlations = grouped.apply(lambda g: g['cal_score'].corr(g['qual_score']))
 
     # Reset index to convert Series to DataFrame and name the correlation column
     correlations = correlations.reset_index(name='correlation')
     # Pivot the data.
-    correlations_pivoted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], columns='split', values='correlation').reset_index()
-    # Melt the DataFrame to make it compatible with FacetGrid
-    correlations_melted = correlations_pivoted.melt(id_vars=['cal_metric', 'qual_metric'], var_name='split', value_name='correlation')
-    correlations_melted = reorder_splits(correlations_melted)
+    if 'split' in pixel_preds.keys():
+        correlations_pivoted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], columns='split', values='correlation').reset_index()
+        correlations_melted = correlations_pivoted.melt(id_vars=['cal_metric', 'qual_metric'], var_name='split', value_name='correlation')
+        # Reorder the splits in the melted dataframe.
+        correlations_melted = reorder_splits(correlations_melted)
+    else:
+        correlations_melted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], values='correlation').reset_index()
 
     # Add a new column for cal_metric_type if row is specified
     if row:
         correlations_melted[row] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
 
     # Initialize the FacetGrid with the reshaped DataFrame
-    grid_kwargs = {'col': "split", 'height': height, 'aspect': aspect, 'sharey': False}
+    grid_kwargs = {'height': height, 'aspect': aspect, 'sharey': False}
+    if 'split' in pixel_preds.keys():
+        grid_kwargs.update({'col': "split"})
     if row:
         grid_kwargs.update({'row': row})
 
