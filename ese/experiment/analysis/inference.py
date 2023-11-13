@@ -5,6 +5,7 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List, Tuple
 # torch imports
@@ -349,7 +350,7 @@ def volume_forward_loop(
         image_cuda = x_batch[slice_idx, ...][None]
         label_map_cuda = y_batch[slice_idx, ...][None]
         # Get the prediction
-        pred_map, conf_map = exp.predict(image_cuda, multi_class=True, include_probs=True)
+        conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
         get_calibration_item_info(
             conf_map=conf_map,
             pred_map=pred_map,
@@ -410,17 +411,52 @@ def get_calibration_item_info(
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None,
     slice_idx: Optional[int] = None,
+    ignore_empty_labels: bool = True,
+    ignore_index: Optional[int] = None,
     ):
+    # Convert label_map to a Long tensor
+    label_map = label_map.long()
     # Get some metrics of these predictions
     quality_metrics_dict = {
-        "dice" : dice_score(pred_map, label_map).item(),
-        "accuracy" : pixel_accuracy(pred_map, label_map).item(),
-        "w_accuracy" : balanced_pixel_accuracy(pred_map, label_map).item()
+        "dice" : dice_score(
+            y_pred=conf_map, 
+            y_true=label_map, 
+            ignore_index=ignore_index,
+            ignore_empty_labels=ignore_empty_labels
+            ).item(),
+        "accuracy" : pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map
+            ).item(),
+        "w_accuracy" : balanced_pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map
+            ).item()
     }
+    # Print the sizes of pred_map, label_map, and conf_map
+    # print(f"pred_map: {pred_map.shape}")
+    # print(f"label_map: {label_map.shape}")
+    # f, ax = plt.subplots(1, 2, figsize=(15, 5))
+    # ax[0].imshow(pred_map.squeeze().cpu().numpy())
+    # ax[0].set_title("Prediction")
+    # ax[0].axis("off")
+    # ax[1].imshow(label_map.squeeze().cpu().numpy())
+    # ax[1].set_title("Label Map")
+    # ax[1].axis("off")
+    # plt.show()
+    # for key in quality_metrics_dict.keys():
+    #     print(f"{key}: {quality_metrics_dict[key]}")
+    # print("#######################################")
+    #######################
+
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
+    # Get the max channel of conf_map if it is multi-class.
+    if conf_map.shape[0] > 1:
+        conf_map = torch.max(conf_map, dim=0)[0]
+
     ########################
     # IMAGE LEVEL TRACKING #
     ########################

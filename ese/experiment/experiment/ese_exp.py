@@ -127,20 +127,16 @@ class CalibrationExperiment(TrainExperiment):
     def predict(self, 
                 x, 
                 multi_class,
-                threshold=0.5,
-                include_probs=False):
+                threshold=0.5):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Get the label predictions
         conf_map = self.model(x) 
-
         # Dealing with multi-class segmentation.
         if conf_map.shape[1] > 1:
-            prob_volume = torch.softmax(conf_map, dim=1)
-            pred_map = torch.argmax(prob_volume, dim=1)
-            conf_map = torch.max(prob_volume, dim=1)[0]
+            conf_map = torch.softmax(conf_map, dim=1)
+            pred_map = torch.argmax(conf_map, dim=1)
             # Add back the channel dimension (1)
             pred_map = einops.rearrange(pred_map, "b h w -> b 1 h w")
-            conf_map = einops.rearrange(conf_map, "b h w -> b 1 h w")
         else:
             # Get the prediction
             conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
@@ -149,15 +145,8 @@ class CalibrationExperiment(TrainExperiment):
                 conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0]
                 # Add back the channel dimension (1)
                 conf_map = einops.rearrange(conf_map, "b h w -> b 1 h w")
-
-        # Either return the probabilities or not.
-        if include_probs:
-            assert len(x.shape) == len(conf_map.shape), "x and conf_map are misaligned, x.shape = {} conf_map.shape = {}.".format(x.shape, conf_map.shape)
-            assert len(x.shape) == len(pred_map.shape), "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
-            return pred_map, conf_map
-        else:
-            assert len(x.shape) == len(pred_map.shape), "x and conf_map are miasalgned, x.shape = {} pred_map.shape = {}.".format(x.shape, pred_map.shape)
-            return pred_map
+        # Return the outputs probs and predicted label map.
+        return conf_map, pred_map
 
     def run(self):
         super().run()
