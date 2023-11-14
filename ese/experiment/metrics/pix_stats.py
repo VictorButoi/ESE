@@ -1,7 +1,5 @@
 # local imports 
 from .utils import get_conf_region, count_matching_neighbors, get_uni_pixel_weights
-# ionpy imports
-from ionpy.metrics import pixel_accuracy
 # misc. imports
 import torch
 from typing import Optional, List
@@ -34,9 +32,10 @@ def bin_stats(
             neighborhood_width=neighborhood_width,
             reflect_boundaries=True
             )
-        pixelwise_accuracy = (pred_map == label_map).float()
     else:
         pix_weights = None
+    # Get the pixelwise accuracy.
+    pixelwise_accuracy = (pred_map == label_map).float()
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(conf_bins):
         # Get the region of image corresponding to the confidence
@@ -51,7 +50,7 @@ def bin_stats(
             # Calculate the average score for the regions in the bin.
             if pix_weights is None:
                 avg_bin_confidence = conf_map[bin_conf_region].mean()
-                avg_bin_accuracy = pixel_accuracy(pred_map[bin_conf_region], label_map[bin_conf_region])
+                avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                 bin_num_samples = bin_conf_region.sum() 
             else:
                 bin_num_samples = pix_weights[bin_conf_region].sum()
@@ -95,10 +94,10 @@ def label_bin_stats(
             neighborhood_width=neighborhood_width,
             reflect_boundaries=True
             )
-        pixelwise_accuracy = (pred_map == label_map).float()
     else:
         pix_weights = None
     # Get the regions of the prediction corresponding to each bin of confidence,
+    pixelwise_accuracy = (pred_map == label_map).float()
     # AND each prediction label.
     for bin_idx, conf_bin in enumerate(conf_bins):
         for lab_idx, p_label in enumerate(pred_labels):
@@ -116,7 +115,7 @@ def label_bin_stats(
                 # Calculate the average score for the regions in the bin.
                 if pix_weights is None:
                     avg_bin_confidence = conf_map[bin_conf_region].mean()
-                    avg_bin_accuracy = pixel_accuracy(pred_map[bin_conf_region], label_map[bin_conf_region])
+                    avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                     bin_num_samples = bin_conf_region.sum() 
                 else:
                     bin_num_samples = pix_weights[bin_conf_region].sum()
@@ -160,11 +159,11 @@ def label_neighbors_bin_stats(
             neighborhood_width=neighborhood_width,
             reflect_boundaries=True
             )
-        pixelwise_accuracy = (pred_map == label_map).float()
     else:
         pix_weights = None
-    # Get a map of which pixels match their neighbors and how often. 
+    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     matching_neighbors_map = count_matching_neighbors(pred_map, reflect_boundaries=False)
+    pixelwise_accuracy = (pred_map == label_map).float()
     # Get the regions of the prediction corresponding to each bin of confidence,
     # AND each prediction label.
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -186,12 +185,12 @@ def label_neighbors_bin_stats(
                     # Calculate the average score for the regions in the bin.
                     if pix_weights is None:
                         avg_bin_confidence = conf_map[bin_conf_region].mean()
-                        avg_bin_accuracy = pixel_accuracy(pred_map[bin_conf_region], label_map[bin_conf_region])
+                        avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                         bin_num_samples = bin_conf_region.sum() 
                     else:
-                        avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).mean()
-                        avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).mean()
                         bin_num_samples = pix_weights[bin_conf_region].sum()
+                        avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                        avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
                     # Calculate the average calibration error for the regions in the bin.
                     cal_info["bin_confs"][lab_idx, num_neighb, bin_idx] = avg_bin_confidence
                     cal_info["bin_accs"][lab_idx, num_neighb, bin_idx] = avg_bin_accuracy
