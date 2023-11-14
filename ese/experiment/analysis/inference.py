@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from pydantic import validate_arguments
-from typing import Any, Optional, List, Tuple
+from typing import Any, Optional, List
 # torch imports
 import torch
 # ionpy imports
@@ -15,11 +15,10 @@ from ionpy.util import Config, StatsMeter
 from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.util.torchutils import to_device
-from ionpy.metrics import dice_score, pixel_accuracy
-from ionpy.metrics.segmentation import balanced_pixel_accuracy
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import dataloader_from_exp
+from ..metrics.segmentation import avg_dice_score, labelwise_dice_score, avg_pixel_accuracy, labelwise_pixel_accuracy
 from ..metrics.utils import get_bins, find_bins, count_matching_neighbors, get_uni_pixel_weights
 from ..experiment.ese_exp import CalibrationExperiment
 
@@ -315,24 +314,28 @@ def get_calibration_item_info(
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None,
     slice_idx: Optional[int] = None,
-    ignore_empty_labels: bool = True,
     ignore_index: Optional[int] = None,
     ):
     # Convert label_map to a Long tensor
     label_map = label_map.long()
     # Get some metrics of these predictions
     quality_metrics_dict = {
-        "dice" : dice_score(
+        "avg_dice" : avg_dice_score(
             y_pred=conf_map, 
             y_true=label_map, 
             ignore_index=ignore_index,
-            ignore_empty_labels=ignore_empty_labels
             ).item(),
-        "accuracy" : pixel_accuracy(
+        "labelwise_dice" : labelwise_dice_score(
+            y_pred=conf_map, 
+            y_true=label_map, 
+            ignore_index=ignore_index,
+            ignore_empty_labels=True
+            ).item(),
+        "avg_accuracy" : avg_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
             ).item(),
-        "w_accuracy" : balanced_pixel_accuracy(
+        "labelwise_accuracy" : labelwise_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
             ).item()

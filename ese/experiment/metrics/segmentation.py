@@ -1,0 +1,187 @@
+# torch imports
+import torch
+from torch import Tensor
+# misc imports
+from pydantic import validate_arguments
+from typing import Optional, Union, List
+# ionpy imports
+from ionpy.metrics.util import (
+    _metric_reduction,
+    _inputs_as_onehot,
+    _inputs_as_longlabels,
+    InputMode,
+    Reduction,
+)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def dice_calculation(
+    y_pred: Tensor,
+    y_true: Tensor,
+    smooth: float = 1e-7,
+    eps: float = 1e-7,
+) -> Tensor:
+    intersection = torch.logical_and(y_pred == 1.0, y_true == 1.0).sum(dim=-1)
+    pred_amounts = (y_pred == 1.0).sum(dim=-1)
+    true_amounts = (y_true == 1.0).sum(dim=-1)
+    cardinalities = pred_amounts + true_amounts
+    dice_scores = (2 * intersection + smooth) / (cardinalities + smooth).clamp_min(eps)
+    return pred_amounts, true_amounts, dice_scores
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def avg_dice_score(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    smooth: float = 1e-7,
+    eps: float = 1e-7,
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    ignore_index: Optional[int] = None,
+    from_logits: bool = False,
+) -> Tensor:
+    # Convert to one-hot labels
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred, 
+        y_true, 
+        mode=mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
+    # Calculate dice score
+    _, true_amounts, dice_scores = dice_calculation(
+        y_pred, 
+        y_true, 
+        smooth=smooth, 
+        eps=eps
+    ) 
+    # Get the weights by dividing the true amounts by the total number of pixels.
+    weights = true_amounts / true_amounts.sum()
+    # Return the metric reduction
+    return _metric_reduction(
+        dice_scores,
+        reduction=reduction,
+        weights=weights,
+        ignore_index=ignore_index,
+        batch_reduction=batch_reduction,
+    )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def labelwise_dice_score(
+    y_pred: Tensor,
+    y_true: Tensor,
+    ignore_empty_labels: bool,
+    mode: InputMode = "auto",
+    smooth: float = 1e-7,
+    eps: float = 1e-7,
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, List]] = None,
+    ignore_index: Optional[int] = None,
+    from_logits: bool = False,
+) -> Tensor:
+    # Convert to one-hot labels
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred, 
+        y_true, 
+        mode=mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
+    # Calculate dice score
+    _, true_amounts, dice_scores = dice_calculation(
+        y_pred, 
+        y_true, 
+        smooth=smooth, 
+        eps=eps
+    ) 
+    # If ignoring empty labels, make sure to set their weight to 0.
+    if ignore_empty_labels:
+        existing_label = (true_amounts > 0).float().cpu()
+        if weights is None:
+            weights = existing_label
+        else:
+            weights = weights * existing_label
+    # Return the metric reduction
+    return _metric_reduction(
+        dice_scores,
+        reduction=reduction,
+        weights=weights,
+        ignore_empty_labels=ignore_empty_labels,
+        ignore_index=ignore_index,
+        batch_reduction=batch_reduction,
+    )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def avg_pixel_accuracy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    from_logits: bool = False
+):
+    # Convert to long labels
+    y_pred_long, y_true_long = _inputs_as_longlabels(
+        y_pred, 
+        y_true, 
+        mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
+    return (y_pred_long == y_true_long).float().mean()
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def labelwise_pixel_accuracy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    from_logits: bool = False,
+    ignore_labels: Optional[List[int]] = None 
+) -> Tensor:
+    # Convert to one-hot labels
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred, 
+        y_true, 
+        mode=mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
+    print('ypred: ', y_pred.shape)
+    print('ytrue: ', y_true.shape)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def avg_edge_pixel_accuracy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    from_logits: bool = False
+):
+    # Convert to long labels
+    y_pred, y_true = _inputs_as_longlabels(
+        y_pred, 
+        y_true, 
+        mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def labelwise_edge_pixel_accuracy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    from_logits: bool = False
+):
+    # Convert to long labels
+    y_pred, y_true = _inputs_as_longlabels(
+        y_pred, 
+        y_true, 
+        mode, 
+        from_logits=from_logits, 
+        discretize=True
+    )
