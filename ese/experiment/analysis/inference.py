@@ -18,9 +18,20 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import dataloader_from_exp
-from ..metrics.segmentation import avg_dice_score, labelwise_dice_score, avg_pixel_accuracy, labelwise_pixel_accuracy
-from ..metrics.utils import get_bins, find_bins, count_matching_neighbors, get_uni_pixel_weights
 from ..experiment.ese_exp import CalibrationExperiment
+from ..metrics.utils import (
+    get_bins, 
+    find_bins, 
+    count_matching_neighbors, 
+    get_uni_pixel_weights
+)
+from ..metrics.segmentation import (
+    labelwise_dice_score,
+    avg_pixel_accuracy, 
+    labelwise_pixel_accuracy, 
+    avg_edge_pixel_accuracy, 
+    labelwise_edge_pixel_accuracy
+)
 
 
 def list2tuple(val):
@@ -320,29 +331,33 @@ def get_calibration_item_info(
     label_map = label_map.long()
     # Get some metrics of these predictions
     quality_metrics_dict = {
-        "avg_dice" : avg_dice_score(
-            y_pred=conf_map, 
-            y_true=label_map, 
-            ignore_index=ignore_index,
-            ).item(),
-        "labelwise_dice" : labelwise_dice_score(
+        "dice": labelwise_dice_score(
             y_pred=conf_map, 
             y_true=label_map, 
             ignore_index=ignore_index,
             ignore_empty_labels=True
             ).item(),
-        "avg_accuracy" : avg_pixel_accuracy(
+        "avg_accuracy": avg_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
             ).item(),
-        "labelwise_accuracy" : labelwise_pixel_accuracy(
+        "labelwise_accuracy": labelwise_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map,
             ignore_index=ignore_index,
-            ignore_empty_labels=True
+            ).item(),
+        "avg_edge_accuracy": avg_edge_pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map
+            ).item(),
+        "labelwise_edge_accuracy": labelwise_edge_pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map,
+            ignore_index=ignore_index,
             ).item()
     }
     # Print the sizes of pred_map, label_map, and conf_map
+    # print(f"conf_map: {conf_map.shape}")
     # print(f"pred_map: {pred_map.shape}")
     # print(f"label_map: {label_map.shape}")
     # f, ax = plt.subplots(1, 2, figsize=(15, 5))
@@ -439,10 +454,10 @@ def get_calibration_item_info(
             pix_acc = acc_map[ix, iy].item()
             pix_conf = conf_map[ix, iy].item()
             # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
+            pix_w = pix_weights[ix, iy].item()
             pix_pred_label = pred_map[ix, iy].item()
             pix_c_bin = bin_ownership_map[ix, iy].item()
             pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
-            pix_w = pix_weights[ix, iy].item()
             # Create a unique key for the combination of label, neighbors, and confidence_bin
             conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
             acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")

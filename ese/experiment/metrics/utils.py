@@ -234,6 +234,7 @@ def count_matching_neighbors(
     reflect_boundaries: bool,
     neighborhood_width: int = 3,
 ):
+    assert len(label_map.shape) == 2, "Label map can only currently be (H, W)."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(label_map, np.ndarray):
         label_map = torch.from_numpy(label_map)
@@ -389,24 +390,17 @@ def get_uni_pixel_weights(
     else:
         return nn_balanced_weights_map
     
+
 # Helpful for calculating edge accuracies.
-def find_edges_fast(tensor):
-    # Ensure the tensor is a long tensor
-    if not tensor.dtype == torch.int64:
-        raise ValueError("Input tensor must be a LongTensor.")
-    # Convert the tensor to a NumPy array
-    np_array = tensor.numpy()
-    # Use scipy.ndimage.label to identify regions
-    labeled_array, _ = label(np_array)
-    # Create boolean arrays for edge detection
-    edges_vertical = np.zeros_like(labeled_array, dtype=bool)
-    edges_horizontal = np.zeros_like(labeled_array, dtype=bool)
-    # Detect vertical edges
-    edges_vertical[1:, :] = labeled_array[1:, :] != labeled_array[:-1, :]
-    edges_vertical[:-1, :] |= labeled_array[:-1, :] != labeled_array[1:, :]
-    # Detect horizontal edges
-    edges_horizontal[:, 1:] = labeled_array[:, 1:] != labeled_array[:, :-1]
-    edges_horizontal[:, :-1] |= labeled_array[:, :-1] != labeled_array[:, 1:]
-    # Combine vertical and horizontal edges
-    edges = edges_vertical | edges_horizontal
-    return torch.from_numpy(edges)
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_edge_map(
+    label_map: torch.Tensor
+    ) -> torch.Tensor:
+    # Neighbor map
+    num_neighbor_map = count_matching_neighbors(
+        label_map, 
+        neighborhood_width=3,
+        reflect_boundaries=True
+        )
+    edge_map = (num_neighbor_map < 8)
+    return edge_map
