@@ -1,3 +1,13 @@
 .idea/
 __pycache__/
 wandb/
+notebooks/err_analysis/bpets_err.ipynb
+notebooks/err_analysis/cityscapes_err.ipynb
+notebooks/err_analysis/oasis35_err.ipynb
+notebooks/err_analysis/oasis4_err.ipynb
+notebooks/err_analysis/oxpets_err.ipynb
+notebooks/inference/bpets_inference.ipynb
+notebooks/inference/cityscapes_inference.ipynb
+notebooks/inference/oasis35_inference.ipynb
+notebooks/inference/oasis4_inference.ipynb
+notebooks/inference/oxpets_inference.ipynb

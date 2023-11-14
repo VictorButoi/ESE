@@ -22,7 +22,7 @@ def bin_stats(
         "bin_confs": torch.zeros(num_bins),
         "bin_amounts": torch.zeros(num_bins),
         "bin_accs": torch.zeros(num_bins),
-        "bin_cal_scores": torch.zeros(num_bins),
+        "bin_cal_errors": torch.zeros(num_bins),
     }
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
@@ -60,7 +60,7 @@ def bin_stats(
             cal_info["bin_confs"][bin_idx] = avg_bin_confidence
             cal_info["bin_accs"][bin_idx] = avg_bin_accuracy
             cal_info["bin_amounts"][bin_idx] = bin_num_samples
-            cal_info["bin_cal_scores"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+            cal_info["bin_cal_errors"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
 
     # Return the calibration information.
     return cal_info
@@ -84,7 +84,7 @@ def label_bin_stats(
         "bin_confs": torch.zeros((num_labels, num_bins)),
         "bin_amounts": torch.zeros((num_labels, num_bins)),
         "bin_accs": torch.zeros((num_labels, num_bins)),
-        "bin_cal_scores": torch.zeros((num_labels, num_bins))
+        "bin_cal_errors": torch.zeros((num_labels, num_bins))
     }
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
@@ -125,7 +125,7 @@ def label_bin_stats(
                 cal_info["bin_amounts"][lab_idx, bin_idx] = bin_num_samples
                 cal_info["bin_confs"][lab_idx, bin_idx] = avg_bin_confidence
                 cal_info["bin_accs"][lab_idx, bin_idx] = avg_bin_accuracy
-                cal_info["bin_cal_scores"][lab_idx, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+                cal_info["bin_cal_errors"][lab_idx, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
     # Return the label-wise calibration information.
     return cal_info
 
@@ -146,7 +146,7 @@ def label_neighbors_bin_stats(
     num_labels = len(pred_labels)
     num_neighbors = neighborhood_width**2
     cal_info = {
-        "bin_cal_scores": torch.zeros((num_labels, num_neighbors, num_bins)),
+        "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),
         "bin_accs": torch.zeros((num_labels, num_neighbors, num_bins)),
         "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins)),
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
@@ -195,6 +195,6 @@ def label_neighbors_bin_stats(
                     cal_info["bin_confs"][lab_idx, num_neighb, bin_idx] = avg_bin_confidence
                     cal_info["bin_accs"][lab_idx, num_neighb, bin_idx] = avg_bin_accuracy
                     cal_info["bin_amounts"][lab_idx, num_neighb, bin_idx] = bin_num_samples
-                    cal_info["bin_cal_scores"][lab_idx, num_neighb, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+                    cal_info["bin_cal_errors"][lab_idx, num_neighb, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info

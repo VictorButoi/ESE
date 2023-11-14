@@ -369,7 +369,7 @@ def get_calibration_item_info(
             cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
             for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
                 # Get the calibration metric
-                cal_score = cal_metric[cal_metric_name]['func'](
+                cal_m_error = cal_metric[cal_metric_name]['func'](
                     num_bins=inference_cfg["calibration"]["num_bins"],
                     conf_interval=[
                         inference_cfg["calibration"]["conf_interval_start"],
@@ -379,7 +379,7 @@ def get_calibration_item_info(
                     pred_map=pred_map,
                     label_map=label_map,
                     weighting=bin_weighting,
-                )['cal_score'] 
+                )['cal_error'] 
                 # Modify the metric name to remove underscores.
                 cal_met_type = cal_metric_name.split("_")[-1]
                 clean_met_name = cal_metric_name.replace("_", " ")
@@ -389,7 +389,8 @@ def get_calibration_item_info(
                         "bin_weighting": bin_weighting,
                         "cal_metric_type": cal_met_type,
                         "cal_metric": clean_met_name,
-                        "cal_score": cal_score,
+                        "cal_m_score": (1 - cal_m_error),
+                        "cal_m_error": cal_m_error,
                         "qual_metric": quality_metric,
                         "qual_score": quality_metrics_dict[quality_metric],
                         "data_id": data_id,

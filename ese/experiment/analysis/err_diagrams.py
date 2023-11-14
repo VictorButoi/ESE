@@ -42,7 +42,7 @@ def viz_calibration_metric_distributions(
     ) -> None:
     # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
     g = sns.FacetGrid(image_stats_df, hue="cal_metric", col="cal_metric", col_wrap=col_wrap, sharey=False)
-    g = g.map(sns.kdeplot, "cal_score", fill=True)
+    g = g.map(sns.kdeplot, "cal_m_score", fill=True)
     g.set(xlim=(0, 1))
     # Adjusting the layout
     g.fig.tight_layout()
@@ -321,7 +321,6 @@ def viz_cal_metric_corr(
     title: str,
     height: int = 5,
     aspect: float = 1,
-    negate: bool = False,
     col: Optional[str] = None,
     row: Optional[str] = None,
 ) -> None:
@@ -332,8 +331,7 @@ def viz_cal_metric_corr(
     else:
         grouped = pixel_preds.groupby(['cal_metric', 'qual_metric'])
 
-    correlations = grouped.apply(lambda g: g['cal_score'].corr(g['qual_score']))
-
+    correlations = grouped.apply(lambda g: g['cal_m_score'].corr(g['qual_score']))
     # Reset index to convert Series to DataFrame and name the correlation column
     correlations = correlations.reset_index(name='correlation')
     # Pivot the data.
@@ -359,8 +357,6 @@ def viz_cal_metric_corr(
     # Define the plot_heatmap function with annotations
     def plot_heatmap(data, **kwargs):
         pivot_data = data.pivot(index='cal_metric', columns='qual_metric', values='correlation')
-        if negate:
-            pivot_data *= -1
         # Create a custom diverging colormap with red for -1 and green for 1
         custom_cmap = sns.diverging_palette(h_neg=10, h_pos=120, s=90, l=40, as_cmap=True)
         # Annotate each cell with the numeric value using `annot=True`

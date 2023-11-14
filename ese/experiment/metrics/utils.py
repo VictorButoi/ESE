@@ -7,9 +7,10 @@ from typing import Optional, Union, List
 from pydantic import validate_arguments
 from scipy.ndimage import distance_transform_edt, binary_erosion, label
 
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def reduce_scores(
-    score_per_bin: torch.Tensor, 
+def reduce_bin_errors(
+    error_per_bin: torch.Tensor, 
     amounts_per_bin: torch.Tensor, 
     weighting: str = "proportional",
     bin_weights: Optional[torch.Tensor] = None
@@ -23,7 +24,7 @@ def reduce_scores(
             raise ValueError(f"Invalid bin weighting. Must be 'proportional', got '{weighting}' instead.")
     # Multiply by the weights and sum.
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
-    return (score_per_bin * bin_weights).sum().item()
+    return (error_per_bin * bin_weights).sum().item()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
