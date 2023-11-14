@@ -18,10 +18,11 @@ from typing import List, Optional, Literal, Any
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def viz_quality_metric_distributions(
     image_stats_df: pd.DataFrame,
-    title: str
+    title: str,
+    col_wrap: int = 3
     ) -> None:
     # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
-    g = sns.FacetGrid(image_stats_df, hue="qual_metric", col="qual_metric", sharey=False)
+    g = sns.FacetGrid(image_stats_df, hue="qual_metric", col="qual_metric", col_wrap=col_wrap, sharey=False)
     g = g.map(sns.kdeplot, "qual_score", fill=True)
     g.set(xlim=(0, 1))
     # Adjusting the layout
@@ -29,7 +30,7 @@ def viz_quality_metric_distributions(
     # Set the title for the entire FacetGrid
     plt.suptitle(title, fontsize=16)
     # Adjust layout to make room for the title
-    plt.subplots_adjust(top=0.75)
+    plt.subplots_adjust(top=0.85)
     # Show plot
     plt.show()
 
@@ -319,6 +320,8 @@ def viz_accuracy_vs_confidence(
 def viz_cal_metric_corr(
     pixel_preds: pd.DataFrame,
     title: str,
+    heatmap_row: str,
+    heatmap_col: str,
     height: int = 5,
     aspect: float = 1,
     col: Optional[str] = None,
@@ -346,7 +349,7 @@ def viz_cal_metric_corr(
     # Add a new column for cal_metric_type if row is specified
     correlations_melted['cal_metric_type'] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
     # Initialize the FacetGrid with the reshaped DataFrame
-    grid_kwargs = {'col': col, 'row': row, 'height': height, 'aspect': aspect, 'sharey': False}
+    grid_kwargs = {'col': col, 'row': row, 'height': height, 'aspect': aspect, 'sharex': False, 'sharey': False}
     # if 'split' in pixel_preds.keys():
     #     grid_kwargs.update({'col': "split"})
     # if row:
@@ -356,7 +359,7 @@ def viz_cal_metric_corr(
 
     # Define the plot_heatmap function with annotations
     def plot_heatmap(data, **kwargs):
-        pivot_data = data.pivot(index='cal_metric', columns='qual_metric', values='correlation')
+        pivot_data = data.pivot(index=heatmap_row, columns=heatmap_col, values='correlation')
         # Create a custom diverging colormap with red for -1 and green for 1
         custom_cmap = sns.diverging_palette(h_neg=10, h_pos=120, s=90, l=40, as_cmap=True)
         # Annotate each cell with the numeric value using `annot=True`
@@ -367,11 +370,13 @@ def viz_cal_metric_corr(
                     annot_kws={"color": "black", "weight": "bold", "fontsize":10},
                     **kwargs)
 
+
     # Use map_dataframe to draw heatmaps
     g.map_dataframe(plot_heatmap)
-
-    # Adjusting the plot aesthetics
-    g.set_titles(col_template="{col_name}", row_template="{row_name}")
+    # Rotate the y-labels 90 degrees clockwise
+    g.set_yticklabels(rotation=0)
+    # Adjust layout
+    g.fig.tight_layout()
     # Set the title for the entire FacetGrid
     plt.suptitle(title, fontsize=16)
     # Adjust layout to make room for the title

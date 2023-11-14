@@ -173,7 +173,7 @@ def avg_edge_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False
-):
+) -> Tensor:
     # Get the edge map.
     y_true_squeezed = y_true.squeeze()
     edge_map = get_edge_map(y_true_squeezed)
@@ -195,15 +195,13 @@ def labelwise_edge_pixel_accuracy(
     mode: InputMode = "auto",
     from_logits: bool = False,
     ignore_index: Optional[int] = None
-):
+) -> Tensor:
     # Get the edge map.
     y_true_squeezed = y_true.squeeze()
     edge_map = get_edge_map(y_true_squeezed)
     # Get the edge regions of both the prediction and the ground truth.
     y_pred_e_reg = y_pred[..., edge_map]
     y_true_e_reg = y_true[..., edge_map]
-    print("pred: ", y_pred_e_reg.shape)
-    print("true: ", y_true_e_reg.shape)
     # Return the mean of the accuracy.
     return labelwise_pixel_accuracy(
         y_pred_e_reg, 

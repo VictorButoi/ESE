@@ -331,29 +331,29 @@ def get_calibration_item_info(
     label_map = label_map.long()
     # Get some metrics of these predictions
     quality_metrics_dict = {
-        "dice": labelwise_dice_score(
-            y_pred=conf_map, 
-            y_true=label_map, 
-            ignore_index=ignore_index,
-            ignore_empty_labels=True
-            ).item(),
         "avg_accuracy": avg_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
-            ).item(),
-        "labelwise_accuracy": labelwise_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map,
-            ignore_index=ignore_index,
             ).item(),
         "avg_edge_accuracy": avg_edge_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
             ).item(),
-        "labelwise_edge_accuracy": labelwise_edge_pixel_accuracy(
+        "lab_accuracy": labelwise_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map,
             ignore_index=ignore_index,
+            ).item(),
+        "lab_edge_accuracy": labelwise_edge_pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map,
+            ignore_index=ignore_index,
+            ).item(),
+        "lab_dice": labelwise_dice_score(
+            y_pred=conf_map, 
+            y_true=label_map, 
+            ignore_index=ignore_index,
+            ignore_empty_labels=True
             ).item()
     }
     # Print the sizes of pred_map, label_map, and conf_map
@@ -372,7 +372,6 @@ def get_calibration_item_info(
     #     print(f"{key}: {quality_metrics_dict[key]}")
     # print("#######################################")
     #######################
-
     # Squeeze the tensors
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
