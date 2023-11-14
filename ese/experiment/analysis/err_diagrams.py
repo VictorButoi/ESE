@@ -22,7 +22,14 @@ def viz_quality_metric_distributions(
     col_wrap: int = 3
     ) -> None:
     # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
-    g = sns.FacetGrid(image_stats_df, hue="qual_metric", col="qual_metric", col_wrap=col_wrap, sharey=False)
+    g = sns.FacetGrid(
+        image_stats_df, 
+        hue="qual_metric", 
+        col="qual_metric", 
+        col_wrap=col_wrap, 
+        sharex=False,
+        sharey=False
+        )
     g = g.map(sns.kdeplot, "qual_score", fill=True)
     g.set(xlim=(0, 1))
     # Adjusting the layout
@@ -42,7 +49,14 @@ def viz_calibration_metric_distributions(
     col_wrap: int = 3
     ) -> None:
     # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
-    g = sns.FacetGrid(image_stats_df, hue="cal_metric", col="cal_metric", col_wrap=col_wrap, sharey=False)
+    g = sns.FacetGrid(
+        image_stats_df, 
+        hue="cal_metric", 
+        col="cal_metric", 
+        col_wrap=col_wrap, 
+        sharex=False,
+        sharey=False
+        )
     g = g.map(sns.kdeplot, "cal_m_score", fill=True)
     g.set(xlim=(0, 1))
     # Adjusting the layout
