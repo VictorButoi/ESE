@@ -137,9 +137,10 @@ def avg_pixel_accuracy(
 def labelwise_pixel_accuracy(
     y_pred: Tensor,
     y_true: Tensor,
+    ignore_empty_labels: bool,
     mode: InputMode = "auto",
     from_logits: bool = False,
-    ignore_labels: Optional[List[int]] = None 
+    ignore_index: Optional[int] = None,
 ) -> Tensor:
     # Convert to one-hot labels
     y_pred, y_true = _inputs_as_onehot(
@@ -149,8 +150,25 @@ def labelwise_pixel_accuracy(
         from_logits=from_logits, 
         discretize=True
     )
-    print('ypred: ', y_pred.shape)
-    print('ytrue: ', y_true.shape)
+    labelwise_accuracy = (y_pred == y_true).float().mean(dim=-1)
+    # If ignoring empty labels, make sure they aren't include in the
+    # final calculation.
+    label_indices = torch.arange(labelwise_accuracy.shape[-1])
+    if ignore_empty_labels:
+        true_amounts = (y_true == 1.0).sum(dim=-1)
+        nonempty_label = (true_amounts > 0)
+        if ignore_index is not None:
+            valid_indices = nonempty_label & (label_indices != ignore_index)
+        else:
+            valid_indices = nonempty_label
+        # Choose the valid indices.
+        labelwise_accuracy = labelwise_accuracy[valid_indices] 
+    else:
+        if ignore_index is not None:
+            valid_indices = (label_indices != ignore_index)
+            labelwise_accuracy = labelwise_accuracy[valid_indices]
+    # Finally, return the mean of the labelwise accuracies.
+    return labelwise_accuracy.mean()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
