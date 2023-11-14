@@ -54,9 +54,9 @@ def bin_stats(
                 avg_bin_accuracy = pixel_accuracy(pred_map[bin_conf_region], label_map[bin_conf_region])
                 bin_num_samples = bin_conf_region.sum() 
             else:
-                avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).mean()
-                avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).mean()
                 bin_num_samples = pix_weights[bin_conf_region].sum()
+                avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
             # Calculate the average calibration error for the regions in the bin.
             cal_info["bin_confs"][bin_idx] = avg_bin_confidence
             cal_info["bin_accs"][bin_idx] = avg_bin_accuracy
@@ -119,9 +119,9 @@ def label_bin_stats(
                     avg_bin_accuracy = pixel_accuracy(pred_map[bin_conf_region], label_map[bin_conf_region])
                     bin_num_samples = bin_conf_region.sum() 
                 else:
-                    avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).mean()
-                    avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).mean()
                     bin_num_samples = pix_weights[bin_conf_region].sum()
+                    avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                    avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_amounts"][lab_idx, bin_idx] = bin_num_samples
                 cal_info["bin_confs"][lab_idx, bin_idx] = avg_bin_confidence

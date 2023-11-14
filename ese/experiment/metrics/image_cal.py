@@ -43,6 +43,7 @@ def ECE(
         weighting=weighting
         )
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
 
 
@@ -89,6 +90,7 @@ def TL_ECE(
     # Finally, get the calibration score.
     cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
 
 
@@ -134,6 +136,7 @@ def CW_ECE(
     # Finally, get the calibration score.
     cal_info['cal_score'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
 
 
@@ -177,6 +180,7 @@ def SUME(
         weighting=weighting
         )
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
 
 
@@ -226,6 +230,7 @@ def TL_SUME(
     # Finally, get the calibration score.
     cal_info['cal_score'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
 
 
@@ -274,4 +279,5 @@ def CW_SUME(
     # Finally, get the calibration score.
     cal_info['cal_score'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
+    assert 1 >= cal_info['cal_score'] >= 0, f"Expected calibration score to be in [0, 1]. Got {cal_info['cal_score']}."
     return cal_info
