@@ -12,7 +12,46 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from pydantic import validate_arguments
-from typing import List, Optional, Union, Literal, Any
+from typing import List, Optional, Literal, Any
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def viz_quality_metric_distributions(
+    image_stats_df: pd.DataFrame,
+    title: str
+    ) -> None:
+    # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
+    g = sns.FacetGrid(image_stats_df, hue="qual_metric", col="qual_metric", sharey=False)
+    g = g.map(sns.kdeplot, "qual_score", fill=True)
+    g.set(xlim=(0, 1))
+    # Adjusting the layout
+    g.fig.tight_layout()
+    # Set the title for the entire FacetGrid
+    plt.suptitle(title, fontsize=16)
+    # Adjust layout to make room for the title
+    plt.subplots_adjust(top=0.75)
+    # Show plot
+    plt.show()
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def viz_calibration_metric_distributions(
+    image_stats_df: pd.DataFrame,
+    title: str,
+    col_wrap: int = 3
+    ) -> None:
+    # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
+    g = sns.FacetGrid(image_stats_df, hue="cal_metric", col="cal_metric", col_wrap=col_wrap, sharey=False)
+    g = g.map(sns.kdeplot, "cal_score", fill=True)
+    g.set(xlim=(0, 1))
+    # Adjusting the layout
+    g.fig.tight_layout()
+    # Set the title for the entire FacetGrid
+    plt.suptitle(title, fontsize=16)
+    # Adjust layout to make room for the title
+    plt.subplots_adjust(top=0.85)
+    # Show plot
+    plt.show()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -283,6 +322,7 @@ def viz_cal_metric_corr(
     height: int = 5,
     aspect: float = 1,
     negate: bool = False,
+    col: Optional[str] = None,
     row: Optional[str] = None,
 ) -> None:
     
@@ -306,16 +346,14 @@ def viz_cal_metric_corr(
         correlations_melted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], values='correlation').reset_index()
 
     # Add a new column for cal_metric_type if row is specified
-    if row:
-        correlations_melted[row] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
-
+    correlations_melted['cal_metric_type'] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
     # Initialize the FacetGrid with the reshaped DataFrame
-    grid_kwargs = {'height': height, 'aspect': aspect, 'sharey': False}
-    if 'split' in pixel_preds.keys():
-        grid_kwargs.update({'col': "split"})
-    if row:
-        grid_kwargs.update({'row': row})
-
+    grid_kwargs = {'col': col, 'row': row, 'height': height, 'aspect': aspect, 'sharey': False}
+    # if 'split' in pixel_preds.keys():
+    #     grid_kwargs.update({'col': "split"})
+    # if row:
+    #     grid_kwargs.update({'row': row})
+    # Initialize a FacetGrid with kwargs.
     g = sns.FacetGrid(correlations_melted, **grid_kwargs)
 
     # Define the plot_heatmap function with annotations

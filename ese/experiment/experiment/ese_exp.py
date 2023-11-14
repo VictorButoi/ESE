@@ -121,7 +121,6 @@ class CalibrationExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         self.run_callbacks("step", batch=forward_batch)
-
         return forward_batch
     
     def predict(self, 
