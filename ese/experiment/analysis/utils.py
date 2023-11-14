@@ -4,6 +4,19 @@ from torch.utils.data import DataLoader
 from ionpy.experiment.util import absolute_import
 
 
+# This function will take in a dictionary of pixel meters and a metadata dataframe
+# from which to select the log_set corresponding to particular attributes, then 
+# we index into the dictionary to get the corresponding pixel meters.
+def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
+    # Select the metadata
+    metadata = metadata.select(**kwargs)
+    # Get the log set
+    assert len(metadata) == 1, f"Need exactly 1 log set, found: {len(metadata)}."
+    log_set = metadata['log_set'].iloc[0]
+    # Return the pixel dict
+    return pixel_meter_logdict[log_set]
+    
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
         exp, 

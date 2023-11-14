@@ -238,6 +238,7 @@ def viz_accuracy_vs_confidence(
                             width,
                             label=bar_label,
                             color=bar_color,
+                            edgecolor='none'
                         )
                     else:
                         ax.bar(
@@ -247,6 +248,7 @@ def viz_accuracy_vs_confidence(
                             label=bar_label,
                             capsize=3,  # Customize the cap size of error bars
                             color=bar_color,
+                            edgecolor='none'
                         )
         else:
             raise NotImplementedError("Haven't configured that kind of plot yet.") 
