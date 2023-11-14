@@ -337,7 +337,9 @@ def get_calibration_item_info(
             ).item(),
         "labelwise_accuracy" : labelwise_pixel_accuracy(
             y_pred=conf_map, 
-            y_true=label_map
+            y_true=label_map,
+            ignore_index=ignore_index,
+            ignore_empty_labels=True
             ).item()
     }
     # Print the sizes of pred_map, label_map, and conf_map
@@ -387,7 +389,7 @@ def get_calibration_item_info(
                 cal_met_type = cal_metric_name.split("_")[-1]
                 clean_met_name = cal_metric_name.replace("_", " ")
                 # Wrap all image-level info in a record.
-                for quality_metric in ["accuracy", "dice", "w_accuracy"]:
+                for quality_metric in quality_metrics_dict.keys():
                     cal_record = {
                         "bin_weighting": bin_weighting,
                         "cal_metric_type": cal_met_type,

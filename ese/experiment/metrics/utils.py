@@ -389,3 +389,24 @@ def get_uni_pixel_weights(
     else:
         return nn_balanced_weights_map
     
+# Helpful for calculating edge accuracies.
+def find_edges_fast(tensor):
+    # Ensure the tensor is a long tensor
+    if not tensor.dtype == torch.int64:
+        raise ValueError("Input tensor must be a LongTensor.")
+    # Convert the tensor to a NumPy array
+    np_array = tensor.numpy()
+    # Use scipy.ndimage.label to identify regions
+    labeled_array, _ = label(np_array)
+    # Create boolean arrays for edge detection
+    edges_vertical = np.zeros_like(labeled_array, dtype=bool)
+    edges_horizontal = np.zeros_like(labeled_array, dtype=bool)
+    # Detect vertical edges
+    edges_vertical[1:, :] = labeled_array[1:, :] != labeled_array[:-1, :]
+    edges_vertical[:-1, :] |= labeled_array[:-1, :] != labeled_array[1:, :]
+    # Detect horizontal edges
+    edges_horizontal[:, 1:] = labeled_array[:, 1:] != labeled_array[:, :-1]
+    edges_horizontal[:, :-1] |= labeled_array[:, :-1] != labeled_array[:, 1:]
+    # Combine vertical and horizontal edges
+    edges = edges_vertical | edges_horizontal
+    return torch.from_numpy(edges)

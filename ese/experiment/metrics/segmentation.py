@@ -78,7 +78,6 @@ def labelwise_dice_score(
     eps: float = 1e-7,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
-    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ) -> Tensor:
@@ -99,16 +98,14 @@ def labelwise_dice_score(
     ) 
     # If ignoring empty labels, make sure to set their weight to 0.
     if ignore_empty_labels:
-        existing_label = (true_amounts > 0).float().cpu()
-        if weights is None:
-            weights = existing_label
-        else:
-            weights = weights * existing_label
+        label_weights = (true_amounts > 0).float().cpu()
+    else:
+        label_weights = torch.ones_like(true_amounts).float().cpu()
     # Return the metric reduction
     return _metric_reduction(
         dice_scores,
         reduction=reduction,
-        weights=weights,
+        weights=label_weights,
         ignore_empty_labels=ignore_empty_labels,
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
