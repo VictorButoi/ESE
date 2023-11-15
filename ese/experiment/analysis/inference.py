@@ -331,25 +331,25 @@ def get_calibration_item_info(
     label_map = label_map.long()
     # Get some metrics of these predictions
     quality_metrics_dict = {
-        "avg_accuracy": avg_pixel_accuracy(
+        "acc (avg)": avg_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map
             ).item(),
-        "avg_edge_accuracy": avg_edge_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map
-            ).item(),
-        "lab_accuracy": labelwise_pixel_accuracy(
+        "acc (lab)": labelwise_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map,
             ignore_index=ignore_index,
             ).item(),
-        "lab_edge_accuracy": labelwise_edge_pixel_accuracy(
+        "e-acc (avg)": avg_edge_pixel_accuracy(
+            y_pred=conf_map, 
+            y_true=label_map
+            ).item(),
+        "e-acc (lab)": labelwise_edge_pixel_accuracy(
             y_pred=conf_map, 
             y_true=label_map,
             ignore_index=ignore_index,
             ).item(),
-        "lab_dice": labelwise_dice_score(
+        "dice (lab)": labelwise_dice_score(
             y_pred=conf_map, 
             y_true=label_map, 
             ignore_index=ignore_index,

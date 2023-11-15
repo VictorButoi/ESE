@@ -24,9 +24,9 @@ def viz_quality_metric_distributions(
     # Now using seaborn's FacetGrid to create the KDE plots for the 'accuracy' column for each 'split'.
     g = sns.FacetGrid(
         image_stats_df, 
-        hue="qual_metric", 
         col="qual_metric", 
         col_wrap=col_wrap, 
+        hue="qual_metric",
         sharex=False,
         sharey=False
         )
