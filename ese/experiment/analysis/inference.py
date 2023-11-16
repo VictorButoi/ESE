@@ -5,6 +5,7 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List
@@ -376,9 +377,38 @@ def get_calibration_item_info(
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
+    pix_acc_map = (pred_map == label_map).float()
     # Get the max channel of conf_map if it is multi-class.
     if conf_map.shape[0] > 1:
         conf_map = torch.max(conf_map, dim=0)[0]
+    ##################################
+    # CALIBRATION ERROR MAP TRACKING #
+    ##################################
+    # if inference_cfg["log"]["save_calbration_error_maps"]:
+    #     # Get the calibration error map.
+    #     cal_error_map = (conf_map - pix_acc_map).squeeze().cpu().numpy()
+    #     cpu_pred_map = pred_map.squeeze().cpu().numpy()
+    #     cpu_label_map = label_map.squeeze().cpu().numpy()
+    #     # Build the plot for visualizing the cal error maps.
+    #     unique_labels = np.unique(cpu_label_map) 
+    #     num_unique_labels = len(unique_labels)
+    #     f, ax = plt.subplots(1, num_unique_labels, figsize=(15, 5))
+    #     # Go through each label, and show the calibration error map for that label.
+    #     # Create a colormap.
+    #     cmap = sns.color_palette("vlag", as_cmap=True)
+    #     cmap.set_bad(color='black')  # Set the color for masked elements
+    #     # Loop through the labels.
+    #     for l_idx, label in enumerate(unique_labels):
+    #         # Set all the areas not corresponding to the label to nan.
+    #         not_label_pred_mask = (cpu_pred_map != label)
+    #         dupe_cal_error_map = cal_error_map.copy()
+    #         dupe_cal_error_map[not_label_pred_mask] = np.nan
+    #         # Plot the map
+    #         cal_plt = ax[l_idx].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap)
+    #         ax[l_idx].set_title(f"Label {label} Calibration Error Map")
+    #         ax[l_idx].axis("off")
+    #         f.colorbar(cal_plt, ax=ax[l_idx])
+    #     plt.show()
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -426,8 +456,7 @@ def get_calibration_item_info(
         conf_map = conf_map.cpu().numpy()
         pred_map = pred_map.cpu().numpy()
         label_map = label_map.cpu().numpy()
-        # Get the pixel-wise accuracy.
-        acc_map = (pred_map == label_map).astype(np.float32)
+        acc_map = pix_acc_map.cpu().numpy()
         # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
         matching_neighbors_0pad = count_matching_neighbors(
             pred_map, 

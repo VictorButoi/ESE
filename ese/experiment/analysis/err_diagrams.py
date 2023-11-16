@@ -227,8 +227,9 @@ def viz_accuracy_vs_confidence(
 
     # Add the proportion to the measures list.
     if add_proportion:
-        measure_names = ["confidence", "accuracy", "proportion"]
-        measure_names += ["weighted confidence", "weighted accuracy", "weighted proportion"]
+        measure_names = ["confidence", "accuracy"]
+        measure_names += ["weighted confidence", "weighted accuracy"]
+        measure_names += ["proportion", "weighted proportion"]
 
     # Set a bunch of information for plotting the graphs.
     num_bins = len(avg_data_dict)
@@ -359,32 +360,40 @@ def viz_cal_metric_corr(
         correlations_melted = reorder_splits(correlations_melted)
     else:
         correlations_melted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], values='correlation').reset_index()
-
     # Add a new column for cal_metric_type if row is specified
     correlations_melted['cal_metric_type'] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'SUME'})
     # Initialize the FacetGrid with the reshaped DataFrame
-    grid_kwargs = {'col': col, 'row': row, 'height': height, 'aspect': aspect, 'sharex': False, 'sharey': False}
-    # if 'split' in pixel_preds.keys():
-    #     grid_kwargs.update({'col': "split"})
-    # if row:
-    #     grid_kwargs.update({'row': row})
+    grid_kwargs = {
+        'col': col, 
+        'row': row, 
+        'height': height, 
+        'aspect': aspect, 
+        'sharex': False, 
+        'sharey': False
+        }
     # Initialize a FacetGrid with kwargs.
     g = sns.FacetGrid(correlations_melted, **grid_kwargs)
-
     # Define the plot_heatmap function with annotations
     def plot_heatmap(data, **kwargs):
         pivot_data = data.pivot(index=heatmap_row, columns=heatmap_col, values='correlation')
         # Create a custom diverging colormap with red for -1 and green for 1
-        custom_cmap = sns.diverging_palette(h_neg=10, h_pos=120, s=90, l=40, as_cmap=True)
+        custom_cmap = sns.diverging_palette(
+            h_neg=10, 
+            h_pos=120, 
+            s=90, 
+            l=40, 
+            as_cmap=True
+            )
         # Annotate each cell with the numeric value using `annot=True`
-        sns.heatmap(pivot_data, annot=True, fmt=".2f",
+        sns.heatmap(pivot_data, 
+                    annot=True, 
+                    fmt=".2f",
                     cmap=custom_cmap,
                     center=0,
-                    vmin=-1, vmax=1,
+                    vmin=-1, 
+                    vmax=1,
                     annot_kws={"color": "black", "weight": "bold", "fontsize":10},
                     **kwargs)
-
-
     # Use map_dataframe to draw heatmaps
     g.map_dataframe(plot_heatmap)
     # Rotate the y-labels 90 degrees clockwise
