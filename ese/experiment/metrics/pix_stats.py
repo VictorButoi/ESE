@@ -1,5 +1,9 @@
 # local imports 
-from .utils import get_conf_region, count_matching_neighbors, get_uni_pixel_weights
+from .utils import (
+    get_conf_region, 
+    get_uni_pixel_weights,
+    count_matching_neighbors
+)
 # misc. imports
 import torch
 from typing import Optional, List
@@ -44,7 +48,8 @@ def bin_stats(
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
             conf_bin_widths=conf_bin_widths, 
-            conf_map=conf_map
+            conf_map=conf_map,
+            ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
@@ -81,7 +86,10 @@ def label_bin_stats(
     ) -> dict:
     # Keep track of different things for each bin.
     pred_labels = pred_map.unique().tolist()
+    if ignore_index is not None and ignore_index in pred_labels:
+        pred_labels.remove(ignore_index)
     num_labels = len(pred_labels)
+    # Setup the cal info tracker.
     cal_info = {
         "bin_confs": torch.zeros((num_labels, num_bins)),
         "bin_amounts": torch.zeros((num_labels, num_bins)),
@@ -146,7 +154,10 @@ def label_neighbors_bin_stats(
     ) -> dict:
     # Keep track of different things for each bin.
     pred_labels = pred_map.unique().tolist()
+    if ignore_index is not None and ignore_index in pred_labels:
+        pred_labels.remove(ignore_index)
     num_labels = len(pred_labels)
+    # Set the cal info tracker.
     num_neighbors = neighborhood_width**2
     cal_info = {
         "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),

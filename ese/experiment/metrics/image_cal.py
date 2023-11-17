@@ -22,7 +22,7 @@ def ECE(
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -43,7 +43,7 @@ def ECE(
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
@@ -65,7 +65,7 @@ def TL_ECE(
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -86,7 +86,7 @@ def TL_ECE(
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -115,7 +115,7 @@ def CW_ECE(
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -136,7 +136,7 @@ def CW_ECE(
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -166,7 +166,7 @@ def SUME(
     uni_w_attributes: List[str] = ["labels", "neighbors"],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -189,7 +189,7 @@ def SUME(
         label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=uni_w_attributes,
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
@@ -210,7 +210,7 @@ def TL_SUME(
     conf_interval: Tuple[float, float],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -233,7 +233,7 @@ def TL_SUME(
         label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -266,7 +266,7 @@ def CW_SUME(
     conf_interval: Tuple[float, float],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    ignore_idx: Optional[int] = None
+    ignore_index: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -289,7 +289,7 @@ def CW_SUME(
         label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
-        ignore_index=ignore_idx
+        ignore_index=ignore_index
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape

@@ -65,6 +65,7 @@ def get_conf_region(
     pred_map: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
     num_neighbors_map: Optional[torch.Tensor] = None,
+    ignore_idx: Optional[int] = None,
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
@@ -79,6 +80,9 @@ def get_conf_region(
     # If we want to only pick things which match the label.
     if label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, pred_map==label)
+    # If we want to ignore a particular label, then we set it to 0.
+    if ignore_idx is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, (pred_map!=ignore_idx))
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
         assert num_neighbors_map is not None, "If num_neighbors is not None, reflect_boundaries must be specified."
