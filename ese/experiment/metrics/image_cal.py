@@ -163,7 +163,6 @@ def SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
-    uni_w_attributes: List[str] = ["labels", "neighbors"],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
@@ -188,9 +187,13 @@ def SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes,
+        uni_w_attributes=["labels", "neighbors"],
         ignore_index=ignore_index
     )
+    print("SUME")
+    print(cal_info['bin_cal_errors'])
+    print(cal_info['bin_amounts'])
+    print()
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
@@ -237,17 +240,20 @@ def TL_SUME(
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
-    total_num_samples = cal_info['bin_amounts'].sum()
     w_ece = torch.zeros(num_labels)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
+        print("TL_SUME")
+        print(cal_info['bin_cal_errors'][lab_idx])
+        print(cal_info['bin_amounts'][lab_idx])
+        print()
         ece = reduce_bin_errors(
             error_per_bin=cal_info['bin_cal_errors'][lab_idx], 
             amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
             weighting=weighting
             )
         # Calculate the empirical prob of the label.
-        prob_l = cal_info['bin_amounts'][lab_idx].sum() / total_num_samples 
+        prob_l = cal_info['bin_amounts'][lab_idx].sum() / cal_info['bin_amounts'].sum()
         # Weight the ECE by the prob of the label.
         w_ece[lab_idx] = prob_l * ece
     # Finally, get the calibration score.
@@ -296,11 +302,16 @@ def CW_SUME(
     w_ece = torch.zeros(num_labels)
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
-        w_ece[lab_idx] = reduce_bin_errors(
+        print("CW_SUME")
+        print(cal_info['bin_cal_errors'][lab_idx])
+        print(cal_info['bin_amounts'][lab_idx])
+        print()
+        ece = reduce_bin_errors(
             error_per_bin=cal_info["bin_cal_errors"][lab_idx], 
             amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
             weighting=weighting
             )
+        w_ece[lab_idx] = ece
     # Finally, get the calibration score.
     cal_info['cal_error'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information

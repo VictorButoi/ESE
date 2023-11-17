@@ -61,11 +61,11 @@ def get_conf_region(
     conf_bin: torch.Tensor, 
     conf_map: torch.Tensor,
     conf_bin_widths: torch.Tensor, 
+    ignore_index: Optional[int] = None,
     label: Optional[int] = None,
     pred_map: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
     num_neighbors_map: Optional[torch.Tensor] = None,
-    ignore_idx: Optional[int] = None,
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
@@ -77,16 +77,19 @@ def get_conf_region(
         else:
             lower_condition = conf_map > conf_bin
         bin_conf_region = torch.logical_and(lower_condition, upper_condition)
+
     # If we want to only pick things which match the label.
     if label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, pred_map==label)
     # If we want to ignore a particular label, then we set it to 0.
-    if ignore_idx is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (pred_map!=ignore_idx))
+    if ignore_index is not None:
+        assert pred_map is not None, "If ignore_index is not None, then must supply pred map."
+        bin_conf_region = torch.logical_and(bin_conf_region, pred_map!=ignore_index)
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
-        assert num_neighbors_map is not None, "If num_neighbors is not None, reflect_boundaries must be specified."
+        assert num_neighbors_map is not None, "If num_neighbors is not None, then must supply num neighbors map."
         bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map==num_neighbors)
+
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
@@ -321,6 +324,7 @@ def get_uni_pixel_weights(
     reflect_boundaries: bool,
     neighborhood_width: Optional[int] = None,
     num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
+    ignore_index: Optional[int] = None
 ):
     """
     Get a map of pixel weights for each unique label in the label map. The weights are calculated
@@ -347,7 +351,15 @@ def get_uni_pixel_weights(
     # Get a map where each pixel corresponds to the amount of pixels with that label who have 
     # that number of neighbors, and the total amount of pixels with that label.
     nn_balanced_weights_map = torch.zeros_like(label_map).float()
-    NUM_SAMPLES = label_map.numel()
+    if ignore_index is not None:
+        NUM_SAMPLES = label_map[label_map!=ignore_index].numel()
+    else:
+        NUM_SAMPLES = label_map.numel()
+    # Get information about labels.
+    unique_labels = torch.unique(label_map)
+    if ignore_index is not None:
+        unique_labels = unique_labels[unique_labels!=ignore_index]
+    NUM_L = len(unique_labels)
     # Choose how you uniformly condition. 
     neighbor_condition = "neighbors" in uni_w_attributes
     label_condition = "labels" in uni_w_attributes
@@ -361,8 +373,6 @@ def get_uni_pixel_weights(
             )
     # If we are conditioning on both.
     if neighbor_and_label_condition:
-        unique_labels = torch.unique(label_map)
-        NUM_L = len(unique_labels)
         # Loop through each unique label and its number of neighbors.
         for label in unique_labels:
             label_group = (label_map==label)
@@ -382,8 +392,6 @@ def get_uni_pixel_weights(
             nn_balanced_weights_map[nn_group] = (NUM_SAMPLES / nn_group.sum().item()) * (1 / NUM_NN)
     # If we are conditioning ONLY on amount of label.
     elif label_condition:
-        unique_labels = torch.unique(label_map)
-        NUM_L = len(unique_labels)
         # Loop through each label.
         for label in unique_labels:
             label_group = (label_map==label)

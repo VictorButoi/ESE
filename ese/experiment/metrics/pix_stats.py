@@ -35,7 +35,8 @@ def bin_stats(
             pred_map, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
-            reflect_boundaries=True
+            reflect_boundaries=True,
+            ignore_index=ignore_index
             )
     else:
         pix_weights = None
@@ -49,6 +50,7 @@ def bin_stats(
             conf_bin=conf_bin, 
             conf_bin_widths=conf_bin_widths, 
             conf_map=conf_map,
+            pred_map=pred_map,
             ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
@@ -67,7 +69,6 @@ def bin_stats(
             cal_info["bin_accs"][bin_idx] = avg_bin_accuracy
             cal_info["bin_amounts"][bin_idx] = bin_num_samples
             cal_info["bin_cal_errors"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
-
     # Return the calibration information.
     return cal_info
 
@@ -102,7 +103,8 @@ def label_bin_stats(
             pred_map, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
-            reflect_boundaries=True
+            reflect_boundaries=True,
+            ignore_index=ignore_index
             )
     else:
         pix_weights = None
@@ -171,7 +173,8 @@ def label_neighbors_bin_stats(
             pred_map, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
-            reflect_boundaries=True
+            reflect_boundaries=True,
+            ignore_index=ignore_index
             )
     else:
         pix_weights = None
