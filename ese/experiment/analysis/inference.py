@@ -327,9 +327,11 @@ def get_calibration_item_info(
     pixel_meter_dict: Optional[dict] = None,
     slice_idx: Optional[int] = None,
     ):
-    # Convert label_map to a Long tensor
+    # Setup some variables
     label_map = label_map.long()
     ignore_index = inference_cfg["score"]["ignore_index"]
+    neighborhood_width = inference_cfg["calibration"]["neighborhood_width"]
+
     # Get some metrics of these predictions
     quality_metrics_dict = {
         "acc (avg)": avg_pixel_accuracy(
@@ -361,24 +363,25 @@ def get_calibration_item_info(
     conf_map = conf_map.squeeze()
     pred_map = pred_map.squeeze()
     label_map = label_map.squeeze()
-    pix_acc_map = (pred_map == label_map).float()
     # Get the max channel of conf_map if it is multi-class.
     if conf_map.shape[0] > 1:
         conf_map = torch.max(conf_map, dim=0)[0]
+
     # Get the valid index map.
     if inference_cfg["score"]["ignore_index"] is not None:
         valid_idx_map = (pred_map != ignore_index)
     else:
-        valid_idx_map = np.ones_like(label_map).astype(bool)
-    ########################
-    # IMAGE LEVEL TRACKING #
-    ########################
-    has_label = torch.sum(valid_idx_map) > 0
-    if image_level_records is not None and has_label:
-        # Go through each calibration metric and calculate the score.
-        for cal_metric in metric_cfgs:
-            cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-            for bin_weighting in inference_cfg["calibration"]["bin_weightings"]:
+        valid_idx_map = torch.ones_like(pred_map).bool()
+
+    # If there are samples in the image, calculate the calibration metrics.
+    if torch.sum(valid_idx_map) > 0:
+        ########################
+        # IMAGE LEVEL TRACKING #
+        ########################
+        if (image_level_records is not None):
+            # Go through each calibration metric and calculate the score.
+            for cal_metric in metric_cfgs:
+                cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
                 # Get the calibration metric
                 cal_m_error = cal_metric[cal_metric_name]['func'](
                     num_bins=inference_cfg["calibration"]["num_bins"],
@@ -389,7 +392,6 @@ def get_calibration_item_info(
                     conf_map=conf_map,
                     pred_map=pred_map,
                     label_map=label_map,
-                    weighting=bin_weighting,
                     ignore_index=ignore_index
                 )['cal_error'] 
                 # Modify the metric name to remove underscores.
@@ -398,7 +400,6 @@ def get_calibration_item_info(
                 # Wrap all image-level info in a record.
                 for quality_metric in quality_metrics_dict.keys():
                     cal_record = {
-                        "bin_weighting": bin_weighting,
                         "cal_metric_type": cal_met_type,
                         "cal_metric": clean_met_name,
                         "cal_m_score": (1 - cal_m_error),
@@ -409,60 +410,61 @@ def get_calibration_item_info(
                         "slice_idx": slice_idx,
                     }
                     # Add the dataset info to the record
-                    record = {**cal_record, **inference_cfg["dataset"], **inference_cfg["score"]}
+                    record = {
+                        **cal_record, 
+                        **inference_cfg["calibration"],
+                        **inference_cfg["dataset"], 
+                        **inference_cfg["score"]
+                        }
                     image_level_records.append(record)
-    ########################
-    # PIXEL LEVEL TRACKING #
-    ########################
-    if pixel_meter_dict is not None:
-        # numpy-ize our tensors
-        conf_map = conf_map.cpu().numpy()
-        label_map = label_map.cpu().numpy()
-        acc_map = pix_acc_map.cpu().numpy()
-        pred_map = pred_map.cpu().numpy()
-        # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
-        matching_neighbors_0pad = count_matching_neighbors(
-            pred_map, 
-            reflect_boundaries=False
-            )
-        # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
-        pix_weights = get_uni_pixel_weights(
-            pred_map, 
-            uni_w_attributes=["labels", "neighbors"],
-            neighborhood_width=3,
-            reflect_boundaries=True,
-            ignore_index=ignore_index
-            )
-        # Figure out where each pixel belongs (in confidence)
-        bin_ownership_map = find_bins(
-            confidences=conf_map, 
-            bin_starts=conf_bins,
-            bin_widths=conf_bin_widths
-            )
-        # Iterate through each pixel in the image.
-        for (ix, iy) in np.ndindex(pred_map.shape):
-            # Only consider pixels that are valid (not ignored)
-            if valid_idx_map[ix, iy]:
-                # Calibration info for the pixel.
-                pix_acc = acc_map[ix, iy].item()
-                pix_conf = conf_map[ix, iy].item()
-                # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
-                pix_w = pix_weights[ix, iy].item()
-                pix_pred_label = pred_map[ix, iy].item()
-                pix_c_bin = bin_ownership_map[ix, iy].item()
-                pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
-                # Create a unique key for the combination of label, neighbors, and confidence_bin
-                conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
-                acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
-                weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
-                weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
-                # If this key doesn't exist in the dictionary, add it
-                if conf_key not in pixel_meter_dict:
-                    for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
-                        pixel_meter_dict[meter_key] = StatsMeter()
-                # Finally, add the points to the meters.
-                pixel_meter_dict[acc_key].add(pix_acc) 
-                pixel_meter_dict[conf_key].add(pix_conf)
-                # Add the weighted accuracy and confidence
-                pixel_meter_dict[weighted_acc_key].add(pix_acc, weight=pix_w) 
-                pixel_meter_dict[weighted_conf_key].add(pix_conf, weight=pix_w) 
+
+        ########################
+        # PIXEL LEVEL TRACKING #
+        ########################
+        if pixel_meter_dict is not None:
+            # numpy-ize our tensors
+            conf_map = conf_map.cpu().numpy()
+            label_map = label_map.cpu().numpy()
+            pred_map = pred_map.cpu().numpy()
+            acc_map = (pred_map == label_map)
+            # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
+            matching_neighbors_0pad = count_matching_neighbors(
+                pred_map, 
+                neighborhood_width=neighborhood_width
+                )
+            # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
+            pix_weights = get_uni_pixel_weights(
+                pred_map, 
+                uni_w_attributes=["labels", "neighbors"],
+                neighborhood_width=neighborhood_width,
+                ignore_index=ignore_index
+                )
+            # Figure out where each pixel belongs (in confidence)
+            bin_ownership_map = find_bins(
+                confidences=conf_map, 
+                bin_starts=conf_bins,
+                bin_widths=conf_bin_widths
+                )
+            # Iterate through each pixel in the image.
+            for (ix, iy) in np.ndindex(pred_map.shape):
+                # Only consider pixels that are valid (not ignored)
+                if valid_idx_map[ix, iy]:
+                    # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
+                    pix_pred_label = pred_map[ix, iy].item()
+                    pix_c_bin = bin_ownership_map[ix, iy].item()
+                    pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
+                    # Create a unique key for the combination of label, neighbors, and confidence_bin
+                    conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
+                    acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
+                    weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
+                    weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
+                    # If this key doesn't exist in the dictionary, add it
+                    if conf_key not in pixel_meter_dict:
+                        for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
+                            pixel_meter_dict[meter_key] = StatsMeter()
+                    # Finally, add the points to the meters.
+                    pixel_meter_dict[acc_key].add(acc_map[ix, iy].item()) 
+                    pixel_meter_dict[conf_key].add(conf_map[ix, iy].item())
+                    # Add the weighted accuracy and confidence
+                    pixel_meter_dict[weighted_acc_key].add(acc_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+                    pixel_meter_dict[weighted_conf_key].add(conf_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 

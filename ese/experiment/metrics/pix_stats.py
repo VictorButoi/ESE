@@ -34,7 +34,6 @@ def bin_stats(
         pix_weights = get_uni_pixel_weights(
             pred_map=pred_map, 
             uni_w_attributes=uni_w_attributes,
-            reflect_boundaries=True,
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
             )
@@ -103,7 +102,6 @@ def label_bin_stats(
             pred_map, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
-            reflect_boundaries=True,
             ignore_index=ignore_index
             )
     else:
@@ -174,13 +172,15 @@ def label_neighbors_bin_stats(
             pred_map, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
-            reflect_boundaries=True,
             ignore_index=ignore_index
             )
     else:
         pix_weights = None
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
-    matching_neighbors_map = count_matching_neighbors(pred_map, reflect_boundaries=False)
+    matching_neighbors_map = count_matching_neighbors(
+        pred_map, 
+        neighborhood_width=neighborhood_width
+    )
     pixelwise_accuracy = (pred_map == label_map).float()
     # Get the regions of the prediction corresponding to each bin of confidence,
     # AND each prediction label.

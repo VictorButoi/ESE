@@ -239,7 +239,6 @@ def find_bins(confidences, bin_starts, bin_widths):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
     label_map: Union[torch.Tensor, np.ndarray],
-    reflect_boundaries: bool,
     neighborhood_width: int = 3,
 ):
     assert len(label_map.shape) == 2, "Label map can only currently be (H, W)."
@@ -259,7 +258,8 @@ def count_matching_neighbors(
     # Define a 3x3 kernel of ones for the convolution
     kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=device)
     # Reflective padding if reflect_boundaries is True
-    padding_mode = 'reflect' if reflect_boundaries else 'constant'
+    # padding_mode = 'reflect' if reflect_boundaries else 'constant'
+    padding_mode = 'constant'
     for label in unique_labels:
         # Create a binary mask for the current label
         mask = (label_map == label).float()
@@ -320,7 +320,6 @@ def get_perpix_group_size(
 def get_uni_pixel_weights(
     pred_map: Union[torch.Tensor, np.ndarray],
     uni_w_attributes: List[str],
-    reflect_boundaries: bool,
     neighborhood_width: Optional[int] = None,
     num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
     ignore_index: Optional[int] = None
@@ -333,8 +332,6 @@ def get_uni_pixel_weights(
     Args:
     - pred_map (torch.Tensor): A 2D tensor of labels.
     - uni_w_attributes (List[str]): A list of unique label attributes to use for weighting.
-    - reflect_boundaries (bool): Whether to reflect the boundaries of the label map when counting
-        neighbors.
     - neighborhood_width (int): The width of the neighborhood to use when counting neighbors.
     - num_neighbors_map (torch.Tensor): A 2D tensor of the number of neighbors for each pixel in
         the label map.
@@ -370,8 +367,7 @@ def get_uni_pixel_weights(
     if num_neighbors_map is None:
         num_neighbors_map = count_matching_neighbors(
             label_map=pred_map, 
-            neighborhood_width=neighborhood_width,
-            reflect_boundaries=reflect_boundaries
+            neighborhood_width=neighborhood_width
             )
     if ignore_index is not None:
         num_neighbors_map[pred_map == ignore_index] = -1
@@ -423,8 +419,7 @@ def get_edge_map(
     # Neighbor map
     num_neighbor_map = count_matching_neighbors(
         label_map, 
-        neighborhood_width=3,
-        reflect_boundaries=True
+        neighborhood_width=3
         )
     edge_map = (num_neighbor_map < 8)
     return edge_map
