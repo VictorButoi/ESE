@@ -384,7 +384,10 @@ def get_uni_pixel_weights(
                 nn_balanced_weights_map[label_nn_group] = pix_weights
     # If we are conditioning ONLY on number of neighbors. 
     elif neighbor_condition:
-        unique_nns = torch.unique(num_neighbors_map)
+        if ignore_index is not None:
+            unique_nns = torch.unique(num_neighbors_map[label_map!=ignore_index])
+        else:
+            unique_nns = torch.unique(num_neighbors_map)
         # Loop through each number of neighbors.
         NUM_NN = len(unique_nns)
         for nn in unique_nns:
