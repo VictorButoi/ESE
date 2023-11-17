@@ -370,7 +370,6 @@ def get_calibration_item_info(
         valid_idx_map = (pred_map != ignore_index)
     else:
         valid_idx_map = np.ones_like(label_map).astype(bool)
-    print("########################################")
     ########################
     # IMAGE LEVEL TRACKING #
     ########################

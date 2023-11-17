@@ -190,10 +190,6 @@ def SUME(
         uni_w_attributes=["labels", "neighbors"],
         ignore_index=ignore_index
     )
-    print("SUME")
-    print(cal_info['bin_cal_errors'])
-    print(cal_info['bin_amounts'])
-    print()
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
@@ -243,10 +239,6 @@ def TL_SUME(
     w_ece = torch.zeros(num_labels)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(num_labels):
-        print("TL_SUME")
-        print(cal_info['bin_cal_errors'][lab_idx])
-        print(cal_info['bin_amounts'][lab_idx])
-        print()
         ece = reduce_bin_errors(
             error_per_bin=cal_info['bin_cal_errors'][lab_idx], 
             amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
@@ -302,10 +294,6 @@ def CW_SUME(
     w_ece = torch.zeros(num_labels)
     # Iterate through each label, calculating ECE
     for lab_idx in range(num_labels):
-        print("CW_SUME")
-        print(cal_info['bin_cal_errors'][lab_idx])
-        print(cal_info['bin_amounts'][lab_idx])
-        print()
         ece = reduce_bin_errors(
             error_per_bin=cal_info["bin_cal_errors"][lab_idx], 
             amounts_per_bin=cal_info["bin_amounts"][lab_idx], 

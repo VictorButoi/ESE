@@ -32,10 +32,10 @@ def bin_stats(
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
         pix_weights = get_uni_pixel_weights(
-            pred_map, 
+            pred_map=pred_map, 
             uni_w_attributes=uni_w_attributes,
-            neighborhood_width=neighborhood_width,
             reflect_boundaries=True,
+            neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
             )
     else:
@@ -48,8 +48,8 @@ def bin_stats(
         bin_conf_region = get_conf_region(
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
-            conf_bin_widths=conf_bin_widths, 
             conf_map=conf_map,
+            conf_bin_widths=conf_bin_widths, 
             pred_map=pred_map,
             ignore_index=ignore_index
             )
@@ -117,10 +117,11 @@ def label_bin_stats(
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
-                conf_bin_widths=conf_bin_widths, 
                 conf_map=conf_map,
+                conf_bin_widths=conf_bin_widths, 
                 pred_map=pred_map,
-                label=p_label
+                label=p_label,
+                ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
@@ -190,12 +191,13 @@ def label_neighbors_bin_stats(
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
-                    conf_bin_widths=conf_bin_widths, 
                     conf_map=conf_map,
+                    conf_bin_widths=conf_bin_widths, 
                     label=p_label,
                     pred_map=pred_map,
                     num_neighbors=num_neighb,
                     num_neighbors_map=matching_neighbors_map,
+                    ignore_index=ignore_index
                     )
                 # If there are some pixels in this confidence bin.
                 if bin_conf_region.sum() > 0:
