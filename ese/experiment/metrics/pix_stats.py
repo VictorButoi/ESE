@@ -15,7 +15,8 @@ def bin_stats(
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
     neighborhood_width: Optional[int] = None,
-    uni_w_attributes: Optional[List[str]] = None
+    uni_w_attributes: Optional[List[str]] = None,
+    ignore_index: Optional[int] = None
     ) -> dict:
     # Keep track of different things for each bin.
     cal_info = {
@@ -75,7 +76,8 @@ def label_bin_stats(
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
     neighborhood_width: Optional[int] = None,
-    uni_w_attributes: Optional[List[str]] = None
+    uni_w_attributes: Optional[List[str]] = None,
+    ignore_index: Optional[int] = None
     ) -> dict:
     # Keep track of different things for each bin.
     pred_labels = pred_map.unique().tolist()
@@ -139,7 +141,8 @@ def label_neighbors_bin_stats(
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
     neighborhood_width: int,
-    uni_w_attributes: Optional[List[str]] = None
+    uni_w_attributes: Optional[List[str]] = None,
+    ignore_index: Optional[int] = None
     ) -> dict:
     # Keep track of different things for each bin.
     pred_labels = pred_map.unique().tolist()

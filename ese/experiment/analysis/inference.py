@@ -428,6 +428,7 @@ def get_calibration_item_info(
                     pred_map=pred_map,
                     label_map=label_map,
                     weighting=bin_weighting,
+                    ignore_index=inference_cfg["calibration"]["ignore_index"]
                 )['cal_error'] 
                 # Modify the metric name to remove underscores.
                 cal_met_type = cal_metric_name.split("_")[-1]

@@ -4,7 +4,7 @@ from .utils import get_bins, reduce_bin_errors
 # misc imports
 import numpy as np
 import torch
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 from pydantic import validate_arguments
 
 
@@ -22,6 +22,7 @@ def ECE(
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -41,7 +42,8 @@ def ECE(
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label_map=label_map
+        label_map=label_map,
+        ignore_index=ignore_idx
     )
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
@@ -62,7 +64,8 @@ def TL_ECE(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
-    weighting: str = "proportional"
+    weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -82,7 +85,8 @@ def TL_ECE(
         conf_bin_widths=conf_bin_widths,
         conf_map=conf_map,
         pred_map=pred_map,
-        label_map=label_map
+        label_map=label_map,
+        ignore_index=ignore_idx
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -111,6 +115,7 @@ def CW_ECE(
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
@@ -131,6 +136,7 @@ def CW_ECE(
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
+        ignore_index=ignore_idx
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -160,6 +166,7 @@ def SUME(
     uni_w_attributes: List[str] = ["labels", "neighbors"],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -181,7 +188,8 @@ def SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes
+        uni_w_attributes=uni_w_attributes,
+        ignore_index=ignore_idx
     )
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
@@ -202,6 +210,7 @@ def TL_SUME(
     conf_interval: Tuple[float, float],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -223,7 +232,8 @@ def TL_SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighbors"]
+        uni_w_attributes=["neighbors"],
+        ignore_index=ignore_idx
     )
     # Finally, get the ECE score.
     num_labels, _ = cal_info["bin_cal_errors"].shape
@@ -256,6 +266,7 @@ def CW_SUME(
     conf_interval: Tuple[float, float],
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    ignore_idx: Optional[int] = None
     ) -> dict:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
@@ -277,10 +288,10 @@ def CW_SUME(
         pred_map=pred_map,
         label_map=label_map,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighbors"]
+        uni_w_attributes=["neighbors"],
+        ignore_index=ignore_idx
     )
     # Finally, get the ECE score.
-    bin_weights = cal_info["bin_amounts"] / (cal_info["bin_amounts"]).sum()
     num_labels, _ = cal_info["bin_cal_errors"].shape
     w_ece = torch.zeros(num_labels)
     # Iterate through each label, calculating ECE
