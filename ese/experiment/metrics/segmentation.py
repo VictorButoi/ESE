@@ -120,7 +120,8 @@ def avg_pixel_accuracy(
     y_pred: Tensor,
     y_true: Tensor,
     mode: InputMode = "auto",
-    from_logits: bool = False
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None
 ):
     # Convert to long labels
     y_pred_long, y_true_long = _inputs_as_longlabels(
@@ -130,7 +131,13 @@ def avg_pixel_accuracy(
         from_logits=from_logits, 
         discretize=True
     )
-    return (y_pred_long == y_true_long).float().mean()
+    # Potentially ignore pixels with a certain label
+    if ignore_index is not None:
+        valid_mask = (y_true_long != ignore_index)
+    else:
+        valid_mask = torch.ones_like(y_true_long).bool()
+    # Return accuracy of valid pixels.
+    return (y_pred_long[valid_mask] == y_true_long[valid_mask]).float().mean()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -161,8 +168,8 @@ def labelwise_pixel_accuracy(
         label_pred = y_pred[label_mask]
         label_true = y_true[label_mask]
         # Calculate accuracy for the current label
-        correct_label = (label_pred == label_true).float()
-        accuracies.append(correct_label.mean())
+        label_accuracy = (label_pred == label_true).float().mean()
+        accuracies.append(label_accuracy)
     # Calculate balanced accuracy by averaging individual label accuracies
     return torch.tensor(accuracies).mean()
 
@@ -172,7 +179,8 @@ def avg_edge_pixel_accuracy(
     y_pred: Tensor,
     y_true: Tensor,
     mode: InputMode = "auto",
-    from_logits: bool = False
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None
 ) -> Tensor:
     # Get the edge map.
     y_true_squeezed = y_true.squeeze()
@@ -185,7 +193,8 @@ def avg_edge_pixel_accuracy(
         y_pred_e_reg, 
         y_true_e_reg,
         mode=mode,
-        from_logits=from_logits
+        from_logits=from_logits,
+        ignore_index=ignore_index
         )
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

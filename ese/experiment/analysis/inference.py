@@ -336,7 +336,8 @@ def get_calibration_item_info(
     quality_metrics_dict = {
         "acc (avg)": avg_pixel_accuracy(
             y_pred=conf_map, 
-            y_true=label_map
+            y_true=label_map,
+            ignore_index=ignore_index
             ).item(),
         "acc (lab)": labelwise_pixel_accuracy(
             y_pred=conf_map, 
@@ -345,7 +346,8 @@ def get_calibration_item_info(
             ).item(),
         "e-acc (avg)": avg_edge_pixel_accuracy(
             y_pred=conf_map, 
-            y_true=label_map
+            y_true=label_map,
+            ignore_index=ignore_index
             ).item(),
         "e-acc (lab)": labelwise_edge_pixel_accuracy(
             y_pred=conf_map, 
