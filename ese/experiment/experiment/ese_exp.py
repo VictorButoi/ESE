@@ -106,6 +106,9 @@ class CalibrationExperiment(TrainExperiment):
         # Forward pass
         yhat = self.model(x)
         # Calculate the loss between the pred and label map
+        # NOTE: If the loss is multi-class, then the label map is one-hot.
+        if yhat.shape[1] > 1:
+            y = y.long()
         loss = self.loss_func(yhat, y)
         # If backward then backprop the gradients.
         if backward:
