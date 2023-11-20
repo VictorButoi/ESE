@@ -46,7 +46,7 @@ def run_ese_exp(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def submit_ese_exps(
-    exp_name: str,
+    exp_root : str,
     config_list: List[Config],
     available_gpus: List[str],
     wandb: bool = False
@@ -61,8 +61,7 @@ def submit_ese_exps(
 
     # Run the experiments 
     slite.submit_exps(
-        project="ESE",
-        exp_name=exp_name,
+        exp_root=exp_root,
         exp_class=CalibrationExperiment,
         available_gpus=available_gpus,
         config_list=config_list
@@ -71,19 +70,17 @@ def submit_ese_exps(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def restart_ese_exps(
-    exp_name: str,
+    exp_root : str,
     job_names: Union[str, List[str]],
     available_gpus: List[str],
     modifications: Optional[dict] = None,
     wandb: bool = False,
-    exp_root: pathlib.Path = pathlib.Path("/storage/vbutoi/scratch/ESE")
 ):
-    exp_dir = exp_root / exp_name
     # Either rerun the entire experiment, or specific jobs.
     if job_names == "all":
-        exp_path_files = [jn for jn in list(exp_dir.iterdir()) if jn.name not in ["submitit", "wandb"]]
+        exp_path_files = [jn for jn in list(exp_root.iterdir()) if jn.name not in ["submitit", "wandb"]]
     else:
-        exp_path_files = [exp_dir / job_name for job_name in job_names]
+        exp_path_files = [exp_root / job_name for job_name in job_names]
     
     # Load the configs.
     config_list = [Config.load(exp_path / "config.yml") for exp_path in exp_path_files]
@@ -125,8 +122,7 @@ def restart_ese_exps(
         
     # Run the experiments 
     slite.submit_exps(
-        project="ESE",
-        exp_name=exp_name,
+        exp_root=exp_root,
         exp_class=CalibrationExperiment,
         exp_path_list=exp_path_files,
         available_gpus=available_gpus
