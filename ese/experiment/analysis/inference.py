@@ -392,30 +392,34 @@ def get_calibration_item_info(
     unique_labels = np.unique(cpu_label_map) 
     num_unique_labels = len(unique_labels)
     num_cols = 3 + num_unique_labels
-    f, ax = plt.subplots(1, num_cols, figsize=(5 * num_cols, 5)) # 3 for the image, conf, and pred maps
+    vis_width = 6
+    f, ax = plt.subplots(1, num_cols, figsize=(vis_width * num_cols, vis_width)) # 3 for the image, conf, and pred maps
 
     # Go through each label, and show the calibration error map for that label.
-    # Create a colormap.
-    cmap = sns.color_palette("vlag", as_cmap=True)
-    cmap.set_bad(color='black')  # Set the color for masked elements
     # Plot the image, confidence, and prediction maps.
-    ax[0].imshow(output_dict["image"].squeeze().cpu().numpy(), cmap="gray")
+    im = ax[0].imshow(output_dict["image"].squeeze().cpu().numpy(), interpolation="none")
     ax[0].set_title("Image")
     ax[0].axis("off")
-    ax[1].imshow(output_dict["label_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray")
+    f.colorbar(im, ax=ax[0])
+    lm = ax[1].imshow(output_dict["label_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
     ax[1].set_title("Label Map")
     ax[1].axis("off")
-    ax[2].imshow(output_dict["pred_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray")
+    f.colorbar(lm, ax=ax[1])
+    pm = ax[2].imshow(output_dict["pred_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
     ax[2].set_title("Prediction Map")
     ax[2].axis("off")
-    # Loop through the labels.
+    f.colorbar(pm, ax=ax[2])
+
+    # First, create a colormap.
+    cmap = sns.color_palette("vlag", as_cmap=True)
+    cmap.set_bad(color='black')  # Set the color for masked elements
     for l_idx, label in enumerate(unique_labels):
         # Set all the areas not corresponding to the label to nan.
-        not_label_pred_mask = (cpu_pred_map != label)
+        not_label_mask = (cpu_label_map != label)
         dupe_cal_error_map = cal_error_map.copy()
-        dupe_cal_error_map[not_label_pred_mask] = np.nan
+        dupe_cal_error_map[not_label_mask] = np.nan
         # Plot the map
-        cal_plt = ax[l_idx + 3].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap)
+        cal_plt = ax[l_idx + 3].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap, interpolation="none")
         ax[l_idx + 3].set_title(f"Label {label} Calibration Error Map")
         ax[l_idx + 3].axis("off")
         f.colorbar(cal_plt, ax=ax[l_idx + 3])
