@@ -265,10 +265,16 @@ def volume_forward_loop(
         label_map_cuda = y_batch[slice_idx, ...][None]
         # Get the prediction
         conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
+        # Wrap the outputs into a dictionary.
+        output_dict = {
+            "image": image_cuda,
+            "label_map": label_map_cuda.long(),
+            "conf_map": conf_map,
+            "pred_map": pred_map
+        }
+        # Get the calibration item info.  
         get_calibration_item_info(
-            conf_map=conf_map,
-            pred_map=pred_map,
-            label_map=label_map_cuda,
+            output_dict=output_dict,
             data_id=data_id,
             inference_cfg=inference_cfg,
             metric_cfgs=metric_cfgs,
@@ -298,11 +304,16 @@ def image_forward_loop(
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction
     conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
-    # Get the calibration item info for the prediction.
+    # Wrap the outputs into a dictionary.
+    output_dict = {
+        "image": image_cuda,
+        "label_map": label_map_cuda.long(),
+        "conf_map": conf_map,
+        "pred_map": pred_map
+    }
+    # Get the calibration item info.  
     get_calibration_item_info(
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map_cuda,
+        output_dict=output_dict,
         data_id=data_id,
         inference_cfg=inference_cfg,
         metric_cfgs=metric_cfgs,
@@ -315,9 +326,7 @@ def image_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
-    conf_map: torch.Tensor,
-    pred_map: torch.Tensor,
-    label_map: torch.Tensor,
+    output_dict: dict,
     data_id: str,
     inference_cfg: dict,
     metric_cfgs: List[dict],
@@ -328,43 +337,43 @@ def get_calibration_item_info(
     slice_idx: Optional[int] = None,
     ):
     # Setup some variables
-    label_map = label_map.long()
     ignore_index = inference_cfg["score"]["ignore_index"]
     neighborhood_width = inference_cfg["calibration"]["neighborhood_width"]
 
     # Get some metrics of these predictions
     quality_metrics_dict = {
         "acc (avg)": avg_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map,
+            y_pred=output_dict["conf_map"], 
+            y_true=output_dict["label_map"],
             ignore_index=ignore_index
             ).item(),
         "acc (lab)": labelwise_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map,
+            y_pred=output_dict["conf_map"], 
+            y_true=output_dict["label_map"],
             ignore_index=ignore_index
             ).item(),
         "e-acc (avg)": avg_edge_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map,
+            y_pred=output_dict["conf_map"], 
+            y_true=output_dict["label_map"],
             ignore_index=ignore_index
             ).item(),
         "e-acc (lab)": labelwise_edge_pixel_accuracy(
-            y_pred=conf_map, 
-            y_true=label_map,
+            y_pred=output_dict["conf_map"], 
+            y_true=output_dict["label_map"],
             ignore_index=ignore_index
             ).item(),
         "dice (lab)": labelwise_dice_score(
-            y_pred=conf_map, 
-            y_true=label_map, 
+            y_pred=output_dict["conf_map"], 
+            y_true=output_dict["label_map"],
             ignore_index=ignore_index,
             ignore_empty_labels=True
             ).item()
     }
     # Squeeze the tensors
-    conf_map = conf_map.squeeze()
-    pred_map = pred_map.squeeze()
-    label_map = label_map.squeeze()
+    conf_map = output_dict["conf_map"].squeeze()
+    pred_map = output_dict["pred_map"].squeeze()
+    label_map = output_dict["label_map"].squeeze()
+
     # Get the max channel of conf_map if it is multi-class.
     if conf_map.shape[0] > 1:
         conf_map = torch.max(conf_map, dim=0)[0]
@@ -374,6 +383,43 @@ def get_calibration_item_info(
         valid_idx_map = (pred_map != ignore_index)
     else:
         valid_idx_map = torch.ones_like(pred_map).bool()
+    
+    # Get the calibration error map.
+    cal_error_map = (conf_map - (pred_map == label_map).long()).squeeze().cpu().numpy()
+    cpu_pred_map = pred_map.squeeze().cpu().numpy()
+    cpu_label_map = label_map.squeeze().cpu().numpy()
+    # Build the plot for visualizing the cal error maps.
+    unique_labels = np.unique(cpu_label_map) 
+    num_unique_labels = len(unique_labels)
+    num_cols = 3 + num_unique_labels
+    f, ax = plt.subplots(1, num_cols, figsize=(5 * num_cols, 5)) # 3 for the image, conf, and pred maps
+
+    # Go through each label, and show the calibration error map for that label.
+    # Create a colormap.
+    cmap = sns.color_palette("vlag", as_cmap=True)
+    cmap.set_bad(color='black')  # Set the color for masked elements
+    # Plot the image, confidence, and prediction maps.
+    ax[0].imshow(output_dict["image"].squeeze().cpu().numpy(), cmap="gray")
+    ax[0].set_title("Image")
+    ax[0].axis("off")
+    ax[1].imshow(output_dict["label_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray")
+    ax[1].set_title("Label Map")
+    ax[1].axis("off")
+    ax[2].imshow(output_dict["pred_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray")
+    ax[2].set_title("Prediction Map")
+    ax[2].axis("off")
+    # Loop through the labels.
+    for l_idx, label in enumerate(unique_labels):
+        # Set all the areas not corresponding to the label to nan.
+        not_label_pred_mask = (cpu_pred_map != label)
+        dupe_cal_error_map = cal_error_map.copy()
+        dupe_cal_error_map[not_label_pred_mask] = np.nan
+        # Plot the map
+        cal_plt = ax[l_idx + 3].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap)
+        ax[l_idx + 3].set_title(f"Label {label} Calibration Error Map")
+        ax[l_idx + 3].axis("off")
+        f.colorbar(cal_plt, ax=ax[l_idx + 3])
+    plt.show()
 
     # If there are samples in the image, calculate the calibration metrics.
     if torch.sum(valid_idx_map) > 0:
