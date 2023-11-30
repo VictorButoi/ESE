@@ -15,12 +15,35 @@ def round_tensor(tensor, num_decimals=3):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def BrierScore(
+    conf_map: torch.Tensor,
+    label_map: torch.Tensor,
+    square_diff: bool
+):
+    """
+    Calculates the Brier Score for a predicted label map.
+    """
+    # Get the number of classes.
+    num_classes = conf_map.shape[1]
+    # Get the one-hot label map.
+    label_map = torch.nn.functional.one_hot(label_map, num_classes=num_classes).float()
+    # Calculate the brier score.
+    if square_diff:
+        brier_score = torch.sum((conf_map - label_map).square(), dim=1).mean()
+    else:
+        brier_score = torch.sum((conf_map - label_map).abs(), dim=1).mean()
+    # Return the brier score.
+    return brier_score
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
     num_bins: int,
     conf_map: torch.Tensor, 
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -40,6 +63,7 @@ def ECE(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
@@ -64,6 +88,7 @@ def TL_ECE(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -83,6 +108,7 @@ def TL_ECE(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
@@ -114,6 +140,7 @@ def CW_ECE(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -133,6 +160,7 @@ def CW_ECE(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
@@ -163,6 +191,7 @@ def SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
@@ -183,6 +212,7 @@ def SUME(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
@@ -207,6 +237,7 @@ def TL_SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
@@ -227,6 +258,7 @@ def TL_SUME(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,
@@ -262,6 +294,7 @@ def CW_SUME(
     pred_map: torch.Tensor, 
     label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
+    square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
     ignore_index: Optional[int] = None
@@ -282,6 +315,7 @@ def CW_SUME(
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
+        square_diff=square_diff,
         conf_map=conf_map,
         pred_map=pred_map,
         label_map=label_map,

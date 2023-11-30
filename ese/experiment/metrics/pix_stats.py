@@ -15,6 +15,7 @@ def bin_stats(
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
+    square_diff: bool,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
@@ -67,7 +68,11 @@ def bin_stats(
             cal_info["bin_confs"][bin_idx] = avg_bin_confidence
             cal_info["bin_accs"][bin_idx] = avg_bin_accuracy
             cal_info["bin_amounts"][bin_idx] = bin_num_samples
-            cal_info["bin_cal_errors"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+            # Calculate the calibration error.
+            if square_diff:
+                cal_info["bin_cal_errors"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).square()
+            else:
+                cal_info["bin_cal_errors"][bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
     # Return the calibration information.
     return cal_info
 
@@ -77,6 +82,7 @@ def label_bin_stats(
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
+    square_diff: bool,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
@@ -133,10 +139,14 @@ def label_bin_stats(
                     avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
                     avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
                 # Calculate the average calibration error for the regions in the bin.
-                cal_info["bin_amounts"][lab_idx, bin_idx] = bin_num_samples
                 cal_info["bin_confs"][lab_idx, bin_idx] = avg_bin_confidence
                 cal_info["bin_accs"][lab_idx, bin_idx] = avg_bin_accuracy
-                cal_info["bin_cal_errors"][lab_idx, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+                cal_info["bin_amounts"][lab_idx, bin_idx] = bin_num_samples
+                # Calculate the calibration error.
+                if square_diff:
+                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).square()
+                else:
+                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
     # Return the label-wise calibration information.
     return cal_info
 
@@ -146,6 +156,7 @@ def label_neighbors_bin_stats(
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
+    square_diff: bool,
     conf_map: torch.Tensor,
     pred_map: torch.Tensor,
     label_map: torch.Tensor,
@@ -214,6 +225,10 @@ def label_neighbors_bin_stats(
                     cal_info["bin_confs"][lab_idx, num_neighb, bin_idx] = avg_bin_confidence
                     cal_info["bin_accs"][lab_idx, num_neighb, bin_idx] = avg_bin_accuracy
                     cal_info["bin_amounts"][lab_idx, num_neighb, bin_idx] = bin_num_samples
-                    cal_info["bin_cal_errors"][lab_idx, num_neighb, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
+                    # Calculate the calibration error.
+                    if square_diff:
+                        cal_info["bin_cal_errors"][lab_idx, num_neighb, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).square()
+                    else:
+                        cal_info["bin_cal_errors"][lab_idx, num_neighb, bin_idx] = (avg_bin_confidence - avg_bin_accuracy).abs()
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info

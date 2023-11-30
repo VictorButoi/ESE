@@ -397,32 +397,35 @@ def get_calibration_item_info(
 
     # Go through each label, and show the calibration error map for that label.
     # Plot the image, confidence, and prediction maps.
-    im = ax[0].imshow(output_dict["image"].squeeze().cpu().numpy(), interpolation="none")
+    vis_image = output_dict["image"].squeeze().cpu().numpy()
+    if vis_image.shape[0] == 3:
+        vis_image = np.moveaxis(vis_image, 0, -1).astype(np.int64)
+    im = ax[0].imshow(vis_image, interpolation="none")
     ax[0].set_title("Image")
     ax[0].axis("off")
-    f.colorbar(im, ax=ax[0])
+    f.colorbar(im, ax=ax[0], shrink=0.5)
     lm = ax[1].imshow(output_dict["label_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
     ax[1].set_title("Label Map")
     ax[1].axis("off")
-    f.colorbar(lm, ax=ax[1])
+    f.colorbar(lm, ax=ax[1], shrink=0.5)
     pm = ax[2].imshow(output_dict["pred_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
     ax[2].set_title("Prediction Map")
     ax[2].axis("off")
-    f.colorbar(pm, ax=ax[2])
+    f.colorbar(pm, ax=ax[2], shrink=0.5)
 
     # First, create a colormap.
     cmap = sns.color_palette("vlag", as_cmap=True)
     cmap.set_bad(color='black')  # Set the color for masked elements
     for l_idx, label in enumerate(unique_labels):
         # Set all the areas not corresponding to the label to nan.
-        not_label_mask = (cpu_label_map != label)
+        not_pred_label_mask = (cpu_pred_map != label)
         dupe_cal_error_map = cal_error_map.copy()
-        dupe_cal_error_map[not_label_mask] = np.nan
+        dupe_cal_error_map[not_pred_label_mask] = np.nan
         # Plot the map
         cal_plt = ax[l_idx + 3].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap, interpolation="none")
-        ax[l_idx + 3].set_title(f"Label {label} Calibration Error Map")
+        ax[l_idx + 3].set_title(f"Pred Lab. {label} Calibration Error Map")
         ax[l_idx + 3].axis("off")
-        f.colorbar(cal_plt, ax=ax[l_idx + 3])
+        f.colorbar(cal_plt, ax=ax[l_idx + 3], shrink=0.5)
     plt.show()
 
     # If there are samples in the image, calculate the calibration metrics.
