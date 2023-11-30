@@ -26,35 +26,31 @@ def brier_score(
     y_true: torch.Tensor,
     square_diff: bool,
     mode: InputMode = "auto",
-    reduction: Reduction = "mean",
-    batch_reduction: Reduction = "mean",
-    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
     """
     Calculates the Brier Score for a predicted label map.
     """
+    assert len(y_pred.shape) == 4 and len(y_true.shape) == 4,\
+        f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
+    assert y_pred.shape[0] == 1,\
+        f"only batch size of 1 is supported. Got {y_pred.shape[0]}."
     y_pred, y_true = _inputs_as_onehot(
         y_pred, y_true, mode=mode, discretize=False, from_logits=from_logits
     )
     assert y_pred.shape == y_true.shape
-
     # Calculate the brier score.
     if square_diff:
         pos_diff = (y_pred - y_true).square()
     else:
         pos_diff = (y_true - y_true).abs()
-    # Sum over pixels for a class.
-    lab_brier_scores = pos_diff.sum(dim=-1)
     # Return the brier loss. 
-    brier_loss = _metric_reduction(
-        lab_brier_scores,
-        reduction=reduction,
-        weights=weights,
-        ignore_index=ignore_index,
-        batch_reduction=batch_reduction,
-    )
+    if ignore_index is not None:
+        # Remove the channel corresponding to ignore index.
+        pos_diff = torch.cat((pos_diff[:, :ignore_index, ...], pos_diff[:, ignore_index+1:, ...]), dim=1)
+    # Get the mean across channels (and batch dim).
+    brier_loss = pos_diff.mean()
     # Return the brier score.
     return 1 - brier_loss 
 
