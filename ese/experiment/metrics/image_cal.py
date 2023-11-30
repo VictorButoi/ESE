@@ -1,10 +1,10 @@
 # local imports
+from ionpy.metrics.util import _inputs_as_onehot
 from .pix_stats import bin_stats, label_bin_stats
 from .utils import get_bins, reduce_bin_errors
 # misc imports
-import numpy as np
 import torch
-from typing import Tuple, List, Optional
+from typing import Tuple, Optional
 from pydantic import validate_arguments
 
 
@@ -15,23 +15,25 @@ def round_tensor(tensor, num_decimals=3):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def BrierScore(
-    conf_map: torch.Tensor,
-    label_map: torch.Tensor,
-    square_diff: bool
+def brier_score(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    square_diff: bool,
+    ignore_index: Optional[int] = None,
+    from_logits: bool = False,
 ):
     """
     Calculates the Brier Score for a predicted label map.
     """
-    # Get the number of classes.
-    num_classes = conf_map.shape[1]
-    # Get the one-hot label map.
-    label_map = torch.nn.functional.one_hot(label_map, num_classes=num_classes).float()
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred, y_true, mode="auto", discretize=False, from_logits=from_logits
+    )
+    assert y_pred.shape == y_true.shape
     # Calculate the brier score.
     if square_diff:
-        brier_score = torch.sum((conf_map - label_map).square(), dim=1).mean()
+        brier_score = torch.sum((y_pred - y_true).square(), dim=1).mean()
     else:
-        brier_score = torch.sum((conf_map - label_map).abs(), dim=1).mean()
+        brier_score = torch.sum((y_true - y_true).abs(), dim=1).mean()
     # Return the brier score.
     return brier_score
 

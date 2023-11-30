@@ -20,6 +20,7 @@ from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from .utils import dataloader_from_exp
 from ..experiment.ese_exp import CalibrationExperiment
+from ..metrics.image_cal import brier_score
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
@@ -367,7 +368,14 @@ def get_calibration_item_info(
             y_true=output_dict["label_map"],
             ignore_index=ignore_index,
             ignore_empty_labels=True
-            ).item()
+            ).item(),
+        "brier": brier_score(
+            y_pred=output_dict["conf_map"],
+            y_true=output_dict["label_map"],
+            ignore_index=ignore_index,
+            square_diff=inference_cfg["calibration"]["square_diff"]
+            ).item(
+        )
     }
     # Squeeze the tensors
     conf_map = output_dict["conf_map"].squeeze()
@@ -447,6 +455,7 @@ def get_calibration_item_info(
                     conf_map=conf_map,
                     pred_map=pred_map,
                     label_map=label_map,
+                    square_diff=inference_cfg["calibration"]["square_diff"],
                     ignore_index=ignore_index
                 )['cal_error'] 
                 # Modify the metric name to remove underscores.
