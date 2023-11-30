@@ -1,10 +1,16 @@
 # local imports
-from ionpy.metrics.util import _inputs_as_onehot
+from ionpy.metrics.util import (
+    _metric_reduction,
+    _inputs_as_onehot,
+    InputMode,
+    Reduction,
+)
 from .pix_stats import bin_stats, label_bin_stats
 from .utils import get_bins, reduce_bin_errors
 # misc imports
 import torch
-from typing import Tuple, Optional
+from torch import Tensor
+from typing import Tuple, Optional, Union, List
 from pydantic import validate_arguments
 
 
@@ -19,6 +25,10 @@ def brier_score(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
     square_diff: bool,
+    mode: InputMode = "auto",
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
@@ -26,16 +36,27 @@ def brier_score(
     Calculates the Brier Score for a predicted label map.
     """
     y_pred, y_true = _inputs_as_onehot(
-        y_pred, y_true, mode="auto", discretize=False, from_logits=from_logits
+        y_pred, y_true, mode=mode, discretize=False, from_logits=from_logits
     )
     assert y_pred.shape == y_true.shape
+
     # Calculate the brier score.
     if square_diff:
-        brier_score = torch.sum((y_pred - y_true).square(), dim=1).mean()
+        pos_diff = (y_pred - y_true).square()
     else:
-        brier_score = torch.sum((y_true - y_true).abs(), dim=1).mean()
+        pos_diff = (y_true - y_true).abs()
+    # Sum over pixels for a class.
+    lab_brier_scores = pos_diff.sum(dim=-1)
+    # Return the brier loss. 
+    brier_loss = _metric_reduction(
+        lab_brier_scores,
+        reduction=reduction,
+        weights=weights,
+        ignore_index=ignore_index,
+        batch_reduction=batch_reduction,
+    )
     # Return the brier score.
-    return brier_score
+    return 1 - brier_loss 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

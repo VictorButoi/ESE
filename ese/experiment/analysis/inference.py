@@ -374,8 +374,7 @@ def get_calibration_item_info(
             y_true=output_dict["label_map"],
             ignore_index=ignore_index,
             square_diff=inference_cfg["calibration"]["square_diff"]
-            ).item(
-        )
+            ).item()
     }
     # Squeeze the tensors
     conf_map = output_dict["conf_map"].squeeze()
