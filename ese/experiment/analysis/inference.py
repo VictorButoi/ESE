@@ -391,50 +391,6 @@ def get_calibration_item_info(
         valid_idx_map = (pred_map != ignore_index)
     else:
         valid_idx_map = torch.ones_like(pred_map).bool()
-    
-    # Get the calibration error map.
-    cal_error_map = (conf_map - (pred_map == label_map).long()).squeeze().cpu().numpy()
-    cpu_pred_map = pred_map.squeeze().cpu().numpy()
-    cpu_label_map = label_map.squeeze().cpu().numpy()
-    # Build the plot for visualizing the cal error maps.
-    unique_labels = np.unique(cpu_label_map) 
-    num_unique_labels = len(unique_labels)
-    num_cols = 3 + num_unique_labels
-    vis_width = 6
-    f, ax = plt.subplots(1, num_cols, figsize=(vis_width * num_cols, vis_width)) # 3 for the image, conf, and pred maps
-
-    # Go through each label, and show the calibration error map for that label.
-    # Plot the image, confidence, and prediction maps.
-    vis_image = output_dict["image"].squeeze().cpu().numpy()
-    if vis_image.shape[0] == 3:
-        vis_image = np.moveaxis(vis_image, 0, -1).astype(np.int64)
-    im = ax[0].imshow(vis_image, interpolation="none")
-    ax[0].set_title("Image")
-    ax[0].axis("off")
-    f.colorbar(im, ax=ax[0], shrink=0.5)
-    lm = ax[1].imshow(output_dict["label_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
-    ax[1].set_title("Label Map")
-    ax[1].axis("off")
-    f.colorbar(lm, ax=ax[1], shrink=0.5)
-    pm = ax[2].imshow(output_dict["pred_map"].squeeze().cpu().numpy(), vmin=0, vmax=1, cmap="gray", interpolation="none")
-    ax[2].set_title("Prediction Map")
-    ax[2].axis("off")
-    f.colorbar(pm, ax=ax[2], shrink=0.5)
-
-    # First, create a colormap.
-    cmap = sns.color_palette("vlag", as_cmap=True)
-    cmap.set_bad(color='black')  # Set the color for masked elements
-    for l_idx, label in enumerate(unique_labels):
-        # Set all the areas not corresponding to the label to nan.
-        not_pred_label_mask = (cpu_pred_map != label)
-        dupe_cal_error_map = cal_error_map.copy()
-        dupe_cal_error_map[not_pred_label_mask] = np.nan
-        # Plot the map
-        cal_plt = ax[l_idx + 3].imshow(dupe_cal_error_map, vmin=-1, vmax=1, cmap=cmap, interpolation="none")
-        ax[l_idx + 3].set_title(f"Pred Lab. {label} Calibration Error Map")
-        ax[l_idx + 3].axis("off")
-        f.colorbar(cal_plt, ax=ax[l_idx + 3], shrink=0.5)
-    plt.show()
 
     # If there are samples in the image, calculate the calibration metrics.
     if torch.sum(valid_idx_map) > 0:
@@ -481,7 +437,6 @@ def get_calibration_item_info(
                         **inference_cfg["score"]
                         }
                     image_level_records.append(record)
-
         ########################
         # PIXEL LEVEL TRACKING #
         ########################
