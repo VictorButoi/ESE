@@ -340,149 +340,168 @@ def get_calibration_item_info(
     # Setup some variables
     ignore_index = inference_cfg["score"]["ignore_index"]
     neighborhood_width = inference_cfg["calibration"]["neighborhood_width"]
+    binarize = inference_cfg["calibration"]["binarize"]
+    # If you are binarizing, then you want to loop through the predicted labels.
+    unique_pred_labels = torch.unique(output_dict["pred_map"])
+    # Remove a label if it is the ignore index.
+    if ignore_index is not None:
+        unique_pred_labels = unique_pred_labels[unique_pred_labels != ignore_index]
+    # Iteratre through the labels.
+    for up_lab in unique_pred_labels:
+        # Specify the prediction and label maps.
+        if binarize:
+            y_pred = output_dict["conf_map"][:, up_lab:up_lab+1, ...] # Get the prediction map for this label.
+            y_true = (output_dict["label_map"] == up_lab).float()
+        else:
+            y_pred = output_dict["conf_map"]
+            y_true = output_dict["label_map"]
+        # Get some metrics of these predictions.
+        quality_metrics_dict = {
+            "acc (avg)": avg_pixel_accuracy(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index),
+            "acc (lab)": labelwise_pixel_accuracy(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index),
+            "e-acc (avg)": avg_edge_pixel_accuracy(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index),
+            "e-acc (lab)": labelwise_edge_pixel_accuracy(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index),
+            "dice (lab)": labelwise_dice_score(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index,
+                ignore_empty_labels=True),
+            "brier": brier_score(
+                y_pred=y_pred,
+                y_true=y_true,
+                ignore_index=ignore_index,
+                square_diff=inference_cfg["calibration"]["square_diff"])
+        }
+        # Squeeze the tensors
+        y_true = y_true.squeeze()
+        y_pred = y_pred.squeeze()
+        y_hard = output_dict["pred_map"].squeeze()
+        # Get the max channel of conf_map if it is multi-class.
+        if y_pred.shape[0] > 1 and not binarize:
+            y_pred = torch.max(y_pred , dim=0)[0]
 
-    # Get some metrics of these predictions
-    quality_metrics_dict = {
-        "acc (avg)": avg_pixel_accuracy(
-            y_pred=output_dict["conf_map"], 
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index
-            ).item(),
-        "acc (lab)": labelwise_pixel_accuracy(
-            y_pred=output_dict["conf_map"], 
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index
-            ).item(),
-        "e-acc (avg)": avg_edge_pixel_accuracy(
-            y_pred=output_dict["conf_map"], 
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index
-            ).item(),
-        "e-acc (lab)": labelwise_edge_pixel_accuracy(
-            y_pred=output_dict["conf_map"], 
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index
-            ).item(),
-        "dice (lab)": labelwise_dice_score(
-            y_pred=output_dict["conf_map"], 
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index,
-            ignore_empty_labels=True
-            ).item(),
-        "brier": brier_score(
-            y_pred=output_dict["conf_map"],
-            y_true=output_dict["label_map"],
-            ignore_index=ignore_index,
-            square_diff=inference_cfg["calibration"]["square_diff"]
-            ).item()
-    }
-    # Squeeze the tensors
-    conf_map = output_dict["conf_map"].squeeze()
-    pred_map = output_dict["pred_map"].squeeze()
-    label_map = output_dict["label_map"].squeeze()
+        # Get the valid index map.
+        if inference_cfg["score"]["ignore_index"] is not None:
+            valid_idx_map = (y_hard != ignore_index)
+        else:
+            valid_idx_map = torch.ones_like(y_hard).bool()
 
-    # Get the max channel of conf_map if it is multi-class.
-    if conf_map.shape[0] > 1:
-        conf_map = torch.max(conf_map, dim=0)[0]
-
-    # Get the valid index map.
-    if inference_cfg["score"]["ignore_index"] is not None:
-        valid_idx_map = (pred_map != ignore_index)
-    else:
-        valid_idx_map = torch.ones_like(pred_map).bool()
-
-    # If there are samples in the image, calculate the calibration metrics.
-    if torch.sum(valid_idx_map) > 0:
-        ########################
-        # IMAGE LEVEL TRACKING #
-        ########################
-        if (image_level_records is not None):
-            # Go through each calibration metric and calculate the score.
-            for cal_metric in metric_cfgs:
-                cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-                # Get the calibration metric
-                cal_m_error = cal_metric[cal_metric_name]['func'](
-                    num_bins=inference_cfg["calibration"]["num_bins"],
-                    conf_interval=[
-                        inference_cfg["calibration"]["conf_interval_start"],
-                        inference_cfg["calibration"]["conf_interval_end"]
-                    ],
-                    conf_map=conf_map,
-                    pred_map=pred_map,
-                    label_map=label_map,
-                    square_diff=inference_cfg["calibration"]["square_diff"],
-                    ignore_index=ignore_index
-                )['cal_error'] 
-                # Modify the metric name to remove underscores.
-                cal_met_type = cal_metric_name.split("_")[-1]
-                clean_met_name = cal_metric_name.replace("_", " ")
-                # Wrap all image-level info in a record.
-                for quality_metric in quality_metrics_dict.keys():
-                    cal_record = {
-                        "cal_metric_type": cal_met_type,
-                        "cal_metric": clean_met_name,
-                        "cal_m_score": (1 - cal_m_error),
-                        "cal_m_error": cal_m_error,
-                        "qual_metric": quality_metric,
-                        "qual_score": quality_metrics_dict[quality_metric],
-                        "data_id": data_id,
-                        "slice_idx": slice_idx,
-                    }
-                    # Add the dataset info to the record
-                    record = {
-                        **cal_record, 
-                        **inference_cfg["calibration"],
-                        **inference_cfg["dataset"], 
-                        **inference_cfg["score"]
+        # If there are samples in the image, calculate the calibration metrics.
+        if torch.sum(valid_idx_map) > 0:
+            ########################
+            # IMAGE LEVEL TRACKING #
+            ########################
+            if (image_level_records is not None):
+                # Go through each calibration metric and calculate the score.
+                for cal_metric in metric_cfgs:
+                    cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
+                    # Get the calibration metric
+                    cal_m_error = cal_metric[cal_metric_name]['func'](
+                        num_bins=inference_cfg["calibration"]["num_bins"],
+                        conf_interval=[
+                            inference_cfg["calibration"]["conf_interval_start"],
+                            inference_cfg["calibration"]["conf_interval_end"]
+                        ],
+                        conf_map=y_pred,
+                        pred_map=y_hard,
+                        label_map=y_true,
+                        square_diff=inference_cfg["calibration"]["square_diff"],
+                        ignore_index=ignore_index
+                    )['cal_error'] 
+                    # Modify the metric name to remove underscores.
+                    cal_met_type = cal_metric_name.split("_")[-1]
+                    clean_met_name = cal_metric_name.replace("_", " ")
+                    # Wrap all image-level info in a record.
+                    for quality_metric in quality_metrics_dict.keys():
+                        cal_record = {
+                            "binarize": binarize,
+                            "cal_metric_type": cal_met_type,
+                            "cal_metric": clean_met_name,
+                            "cal_m_score": (1 - cal_m_error),
+                            "cal_m_error": cal_m_error,
+                            "qual_metric": quality_metric,
+                            "qual_score": quality_metrics_dict[quality_metric].item(),
+                            "data_id": data_id,
+                            "slice_idx": slice_idx
                         }
-                    image_level_records.append(record)
-        ########################
-        # PIXEL LEVEL TRACKING #
-        ########################
-        if pixel_meter_dict is not None:
-            # numpy-ize our tensors
-            conf_map = conf_map.cpu().numpy()
-            label_map = label_map.cpu().numpy()
-            pred_map = pred_map.cpu().numpy()
-            acc_map = (pred_map == label_map)
-            # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
-            matching_neighbors_0pad = count_matching_neighbors(
-                pred_map, 
-                neighborhood_width=neighborhood_width
-                )
-            # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
-            pix_weights = get_uni_pixel_weights(
-                pred_map, 
-                uni_w_attributes=["labels", "neighbors"],
-                neighborhood_width=neighborhood_width,
-                ignore_index=ignore_index
-                )
-            # Figure out where each pixel belongs (in confidence)
-            bin_ownership_map = find_bins(
-                confidences=conf_map, 
-                bin_starts=conf_bins,
-                bin_widths=conf_bin_widths
-                )
-            # Iterate through each pixel in the image.
-            for (ix, iy) in np.ndindex(pred_map.shape):
-                # Only consider pixels that are valid (not ignored)
-                if valid_idx_map[ix, iy]:
-                    # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
-                    pix_pred_label = pred_map[ix, iy].item()
-                    pix_c_bin = bin_ownership_map[ix, iy].item()
-                    pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
-                    # Create a unique key for the combination of label, neighbors, and confidence_bin
-                    conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
-                    acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
-                    weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
-                    weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
-                    # If this key doesn't exist in the dictionary, add it
-                    if conf_key not in pixel_meter_dict:
-                        for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
-                            pixel_meter_dict[meter_key] = StatsMeter()
-                    # Finally, add the points to the meters.
-                    pixel_meter_dict[acc_key].add(acc_map[ix, iy].item()) 
-                    pixel_meter_dict[conf_key].add(conf_map[ix, iy].item())
-                    # Add the weighted accuracy and confidence
-                    pixel_meter_dict[weighted_acc_key].add(acc_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
-                    pixel_meter_dict[weighted_conf_key].add(conf_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+                        # If we are binarizing, then we need to add the label info.
+                        # That is:
+                        #  - the label of the prediction.
+                        #  - the amount of THIS label in the prediction.
+                        if binarize:
+                            cal_record["pred_label"] = up_lab.item()
+                            cal_record["amount_label"] = torch.sum(y_hard == up_lab).item() 
+                        # Add the dataset info to the record
+                        record = {
+                            **cal_record, 
+                            **inference_cfg["calibration"],
+                            **inference_cfg["dataset"], 
+                            **inference_cfg["score"]
+                            }
+                        image_level_records.append(record)
+            ########################
+            # PIXEL LEVEL TRACKING #
+            ########################
+            if pixel_meter_dict is not None:
+                # numpy-ize our tensors.
+                y_pred = y_pred.cpu().numpy()
+                y_hard = y_hard.cpu().numpy()
+                y_true = y_true.cpu().numpy()
+                # Calculate the pixel-wise accuracy map.
+                acc_map = (y_hard == y_true)
+                # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
+                matching_neighbors_0pad = count_matching_neighbors(
+                    y_hard, 
+                    neighborhood_width=neighborhood_width
+                    )
+                # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
+                pix_weights = get_uni_pixel_weights(
+                    y_hard, 
+                    uni_w_attributes=["labels", "neighbors"],
+                    neighborhood_width=neighborhood_width,
+                    ignore_index=ignore_index
+                    )
+                # Figure out where each pixel belongs (in confidence)
+                bin_ownership_map = find_bins(
+                    confidences=y_pred, 
+                    bin_starts=conf_bins,
+                    bin_widths=conf_bin_widths
+                    )
+                # Iterate through each pixel in the image.
+                for (ix, iy) in np.ndindex(y_pred.shape):
+                    # Only consider pixels that are valid (not ignored)
+                    if valid_idx_map[ix, iy]:
+                        # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
+                        pix_pred_label = y_pred[ix, iy].item()
+                        pix_c_bin = bin_ownership_map[ix, iy].item()
+                        pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
+                        # Create a unique key for the combination of label, neighbors, and confidence_bin
+                        conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
+                        acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
+                        weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
+                        weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
+                        # If this key doesn't exist in the dictionary, add it
+                        if conf_key not in pixel_meter_dict:
+                            for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
+                                pixel_meter_dict[meter_key] = StatsMeter()
+                        # Finally, add the points to the meters.
+                        pixel_meter_dict[acc_key].add(acc_map[ix, iy].item()) 
+                        pixel_meter_dict[conf_key].add(y_pred[ix, iy].item())
+                        # Add the weighted accuracy and confidence
+                        pixel_meter_dict[weighted_acc_key].add(acc_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+                        pixel_meter_dict[weighted_conf_key].add(y_pred[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+            # Finally, if we are NOT binarizing, then we can break the loop.
+            if not inference_cfg["calibration"]["binarize"]:
+                break

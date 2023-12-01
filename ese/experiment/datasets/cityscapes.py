@@ -60,7 +60,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
 
         # Convert to torch tensors
         img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
+        mask = torch.from_numpy(mask)[None] # Add channel dimension
 
         if self.return_data_id:
             return img, mask, example_name 

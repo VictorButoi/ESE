@@ -231,8 +231,6 @@ def find_bins(confidences, bin_starts, bin_widths):
     valid_bins = (expanded_confidences > bin_starts) & (expanded_confidences <= (bin_starts + bin_widths))
     # Get bin indices; if no valid bin is found for a confidence, the value will be -1
     bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
-    # Convert the resulting tensor back to a numpy array for the output
-    assert torch.all(bin_indices >= 0), "All bin indices should be greater than 0."
     return bin_indices.numpy() # Return + 1 so that we can talk about bun number #N
 
 
