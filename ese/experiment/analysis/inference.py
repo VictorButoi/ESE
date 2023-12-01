@@ -401,7 +401,7 @@ def get_calibration_item_info(
             valid_idx_map = torch.ones_like(y_hard).bool()
 
         # If there are samples in the image, calculate the calibration metrics.
-        if torch.sum(valid_idx_map) > 0:
+        if valid_idx_map.sum() > 0:
             ########################
             # IMAGE LEVEL TRACKING #
             ########################
