@@ -393,7 +393,9 @@ def get_calibration_item_info(
             y_pred = torch.max(y_pred , dim=0)[0]
 
         # Get the valid index map.
-        if inference_cfg["score"]["ignore_index"] is not None:
+        if binarize:
+            valid_idx_map = (y_hard == up_lab)
+        elif inference_cfg["score"]["ignore_index"] is not None:
             valid_idx_map = (y_hard != ignore_index)
         else:
             valid_idx_map = torch.ones_like(y_hard).bool()
