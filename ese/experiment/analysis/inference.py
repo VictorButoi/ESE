@@ -201,7 +201,7 @@ def get_cal_stats(
         num_bins=cfg_dict['calibration']['num_bins'], 
         start=cfg_dict['calibration']['conf_interval_start'], 
         end=cfg_dict['calibration']['conf_interval_end']
-        )
+    )
 
     # Loop through the data, gather your stats!
     with torch.no_grad():
@@ -269,21 +269,21 @@ def volume_forward_loop(
         # Wrap the outputs into a dictionary.
         output_dict = {
             "image": image_cuda,
-            "label_map": label_map_cuda.long(),
-            "conf_map": conf_map,
-            "pred_map": pred_map
+            "y_true": label_map_cuda.long(),
+            "y_pred": conf_map,
+            "y_hard": pred_map,
+            "data_id": data_id,
+            "slice_idx": slice_idx 
         }
         # Get the calibration item info.  
         get_calibration_item_info(
             output_dict=output_dict,
-            data_id=data_id,
             inference_cfg=inference_cfg,
             metric_cfgs=metric_cfgs,
             conf_bins=conf_bins,
             conf_bin_widths=conf_bin_widths,
             image_level_records=image_level_records,
-            pixel_meter_dict=pixel_meter_dict,
-            slice_idx=slice_idx,
+            pixel_meter_dict=pixel_meter_dict
         )
 
 
@@ -310,12 +310,13 @@ def image_forward_loop(
         "image": image_cuda,
         "y_true": label_map_cuda.long(),
         "y_pred": conf_map,
-        "y_hard": pred_map
+        "y_hard": pred_map,
+        "data_id": data_id,
+        "slice_idx": None
     }
     # Get the calibration item info.  
     get_calibration_item_info(
         output_dict=output_dict,
-        data_id=data_id,
         inference_cfg=inference_cfg,
         metric_cfgs=metric_cfgs,
         conf_bins=conf_bins,
@@ -372,64 +373,75 @@ def update_image_records(
     metric_cfgs: List[dict],
 ):
     # Setup some variables.
-    ignore_index = inference_cfg["calibration"]["ignore_index"]
+    ignore_label = inference_cfg["log"]["ignore_label"]
     square_diff = inference_cfg["calibration"]["square_diff"]
     binarize = inference_cfg["calibration"]["binarize"]
-    # Go through each label in the prediction.
-    for up_lab in torch.unique(output_dict["y_true"]): 
-        # Skip the ignore index.
-        if up_lab != ignore_index:
-            # Get some metrics of these predictions.
-            quality_metrics_dict = get_quality_metrics(
-                y_pred=output_dict["y_pred"],
-                y_true=output_dict["y_true"],
-                ignore_index=ignore_index,
-                square_diff=square_diff
-            ) 
-            # Go through each calibration metric and calculate the score.
-            for cal_metric in metric_cfgs:
-                cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-                # Get the calibration metric
-                cal_m_error = cal_metric[cal_metric_name]['func'](
-                    conf_map=output_dict["y_pred"],
-                    pred_map=output_dict["y_hard"],
-                    label_map=output_dict["y_true"],
-                    num_bins=inference_cfg["calibration"]["num_bins"],
-                    conf_interval=[
-                        inference_cfg["calibration"]["conf_interval_start"],
-                        inference_cfg["calibration"]["conf_interval_end"]
-                    ],
-                    ignore_index=ignore_index,
+    # Check that there is some amount of label in the image.
+    if (output_dict["y_hard"] != ignore_label).sum() > 0:
+        # Go through each label in the prediction.
+        for label in torch.unique(output_dict["y_true"]): 
+            # Skip the ignore index.
+            if label != ignore_label:
+                # Binarize the prediction and label.
+                if binarize:
+                    y_pred = output_dict["y_pred"][:, label:label+1, ...]
+                    y_hard = (output_dict["y_hard"] == label).float()
+                    y_true = (output_dict["y_true"] == label).float()
+                else:
+                    y_pred = output_dict["y_pred"]
+                    y_hard = output_dict["y_hard"]
+                    y_true = output_dict["y_true"]
+                # Get some metrics of these predictions.
+                quality_metrics_dict = get_quality_metrics(
+                    y_pred=y_pred,
+                    y_true=y_true,
+                    ignore_index=ignore_label,
                     square_diff=square_diff
-                )['cal_error'] 
-                # Modify the metric name to remove underscores.
-                cal_met_type = cal_metric_name.split("_")[-1]
-                clean_met_name = cal_metric_name.replace("_", " ")
-                # Wrap all image-level info in a record.
-                for quality_metric in quality_metrics_dict.keys():
-                    cal_record = {
-                        "cal_metric_type": cal_met_type,
-                        "cal_metric": clean_met_name,
-                        "cal_m_score": (1 - cal_m_error),
-                        "cal_m_error": cal_m_error,
-                        "qual_metric": quality_metric,
-                        "qual_score": quality_metrics_dict[quality_metric].item(),
-                        "data_id": output_dict["data_id"],
-                        "slice_idx": output_dict["slice_idx"] 
-                    }
-                    # If we are binarizing, then we need to add the label info.
-                    if binarize:
-                        cal_record["pred_label"] = up_lab.item()
-                        cal_record["amount_label"] = (output_dict["y_hard"] == up_lab).sum().item() 
-                    # Add the dataset info to the record
-                    record = {
-                        **cal_record, 
-                        **inference_cfg["calibration"]
+                ) 
+                # Go through each calibration metric and calculate the score.
+                for cal_metric in metric_cfgs:
+                    cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
+                    # Get the calibration metric
+                    cal_m_error = cal_metric[cal_metric_name]['func'](
+                        conf_map=y_pred,
+                        pred_map=y_hard,
+                        label_map=y_true,
+                        num_bins=inference_cfg["calibration"]["num_bins"],
+                        conf_interval=[
+                            inference_cfg["calibration"]["conf_interval_start"],
+                            inference_cfg["calibration"]["conf_interval_end"]
+                        ],
+                        ignore_index=ignore_label,
+                        square_diff=square_diff
+                    )['cal_error'] 
+                    # Modify the metric name to remove underscores.
+                    cal_met_type = cal_metric_name.split("_")[-1]
+                    clean_met_name = cal_metric_name.replace("_", " ")
+                    # Wrap all image-level info in a record.
+                    for quality_metric in quality_metrics_dict.keys():
+                        cal_record = {
+                            "cal_metric_type": cal_met_type,
+                            "cal_metric": clean_met_name,
+                            "cal_m_score": (1 - cal_m_error),
+                            "cal_m_error": cal_m_error,
+                            "qual_metric": quality_metric,
+                            "qual_score": quality_metrics_dict[quality_metric].item(),
+                            "data_id": output_dict["data_id"],
+                            "slice_idx": output_dict["slice_idx"] 
                         }
-                    image_level_records.append(record)
-            # If you're not binarizing, then you just break.
-            if not binarize:
-                break
+                        # If we are binarizing, then we need to add the label info.
+                        if binarize:
+                            cal_record["label"] = label.item()
+                            cal_record["amount_label"] = (y_hard == label).sum().item() 
+                        # Add the dataset info to the record
+                        record = {
+                            **cal_record, 
+                            **inference_cfg["calibration"]
+                            }
+                        image_level_records.append(record)
+                # If you're not binarizing, then you just break.
+                if not binarize:
+                    break
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -441,7 +453,7 @@ def update_pixel_meters(
     conf_bin_widths: torch.Tensor,
 ):
     # Setup variables.
-    ignore_index = inference_cfg["calibration"]["ignore_index"]
+    ignore_label = inference_cfg["log"]["ignore_label"]
     n_width = inference_cfg["calibration"]["neighborhood_width"]
     # Calculate the pixel-wise accuracy map.
     acc_map = (output_dict["y_hard"] == output_dict["y_true"])
@@ -455,7 +467,7 @@ def update_pixel_meters(
         output_dict["y_hard"], 
         uni_w_attributes=["labels", "neighbors"],
         neighborhood_width=n_width,
-        ignore_index=ignore_index
+        ignore_index=ignore_label
         )
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
@@ -463,17 +475,22 @@ def update_pixel_meters(
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
         )
-    # Build the valid map.
-    if ignore_index is not None:
-        valid_idx_map = (output_dict["y_hard"] != ignore_index)
+    # If the confidence map is mulitclass, then we need to do some extra work.
+    if bin_ownership_map.shape[1] > 1:
+        conf_map = torch.max(output_dict["y_pred"], dim=1, keepdim=True)[0]
     else:
-        valid_idx_map = torch.ones_like(output_dict["y_hard"]).bool()
+        conf_map = output_dict["y_pred"]
+    # Build the valid map.
+    if ignore_label is not None:
+        valid_idx_map = (output_dict["y_hard"].squeeze() != ignore_label)
+    else:
+        valid_idx_map = torch.ones(output_dict["y_hard"].shape[:-2]).bool()
     # Iterate through each pixel in the image.
-    for (ix, iy) in np.ndindex(output_dict["y_pred"].shape):
+    for (ix, iy) in np.ndindex(output_dict["y_hard"].squeeze().shape):
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
-            pix_pred_label = output_dict["y_pred"][ix, iy].item()
+            pix_pred_label = output_dict["y_hard"][..., ix, iy].item()
             pix_c_bin = bin_ownership_map[ix, iy].item()
             pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
             # Create a unique key for the combination of label, neighbors, and confidence_bin
@@ -486,11 +503,11 @@ def update_pixel_meters(
                 for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
             # Finally, add the points to the meters.
-            pixel_meter_dict[acc_key].add(acc_map[ix, iy].item()) 
-            pixel_meter_dict[conf_key].add(output_dict["y_pred"][ix, iy].item())
+            pixel_meter_dict[acc_key].add(acc_map[..., ix, iy].item()) 
+            pixel_meter_dict[conf_key].add(conf_map[..., ix, iy].item())
             # Add the weighted accuracy and confidence
-            pixel_meter_dict[weighted_acc_key].add(acc_map[ix, iy].item(), weight=pix_weights[ix, iy].item()) 
-            pixel_meter_dict[weighted_conf_key].add(output_dict["y_pred"][ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+            pixel_meter_dict[weighted_acc_key].add(acc_map[..., ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+            pixel_meter_dict[weighted_conf_key].add(conf_map[..., ix, iy].item(), weight=pix_weights[ix, iy].item()) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -520,6 +537,7 @@ def get_calibration_item_info(
         update_pixel_meters(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
+            inference_cfg=inference_cfg,
             conf_bins=conf_bins,
             conf_bin_widths=conf_bin_widths,
         )

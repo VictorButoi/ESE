@@ -69,6 +69,9 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
@@ -114,6 +117,9 @@ def TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
@@ -166,6 +172,9 @@ def CW_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
@@ -218,6 +227,9 @@ def SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
@@ -264,6 +276,9 @@ def TL_SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    
@@ -321,6 +336,9 @@ def CW_SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
+    conf_map = conf_map.squeeze()
+    label_map = label_map.squeeze()
+    pred_map = pred_map.squeeze()
     assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
         f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
     # Create the confidence bins.    

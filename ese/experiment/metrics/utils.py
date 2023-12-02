@@ -186,7 +186,8 @@ def get_bins(
     start: float = 0.0,
     end: float = 1.0,
     adaptive: bool = False,
-    conf_map: Optional[torch.Tensor] = None
+    conf_map: Optional[torch.Tensor] = None,
+    device: Optional[torch.device] = "cuda"
     ):
     if adaptive:
         sorted_pix_values = torch.sort(conf_map.flatten())[0]
@@ -205,11 +206,16 @@ def get_bins(
         # Get the confidence bins
         bin_width = conf_bins[1] - conf_bins[0]
         conf_bin_widths = torch.ones(num_bins) * bin_width
-    return conf_bins, conf_bin_widths
+    
+    return conf_bins.to(device), conf_bin_widths.to(device)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def find_bins(confidences, bin_starts, bin_widths):
+def find_bins(
+    confidences, 
+    bin_starts, 
+    bin_widths
+    ):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
     find the bin index for each confidence.
@@ -223,15 +229,13 @@ def find_bins(confidences, bin_starts, bin_widths):
     """
     # Ensure that the bin_starts and bin_widths tensors have the same shape
     assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
-    # Convert the numpy confidences array to a PyTorch tensor
-    confidences_tensor = torch.tensor(confidences)
     # Expand dimensions for broadcasting
-    expanded_confidences = confidences_tensor.unsqueeze(-1)
+    expanded_confidences = confidences.unsqueeze(-1)
     # Compare confidences against all bin ranges using broadcasting
     valid_bins = (expanded_confidences > bin_starts) & (expanded_confidences <= (bin_starts + bin_widths))
     # Get bin indices; if no valid bin is found for a confidence, the value will be -1
-    bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
-    return bin_indices.numpy() # Return + 1 so that we can talk about bun number #N
+    bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)).cuda(), -torch.ones_like(bin_starts)).max(dim=-1).values
+    return bin_indices
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -239,6 +243,7 @@ def count_matching_neighbors(
     label_map: Union[torch.Tensor, np.ndarray],
     neighborhood_width: int = 3,
 ):
+    label_map = label_map.squeeze()
     assert len(label_map.shape) == 2, "Label map can only currently be (H, W)."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(label_map, np.ndarray):
@@ -336,6 +341,8 @@ def get_uni_pixel_weights(
     Returns:
     - torch.Tensor: A 2D tensor of pixel weights for each pixel in the label map.
     """
+    pred_map = pred_map.squeeze()
+    assert len(pred_map.shape) == 2, "Pred map can only currently be (H, W)."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(pred_map, np.ndarray):
         pred_map = torch.from_numpy(pred_map)
