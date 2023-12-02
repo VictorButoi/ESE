@@ -383,6 +383,10 @@ def update_image_records(
     ignore_label = inference_cfg["log"]["ignore_label"]
     square_diff = inference_cfg["calibration"]["square_diff"]
     binarize = inference_cfg["calibration"]["binarize"]
+    # If the confidence map is mulitclass, then we need to do some extra work.
+    max_conf_map = output_dict["y_pred"]
+    if max_conf_map.shape[1] > 1:
+        max_conf_map = torch.max(max_conf_map, dim=1, keepdim=True)[0]
     # Check that there is some amount of label in the image.
     if (output_dict["y_hard"] != ignore_label).sum() > 0:
         # Go through each label in the prediction.
@@ -403,19 +407,23 @@ def update_image_records(
                 # Go through each calibration metric and calculate the score.
                 for cal_metric in metric_cfgs:
                     cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-                    # Get the calibration metric
-                    cal_m_error = cal_metric[cal_metric_name]['func'](
-                        y_pred=output_dict["y_pred"],
-                        y_hard=output_dict["y_hard"],
-                        y_true=output_dict["y_true"],
-                        num_bins=inference_cfg["calibration"]["num_bins"],
-                        conf_interval=[
+                    # Defint the cal config.
+                    cal_config = {
+                        "y_pred": max_conf_map,
+                        "y_hard": output_dict["y_hard"],
+                        "y_true": output_dict["y_true"],
+                        "num_bins": inference_cfg["calibration"]["num_bins"],
+                        "conf_interval":[
                             inference_cfg["calibration"]["conf_interval_start"],
                             inference_cfg["calibration"]["conf_interval_end"]
                         ],
-                        ignore_index=ignore_label,
-                        square_diff=square_diff
-                    )['cal_error'] 
+                        "ignore_index": ignore_label,
+                        "square_diff": square_diff
+                    }
+                    if binarize:
+                        cal_config["label"] = label
+                    # Get the calibration metric
+                    cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
                     # Modify the metric name to remove underscores.
                     cal_met_type = cal_metric_name.split("_")[-1]
                     clean_met_name = cal_metric_name.replace("_", " ")
@@ -441,9 +449,9 @@ def update_image_records(
                             **inference_cfg["calibration"]
                             }
                         image_level_records.append(record)
-                # If you're not binarizing, then you just break.
-                if not binarize:
-                    break
+            # If you're not binarizing, then you just break.
+            if not binarize:
+                break
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

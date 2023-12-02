@@ -12,13 +12,13 @@ from pydantic import validate_arguments
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats(
+    y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     square_diff: bool,
-    conf_map: torch.Tensor,
-    pred_map: torch.Tensor,
-    label_map: torch.Tensor,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
     ignore_index: Optional[int] = None
@@ -33,7 +33,7 @@ def bin_stats(
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
         pix_weights = get_uni_pixel_weights(
-            pred_map=pred_map, 
+            y_hard=y_hard, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
@@ -41,28 +41,28 @@ def bin_stats(
     else:
         pix_weights = None
     # Get the pixelwise accuracy.
-    pixelwise_accuracy = (pred_map == label_map).float()
+    pixelwise_accuracy = (y_hard == y_true).float()
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(conf_bins):
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
-            conf_map=conf_map,
+            y_pred=y_pred,
             conf_bin_widths=conf_bin_widths, 
-            pred_map=pred_map,
+            y_hard=y_hard,
             ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.
             if pix_weights is None:
-                avg_bin_confidence = conf_map[bin_conf_region].mean()
+                avg_bin_confidence = y_pred[bin_conf_region].mean()
                 avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                 bin_num_samples = bin_conf_region.sum() 
             else:
                 bin_num_samples = pix_weights[bin_conf_region].sum()
-                avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
                 avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
             # Calculate the average calibration error for the regions in the bin.
             cal_info["bin_confs"][bin_idx] = avg_bin_confidence
@@ -79,19 +79,24 @@ def bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_bin_stats(
+    y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     square_diff: bool,
-    conf_map: torch.Tensor,
-    pred_map: torch.Tensor,
-    label_map: torch.Tensor,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Keep track of different things for each bin.
-    pred_labels = pred_map.unique().tolist()
+    if label is None:
+        pred_labels = y_hard.unique().tolist()
+    else:
+        pred_labels = [label]
+    # Remove the ignore index if it is in the list of labels.
     if ignore_index is not None and ignore_index in pred_labels:
         pred_labels.remove(ignore_index)
     num_labels = len(pred_labels)
@@ -105,7 +110,7 @@ def label_bin_stats(
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
         pix_weights = get_uni_pixel_weights(
-            pred_map, 
+            y_hard, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
@@ -113,7 +118,7 @@ def label_bin_stats(
     else:
         pix_weights = None
     # Get the regions of the prediction corresponding to each bin of confidence,
-    pixelwise_accuracy = (pred_map == label_map).float()
+    pixelwise_accuracy = (y_hard == y_true).float()
     # AND each prediction label.
     for bin_idx, conf_bin in enumerate(conf_bins):
         for lab_idx, p_label in enumerate(pred_labels):
@@ -121,9 +126,9 @@ def label_bin_stats(
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
-                conf_map=conf_map,
+                y_pred=y_pred,
                 conf_bin_widths=conf_bin_widths, 
-                pred_map=pred_map,
+                y_hard=y_hard,
                 label=p_label,
                 ignore_index=ignore_index
                 )
@@ -131,12 +136,12 @@ def label_bin_stats(
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 if pix_weights is None:
-                    avg_bin_confidence = conf_map[bin_conf_region].mean()
+                    avg_bin_confidence = y_pred[bin_conf_region].mean()
                     avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                     bin_num_samples = bin_conf_region.sum() 
                 else:
                     bin_num_samples = pix_weights[bin_conf_region].sum()
-                    avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                    avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
                     avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][lab_idx, bin_idx] = avg_bin_confidence
@@ -153,19 +158,20 @@ def label_bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_neighbors_bin_stats(
+    y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
     num_bins: int,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     square_diff: bool,
-    conf_map: torch.Tensor,
-    pred_map: torch.Tensor,
-    label_map: torch.Tensor,
     neighborhood_width: int,
     uni_w_attributes: Optional[List[str]] = None,
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Keep track of different things for each bin.
-    pred_labels = pred_map.unique().tolist()
+    pred_labels = y_hard.unique().tolist()
     if ignore_index is not None and ignore_index in pred_labels:
         pred_labels.remove(ignore_index)
     num_labels = len(pred_labels)
@@ -180,7 +186,7 @@ def label_neighbors_bin_stats(
     # Get the pixel-weights if we are using them.
     if uni_w_attributes is not None:
         pix_weights = get_uni_pixel_weights(
-            pred_map, 
+            y_hard, 
             uni_w_attributes=uni_w_attributes,
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
@@ -189,10 +195,10 @@ def label_neighbors_bin_stats(
         pix_weights = None
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     matching_neighbors_map = count_matching_neighbors(
-        pred_map, 
+        y_hard, 
         neighborhood_width=neighborhood_width
     )
-    pixelwise_accuracy = (pred_map == label_map).float()
+    pixelwise_accuracy = (y_hard == y_true).float()
     # Get the regions of the prediction corresponding to each bin of confidence,
     # AND each prediction label.
     for bin_idx, conf_bin in enumerate(conf_bins):
@@ -202,10 +208,10 @@ def label_neighbors_bin_stats(
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
-                    conf_map=conf_map,
+                    y_pred=y_pred,
                     conf_bin_widths=conf_bin_widths, 
                     label=p_label,
-                    pred_map=pred_map,
+                    y_hard=y_hard,
                     num_neighbors=num_neighb,
                     num_neighbors_map=matching_neighbors_map,
                     ignore_index=ignore_index
@@ -214,12 +220,12 @@ def label_neighbors_bin_stats(
                 if bin_conf_region.sum() > 0:
                     # Calculate the average score for the regions in the bin.
                     if pix_weights is None:
-                        avg_bin_confidence = conf_map[bin_conf_region].mean()
+                        avg_bin_confidence = y_pred[bin_conf_region].mean()
                         avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
                         bin_num_samples = bin_conf_region.sum() 
                     else:
                         bin_num_samples = pix_weights[bin_conf_region].sum()
-                        avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
+                        avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
                         avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
                     # Calculate the average calibration error for the regions in the bin.
                     cal_info["bin_confs"][lab_idx, num_neighb, bin_idx] = avg_bin_confidence

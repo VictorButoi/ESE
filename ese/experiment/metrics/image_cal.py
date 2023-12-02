@@ -2,6 +2,8 @@
 from ionpy.metrics.util import (
     _inputs_as_onehot,
     InputMode,
+    _metric_reduction,
+    Reduction,
 )
 from .pix_stats import bin_stats, label_bin_stats
 from .utils import get_bins, reduce_bin_errors
@@ -24,6 +26,8 @@ def brier_score(
     y_true: torch.Tensor,
     square_diff: bool,
     mode: InputMode = "auto",
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
@@ -44,13 +48,14 @@ def brier_score(
         pos_diff = (y_pred - y_true).square()
     else:
         pos_diff = (y_true - y_true).abs()
-    # Return the brier loss. 
-    if ignore_index is not None:
-        # Remove the channel corresponding to ignore index.
-        pos_diff = torch.cat((pos_diff[:, :ignore_index, ...], pos_diff[:, ignore_index+1:, ...]), dim=1)
-    print("pos diff", pos_diff.shape)
     # Get the mean across channels (and batch dim).
-    brier_loss = pos_diff.mean()
+    brier_loss = _metric_reduction(
+        pos_diff,
+        reduction=reduction,
+        weights=weights,
+        ignore_index=ignore_index,
+        batch_reduction=batch_reduction,
+    )
     # Return the brier score.
     return 1 - brier_loss 
 
@@ -112,6 +117,7 @@ def TL_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -137,6 +143,7 @@ def TL_ECE(
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
+        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -167,6 +174,7 @@ def CW_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -192,6 +200,7 @@ def CW_ECE(
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
+        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -271,6 +280,7 @@ def TL_SUME(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -298,6 +308,7 @@ def TL_SUME(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
+        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -331,6 +342,7 @@ def CW_SUME(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -358,6 +370,7 @@ def CW_SUME(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
+        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
