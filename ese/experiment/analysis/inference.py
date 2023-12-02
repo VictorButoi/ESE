@@ -342,31 +342,19 @@ def get_quality_metrics(
         weights = torch.ones(y_pred.shape[1], device=y_pred.device, dtype=torch.float32)
     # Get some metrics of these predictions.
     quality_metrics_dict = {
-        "acc (avg)": avg_pixel_accuracy(
+        "acc": labelwise_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,
             ),
-        "acc (lab)": labelwise_pixel_accuracy(
+        "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,
             ),
-        "e-acc (avg)": avg_edge_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            weights=weights,
-            ignore_index=ignore_index,
-            ),
-        "e-acc (lab)": labelwise_edge_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            weights=weights,
-            ignore_index=ignore_index,
-            ),
-        "dice (lab)": labelwise_dice_score(
+        "dice": labelwise_dice_score(
             y_pred=y_pred,
             y_true=y_true,
             weights=weights,

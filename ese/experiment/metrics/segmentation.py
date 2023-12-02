@@ -58,7 +58,10 @@ def avg_dice_score(
         y_true, 
         smooth=smooth, 
         eps=eps
-    ) 
+    )
+    # If weights are defined, modulate the proportions by the weights.
+    if weights is not None:
+        true_amounts = true_amounts * weights
     # Get the weights by dividing the true amounts by the total number of pixels.
     label_weights = true_amounts / true_amounts.sum()
     # Return the metric reduction
@@ -102,16 +105,17 @@ def labelwise_dice_score(
     ) 
     # If ignoring empty labels, make sure to set their weight to 0.
     if ignore_empty_labels:
-        label_weights = (true_amounts > 0).float().cpu()
+        label_weights = (true_amounts > 0).float()
     else:
-        label_weights = torch.ones_like(true_amounts).float().cpu()
-
+        label_weights = torch.ones_like(true_amounts).float()
+    # If weights are defined, modulate the proportions by the weights.
+    if weights is not None:
+        label_weights = label_weights * weights
     # Return the metric reduction
     return _metric_reduction(
         dice_scores,
         reduction=reduction,
         weights=label_weights,
-        ignore_empty_labels=ignore_empty_labels,
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
@@ -123,7 +127,6 @@ def avg_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
-    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ):
     # Convert to long labels
@@ -174,8 +177,14 @@ def labelwise_pixel_accuracy(
         # Calculate accuracy for the current label
         label_accuracy = (label_pred == label_true).float().mean()
         accuracies.append(label_accuracy)
-    # Calculate balanced accuracy by averaging individual label accuracies
-    return torch.tensor(accuracies).mean()
+    acc_tensor = torch.tensor(accuracies, device=weights.device)
+    # If weights are defined, modulate the proportions by the weights.
+    if weights is not None:
+        acc_tensor = acc_tensor * weights
+        return acc_tensor.sum()
+    else:
+        # Calculate balanced accuracy by averaging individual label accuracies
+        return acc_tensor.mean()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -184,7 +193,6 @@ def avg_edge_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
-    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ) -> Tensor:
     # Get the edge map.
@@ -208,6 +216,7 @@ def labelwise_edge_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ) -> Tensor:
     # Get the edge map.
@@ -222,5 +231,6 @@ def labelwise_edge_pixel_accuracy(
         y_true_e_reg, 
         mode=mode,
         from_logits=from_logits,
+        weights=weights,
         ignore_index=ignore_index
         )

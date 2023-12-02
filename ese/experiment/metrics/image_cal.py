@@ -7,7 +7,8 @@ from .pix_stats import bin_stats, label_bin_stats
 from .utils import get_bins, reduce_bin_errors
 # misc imports
 import torch
-from typing import Tuple, Optional
+from torch import Tensor
+from typing import Tuple, Optional, Union, List 
 from pydantic import validate_arguments
 
 
@@ -23,6 +24,7 @@ def brier_score(
     y_true: torch.Tensor,
     square_diff: bool,
     mode: InputMode = "auto",
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
@@ -46,6 +48,7 @@ def brier_score(
     if ignore_index is not None:
         # Remove the channel corresponding to ignore index.
         pos_diff = torch.cat((pos_diff[:, :ignore_index, ...], pos_diff[:, ignore_index+1:, ...]), dim=1)
+    print("pos diff", pos_diff.shape)
     # Get the mean across channels (and batch dim).
     brier_loss = pos_diff.mean()
     # Return the brier score.
