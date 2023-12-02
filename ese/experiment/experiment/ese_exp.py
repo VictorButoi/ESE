@@ -1,11 +1,9 @@
 # local imports
 from typing import Literal
 from ..augmentation import augmentations_from_config
-
 # torch imports
 import torch
 from torch.utils.data import DataLoader
-
 # IonPy imports
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
@@ -13,7 +11,6 @@ from ionpy.nn.util import num_params
 from ionpy.util import Config
 from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
-
 # misc imports
 import einops
 import numpy as np

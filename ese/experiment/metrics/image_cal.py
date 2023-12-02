@@ -1,16 +1,13 @@
 # local imports
 from ionpy.metrics.util import (
-    _metric_reduction,
     _inputs_as_onehot,
     InputMode,
-    Reduction,
 )
 from .pix_stats import bin_stats, label_bin_stats
 from .utils import get_bins, reduce_bin_errors
 # misc imports
 import torch
-from torch import Tensor
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional
 from pydantic import validate_arguments
 
 
@@ -57,10 +54,10 @@ def brier_score(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
@@ -69,11 +66,11 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -82,13 +79,13 @@ def ECE(
         )
     # Keep track of different things for each bin.
     cal_info = bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -105,10 +102,10 @@ def ECE(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def TL_ECE(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
@@ -117,11 +114,11 @@ def TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -130,13 +127,13 @@ def TL_ECE(
         )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -160,10 +157,10 @@ def TL_ECE(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def CW_ECE(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
@@ -172,11 +169,11 @@ def CW_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -185,13 +182,13 @@ def CW_ECE(
         )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -214,10 +211,10 @@ def CW_ECE(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def SUME(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int = 3,
@@ -227,11 +224,11 @@ def SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -240,13 +237,13 @@ def SUME(
         )
     # Keep track of different things for each bin.
     cal_info = bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["labels", "neighbors"],
         ignore_index=ignore_index
@@ -263,10 +260,10 @@ def SUME(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def TL_SUME(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int = 3,
@@ -276,11 +273,11 @@ def TL_SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -289,13 +286,13 @@ def TL_SUME(
         )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
         ignore_index=ignore_index
@@ -323,10 +320,10 @@ def TL_SUME(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def CW_SUME(
+    y_pred: torch.Tensor, 
+    y_hard: torch.Tensor, 
+    y_true: torch.Tensor,
     num_bins: int,
-    conf_map: torch.Tensor, 
-    pred_map: torch.Tensor, 
-    label_map: torch.Tensor,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int = 3,
@@ -336,11 +333,11 @@ def CW_SUME(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    conf_map = conf_map.squeeze()
-    label_map = label_map.squeeze()
-    pred_map = pred_map.squeeze()
-    assert len(conf_map.shape) == 2 and conf_map.shape == label_map.shape,\
-        f"conf_map and label_map must be 2D tensors of the same shape. Got {conf_map.shape} and {label_map.shape}."
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
@@ -349,13 +346,13 @@ def CW_SUME(
         )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
+        y_pred=y_pred,
+        y_hard=y_hard,
+        y_true=y_true,
         num_bins=num_bins,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         square_diff=square_diff,
-        conf_map=conf_map,
-        pred_map=pred_map,
-        label_map=label_map,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
         ignore_index=ignore_index

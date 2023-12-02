@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 # misc imports
 from pydantic import validate_arguments
-from typing import Optional
+from typing import Optional, Union, List
 # ionpy imports
 from ionpy.metrics.util import (
     _metric_reduction,
@@ -40,6 +40,7 @@ def avg_dice_score(
     eps: float = 1e-7,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ) -> Tensor:
@@ -80,6 +81,7 @@ def labelwise_dice_score(
     eps: float = 1e-7,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ) -> Tensor:
@@ -121,6 +123,7 @@ def avg_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ):
     # Convert to long labels
@@ -146,6 +149,7 @@ def labelwise_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None,
 ) -> Tensor:
     # Convert to onehot_long labels
@@ -180,6 +184,7 @@ def avg_edge_pixel_accuracy(
     y_true: Tensor,
     mode: InputMode = "auto",
     from_logits: bool = False,
+    weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ) -> Tensor:
     # Get the edge map.
