@@ -227,7 +227,9 @@ def find_bins(
     - numpy.ndarray: A numpy array of bin indices corresponding to each confidence value. 
       If a confidence doesn't fit in any bin, its bin index is set to -1.
     """
+    confidences = confidences.squeeze()
     # Ensure that the bin_starts and bin_widths tensors have the same shape
+    assert len(confidences.shape) == 2, "Confidences can only currently be (H, W)."
     assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
     # Expand dimensions for broadcasting
     expanded_confidences = confidences.unsqueeze(-1)

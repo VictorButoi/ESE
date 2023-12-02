@@ -455,6 +455,7 @@ def update_pixel_meters(
     # Setup variables.
     ignore_label = inference_cfg["log"]["ignore_label"]
     n_width = inference_cfg["calibration"]["neighborhood_width"]
+    H, W = output_dict["y_hard"].shape[-2:]
     # Calculate the pixel-wise accuracy map.
     acc_map = (output_dict["y_hard"] == output_dict["y_true"])
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
@@ -469,24 +470,23 @@ def update_pixel_meters(
         neighborhood_width=n_width,
         ignore_index=ignore_label
         )
+    # If the confidence map is mulitclass, then we need to do some extra work.
+    conf_map = output_dict["y_pred"]
+    if conf_map.shape[1] > 1:
+        conf_map = torch.max(conf_map, dim=1, keepdim=True)[0]
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
-        confidences=output_dict["y_pred"], 
+        confidences=conf_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
         )
-    # If the confidence map is mulitclass, then we need to do some extra work.
-    if bin_ownership_map.shape[1] > 1:
-        conf_map = torch.max(output_dict["y_pred"], dim=1, keepdim=True)[0]
-    else:
-        conf_map = output_dict["y_pred"]
     # Build the valid map.
     if ignore_label is not None:
         valid_idx_map = (output_dict["y_hard"].squeeze() != ignore_label)
     else:
-        valid_idx_map = torch.ones(output_dict["y_hard"].shape[:-2]).bool()
+        valid_idx_map = torch.ones((H, W)).bool()
     # Iterate through each pixel in the image.
-    for (ix, iy) in np.ndindex(output_dict["y_hard"].squeeze().shape):
+    for (ix, iy) in np.ndindex((H, W)):
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
