@@ -108,9 +108,11 @@ def labelwise_dice_score(
         label_weights = (true_amounts > 0).float()
     else:
         label_weights = torch.ones_like(true_amounts).float()
+
     # If weights are defined, modulate the proportions by the weights.
     if weights is not None:
         label_weights = label_weights * weights
+
     # Return the metric reduction
     return _metric_reduction(
         dice_scores,

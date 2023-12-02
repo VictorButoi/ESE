@@ -43,11 +43,16 @@ def brier_score(
         y_pred, y_true, mode=mode, discretize=False, from_logits=from_logits
     )
     assert y_pred.shape == y_true.shape
+
     # Calculate the brier score.
     if square_diff:
-        pos_diff = (y_pred - y_true).square()
+        pos_diff_per_pix = (y_pred - y_true).square()
     else:
-        pos_diff = (y_true - y_true).abs()
+        pos_diff_per_pix = (y_true - y_true).abs()
+
+    # Reduce the last dimension by averaging across all pixels.
+    pos_diff = pos_diff_per_pix.mean(dim=-1)
+
     # Get the mean across channels (and batch dim).
     brier_loss = _metric_reduction(
         pos_diff,
