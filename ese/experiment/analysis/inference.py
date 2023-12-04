@@ -348,12 +348,14 @@ def get_quality_metrics(
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,
+            ignore_empty_labels=True,
             ),
         "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,
+            ignore_empty_labels=True,
             ),
         "dice": labelwise_dice_score(
             y_pred=y_pred,
@@ -369,6 +371,7 @@ def get_quality_metrics(
             weights=weights,
             ignore_index=ignore_index,
             square_diff=square_diff,
+            ignore_empty_labels=True,
             ),
     }
     return quality_metrics_dict

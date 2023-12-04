@@ -26,6 +26,7 @@ def brier_score(
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     square_diff: bool,
+    ignore_empty_labels: bool = True,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
@@ -38,18 +39,19 @@ def brier_score(
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
     y_hard = y_hard.squeeze()
+
     # If the input is multi-channel for confidence, take the max across channels.
     if from_logits:
         y_pred = torch.softmax(y_pred, dim=0)
+    num_pred_classes = y_pred.shape[0]
     if len(y_pred.shape) == 3:
         y_pred = torch.max(y_pred, dim=0)[0]
     assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
         f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
 
-    unique_pred_labels = torch.unique(y_hard)
-    lab_brier_scores = torch.zeros(len(unique_pred_labels), device=y_pred.device)
-
+    lab_brier_scores = torch.zeros(num_pred_classes, device=y_pred.device)
     # Iterate through each label and calculate the brier score.
+    unique_pred_labels = torch.unique(y_hard)
     for lab in unique_pred_labels:
         lab_region = (y_hard == lab)
         # Calculate the brier score.
@@ -58,6 +60,15 @@ def brier_score(
         else:
             pos_diff_per_pix = (y_pred[lab_region] - y_true[lab_region]).abs()
         lab_brier_scores[lab] = pos_diff_per_pix.mean()
+    
+    # Don't include empty labels in the final score.
+    if ignore_empty_labels:
+        existing_label = torch.zeros(num_pred_classes, device=y_pred.device)
+        existing_label[unique_pred_labels] = 1
+        if weights is None:
+            weights = existing_label
+        else:
+            weights = weights * existing_label
 
     # Get the mean across channels (and batch dim).
     brier_loss = _metric_reduction(
