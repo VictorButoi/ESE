@@ -61,14 +61,15 @@ def avg_dice_score(
     )
     # If weights are defined, modulate the proportions by the weights.
     if weights is not None:
-        true_amounts = true_amounts * weights
-    # Get the weights by dividing the true amounts by the total number of pixels.
-    label_weights = true_amounts / true_amounts.sum()
+        weights = true_amounts * weights
+    else:
+        weights = true_amounts
+
     # Return the metric reduction
     return _metric_reduction(
         dice_scores,
         reduction=reduction,
-        weights=label_weights,
+        weights=weights,
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
@@ -111,13 +112,15 @@ def labelwise_dice_score(
 
     # If weights are defined, modulate the proportions by the weights.
     if weights is not None:
-        label_weights = label_weights * weights
+        weights = label_weights * weights
+    else:
+        weights = label_weights
 
     # Return the metric reduction
     return _metric_reduction(
         dice_scores,
         reduction=reduction,
-        weights=label_weights,
+        weights=weights,
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
