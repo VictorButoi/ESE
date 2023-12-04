@@ -23,9 +23,9 @@ def round_tensor(tensor, num_decimals=3):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def brier_score(
     y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     square_diff: bool,
-    mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
@@ -35,27 +35,33 @@ def brier_score(
     """
     Calculates the Brier Score for a predicted label map.
     """
-    assert len(y_pred.shape) == 4 and len(y_true.shape) == 4,\
-        f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
-    assert y_pred.shape[0] == 1,\
-        f"only batch size of 1 is supported. Got {y_pred.shape[0]}."
-    y_pred, y_true = _inputs_as_onehot(
-        y_pred, y_true, mode=mode, discretize=False, from_logits=from_logits
-    )
-    assert y_pred.shape == y_true.shape
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    # If the input is multi-channel for confidence, take the max across channels.
+    if from_logits:
+        y_pred = torch.softmax(y_pred, dim=0)
+    if len(y_pred.shape) == 3:
+        y_pred = torch.max(y_pred, dim=0)[0]
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
 
-    # Calculate the brier score.
-    if square_diff:
-        pos_diff_per_pix = (y_pred - y_true).square()
-    else:
-        pos_diff_per_pix = (y_true - y_true).abs()
+    unique_pred_labels = torch.unique(y_hard)
+    lab_brier_scores = torch.zeros(len(unique_pred_labels), device=y_pred.device)
 
-    # Reduce the last dimension by averaging across all pixels.
-    pos_diff = pos_diff_per_pix.mean(dim=-1)
+    # Iterate through each label and calculate the brier score.
+    for lab in unique_pred_labels:
+        lab_region = (y_hard == lab)
+        # Calculate the brier score.
+        if square_diff:
+            pos_diff_per_pix = (y_pred[lab_region] - y_true[lab_region]).square()
+        else:
+            pos_diff_per_pix = (y_pred[lab_region] - y_true[lab_region]).abs()
+        lab_brier_scores[lab] = pos_diff_per_pix.mean()
 
     # Get the mean across channels (and batch dim).
     brier_loss = _metric_reduction(
-        pos_diff,
+        lab_brier_scores[None], # Add dummy batch dim.
         reduction=reduction,
         weights=weights,
         ignore_index=ignore_index,

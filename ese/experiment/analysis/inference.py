@@ -329,6 +329,7 @@ def image_forward_loop(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_quality_metrics(
     y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     ignore_index: Optional[int] = None,
     square_diff: Optional[bool] = True, 
@@ -363,6 +364,7 @@ def get_quality_metrics(
             ),
         "brier": brier_score(
             y_pred=y_pred,
+            y_hard=y_hard,
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,
@@ -396,6 +398,7 @@ def update_image_records(
                 # Binarize the prediction and label.
                 quality_mets_conf = {
                     "y_pred": output_dict["y_pred"],
+                    "y_hard": output_dict["y_hard"],
                     "y_true": output_dict["y_true"],
                     "ignore_index": ignore_label,
                     "square_diff": square_diff
