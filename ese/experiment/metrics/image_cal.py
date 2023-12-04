@@ -125,7 +125,7 @@ def ECE(
         weighting=weighting
         )
     # Return the calibration information
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
 
@@ -182,7 +182,7 @@ def TL_ECE(
     # Finally, get the calibration score.
     cal_info['cal_error'] =  (w_ece.sum() / cal_info['bin_amounts'].sum()).item()
     # Return the calibration information
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
 
@@ -238,7 +238,7 @@ def CW_ECE(
     # Finally, get the calibration score.
     cal_info['cal_error'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
 
@@ -287,7 +287,7 @@ def SUME(
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
 
@@ -349,7 +349,7 @@ def TL_SUME(
         w_ece[lab_idx] = prob_l * ece
     # Finally, get the calibration score.
     cal_info['cal_error'] =  w_ece.sum().item()
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
 
@@ -409,6 +409,6 @@ def CW_SUME(
     # Finally, get the calibration score.
     cal_info['cal_error'] = (w_ece.sum() / num_labels).item()
     # Return the calibration information
-    assert 1 >= cal_info['cal_error'] >= 0,\
+    assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
