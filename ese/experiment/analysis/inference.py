@@ -411,6 +411,8 @@ def update_image_records(
                         quality_mets_conf["label"] = label
                     # Get some metrics of these predictions.
                     quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
+                    for quality_metric in quality_metrics_dict.keys():
+                        print(f"{quality_metric}: {quality_metrics_dict[quality_metric]}")
                     # Go through each calibration metric and calculate the score.
                     for cal_metric in metric_cfgs:
                         cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
@@ -431,6 +433,8 @@ def update_image_records(
                             cal_config["label"] = label
                         # Get the calibration metric
                         cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
+                        print(f"{cal_metric_name}: {cal_m_error}")
+                        print()
                         # Modify the metric name to remove underscores.
                         cal_met_type = cal_metric_name.split("_")[-1]
                         clean_met_name = cal_metric_name.replace("_", " ")

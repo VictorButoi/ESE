@@ -53,13 +53,19 @@ def brier_score(
     # Iterate through each label and calculate the brier score.
     unique_pred_labels = torch.unique(y_hard)
     for lab in unique_pred_labels:
-        lab_region = (y_hard == lab)
+        pred_lab_region = (y_hard == lab)
+        binary_y_true = (y_true == lab).float()
         # Calculate the brier score.
         if square_diff:
-            pos_diff_per_pix = (y_pred[lab_region] - y_true[lab_region]).square()
+            pos_diff_per_pix = (y_pred[pred_lab_region] - binary_y_true[pred_lab_region]).square()
         else:
-            pos_diff_per_pix = (y_pred[lab_region] - y_true[lab_region]).abs()
+            pos_diff_per_pix = (y_pred[pred_lab_region] - binary_y_true[pred_lab_region]).abs()
+        print("Pred conf: ", y_pred[pred_lab_region])
+        print("True label: ", binary_y_true[pred_lab_region])
+        print("Pos diff per pix: ", pos_diff_per_pix)
         lab_brier_scores[lab] = pos_diff_per_pix.mean()
+    
+    print("Brier scores: ", lab_brier_scores)
     
     # Don't include empty labels in the final score.
     if ignore_empty_labels:
