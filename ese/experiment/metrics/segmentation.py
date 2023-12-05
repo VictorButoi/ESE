@@ -180,12 +180,7 @@ def labelwise_pixel_accuracy(
         # Create a mask for the current label
         label_mask = (y_true == label)
         label_pred = (y_pred == label)
-        print(f"lab {label}, label amount: ", label_mask.sum())
-        print(f"lab {label}, label mask: ", label_mask.shape)
-        print(f"lab {label}, label pred: ", label_pred.shape)
         accuracies[label] = (label_pred == label_mask).float().mean()
-    
-    print("lab accuracies: ", accuracies)
 
     # If ignoring empty labels, make sure to set their weight to 0.
     if weights is None:

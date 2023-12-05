@@ -75,6 +75,7 @@ def brier_score(
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
+
     # Return the brier score.
     return 1 - brier_loss 
 
