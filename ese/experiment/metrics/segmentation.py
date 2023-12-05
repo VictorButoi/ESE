@@ -4,6 +4,7 @@ from .utils import get_edge_map
 import torch
 from torch import Tensor
 # misc imports
+import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Optional, Union, List
 # ionpy imports
@@ -170,19 +171,21 @@ def labelwise_pixel_accuracy(
         from_logits=from_logits, 
         discretize=True
     )
+
     # Get unique labels in y_true
     unique_labels = torch.unique(y_true)
-
     # Keep track of the accuracies per label.
     accuracies = torch.zeros(num_pred_classes, device=y_pred.device) 
     for label in unique_labels:
         # Create a mask for the current label
-        label_mask = (y_true == label).bool()
-        # Extract predictions and ground truth for pixels belonging to the current label
-        label_pred = y_pred[label_mask]
-        label_true = y_true[label_mask]
-        # Calculate accuracy for the current label
-        accuracies[label] = (label_pred == label_true).float().mean()
+        label_mask = (y_true == label)
+        label_pred = (y_pred == label)
+        print(f"lab {label}, label amount: ", label_mask.sum())
+        print(f"lab {label}, label mask: ", label_mask.shape)
+        print(f"lab {label}, label pred: ", label_pred.shape)
+        accuracies[label] = (label_pred == label_mask).float().mean()
+    
+    print("lab accuracies: ", accuracies)
 
     # If ignoring empty labels, make sure to set their weight to 0.
     if weights is None:
@@ -240,10 +243,13 @@ def labelwise_edge_pixel_accuracy(
 ) -> Tensor:
     # Get the edge map.
     y_true_squeezed = y_true.squeeze()
-    edge_map = get_edge_map(y_true_squeezed)
+    y_true_edge_map = get_edge_map(y_true_squeezed)
+    # If we are ignoring a certain label, don't include it as part of the edge map.
+    if ignore_index is not None:
+        y_true_edge_map[y_true_squeezed == ignore_index] = False
     # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., edge_map]
-    y_true_e_reg = y_true[..., edge_map]
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
     # Return the mean of the accuracy.
     return labelwise_pixel_accuracy(
         y_pred_e_reg, 

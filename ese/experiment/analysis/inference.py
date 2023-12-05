@@ -366,7 +366,6 @@ def get_quality_metrics(
             ),
         "brier": brier_score(
             y_pred=y_pred,
-            y_hard=y_hard,
             y_true=y_true,
             weights=weights,
             ignore_index=ignore_index,

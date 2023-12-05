@@ -23,7 +23,6 @@ def round_tensor(tensor, num_decimals=3):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def brier_score(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     square_diff: bool,
     ignore_empty_labels: bool = True,
@@ -38,39 +37,31 @@ def brier_score(
     """
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
 
     # If the input is multi-channel for confidence, take the max across channels.
     if from_logits:
         y_pred = torch.softmax(y_pred, dim=0)
     num_pred_classes = y_pred.shape[0]
-    if len(y_pred.shape) == 3:
-        y_pred = torch.max(y_pred, dim=0)[0]
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
+    
+    assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
+        f"y_pred and y_true must be 3D and 2D tensors respectively. Got {y_pred.shape} and {y_true.shape}."
 
     lab_brier_scores = torch.zeros(num_pred_classes, device=y_pred.device)
     # Iterate through each label and calculate the brier score.
-    unique_pred_labels = torch.unique(y_hard)
-    for lab in unique_pred_labels:
-        pred_lab_region = (y_hard == lab)
+    unique_gt_labels = torch.unique(y_true)
+    for lab in unique_gt_labels:
         binary_y_true = (y_true == lab).float()
         # Calculate the brier score.
         if square_diff:
-            pos_diff_per_pix = (y_pred[pred_lab_region] - binary_y_true[pred_lab_region]).square()
+            pos_diff_per_pix = (y_pred[lab, ...] - binary_y_true).square()
         else:
-            pos_diff_per_pix = (y_pred[pred_lab_region] - binary_y_true[pred_lab_region]).abs()
-        print("Pred conf: ", y_pred[pred_lab_region])
-        print("True label: ", binary_y_true[pred_lab_region])
-        print("Pos diff per pix: ", pos_diff_per_pix)
+            pos_diff_per_pix = (y_pred[lab, ...] - binary_y_true).abs()
         lab_brier_scores[lab] = pos_diff_per_pix.mean()
-    
-    print("Brier scores: ", lab_brier_scores)
     
     # Don't include empty labels in the final score.
     if ignore_empty_labels:
         existing_label = torch.zeros(num_pred_classes, device=y_pred.device)
-        existing_label[unique_pred_labels] = 1
+        existing_label[unique_gt_labels] = 1
         if weights is None:
             weights = existing_label
         else:
