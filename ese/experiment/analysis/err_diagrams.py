@@ -31,7 +31,7 @@ def viz_quality_metric_distributions(
         sharey=False
         )
     g = g.map(sns.kdeplot, "qual_score", fill=True)
-    g.set(xlim=(0, 1))
+    # g.set(xlim=(0, 1))
     # Adjusting the layout
     g.fig.tight_layout()
     # Set the title for the entire FacetGrid
@@ -58,7 +58,7 @@ def viz_calibration_metric_distributions(
         sharey=False
         )
     g = g.map(sns.kdeplot, "cal_m_score", fill=True)
-    g.set(xlim=(0, 1))
+    # g.set(xlim=(0, 1))
     # Adjusting the layout
     g.fig.tight_layout()
     # Set the title for the entire FacetGrid
