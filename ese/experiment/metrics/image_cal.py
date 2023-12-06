@@ -83,6 +83,7 @@ def ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -95,6 +96,7 @@ def ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -118,6 +120,7 @@ def TL_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -130,6 +133,7 @@ def TL_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -163,6 +167,7 @@ def CW_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -175,6 +180,7 @@ def CW_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -206,6 +212,7 @@ def LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -220,6 +227,7 @@ def LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uniform_weighting=True,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -260,6 +268,7 @@ def TL_LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -274,6 +283,7 @@ def TL_LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uniform_weighting=True,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -309,6 +319,7 @@ def CW_LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -323,6 +334,7 @@ def CW_LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uniform_weighting=True,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.

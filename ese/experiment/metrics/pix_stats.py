@@ -82,26 +82,28 @@ def bin_stats_init(
             pred_labels.remove(ignore_index)
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
-    if "nn_neighbors_map" in stats_info_dict:
-        nn_neighborhood_map = stats_info_dict["nn_neighbors_map"]
-    elif neighborhood_width is not None:
-        nn_neighborhood_map = count_matching_neighbors(
-            y_hard, 
-            neighborhood_width=neighborhood_width
-        )
+    if neighborhood_width is not None:
+        if "nn_neighbors_map" in stats_info_dict:
+            nn_neighborhood_map = stats_info_dict["nn_neighbors_map"]
+        else:
+            nn_neighborhood_map = count_matching_neighbors(
+                y_hard, 
+                neighborhood_width=neighborhood_width
+            )
     else:
         nn_neighborhood_map = None
 
     # Get the pixel-weights if we are using them.
-    if "pixel_weights" in stats_info_dict:
-        pixel_weights = stats_info_dict["pixel_weights"]
-    elif uniform_weighting:
-        pixel_weights = get_uni_pixel_weights(
-            y_hard=y_hard, 
-            uni_w_attributes=["labels", "neighbors"],
-            neighborhood_width=neighborhood_width,
-            ignore_index=ignore_index
-            )
+    if uniform_weighting:
+        if "pixel_weights" in stats_info_dict:
+            pixel_weights = stats_info_dict["pixel_weights"]
+        else:
+            pixel_weights = get_uni_pixel_weights(
+                y_hard=y_hard, 
+                uni_w_attributes=["labels", "neighbors"],
+                neighborhood_width=neighborhood_width,
+                ignore_index=ignore_index
+                )
     else:
         pixel_weights = None
 
