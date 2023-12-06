@@ -11,10 +11,27 @@ from typing import Optional, List, Tuple
 from pydantic import validate_arguments
 
 
+def bin_stats_init(y_pred,
+                   y_true,
+                   num_bins,
+                   conf_interval):
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
+        f"y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
+    y_hard = y_pred.argmax(dim=0)
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
+    return y_pred, y_hard, y_true, conf_bins, conf_bin_widths
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -24,16 +41,12 @@ def bin_stats(
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
+    # Init some things.
+    y_pred, y_hard, y_true, conf_bins, conf_bin_widths = bin_stats_init(
+        y_pred=y_pred,
+        y_true=y_true,
+        num_bins=num_bins,
+        conf_interval=conf_interval
         )
     # Keep track of different things for each bin.
     cal_info = {
@@ -93,7 +106,6 @@ def bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_bin_stats(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -103,16 +115,12 @@ def label_bin_stats(
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
+    # Init some things.
+    y_pred, y_hard, y_true, conf_bins, conf_bin_widths = bin_stats_init(
+        y_pred=y_pred,
+        y_true=y_true,
+        num_bins=num_bins,
+        conf_interval=conf_interval
         )
     # Keep track of different things for each bin.
     if label is None:
@@ -182,7 +190,6 @@ def label_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def neighbors_bin_stats(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -192,16 +199,12 @@ def neighbors_bin_stats(
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
+    # Init some things.
+    y_pred, y_hard, y_true, conf_bins, conf_bin_widths = bin_stats_init(
+        y_pred=y_pred,
+        y_true=y_true,
+        num_bins=num_bins,
+        conf_interval=conf_interval
         )
     # Set the cal info tracker.
     num_neighbors = neighborhood_width**2
@@ -271,7 +274,6 @@ def neighbors_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_neighbors_bin_stats(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -281,16 +283,12 @@ def label_neighbors_bin_stats(
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
+    # Init some things.
+    y_pred, y_hard, y_true, conf_bins, conf_bin_widths = bin_stats_init(
+        y_pred=y_pred,
+        y_true=y_true,
+        num_bins=num_bins,
+        conf_interval=conf_interval
         )
     # Keep track of different things for each bin.
     if label is None:

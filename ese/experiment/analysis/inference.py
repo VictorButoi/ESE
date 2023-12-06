@@ -329,7 +329,6 @@ def image_forward_loop(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_quality_metrics(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     ignore_index: Optional[int] = None,
     square_diff: Optional[bool] = True, 
@@ -387,10 +386,6 @@ def update_image_records(
     ignore_label = inference_cfg["log"]["ignore_label"]
     square_diff = inference_cfg["calibration"]["square_diff"]
     binarize = inference_cfg["calibration"]["binarize"]
-    # If the confidence map is mulitclass, then we need to do some extra work.
-    max_conf_map = output_dict["y_pred"]
-    if max_conf_map.shape[1] > 1:
-        max_conf_map = torch.max(max_conf_map, dim=1, keepdim=True)[0]
     # Check that there is some amount of label in the image.
     if (output_dict["y_hard"] != ignore_label).sum() > 0:
         # Go through each label in the prediction.
@@ -401,7 +396,6 @@ def update_image_records(
                     # Binarize the prediction and label.
                     quality_mets_conf = {
                         "y_pred": output_dict["y_pred"],
-                        "y_hard": output_dict["y_hard"],
                         "y_true": output_dict["y_true"],
                         "ignore_index": ignore_label,
                         "square_diff": square_diff
@@ -415,8 +409,7 @@ def update_image_records(
                         cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
                         # Defint the cal config.
                         cal_config = {
-                            "y_pred": max_conf_map,
-                            "y_hard": output_dict["y_hard"],
+                            "y_pred": output_dict["y_pred"],
                             "y_true": output_dict["y_true"],
                             "num_bins": inference_cfg["calibration"]["num_bins"],
                             "conf_interval":[

@@ -78,7 +78,6 @@ def brier_score(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ECE(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -93,7 +92,6 @@ def ECE(
     # Keep track of different things for each bin.
     cal_info = bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
@@ -116,7 +114,6 @@ def ECE(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def TL_ECE(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -131,7 +128,6 @@ def TL_ECE(
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
@@ -164,7 +160,6 @@ def TL_ECE(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def CW_ECE(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -179,7 +174,6 @@ def CW_ECE(
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
@@ -209,7 +203,6 @@ def CW_ECE(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def LoMS(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -225,7 +218,6 @@ def LoMS(
     # Keep track of different things for each bin.
     cal_info = neighbors_bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
@@ -266,7 +258,6 @@ def LoMS(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def TL_LoMS(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -282,7 +273,6 @@ def TL_LoMS(
     # Keep track of different things for each bin.
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
@@ -318,7 +308,6 @@ def TL_LoMS(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def CW_LoMS(
     y_pred: torch.Tensor, 
-    y_hard: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
@@ -334,7 +323,6 @@ def CW_LoMS(
     # Keep track of different things for each bin.
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
-        y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
