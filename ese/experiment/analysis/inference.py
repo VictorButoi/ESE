@@ -332,41 +332,30 @@ def get_quality_metrics(
     y_true: torch.Tensor,
     ignore_index: Optional[int] = None,
     square_diff: Optional[bool] = True, 
-    label: Optional[int] = None
     ):
-    # If label is not None, we need to set the label as the only weight.
-    if label is not None:
-        weights = torch.zeros(y_pred.shape[1], device=y_pred.device, dtype=torch.float32)
-        weights[label] = 1.0
-    else:
-        weights = torch.ones(y_pred.shape[1], device=y_pred.device, dtype=torch.float32)
     # Get some metrics of these predictions.
     quality_metrics_dict = {
         "acc": labelwise_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
-            weights=weights,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
             ),
         "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
-            weights=weights,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
             ),
         "dice": labelwise_dice_score(
             y_pred=y_pred,
             y_true=y_true,
-            weights=weights,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
             ),
         "brier": brier_score(
             y_pred=y_pred,
             y_true=y_true,
-            weights=weights,
             ignore_index=ignore_index,
             square_diff=square_diff,
             ignore_empty_labels=True,
@@ -404,13 +393,15 @@ def update_image_records(
             "square_diff": square_diff
         }
         if binarize:
-            quality_mets_conf["label"] = label
+            quality_mets_conf["y_pred"] = binarize(output_dict["y_pred"], label)
+            quality_mets_conf["y_true"] = binarize(output_dict["y_true"], label)
+
         # Get some metrics of these predictions.
         quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
+
         # Go through each calibration metric and calculate the score.
         for cal_metric in metric_cfgs:
-            cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-            # Defint the cal config.
+            # Define the cal config.
             cal_config = {
                 "y_pred": output_dict["y_pred"],
                 "y_true": output_dict["y_true"],
@@ -423,17 +414,18 @@ def update_image_records(
                 "square_diff": square_diff
             }
             if binarize:
-                cal_config["label"] = label
-            # Get the calibration metric
+                cal_config["y_pred"] = binarize(output_dict["y_pred"], label)
+                cal_config["y_true"] = binarize(output_dict["y_true"], label)
+
+            # Get the calibration error. 
+            cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
             cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
-            # Modify the metric name to remove underscores.
-            cal_met_type = cal_metric_name.split("_")[-1]
-            clean_met_name = cal_metric_name.replace("_", " ")
+
             # Wrap all image-level info in a record.
             for quality_metric in quality_metrics_dict.keys():
                 cal_record = {
-                    "cal_metric_type": cal_met_type,
-                    "cal_metric": clean_met_name,
+                    "cal_metric_type": cal_metric_name.split("_")[-1],
+                    "cal_metric": cal_metric_name.replace("_", " "),
                     "cal_m_score": (1 - cal_m_error),
                     "cal_m_error": cal_m_error,
                     "qual_metric": quality_metric,
@@ -445,6 +437,7 @@ def update_image_records(
                 if binarize:
                     cal_record["label"] = label.item()
                     cal_record["true_lab_amount"] = (output_dict["y_true"] == label).sum().item() 
+
                 # Add the dataset info to the record
                 record = {
                     **cal_record, 

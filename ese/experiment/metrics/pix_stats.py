@@ -13,11 +13,11 @@ from pydantic import validate_arguments
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def calc_bin_info(
-        y_pred: torch.Tensor,
-        bin_conf_region: torch.Tensor,
-        pixelwise_accuracy: torch.Tensor,
-        square_diff: bool,
-        pix_weights: Optional[torch.Tensor] = None
+    y_pred: torch.Tensor,
+    bin_conf_region: torch.Tensor,
+    pixelwise_accuracy: torch.Tensor,
+    square_diff: bool,
+    pix_weights: Optional[torch.Tensor] = None
 ):
     if pix_weights is None:
         avg_bin_confidence = y_pred[bin_conf_region].mean()
@@ -42,14 +42,13 @@ def calc_bin_info(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats_init(
-        y_pred,
-        y_true,
-        num_bins,
-        label,
-        conf_interval,
-        neighborhood_width,
-        uni_w_attributes,
-        ignore_index
+    y_pred,
+    y_true,
+    num_bins,
+    conf_interval,
+    neighborhood_width,
+    uni_w_attributes,
+    ignore_index
 ):
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
@@ -77,12 +76,9 @@ def bin_stats_init(
     obj_dict["pixelwise_accuracy"]= (y_hard == y_true).float()
 
     # Keep track of different things for each bin.
-    if label is None:
-        pred_labels = y_hard.unique().tolist()
-        if ignore_index is not None and ignore_index in pred_labels:
-            pred_labels.remove(ignore_index)
-    else:
-        pred_labels = [label]
+    pred_labels = y_hard.unique().tolist()
+    if ignore_index is not None and ignore_index in pred_labels:
+        pred_labels.remove(ignore_index)
     obj_dict["pred_labels"] = pred_labels
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
@@ -116,7 +112,6 @@ def bin_stats(
     square_diff: bool,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -124,7 +119,6 @@ def bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_bins=num_bins,
-        label=label,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=uni_w_attributes,
@@ -146,7 +140,6 @@ def bin_stats(
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
             conf_bin_widths=obj_dict["conf_bin_widths"], 
-            label=label, # Focus on just one label (Optionally).
             ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
@@ -177,7 +170,6 @@ def label_bin_stats(
     square_diff: bool,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -185,7 +177,6 @@ def label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_bins=num_bins,
-        label=label,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=uni_w_attributes,
@@ -239,7 +230,6 @@ def neighbors_bin_stats(
     square_diff: bool,
     neighborhood_width: int,
     uni_w_attributes: Optional[List[str]] = None,
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -247,7 +237,6 @@ def neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_bins=num_bins,
-        label=label,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=uni_w_attributes,
@@ -272,7 +261,6 @@ def neighbors_bin_stats(
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
                 num_neighbors=nn_idx,
                 num_neighbors_map=obj_dict["matching_neighbors_map"],
-                label=label, # Focus on just one label (Optionally).
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -303,7 +291,6 @@ def label_neighbors_bin_stats(
     square_diff: bool,
     neighborhood_width: int,
     uni_w_attributes: Optional[List[str]] = None,
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -311,7 +298,6 @@ def label_neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_bins=num_bins,
-        label=label,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=uni_w_attributes,

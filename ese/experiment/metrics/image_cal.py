@@ -83,7 +83,6 @@ def ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -96,7 +95,6 @@ def ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -119,7 +117,6 @@ def TL_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -132,7 +129,6 @@ def TL_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -149,6 +145,7 @@ def TL_ECE(
         lab_prob = cal_info['bin_amounts'][lab_idx].sum() / total_samples 
         # Weight the ECE by the prob of the label.
         ece_per_lab[lab_idx] = lab_prob * lab_ece
+    print(ece_per_lab)
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab.sum().item()
     # Return the calibration information
@@ -165,7 +162,6 @@ def CW_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -178,7 +174,6 @@ def CW_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -209,7 +204,6 @@ def LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -224,7 +218,6 @@ def LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["labels", "neighbors"],
-        label=label,
         ignore_index=ignore_index
     )
     cal_info['cal_error'] = reduce_bin_errors(
@@ -264,7 +257,6 @@ def TL_LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -279,7 +271,6 @@ def TL_LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
-        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -314,7 +305,6 @@ def CW_LoMS(
     square_diff: bool,
     neighborhood_width: int = 3,
     weighting: str = "proportional",
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -329,7 +319,6 @@ def CW_LoMS(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
-        label=label,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
