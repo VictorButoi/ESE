@@ -368,7 +368,7 @@ def get_quality_metrics(
 def get_image_stats(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
-    data_id: int,
+    data_id: Any,
     inference_cfg: dict,
     metric_cfgs: List[dict],
     image_level_records: list,

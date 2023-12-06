@@ -46,22 +46,19 @@ def bin_stats_init(
     y_true: torch.Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
-    uniform_weighting: bool,
+    uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
 ):
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
         f"y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
-    # Keep track of everything in an obj dict
-    obj_dict = {}
-    
+
     # Get the hard predictions and the max confidences.
     y_hard = y_pred.argmax(dim=0)
     y_pred = y_pred.max(dim=0).values
-    obj_dict["y_pred"] = y_pred
-    obj_dict["y_hard"] = y_hard
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -69,38 +66,56 @@ def bin_stats_init(
         start=conf_interval[0], 
         end=conf_interval[1]
         )
-    obj_dict["conf_bins"] = conf_bins
-    obj_dict["conf_bin_widths"] = conf_bin_widths
 
     # Get the pixelwise accuracy.
-    obj_dict["pixelwise_accuracy"]= (y_hard == y_true).float()
+    if "accuracy_map" in stats_info_dict:
+        accuracy_map = stats_info_dict["accuracy_map"]
+    else:
+        accuracy_map = (y_hard == y_true).float()
 
     # Keep track of different things for each bin.
-    pred_labels = y_hard.unique().tolist()
-    if ignore_index is not None and ignore_index in pred_labels:
-        pred_labels.remove(ignore_index)
-    obj_dict["pred_labels"] = pred_labels
+    if "pred_labels" in stats_info_dict:
+        pred_labels = stats_info_dict["pred_labels"]
+    else:
+        pred_labels = y_hard.unique().tolist()
+        if ignore_index is not None and ignore_index in pred_labels:
+            pred_labels.remove(ignore_index)
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
-    if neighborhood_width is not None:
-        matching_neighbors_map = count_matching_neighbors(
+    if "nn_neighbors_map" in stats_info_dict:
+        nn_neighborhood_map = stats_info_dict["nn_neighbors_map"]
+    elif neighborhood_width is not None:
+        nn_neighborhood_map = count_matching_neighbors(
             y_hard, 
             neighborhood_width=neighborhood_width
         )
-        obj_dict["matching_neighbors_map"] = matching_neighbors_map
+    else:
+        nn_neighborhood_map = None
 
     # Get the pixel-weights if we are using them.
-    if uniform_weighting:
-        obj_dict["pix_weights"] = get_uni_pixel_weights(
+    if "pixel_weights" in stats_info_dict:
+        pixel_weights = stats_info_dict["pixel_weights"]
+    elif uniform_weighting:
+        pixel_weights = get_uni_pixel_weights(
             y_hard=y_hard, 
             uni_w_attributes=["labels", "neighbors"],
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
             )
     else:
-        obj_dict["pix_weights"] = None
+        pixel_weights = None
 
-    return obj_dict
+    # Wrap this into a dictionary.
+    return {
+        "y_pred": y_pred,
+        "y_hard": y_hard,
+        "conf_bins": conf_bins,
+        "conf_bin_widths": conf_bin_widths,
+        "pixelwise_accuracy": accuracy_map,
+        "pred_labels": pred_labels,
+        "matching_neighbors_map": nn_neighborhood_map,
+        "pix_weights": pixel_weights
+    } 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -112,6 +127,7 @@ def bin_stats(
     square_diff: bool,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -122,6 +138,7 @@ def bin_stats(
         conf_interval=conf_interval,
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
     # Keep track of different things for each bin.
@@ -170,6 +187,7 @@ def label_bin_stats(
     square_diff: bool,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -180,6 +198,7 @@ def label_bin_stats(
         conf_interval=conf_interval,
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
     num_labels = len(obj_dict["pred_labels"])
@@ -230,6 +249,7 @@ def neighbors_bin_stats(
     square_diff: bool,
     neighborhood_width: int,
     uniform_weighting: bool = False,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -240,6 +260,7 @@ def neighbors_bin_stats(
         conf_interval=conf_interval,
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
     # Set the cal info tracker.
@@ -291,6 +312,7 @@ def label_neighbors_bin_stats(
     square_diff: bool,
     neighborhood_width: int,
     uniform_weighting: bool = False,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -301,6 +323,7 @@ def label_neighbors_bin_stats(
         conf_interval=conf_interval,
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
+        stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
     num_labels = len(obj_dict["pred_labels"])
