@@ -42,13 +42,13 @@ def calc_bin_info(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats_init(
-    y_pred,
-    y_true,
-    num_bins,
-    conf_interval,
-    neighborhood_width,
-    uni_w_attributes,
-    ignore_index
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    num_bins: int,
+    conf_interval: Tuple[float, float],
+    uniform_weighting: bool,
+    neighborhood_width: Optional[int] = None,
+    ignore_index: Optional[int] = None
 ):
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
@@ -90,10 +90,10 @@ def bin_stats_init(
         obj_dict["matching_neighbors_map"] = matching_neighbors_map
 
     # Get the pixel-weights if we are using them.
-    if uni_w_attributes is not None:
+    if uniform_weighting:
         obj_dict["pix_weights"] = get_uni_pixel_weights(
             y_hard=y_hard, 
-            uni_w_attributes=uni_w_attributes,
+            uni_w_attributes=["labels", "neighbors"],
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
             )
@@ -110,8 +110,8 @@ def bin_stats(
     num_bins: int,
     conf_interval: Tuple[float, float],
     square_diff: bool,
+    uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
-    uni_w_attributes: Optional[List[str]] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -120,8 +120,8 @@ def bin_stats(
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
+        uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes,
         ignore_index=ignore_index
         )
     # Keep track of different things for each bin.
@@ -168,8 +168,8 @@ def label_bin_stats(
     num_bins: int,
     conf_interval: Tuple[float, float],
     square_diff: bool,
+    uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
-    uni_w_attributes: Optional[List[str]] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -178,8 +178,8 @@ def label_bin_stats(
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
+        uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes,
         ignore_index=ignore_index
         )
     num_labels = len(obj_dict["pred_labels"])
@@ -229,7 +229,7 @@ def neighbors_bin_stats(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
-    uni_w_attributes: Optional[List[str]] = None,
+    uniform_weighting: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -238,8 +238,8 @@ def neighbors_bin_stats(
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
+        uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes,
         ignore_index=ignore_index
         )
     # Set the cal info tracker.
@@ -290,7 +290,7 @@ def label_neighbors_bin_stats(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
-    uni_w_attributes: Optional[List[str]] = None,
+    uniform_weighting: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -299,8 +299,8 @@ def label_neighbors_bin_stats(
         y_true=y_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
+        uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=uni_w_attributes,
         ignore_index=ignore_index
         )
     num_labels = len(obj_dict["pred_labels"])

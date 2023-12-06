@@ -219,7 +219,7 @@ def LoMS(
         conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["labels", "neighbors"],
+        uniform_weighting=True,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -273,7 +273,7 @@ def TL_LoMS(
         conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighbors"],
+        uniform_weighting=True,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -322,7 +322,7 @@ def CW_LoMS(
         conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        uni_w_attributes=["neighbors"],
+        uniform_weighting=True,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
