@@ -18,6 +18,7 @@ from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import absolute_import, generate_tuid
+from ionpy.metrics.segmentation import dice_score
 # local imports
 from .utils import dataloader_from_exp, binarize
 from ..experiment.ese_exp import CalibrationExperiment
@@ -29,11 +30,10 @@ from ..metrics.utils import (
     get_uni_pixel_weights
 )
 from ..metrics.segmentation import (
-    labelwise_dice_score,
-    avg_pixel_accuracy, 
     labelwise_pixel_accuracy, 
-    avg_edge_pixel_accuracy, 
-    labelwise_edge_pixel_accuracy
+    labelwise_edge_pixel_accuracy,
+    weighted_pixel_accuracy,
+    weighted_edge_pixel_accuracy 
 )
 
 
@@ -342,13 +342,25 @@ def get_quality_metrics(
             ignore_index=ignore_index,
             ignore_empty_labels=True,
         ).item(),
+        "w_acc": weighted_pixel_accuracy(
+            y_pred=y_pred,
+            y_true=y_true,
+            ignore_index=ignore_index,
+            ignore_empty_labels=True,
+        ).item(),
         "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
         ).item(),
-        "dice": labelwise_dice_score(
+        "w_edge-acc": weighted_edge_pixel_accuracy(
+            y_pred=y_pred,
+            y_true=y_true,
+            ignore_index=ignore_index,
+            ignore_empty_labels=True,
+        ).item(),
+        "dice": dice_score(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,

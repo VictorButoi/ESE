@@ -42,6 +42,7 @@ def brier_score(
         f"y_pred and y_true must be 3D and 2D tensors respectively. Got {y_pred.shape} and {y_true.shape}."
     num_pred_classes = y_pred.shape[0]
     lab_brier_scores = torch.zeros(num_pred_classes, device=y_pred.device)
+
     # Iterate through each label and calculate the brier score.
     unique_gt_labels = torch.unique(y_true)
     for lab in unique_gt_labels:
@@ -138,7 +139,7 @@ def TL_ECE(
     )
     # Finally, get the ECE score.
     L, _ = cal_info["bin_cal_errors"].shape
-    total_samples = cal_info['bin_amounts'].sum()
+    total_num_samples = cal_info['bin_amounts'].sum()
     ece_per_lab = torch.zeros(L)
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(L):
@@ -147,7 +148,7 @@ def TL_ECE(
             amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
             weighting=weighting
             )
-        lab_prob = cal_info['bin_amounts'][lab_idx].sum() / total_samples 
+        lab_prob = cal_info['bin_amounts'][lab_idx].sum() / total_num_samples 
         # Weight the ECE by the prob of the label.
         ece_per_lab[lab_idx] = lab_prob * lab_ece
 
@@ -238,7 +239,7 @@ def LoMS(
         )
     # Finally, get the ECE score.
     NN, _ = cal_info["bin_cal_errors"].shape
-    total_samples = cal_info['bin_amounts'].sum()
+    total_num_samples = cal_info['bin_amounts'].sum()
     ece_per_nn = torch.zeros(NN)
     # Iterate through each label, calculating ECE
     for nn_idx in range(NN):
@@ -247,7 +248,7 @@ def LoMS(
             amounts_per_bin=cal_info["bin_amounts"][nn_idx], 
             weighting=weighting
             )
-        nn_prob = cal_info['bin_amounts'][nn_idx].sum() / total_samples
+        nn_prob = cal_info['bin_amounts'][nn_idx].sum() / total_num_samples
         # Weight the ECE by the prob of the num neighbors.
         ece_per_nn[nn_idx] = nn_prob * nn_ece 
 
@@ -288,7 +289,7 @@ def TL_LoMS(
     )
     # Finally, get the ECE score.
     L, NN, _ = cal_info["bin_cal_errors"].shape
-    total_lab_amounts = cal_info['bin_amounts'].sum()
+    total_num_samples = cal_info['bin_amounts'].sum()
     ece_per_lab_nn = torch.zeros((L, NN))
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(L):
@@ -299,7 +300,7 @@ def TL_LoMS(
                 weighting=weighting
                 )
             # Calculate the empirical prob of the label.
-            lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_lab_amounts
+            lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_num_samples
             # Weight the ECE by the prob of the label.
             ece_per_lab_nn[lab_idx, nn_idx] = lab_nn_prob * lab_nn_ece 
 
@@ -343,7 +344,7 @@ def CW_LoMS(
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(L):
         # Calculate the total amount of samples for the label.
-        total_lab_nn_amounts = cal_info['bin_amounts'][lab_idx].sum()
+        total_lab_samples = cal_info['bin_amounts'][lab_idx].sum()
         # Keep track of the ECE for each neighbor class.
         ece_per_nn = torch.zeros(NN)
         for nn_idx in range(NN):
@@ -353,7 +354,7 @@ def CW_LoMS(
                 weighting=weighting
                 )
             # Calculate the empirical prob of the label.
-            lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_lab_nn_amounts
+            lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_lab_samples
             # Weight the ECE by the prob of the label.
             ece_per_nn[nn_idx] = lab_nn_prob * lab_nn_ece 
         # Place the weighted ECE for the label.

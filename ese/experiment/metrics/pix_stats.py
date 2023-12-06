@@ -266,14 +266,15 @@ def neighbors_bin_stats(
         ignore_index=ignore_index
         )
     # Set the cal info tracker.
-    num_neighbors = neighborhood_width**2
+    unique_num_neighbors = obj_dict["matching_neighbors_map"].unique()
+    num_neighbors = len(unique_num_neighbors)
     cal_info = {
         "bin_cal_errors": torch.zeros((num_neighbors, num_bins)),
         "bin_accs": torch.zeros((num_neighbors, num_bins)),
         "bin_confs": torch.zeros((num_neighbors, num_bins)),
         "bin_amounts": torch.zeros((num_neighbors, num_bins))
     }
-    for nn_idx in range(num_neighbors):
+    for nn_idx, p_nn in enumerate(unique_num_neighbors):
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
@@ -282,7 +283,7 @@ def neighbors_bin_stats(
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
-                num_neighbors=nn_idx,
+                num_neighbors=p_nn,
                 num_neighbors_map=obj_dict["matching_neighbors_map"],
                 ignore_index=ignore_index
                 )
@@ -329,7 +330,8 @@ def label_neighbors_bin_stats(
         ignore_index=ignore_index
         )
     num_labels = len(obj_dict["pred_labels"])
-    num_neighbors = neighborhood_width**2
+    unique_num_neighbors = obj_dict["matching_neighbors_map"].unique()
+    num_neighbors = len(unique_num_neighbors)
     # Init the cal info tracker.
     cal_info = {
         "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),
@@ -338,7 +340,7 @@ def label_neighbors_bin_stats(
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
     }
     for lab_idx, p_label in enumerate(obj_dict["pred_labels"]):
-        for nn_idx in range(num_neighbors):
+        for nn_idx, p_nn in enumerate(unique_num_neighbors):
             for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
@@ -347,7 +349,7 @@ def label_neighbors_bin_stats(
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
                     conf_bin_widths=obj_dict["conf_bin_widths"], 
-                    num_neighbors=nn_idx,
+                    num_neighbors=p_nn,
                     num_neighbors_map=obj_dict["matching_neighbors_map"],
                     label=p_label,
                     ignore_index=ignore_index
