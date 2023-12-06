@@ -383,74 +383,77 @@ def update_image_records(
     metric_cfgs: List[dict],
 ):
     # Setup some variables.
-    ignore_label = inference_cfg["log"]["ignore_label"]
     square_diff = inference_cfg["calibration"]["square_diff"]
     binarize = inference_cfg["calibration"]["binarize"]
-    # Check that there is some amount of label in the image.
-    if (output_dict["y_hard"] != ignore_label).sum() > 0:
-        # Go through each label in the prediction.
-        for label in torch.unique(output_dict["y_true"]): 
-            # Skip the ignore index.
-            if (ignore_label is None) or (label != ignore_label):
-                if label in torch.unique(output_dict["y_hard"]):
-                    # Binarize the prediction and label.
-                    quality_mets_conf = {
-                        "y_pred": output_dict["y_pred"],
-                        "y_true": output_dict["y_true"],
-                        "ignore_index": ignore_label,
-                        "square_diff": square_diff
+    if "ignore_label" in inference_cfg["log"]:
+        ignore_label = inference_cfg["log"]["ignore_label"]
+    else:
+        ignore_label = None
+
+    # Go through each label in the prediction.
+    unique_labels = torch.unique(output_dict["y_hard"])
+    if ignore_label is not None:
+        unique_labels = unique_labels[unique_labels != ignore_label]
+    # Loop through unique labels.
+    for label in unique_labels:
+        # Binarize the prediction and label.
+        quality_mets_conf = {
+            "y_pred": output_dict["y_pred"],
+            "y_true": output_dict["y_true"],
+            "ignore_index": ignore_label,
+            "square_diff": square_diff
+        }
+        if binarize:
+            quality_mets_conf["label"] = label
+        # Get some metrics of these predictions.
+        quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
+        # Go through each calibration metric and calculate the score.
+        for cal_metric in metric_cfgs:
+            cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
+            # Defint the cal config.
+            cal_config = {
+                "y_pred": output_dict["y_pred"],
+                "y_true": output_dict["y_true"],
+                "num_bins": inference_cfg["calibration"]["num_bins"],
+                "conf_interval":[
+                    inference_cfg["calibration"]["conf_interval_start"],
+                    inference_cfg["calibration"]["conf_interval_end"]
+                ],
+                "ignore_index": ignore_label,
+                "square_diff": square_diff
+            }
+            if binarize:
+                cal_config["label"] = label
+            # Get the calibration metric
+            cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
+            # Modify the metric name to remove underscores.
+            cal_met_type = cal_metric_name.split("_")[-1]
+            clean_met_name = cal_metric_name.replace("_", " ")
+            # Wrap all image-level info in a record.
+            for quality_metric in quality_metrics_dict.keys():
+                cal_record = {
+                    "cal_metric_type": cal_met_type,
+                    "cal_metric": clean_met_name,
+                    "cal_m_score": (1 - cal_m_error),
+                    "cal_m_error": cal_m_error,
+                    "qual_metric": quality_metric,
+                    "qual_score": quality_metrics_dict[quality_metric].item(),
+                    "data_id": output_dict["data_id"],
+                    "slice_idx": output_dict["slice_idx"] 
+                }
+                # If we are binarizing, then we need to add the label info.
+                if binarize:
+                    cal_record["label"] = label.item()
+                    cal_record["true_lab_amount"] = (output_dict["y_true"] == label).sum().item() 
+                # Add the dataset info to the record
+                record = {
+                    **cal_record, 
+                    **inference_cfg["calibration"]
                     }
-                    if binarize:
-                        quality_mets_conf["label"] = label
-                    # Get some metrics of these predictions.
-                    quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
-                    # Go through each calibration metric and calculate the score.
-                    for cal_metric in metric_cfgs:
-                        cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-                        # Defint the cal config.
-                        cal_config = {
-                            "y_pred": output_dict["y_pred"],
-                            "y_true": output_dict["y_true"],
-                            "num_bins": inference_cfg["calibration"]["num_bins"],
-                            "conf_interval":[
-                                inference_cfg["calibration"]["conf_interval_start"],
-                                inference_cfg["calibration"]["conf_interval_end"]
-                            ],
-                            "ignore_index": ignore_label,
-                            "square_diff": square_diff
-                        }
-                        if binarize:
-                            cal_config["label"] = label
-                        # Get the calibration metric
-                        cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
-                        # Modify the metric name to remove underscores.
-                        cal_met_type = cal_metric_name.split("_")[-1]
-                        clean_met_name = cal_metric_name.replace("_", " ")
-                        # Wrap all image-level info in a record.
-                        for quality_metric in quality_metrics_dict.keys():
-                            cal_record = {
-                                "cal_metric_type": cal_met_type,
-                                "cal_metric": clean_met_name,
-                                "cal_m_score": (1 - cal_m_error),
-                                "cal_m_error": cal_m_error,
-                                "qual_metric": quality_metric,
-                                "qual_score": quality_metrics_dict[quality_metric].item(),
-                                "data_id": output_dict["data_id"],
-                                "slice_idx": output_dict["slice_idx"] 
-                            }
-                            # If we are binarizing, then we need to add the label info.
-                            if binarize:
-                                cal_record["label"] = label.item()
-                                cal_record["true_lab_amount"] = (output_dict["y_true"] == label).sum().item() 
-                            # Add the dataset info to the record
-                            record = {
-                                **cal_record, 
-                                **inference_cfg["calibration"]
-                                }
-                            image_level_records.append(record)
-            # If you're not binarizing, then you just break.
-            if not binarize:
-                break
+                image_level_records.append(record)
+        # If you're not binarizing, then you just break.
+        if not binarize:
+            break
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

@@ -57,12 +57,12 @@ def split_tensor(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
+    y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
     bin_idx: int, 
     conf_bin: torch.Tensor, 
-    y_pred: torch.Tensor,
     conf_bin_widths: torch.Tensor, 
     label: Optional[int] = None,
-    y_hard: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
     num_neighbors_map: Optional[torch.Tensor] = None,
     ignore_index: Optional[int] = None,
