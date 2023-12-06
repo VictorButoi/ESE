@@ -58,8 +58,8 @@ def bin_stats_init(
     obj_dict = {}
     
     # Get the hard predictions and the max confidences.
-    y_pred = y_pred.max(dim=0).values
     y_hard = y_pred.argmax(dim=0)
+    y_pred = y_pred.max(dim=0).values
     obj_dict["y_pred"] = y_pred
     obj_dict["y_hard"] = y_hard
 
@@ -146,7 +146,7 @@ def bin_stats(
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.
             bi = calc_bin_info(
-                y_pred=y_pred,
+                y_pred=obj_dict["y_pred"],
                 bin_conf_region=bin_conf_region,
                 square_diff=square_diff,
                 pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -206,7 +206,7 @@ def label_bin_stats(
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 bi = calc_bin_info(
-                    y_pred=y_pred,
+                    y_pred=obj_dict["y_pred"],
                     bin_conf_region=bin_conf_region,
                     square_diff=square_diff,
                     pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -267,7 +267,7 @@ def neighbors_bin_stats(
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 bi = calc_bin_info(
-                    y_pred=y_pred,
+                    y_pred=obj_dict["y_pred"],
                     bin_conf_region=bin_conf_region,
                     square_diff=square_diff,
                     pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -331,7 +331,7 @@ def label_neighbors_bin_stats(
                 if bin_conf_region.sum() > 0:
                     # Calculate the average score for the regions in the bin.
                     bi = calc_bin_info(
-                        y_pred=y_pred,
+                        y_pred=obj_dict["y_pred"],
                         bin_conf_region=bin_conf_region,
                         square_diff=square_diff,
                         pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -340,7 +340,7 @@ def label_neighbors_bin_stats(
                     # Calculate the average calibration error for the regions in the bin.
                     cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
                     cal_info["bin_accs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-                    cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["bin_amounts"] 
+                    cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["num_samples"] 
                     cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info

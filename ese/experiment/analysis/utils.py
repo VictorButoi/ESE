@@ -1,3 +1,4 @@
+import torch
 import pandas as pd
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
@@ -55,3 +56,18 @@ def reorder_splits(df):
         return fixed_df
     else:
         return df
+
+
+def binarize(
+    label_tensor, 
+    label,
+    discretize
+    ):
+    assert label_tensor.dim() == 4, f"Expected 4D tensor, found: {label_tensor.dim()}."
+    if discretize:
+        binary_label_tensor = (label_tensor == label).type(label_tensor.dtype)
+    else:
+        label_channel = label_tensor[:, label:label+1, :, :]
+        background_channel = label_tensor.sum(dim=1, keepdim=True) - label_channel 
+        binary_label_tensor = torch.cat([background_channel, label_channel], dim=1)
+    return binary_label_tensor

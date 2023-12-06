@@ -103,6 +103,7 @@ def ECE(
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
+
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -145,7 +146,7 @@ def TL_ECE(
         lab_prob = cal_info['bin_amounts'][lab_idx].sum() / total_samples 
         # Weight the ECE by the prob of the label.
         ece_per_lab[lab_idx] = lab_prob * lab_ece
-    print(ece_per_lab)
+
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab.sum().item()
     # Return the calibration information
@@ -187,6 +188,7 @@ def CW_ECE(
             weighting=weighting
             )
         ece_per_lab[lab_idx] = (1/L) * lab_ece
+
     # Finally, get the calibration score.
     cal_info['cal_error'] = ece_per_lab.sum().item()
     # Return the calibration information
@@ -240,6 +242,7 @@ def LoMS(
         nn_prob = cal_info['bin_amounts'][nn_idx].sum() / total_samples
         # Weight the ECE by the prob of the num neighbors.
         ece_per_nn[nn_idx] = nn_prob * nn_ece 
+
     # Finally, get the calibration score.
     cal_info['cal_error'] = ece_per_nn.sum().item()
     # Return the calibration information
@@ -289,6 +292,7 @@ def TL_LoMS(
             lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_lab_amounts
             # Weight the ECE by the prob of the label.
             ece_per_lab_nn[lab_idx, nn_idx] = lab_nn_prob * lab_nn_ece 
+
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab_nn.sum().item()
     assert 0 <= cal_info['cal_error'] <= 1,\
@@ -342,6 +346,7 @@ def CW_LoMS(
             ece_per_nn[nn_idx] = lab_nn_prob * lab_nn_ece 
         # Place the weighted ECE for the label.
         ece_per_lab[lab_idx] = (1 / L) * ece_per_nn.sum()
+
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab.sum().item()
     assert 0 <= cal_info['cal_error'] <= 1,\

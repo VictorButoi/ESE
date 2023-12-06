@@ -18,7 +18,7 @@ from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from .utils import dataloader_from_exp
+from .utils import dataloader_from_exp, binarize
 from ..experiment.ese_exp import CalibrationExperiment
 from ..metrics.image_cal import brier_score
 from ..metrics.utils import (
@@ -340,26 +340,26 @@ def get_quality_metrics(
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-            ),
+        ),
         "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-            ),
+        ),
         "dice": labelwise_dice_score(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-            ),
+        ),
         "brier": brier_score(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             square_diff=square_diff,
             ignore_empty_labels=True,
-            ),
+        ),
     }
     return quality_metrics_dict
 
@@ -373,7 +373,7 @@ def update_image_records(
 ):
     # Setup some variables.
     square_diff = inference_cfg["calibration"]["square_diff"]
-    binarize = inference_cfg["calibration"]["binarize"]
+    binarize_preds = inference_cfg["calibration"]["binarize"]
     if "ignore_label" in inference_cfg["log"]:
         ignore_label = inference_cfg["log"]["ignore_label"]
     else:
@@ -392,9 +392,9 @@ def update_image_records(
             "ignore_index": ignore_label,
             "square_diff": square_diff
         }
-        if binarize:
-            quality_mets_conf["y_pred"] = binarize(output_dict["y_pred"], label)
-            quality_mets_conf["y_true"] = binarize(output_dict["y_true"], label)
+        if binarize_preds:
+            quality_mets_conf["y_pred"] = binarize(output_dict["y_pred"], label, discretize=False)
+            quality_mets_conf["y_true"] = binarize(output_dict["y_true"], label, discretize=True)
 
         # Get some metrics of these predictions.
         quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
@@ -403,8 +403,8 @@ def update_image_records(
         for cal_metric in metric_cfgs:
             # Define the cal config.
             cal_config = {
-                "y_pred": output_dict["y_pred"],
-                "y_true": output_dict["y_true"],
+                "y_pred": quality_mets_conf["y_pred"],
+                "y_true": quality_mets_conf["y_true"],
                 "num_bins": inference_cfg["calibration"]["num_bins"],
                 "conf_interval":[
                     inference_cfg["calibration"]["conf_interval_start"],
@@ -413,9 +413,6 @@ def update_image_records(
                 "ignore_index": ignore_label,
                 "square_diff": square_diff
             }
-            if binarize:
-                cal_config["y_pred"] = binarize(output_dict["y_pred"], label)
-                cal_config["y_true"] = binarize(output_dict["y_true"], label)
 
             # Get the calibration error. 
             cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
@@ -434,7 +431,7 @@ def update_image_records(
                     "slice_idx": output_dict["slice_idx"] 
                 }
                 # If we are binarizing, then we need to add the label info.
-                if binarize:
+                if binarize_preds:
                     cal_record["label"] = label.item()
                     cal_record["true_lab_amount"] = (output_dict["y_true"] == label).sum().item() 
 
@@ -445,7 +442,7 @@ def update_image_records(
                     }
                 image_level_records.append(record)
         # If you're not binarizing, then you just break.
-        if not binarize:
+        if not binarize_preds:
             break
 
 
@@ -458,16 +455,22 @@ def update_pixel_meters(
     conf_bin_widths: torch.Tensor,
 ):
     # Setup variables.
-    ignore_label = inference_cfg["log"]["ignore_label"]
     n_width = inference_cfg["calibration"]["neighborhood_width"]
     H, W = output_dict["y_hard"].shape[-2:]
+    if "ignore_label" in inference_cfg["log"]:
+        ignore_label = inference_cfg["log"]["ignore_label"]
+    else:
+        ignore_label = None
+
     # Calculate the pixel-wise accuracy map.
     acc_map = (output_dict["y_hard"] == output_dict["y_true"])
+
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
     matching_neighbors_0pad = count_matching_neighbors(
         output_dict["y_hard"], 
         neighborhood_width=n_width,
         )
+
     # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
     pix_weights = get_uni_pixel_weights(
         output_dict["y_hard"], 
@@ -475,21 +478,25 @@ def update_pixel_meters(
         neighborhood_width=n_width,
         ignore_index=ignore_label
         )
+
     # If the confidence map is mulitclass, then we need to do some extra work.
     conf_map = output_dict["y_pred"]
     if conf_map.shape[1] > 1:
         conf_map = torch.max(conf_map, dim=1, keepdim=True)[0]
+
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
         confidences=conf_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
         )
+
     # Build the valid map.
     if ignore_label is not None:
         valid_idx_map = (output_dict["y_hard"].squeeze() != ignore_label)
     else:
         valid_idx_map = torch.ones((H, W)).bool()
+
     # Iterate through each pixel in the image.
     for (ix, iy) in np.ndindex((H, W)):
         # Only consider pixels that are valid (not ignored)
