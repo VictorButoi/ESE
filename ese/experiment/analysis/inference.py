@@ -6,6 +6,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from itertools import product
 import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List
@@ -308,9 +309,9 @@ def image_forward_loop(
     # Wrap the outputs into a dictionary.
     output_dict = {
         "image": image_cuda,
-        "y_true": label_map_cuda.long(),
         "y_pred": conf_map,
         "y_hard": pred_map,
+        "y_true": label_map_cuda.long(),
         "data_id": data_id,
         "slice_idx": None
     }
@@ -340,26 +341,26 @@ def get_quality_metrics(
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-        ),
+        ).item(),
         "edge-acc": labelwise_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-        ),
+        ).item(),
         "dice": labelwise_dice_score(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             ignore_empty_labels=True,
-        ),
+        ).item(),
         "brier": brier_score(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
             square_diff=square_diff,
             ignore_empty_labels=True,
-        ),
+        ).item(),
     }
     return quality_metrics_dict
 
@@ -367,27 +368,54 @@ def get_quality_metrics(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_stats(
     y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
     y_true: torch.Tensor,
     data_id: Any,
     inference_cfg: dict,
     metric_cfgs: List[dict],
     image_level_records: list,
+    stats_info_dict: Optional[dict] = {},
     slice_idx: Optional[int] = None,
     label: Optional[torch.Tensor] = None,
-    ignore_index: Optional[torch.Tensor] = None,
+    ignore_index: Optional[int] = None,
 ):
-    # Binarize the prediction and label.
+    #  Get the quality metrics.
     quality_mets_conf = {
         "y_pred": y_pred,
         "y_true": y_true,
         "square_diff": inference_cfg["calibration"]["square_diff"],
         "ignore_index": ignore_index
     }
-
     # Get some metrics of these predictions.
     quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
 
+    # Get the pixelwise accuracy.
+    accuracy_map = (y_hard== y_true).float()
+    # Keep track of different things for each bin.
+    pred_labels = y_hard.unique().tolist()
+    if ignore_index is not None and ignore_index in pred_labels:
+        pred_labels.remove(ignore_index)
+    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
+    nn_neighborhood_map = count_matching_neighbors(
+        y_hard, 
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"]
+    )
+    # Get the pixel-weights if we are using them.
+    pixel_weights = get_uni_pixel_weights(
+        y_hard, 
+        uni_w_attributes=["labels", "neighbors"],
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        ignore_index=ignore_index
+        )
+    # Calculate some information that will be reused.
+    stats_info_dict = {
+        "pixelwise_accuracy": accuracy_map,
+        "pred_labels": pred_labels,
+        "matching_neighbors_map": nn_neighborhood_map,
+        "pix_weights": pixel_weights
+    }
     # Go through each calibration metric and calculate the score.
+    cal_metrics_dict = {}
     for cal_metric in metric_cfgs:
         # Define the cal config.
         cal_config = {
@@ -398,37 +426,36 @@ def get_image_stats(
                 inference_cfg["calibration"]["conf_interval_start"],
                 inference_cfg["calibration"]["conf_interval_end"]
             ],
+            "stats_info_dict": stats_info_dict,
             "square_diff": inference_cfg["calibration"]["square_diff"],
             "ignore_index": ignore_index
         }
-
         # Get the calibration error. 
-        cal_metric_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_m_error = cal_metric[cal_metric_name]['func'](**cal_config)['cal_error'] 
+        cal_name = list(cal_metric.keys())[0] # kind of hacky
+        cal_metrics_dict[cal_name] = cal_metric[cal_name]['func'](**cal_config)['cal_error'] 
 
-        # Wrap all image-level info in a record.
-        for quality_metric in quality_metrics_dict.keys():
-            cal_record = {
-                "cal_metric_type": cal_metric_name.split("_")[-1],
-                "cal_metric": cal_metric_name.replace("_", " "),
-                "cal_m_score": (1 - cal_m_error),
-                "cal_m_error": cal_m_error,
-                "qual_metric": quality_metric,
-                "qual_score": quality_metrics_dict[quality_metric].item(),
-                "data_id": data_id,
-                "slice_idx": slice_idx
+    # Iterate through the cross product of calibration metrics and quality metrics.
+    for qm_name, cm_name in list(product(quality_metrics_dict.keys(), cal_metrics_dict.keys())):
+        cal_record = {
+            "cal_metric_type": cm_name.split("_")[-1],
+            "cal_metric": cm_name.replace("_", " "),
+            "qual_metric": qm_name,
+            "cal_m_score": (1 - cal_metrics_dict[cm_name]),
+            "cal_m_error": cal_metrics_dict[cm_name],
+            "qual_score": quality_metrics_dict[qm_name],
+            "data_id": data_id,
+            "slice_idx": slice_idx
+        }
+        # If we are binarizing, then we need to add the label info.
+        if label is not None:
+            cal_record["label"] = label.item()
+            cal_record["true_lab_amount"] = (y_true == label).sum().item() 
+        # Add the dataset info to the record
+        record = {
+            **cal_record, 
+            **inference_cfg["calibration"]
             }
-            # If we are binarizing, then we need to add the label info.
-            if label is not None:
-                cal_record["label"] = label.item()
-                cal_record["true_lab_amount"] = (y_true == label).sum().item() 
-
-            # Add the dataset info to the record
-            record = {
-                **cal_record, 
-                **inference_cfg["calibration"]
-                }
-            image_level_records.append(record)
+        image_level_records.append(record)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -446,6 +473,7 @@ def update_image_records(
     # Setup the image stats config.
     image_stats_cfg = {
         "y_pred": output_dict["y_pred"],
+        "y_hard": output_dict["y_hard"],
         "y_true": output_dict["y_true"],
         "data_id": output_dict["data_id"],
         "slice_idx": output_dict["slice_idx"], # None if not a volume
@@ -459,16 +487,29 @@ def update_image_records(
     if inference_cfg["calibration"]["binarize"]:
         # Go through each label in the prediction.
         unique_labels = torch.unique(output_dict["y_hard"])
-        if ignore_label is not None:
-            unique_labels = unique_labels[unique_labels != ignore_label]
         # Loop through unique labels.
         for label in unique_labels:
-            image_stats_cfg["y_pred"] = binarize(output_dict["y_pred"], label, discretize=False)
-            image_stats_cfg["y_true"] = binarize(output_dict["y_true"], label, discretize=True)
-            image_stats_cfg["label"] = label
-            get_image_stats(**image_stats_cfg)
+            if ignore_label is None or label != ignore_label:
+                image_stats_cfg["y_pred"] = binarize(
+                    output_dict["y_pred"], 
+                    label=label, 
+                    discretize=False
+                    )
+                image_stats_cfg["y_hard"] = binarize(
+                    output_dict["y_hard"], 
+                    label=label, 
+                    discretize=True
+                    )
+                image_stats_cfg["y_true"] = binarize(
+                    output_dict["y_true"], 
+                    label=label, 
+                    discretize=True
+                    )
+                image_stats_cfg["label"] = label
+                # run inner loop
+                get_image_stats(**image_stats_cfg)
     else:
-        # Loop through unique labels.
+        # If no binarization, then just run the inner loop once.
         get_image_stats(**image_stats_cfg)
 
 
