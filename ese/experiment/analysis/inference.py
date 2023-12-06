@@ -390,7 +390,7 @@ def get_image_stats(
     quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
 
     # Get the pixelwise accuracy.
-    accuracy_map = (y_hard== y_true).float()
+    accuracy_map = (y_hard== y_true).float().squeeze()
     # Keep track of different things for each bin.
     pred_labels = y_hard.unique().tolist()
     if ignore_index is not None and ignore_index in pred_labels:
@@ -409,10 +409,10 @@ def get_image_stats(
         )
     # Calculate some information that will be reused.
     stats_info_dict = {
-        "pixelwise_accuracy": accuracy_map,
+        "accuracy_map": accuracy_map,
         "pred_labels": pred_labels,
-        "matching_neighbors_map": nn_neighborhood_map,
-        "pix_weights": pixel_weights
+        "nn_neighbors_map": nn_neighborhood_map,
+        "pixel_weights": pixel_weights
     }
     # Go through each calibration metric and calculate the score.
     cal_metrics_dict = {}
