@@ -1,12 +1,13 @@
 # local imports 
 from .utils import (
+    get_bins,
     get_conf_region, 
     get_uni_pixel_weights,
     count_matching_neighbors
 )
 # misc. imports
 import torch
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from pydantic import validate_arguments
 
 
@@ -16,14 +17,24 @@ def bin_stats(
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
+    conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_bins),
@@ -85,14 +96,24 @@ def label_bin_stats(
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
+    conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: Optional[int] = None,
     uni_w_attributes: Optional[List[str]] = None,
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
     # Keep track of different things for each bin.
     if label is None:
         pred_labels = y_hard.unique().tolist()
@@ -164,14 +185,24 @@ def neighbors_bin_stats(
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
+    conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
     uni_w_attributes: Optional[List[str]] = None,
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
     # Set the cal info tracker.
     num_neighbors = neighborhood_width**2
     cal_info = {
@@ -243,14 +274,24 @@ def label_neighbors_bin_stats(
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     num_bins: int,
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
+    conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
     uni_w_attributes: Optional[List[str]] = None,
     label: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    y_pred = y_pred.squeeze()
+    y_true = y_true.squeeze()
+    y_hard = y_hard.squeeze()
+    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
+        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=num_bins, 
+        start=conf_interval[0], 
+        end=conf_interval[1]
+        )
     # Keep track of different things for each bin.
     if label is None:
         pred_labels = y_hard.unique().tolist()

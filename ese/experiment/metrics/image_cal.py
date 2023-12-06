@@ -4,7 +4,7 @@ from ionpy.metrics.util import (
     Reduction,
 )
 from .pix_stats import bin_stats, label_bin_stats, neighbors_bin_stats, label_neighbors_bin_stats
-from .utils import get_bins, reduce_bin_errors
+from .utils import reduce_bin_errors
 # misc imports
 import torch
 from torch import Tensor
@@ -35,15 +35,12 @@ def brier_score(
     """
     y_pred = y_pred.squeeze()
     y_true = y_true.squeeze()
-
     # If the input is multi-channel for confidence, take the max across channels.
     if from_logits:
         y_pred = torch.softmax(y_pred, dim=0)
-    num_pred_classes = y_pred.shape[0]
-    
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
         f"y_pred and y_true must be 3D and 2D tensors respectively. Got {y_pred.shape} and {y_true.shape}."
-
+    num_pred_classes = y_pred.shape[0]
     lab_brier_scores = torch.zeros(num_pred_classes, device=y_pred.device)
     # Iterate through each label and calculate the brier score.
     unique_gt_labels = torch.unique(y_true)
@@ -93,25 +90,13 @@ def ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         label=label,
         ignore_index=ignore_index
@@ -143,25 +128,13 @@ def TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         label=label,
         ignore_index=ignore_index
@@ -203,25 +176,13 @@ def CW_ECE(
     """
     Calculates the LoMS.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         label=label,
         ignore_index=ignore_index
@@ -261,25 +222,13 @@ def LoMS(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = neighbors_bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["labels", "neighbors"],
@@ -330,25 +279,13 @@ def TL_LoMS(
     """
     Calculates the LoMS.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
@@ -394,25 +331,13 @@ def CW_LoMS(
     """
     Calculates the LoMS.
     """
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
-    y_hard = y_hard.squeeze()
-    assert len(y_pred.shape) == 2 and y_pred.shape == y_true.shape,\
-        f"y_pred and y_true must be 2D tensors of the same shape. Got {y_pred.shape} and {y_true.shape}."
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-        )
     # Keep track of different things for each bin.
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_hard=y_hard,
         y_true=y_true,
         num_bins=num_bins,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
+        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         uni_w_attributes=["neighbors"],
