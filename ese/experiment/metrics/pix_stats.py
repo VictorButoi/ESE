@@ -20,9 +20,9 @@ def calc_bin_info(
     pix_weights: Optional[torch.Tensor] = None
 ):
     if pix_weights is None:
-        avg_bin_confidence = y_pred[bin_conf_region].mean()
-        avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].mean()
         bin_num_samples = bin_conf_region.sum() 
+        avg_bin_confidence = y_pred[bin_conf_region].sum() / bin_num_samples
+        avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].sum() / bin_num_samples
     else:
         bin_num_samples = pix_weights[bin_conf_region].sum()
         avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
@@ -277,7 +277,7 @@ def neighbors_bin_stats(
                 cal_info["bin_confs"][nn_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_accs"][nn_idx, bin_idx] = bi["avg_acc"] 
                 cal_info["bin_amounts"][nn_idx, bin_idx] = bi["num_samples"]
-                cal_info["bin_amounts"][nn_idx, bin_idx] = bi["cal_error"] 
+                cal_info["bin_cal_errors"][nn_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info
 

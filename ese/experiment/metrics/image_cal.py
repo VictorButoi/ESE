@@ -222,12 +222,12 @@ def LoMS(
         uni_w_attributes=["labels", "neighbors"],
         ignore_index=ignore_index
     )
+    # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         weighting=weighting
         )
-
     # Finally, get the ECE score.
     NN, _ = cal_info["bin_cal_errors"].shape
     total_samples = cal_info['bin_amounts'].sum()
