@@ -382,9 +382,11 @@ def get_image_stats(
         ignore_index=ignore_index
         )
 
-    # Get the amount of label
+    # Get the amount of label, assuming 0 is a background class.
     if label is not None:
         label_amount = (y_true > 0).sum().item()
+        assert not(label_amount == 0 and inference_cfg["calibration"]["binarize"]), "Label amount can not be 0 if we are binarizing."
+        log_label_amount = np.log(label_amount)
 
     # Go through each calibration metric and calculate the score.
     cal_metric_scores_dict = {}
@@ -427,6 +429,7 @@ def get_image_stats(
         if label is not None:
             cal_record["label"] = label
             cal_record["true_lab_amount"] = label_amount
+            cal_record["log_true_lab_amount"] = log_label_amount
         # Add the dataset info to the record
         record = {
             **cal_record, 
