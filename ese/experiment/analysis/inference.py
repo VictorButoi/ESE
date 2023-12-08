@@ -13,12 +13,11 @@ from typing import Any, Optional, List
 # torch imports
 import torch
 # ionpy imports
-from ionpy.util import Config, StatsMeter
 from ionpy.analysis import ResultsLoader
-from ionpy.util.config import config_digest, HDict, valmap
+from ionpy.util import Config, StatsMeter
 from ionpy.util.torchutils import to_device
+from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid
-from ionpy.metrics.segmentation import dice_score
 # local imports
 from .utils import dataloader_from_exp, binarize
 from ..experiment.ese_exp import CalibrationExperiment
@@ -27,13 +26,6 @@ from ..metrics.utils import (
     find_bins, 
     count_matching_neighbors, 
     get_uni_pixel_weights
-)
-from ..metrics.segmentation import (
-    brier_score,
-    labelwise_pixel_accuracy, 
-    labelwise_edge_pixel_accuracy,
-    weighted_pixel_accuracy,
-    weighted_edge_pixel_accuracy 
 )
 
 
@@ -341,38 +333,6 @@ def image_forward_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_quality_metrics(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
-    ignore_index: Optional[int] = None,
-    square_diff: Optional[bool] = True, 
-    ):
-    # Get some metrics of these predictions.
-    quality_metrics_dict = {
-        "acc": labelwise_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            ignore_empty_labels=True,
-        ).item(),
-        "dice": dice_score(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            ignore_empty_labels=True,
-        ).item(),
-        "brier": brier_score(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            square_diff=square_diff,
-            ignore_empty_labels=True,
-        ).item(),
-    }
-    return quality_metrics_dict
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_stats(
     y_pred: torch.Tensor,
     y_hard: torch.Tensor,
@@ -382,18 +342,10 @@ def get_image_stats(
     qual_metric_cfgs: List[dict],
     cal_metric_cfgs: List[dict],
     image_level_records: list,
-    stats_info_dict: Optional[dict] = {},
     slice_idx: Optional[int] = None,
     label: Optional[torch.Tensor] = None,
     ignore_index: Optional[int] = None,
 ):
-    #  Get the quality metrics.
-    quality_mets_conf = {
-        "y_pred": y_pred,
-        "y_true": y_true,
-        "square_diff": inference_cfg["calibration"]["square_diff"],
-        "ignore_index": ignore_index
-    }
     # Go through each calibration metric and calculate the score.
     qual_metric_scores_dict = {}
     for qual_metric in qual_metric_cfgs:
@@ -483,7 +435,8 @@ def update_image_records(
     image_level_records: list,
     output_dict: dict,
     inference_cfg: dict,
-    metric_cfgs: List[dict],
+    qual_metric_cfgs: List[dict],
+    cal_metric_cfgs: List[dict],
     ignore_label: Optional[int] = None,
 ):
     # Setup some variables.
@@ -498,7 +451,8 @@ def update_image_records(
         "data_id": output_dict["data_id"],
         "slice_idx": output_dict["slice_idx"], # None if not a volume
         "inference_cfg": inference_cfg,
-        "metric_cfgs": metric_cfgs,
+        "qual_metric_cfgs": qual_metric_cfgs,
+        "cal_metric_cfgs": cal_metric_cfgs,
         "image_level_records": image_level_records,
         "ignore_index": ignore_label
     }
@@ -613,7 +567,8 @@ def update_pixel_meters(
 def get_calibration_item_info(
     output_dict: dict,
     inference_cfg: dict,
-    metric_cfgs: List[dict],
+    qual_metric_cfgs: List[dict],
+    cal_metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list] = None,
@@ -628,7 +583,8 @@ def get_calibration_item_info(
             image_level_records=image_level_records,
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            metric_cfgs=metric_cfgs,
+            qual_metric_cfgs=qual_metric_cfgs,
+            cal_metric_cfgs=cal_metric_cfgs
         ) 
     ########################
     # PIXEL LEVEL TRACKING #
