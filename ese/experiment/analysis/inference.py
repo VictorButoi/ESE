@@ -22,7 +22,6 @@ from ionpy.metrics.segmentation import dice_score
 # local imports
 from .utils import dataloader_from_exp, binarize
 from ..experiment.ese_exp import CalibrationExperiment
-from ..metrics.image_cal import brier_score
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
@@ -30,6 +29,7 @@ from ..metrics.utils import (
     get_uni_pixel_weights
 )
 from ..metrics.segmentation import (
+    brier_score,
     labelwise_pixel_accuracy, 
     labelwise_edge_pixel_accuracy,
     weighted_pixel_accuracy,
@@ -190,12 +190,20 @@ def get_cal_stats(
         pixel_meter_dict = {}
         
     ##################################
+    # INITIALIZE THE QUALITY METRICS #
+    ##################################
+    qual_metric_cfgs = cfg_dict['qual_metrics']
+    for q_metric in qual_metric_cfgs:
+        for q_key in q_metric.keys():
+            q_metric[q_key]['func'] = absolute_import(q_metric[q_key]['func'])
+
+    ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    metric_cfgs = cfg_dict['cal_metrics']
-    for cal_metric in metric_cfgs:
-        for metric_key in cal_metric.keys():
-            cal_metric[metric_key]['func'] = absolute_import(cal_metric[metric_key]['func'])
+    cal_metric_cfgs = cfg_dict['cal_metrics']
+    for cal_metric in cal_metric_cfgs:
+        for c_key in cal_metric.keys():
+            cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
 
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
@@ -218,7 +226,8 @@ def get_cal_stats(
                     exp=best_exp, 
                     batch=batch, 
                     inference_cfg=cfg_dict, 
-                    metric_cfgs=metric_cfgs,
+                    qual_metric_cfgs=qual_metric_cfgs,
+                    cal_metric_cfgs=cal_metric_cfgs,
                     conf_bins=conf_bins,
                     conf_bin_widths=conf_bin_widths,
                     image_level_records=image_level_records,
@@ -244,7 +253,8 @@ def volume_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    metric_cfgs: List[dict],
+    qual_metric_cfgs: List[dict],
+    cal_metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list] = None,
@@ -280,7 +290,8 @@ def volume_forward_loop(
         get_calibration_item_info(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            metric_cfgs=metric_cfgs,
+            qual_metric_cfgs=qual_metric_cfgs,
+            cal_metric_cfgs=cal_metric_cfgs,
             conf_bins=conf_bins,
             conf_bin_widths=conf_bin_widths,
             image_level_records=image_level_records,
@@ -293,7 +304,8 @@ def image_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    metric_cfgs: List[dict],
+    qual_metric_cfgs: List[dict],
+    cal_metric_cfgs: List[dict],
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list],
@@ -319,7 +331,8 @@ def image_forward_loop(
     get_calibration_item_info(
         output_dict=output_dict,
         inference_cfg=inference_cfg,
-        metric_cfgs=metric_cfgs,
+        qual_metric_cfgs=qual_metric_cfgs,
+        cal_metric_cfgs=cal_metric_cfgs,
         conf_bins=conf_bins,
         conf_bin_widths=conf_bin_widths,
         image_level_records=image_level_records,
@@ -337,24 +350,6 @@ def get_quality_metrics(
     # Get some metrics of these predictions.
     quality_metrics_dict = {
         "acc": labelwise_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            ignore_empty_labels=True,
-        ).item(),
-        "w_acc": weighted_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            ignore_empty_labels=True,
-        ).item(),
-        "edge-acc": labelwise_edge_pixel_accuracy(
-            y_pred=y_pred,
-            y_true=y_true,
-            ignore_index=ignore_index,
-            ignore_empty_labels=True,
-        ).item(),
-        "w_edge-acc": weighted_edge_pixel_accuracy(
             y_pred=y_pred,
             y_true=y_true,
             ignore_index=ignore_index,
@@ -384,7 +379,8 @@ def get_image_stats(
     y_true: torch.Tensor,
     data_id: Any,
     inference_cfg: dict,
-    metric_cfgs: List[dict],
+    qual_metric_cfgs: List[dict],
+    cal_metric_cfgs: List[dict],
     image_level_records: list,
     stats_info_dict: Optional[dict] = {},
     slice_idx: Optional[int] = None,
@@ -398,20 +394,33 @@ def get_image_stats(
         "square_diff": inference_cfg["calibration"]["square_diff"],
         "ignore_index": ignore_index
     }
-    # Get some metrics of these predictions.
-    quality_metrics_dict = get_quality_metrics(**quality_mets_conf) 
+    # Go through each calibration metric and calculate the score.
+    qual_metric_scores_dict = {}
+    for qual_metric in qual_metric_cfgs:
+        # Define the cal config.
+        q_input_config = {
+            "y_pred": y_pred,
+            "y_true": y_true,
+            "ignore_index": ignore_index
+        }
+        # Get the calibration error. 
+        q_met_name = list(qual_metric.keys())[0] # kind of hacky
+        qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config)
 
     # Get the pixelwise accuracy.
     accuracy_map = (y_hard== y_true).float().squeeze()
+
     # Keep track of different things for each bin.
     pred_labels = y_hard.unique().tolist()
     if ignore_index is not None and ignore_index in pred_labels:
         pred_labels.remove(ignore_index)
+
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     nn_neighborhood_map = count_matching_neighbors(
         y_hard, 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"]
     )
+
     # Get the pixel-weights if we are using them.
     pixel_weights = get_uni_pixel_weights(
         y_hard, 
@@ -419,18 +428,12 @@ def get_image_stats(
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ignore_index=ignore_index
         )
-    # Calculate some information that will be reused.
-    stats_info_dict = {
-        "accuracy_map": accuracy_map,
-        "pred_labels": pred_labels,
-        "nn_neighbors_map": nn_neighborhood_map,
-        "pixel_weights": pixel_weights
-    }
+
     # Go through each calibration metric and calculate the score.
-    cal_metrics_dict = {}
-    for cal_metric in metric_cfgs:
+    cal_metric_scores_dict = {}
+    for cal_metric in cal_metric_cfgs:
         # Define the cal config.
-        cal_config = {
+        cal_input_config = {
             "y_pred": y_pred,
             "y_true": y_true,
             "num_bins": inference_cfg["calibration"]["num_bins"],
@@ -438,23 +441,28 @@ def get_image_stats(
                 inference_cfg["calibration"]["conf_interval_start"],
                 inference_cfg["calibration"]["conf_interval_end"]
             ],
-            "stats_info_dict": stats_info_dict,
+            "stats_info_dict": {
+                "accuracy_map": accuracy_map,
+                "pred_labels": pred_labels,
+                "nn_neighbors_map": nn_neighborhood_map,
+                "pixel_weights": pixel_weights
+            },
             "square_diff": inference_cfg["calibration"]["square_diff"],
             "ignore_index": ignore_index
         }
         # Get the calibration error. 
-        cal_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_metrics_dict[cal_name] = cal_metric[cal_name]['func'](**cal_config)['cal_error'] 
+        cal_met_name = list(cal_metric.keys())[0] # kind of hacky
+        cal_metric_scores_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'] 
 
     # Iterate through the cross product of calibration metrics and quality metrics.
-    for qm_name, cm_name in list(product(quality_metrics_dict.keys(), cal_metrics_dict.keys())):
+    for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_scores_dict.keys())):
         cal_record = {
             "cal_metric_type": cm_name.split("_")[-1],
             "cal_metric": cm_name.replace("_", " "),
             "qual_metric": qm_name,
-            "cal_m_score": (1 - cal_metrics_dict[cm_name]),
-            "cal_m_error": cal_metrics_dict[cm_name],
-            "qual_score": quality_metrics_dict[qm_name],
+            "cal_m_score": (1 - cal_metric_scores_dict[cm_name]),
+            "cal_m_error": cal_metric_scores_dict[cm_name],
+            "qual_score": qual_metric_scores_dict[qm_name],
             "data_id": data_id,
             "slice_idx": slice_idx
         }
@@ -615,6 +623,7 @@ def get_calibration_item_info(
     # IMAGE LEVEL TRACKING #
     ########################
     if image_level_records is not None:
+        print("Running image level tracking.")
         update_image_records(
             image_level_records=image_level_records,
             output_dict=output_dict,
@@ -625,6 +634,7 @@ def get_calibration_item_info(
     # PIXEL LEVEL TRACKING #
     ########################
     if pixel_meter_dict is not None:
+        print("Running pixel level tracking.")
         update_pixel_meters(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
