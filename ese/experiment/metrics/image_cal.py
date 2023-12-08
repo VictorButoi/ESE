@@ -83,7 +83,7 @@ def TL_ECE(
         ece_per_lab[lab_idx] = lab_prob * lab_ece
 
     # Finally, get the calibration score.
-    cal_info['cal_error'] =  ece_per_lab.sum().item()
+    cal_info['cal_error'] =  ece_per_lab.sum()
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -127,7 +127,7 @@ def CW_ECE(
         ece_per_lab[lab_idx] = (1/L) * lab_ece
 
     # Finally, get the calibration score.
-    cal_info['cal_error'] = ece_per_lab.sum().item()
+    cal_info['cal_error'] = ece_per_lab.sum()
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -183,7 +183,7 @@ def LoMS(
         ece_per_nn[nn_idx] = nn_prob * nn_ece 
 
     # Finally, get the calibration score.
-    cal_info['cal_error'] = ece_per_nn.sum().item()
+    cal_info['cal_error'] = ece_per_nn.sum()
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -235,7 +235,7 @@ def TL_LoMS(
             ece_per_lab_nn[lab_idx, nn_idx] = lab_nn_prob * lab_nn_ece 
 
     # Finally, get the calibration score.
-    cal_info['cal_error'] =  ece_per_lab_nn.sum().item()
+    cal_info['cal_error'] =  ece_per_lab_nn.sum()
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
@@ -291,7 +291,7 @@ def CW_LoMS(
         ece_per_lab[lab_idx] = (1 / L) * ece_per_nn.sum()
 
     # Finally, get the calibration score.
-    cal_info['cal_error'] =  ece_per_lab.sum().item()
+    cal_info['cal_error'] =  ece_per_lab.sum()
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info

@@ -24,7 +24,7 @@ def reduce_bin_errors(
             raise ValueError(f"Invalid bin weighting. Must be 'proportional', got '{weighting}' instead.")
     # Multiply by the weights and sum.
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
-    reduced_error = (error_per_bin * bin_weights).sum().item()
+    reduced_error = (error_per_bin * bin_weights).sum()
     assert 1 >= reduced_error >= 0, f"Reduced error should be between 0 and 1, got {reduced_error} instead."
     return reduced_error
 

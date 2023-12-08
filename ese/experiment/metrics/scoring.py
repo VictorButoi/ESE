@@ -63,7 +63,6 @@ def cw_brier_score(
     square_diff: bool = True,
     from_logits: bool = False,
     batch_reduction: Reduction = "mean",
-    ignore_empty_labels: bool = False,
     ignore_index: Optional[int] = None,
 ):
     """
@@ -89,17 +88,16 @@ def cw_brier_score(
     brier_map = torch.zeros_like(y_true).float()
     # Iterate through the possible label classes.
     for lab in range(C):
-        if ignore_index is None or lab != ignore_index:
-            if not ignore_empty_labels or lab in unique_gt_labels:
-                binary_y_true = (y_true == lab).float()
-                binary_y_pred = y_pred[:, lab:lab+1, ...]
-                # Calculate the brier score.
-                if square_diff:
-                    pos_diff_per_pix = (binary_y_pred - binary_y_true).square()
-                else:
-                    pos_diff_per_pix = (binary_y_pred - binary_y_true).abs()
-                # Sum across pixels.
-                brier_map += balanced_class_weights[:, lab] * pos_diff_per_pix 
+        if (ignore_index is None or lab != ignore_index) and lab in unique_gt_labels:
+            binary_y_true = (y_true == lab).float()
+            binary_y_pred = y_pred[:, lab:lab+1, ...]
+            # Calculate the brier score.
+            if square_diff:
+                pos_diff_per_pix = (binary_y_pred - binary_y_true).square()
+            else:
+                pos_diff_per_pix = (binary_y_pred - binary_y_true).abs()
+            # Sum across pixels.
+            brier_map += balanced_class_weights[:, lab] * pos_diff_per_pix 
 
     # Convert from loss to a score.
     brier_score_map = 1 - brier_map 

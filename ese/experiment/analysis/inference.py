@@ -70,6 +70,7 @@ def load_cal_inference_stats(
             flat_cfg = valmap(list2tuple, cfg.flatten())
             flat_cfg["log_set"] = log_set.name
             # Remove some columns we don't care about.
+            flat_cfg.pop("qual_metrics")
             flat_cfg.pop("cal_metrics")
             if "calibration.bin_weightings" in flat_cfg.keys():
                 flat_cfg.pop("calibration.bin_weightings")
@@ -357,7 +358,7 @@ def get_image_stats(
         }
         # Get the calibration error. 
         q_met_name = list(qual_metric.keys())[0] # kind of hacky
-        qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config)
+        qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config).item()
 
     # Get the pixelwise accuracy.
     accuracy_map = (y_hard== y_true).float().squeeze()
@@ -404,7 +405,7 @@ def get_image_stats(
         }
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_metric_scores_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'] 
+        cal_metric_scores_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'].item() 
 
     # Iterate through the cross product of calibration metrics and quality metrics.
     for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_scores_dict.keys())):
