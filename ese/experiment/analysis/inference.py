@@ -578,7 +578,6 @@ def get_calibration_item_info(
     # IMAGE LEVEL TRACKING #
     ########################
     if image_level_records is not None:
-        print("Running image level tracking.")
         update_image_records(
             image_level_records=image_level_records,
             output_dict=output_dict,
@@ -590,7 +589,6 @@ def get_calibration_item_info(
     # PIXEL LEVEL TRACKING #
     ########################
     if pixel_meter_dict is not None:
-        print("Running pixel level tracking.")
         update_pixel_meters(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
