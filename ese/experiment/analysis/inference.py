@@ -344,7 +344,7 @@ def get_image_stats(
     cal_metric_cfgs: List[dict],
     image_level_records: list,
     slice_idx: Optional[int] = None,
-    label: Optional[torch.Tensor] = None,
+    label: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
     # Go through each calibration metric and calculate the score.
@@ -361,7 +361,7 @@ def get_image_stats(
         qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config).item()
 
     # Get the pixelwise accuracy.
-    accuracy_map = (y_hard== y_true).float().squeeze()
+    accuracy_map = (y_hard == y_true).float().squeeze()
 
     # Keep track of different things for each bin.
     pred_labels = y_hard.unique().tolist()
@@ -381,6 +381,10 @@ def get_image_stats(
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ignore_index=ignore_index
         )
+
+    # Get the amount of label
+    if label is not None:
+        label_amount = (y_true > 0).sum().item()
 
     # Go through each calibration metric and calculate the score.
     cal_metric_scores_dict = {}
@@ -421,8 +425,8 @@ def get_image_stats(
         }
         # If we are binarizing, then we need to add the label info.
         if label is not None:
-            cal_record["label"] = label.item()
-            cal_record["true_lab_amount"] = (y_true == label).sum().item() 
+            cal_record["label"] = label
+            cal_record["true_lab_amount"] = label_amount
         # Add the dataset info to the record
         record = {
             **cal_record, 
@@ -438,11 +442,11 @@ def update_image_records(
     inference_cfg: dict,
     qual_metric_cfgs: List[dict],
     cal_metric_cfgs: List[dict],
-    ignore_label: Optional[int] = None,
+    ignore_index: Optional[int] = None,
 ):
     # Setup some variables.
-    if "ignore_label" in inference_cfg["log"]:
-        ignore_label = inference_cfg["log"]["ignore_label"]
+    if "ignore_index" in inference_cfg["log"]:
+        ignore_index = inference_cfg["log"]["ignore_index"]
 
     # Setup the image stats config.
     image_stats_cfg = {
@@ -455,16 +459,17 @@ def update_image_records(
         "qual_metric_cfgs": qual_metric_cfgs,
         "cal_metric_cfgs": cal_metric_cfgs,
         "image_level_records": image_level_records,
-        "ignore_index": ignore_label
+        "ignore_index": ignore_index
     }
 
     # Loop through each label in the prediction or just once if we are not binarizing.
     if inference_cfg["calibration"]["binarize"]:
         # Go through each label in the prediction.
-        unique_labels = torch.unique(output_dict["y_hard"])
+        unique_labels = torch.unique(output_dict["y_hard"]).tolist()
         # Loop through unique labels.
         for label in unique_labels:
-            if ignore_label is None or label != ignore_label:
+            if ignore_index is None or label != ignore_index:
+                image_stats_cfg["label"] = label
                 image_stats_cfg["y_pred"] = binarize(
                     output_dict["y_pred"], 
                     label=label, 
@@ -480,7 +485,6 @@ def update_image_records(
                     label=label, 
                     discretize=True
                     )
-                image_stats_cfg["label"] = label
                 # run inner loop
                 get_image_stats(**image_stats_cfg)
     else:
@@ -499,27 +503,27 @@ def update_pixel_meters(
     # Setup variables.
     n_width = inference_cfg["calibration"]["neighborhood_width"]
     H, W = output_dict["y_hard"].shape[-2:]
-    if "ignore_label" in inference_cfg["log"]:
-        ignore_label = inference_cfg["log"]["ignore_label"]
+    if "ignore_index" in inference_cfg["log"]:
+        ignore_index = inference_cfg["log"]["ignore_index"]
     else:
-        ignore_label = None
+        ignore_index = None
 
     # Calculate the pixel-wise accuracy map.
-    acc_map = (output_dict["y_hard"] == output_dict["y_true"])
+    acc_map = (output_dict["y_hard"] == output_dict["y_true"]).float().cpu()
 
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
     matching_neighbors_0pad = count_matching_neighbors(
         output_dict["y_hard"], 
         neighborhood_width=n_width,
-        )
+        ).cpu()
 
     # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
     pix_weights = get_uni_pixel_weights(
         output_dict["y_hard"], 
         uni_w_attributes=["labels", "neighbors"],
         neighborhood_width=n_width,
-        ignore_index=ignore_label
-        )
+        ignore_index=ignore_index
+        ).cpu()
 
     # If the confidence map is mulitclass, then we need to do some extra work.
     conf_map = output_dict["y_pred"]
@@ -531,11 +535,15 @@ def update_pixel_meters(
         confidences=conf_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
-        )
+        ).cpu()
+    
+    # CPU-ize conf_map, y_hard, and y_true
+    conf_map = conf_map.cpu()
+    y_hard = output_dict["y_hard"].cpu()
 
     # Build the valid map.
-    if ignore_label is not None:
-        valid_idx_map = (output_dict["y_hard"].squeeze() != ignore_label)
+    if ignore_index is not None:
+        valid_idx_map = (y_hard.squeeze() != ignore_index)
     else:
         valid_idx_map = torch.ones((H, W)).bool()
 
@@ -544,9 +552,9 @@ def update_pixel_meters(
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
-            pix_pred_label = output_dict["y_hard"][..., ix, iy].item()
-            pix_c_bin = bin_ownership_map[ix, iy].item()
-            pix_lab_neighbors = matching_neighbors_0pad[ix, iy].item()
+            pix_pred_label = y_hard[..., ix, iy]
+            pix_c_bin = bin_ownership_map[ix, iy]
+            pix_lab_neighbors = matching_neighbors_0pad[ix, iy]
             # Create a unique key for the combination of label, neighbors, and confidence_bin
             conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
             acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
@@ -557,11 +565,11 @@ def update_pixel_meters(
                 for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
             # Finally, add the points to the meters.
-            pixel_meter_dict[acc_key].add(acc_map[..., ix, iy].item()) 
-            pixel_meter_dict[conf_key].add(conf_map[..., ix, iy].item())
+            pixel_meter_dict[acc_key].add(acc_map[..., ix, iy]) 
+            pixel_meter_dict[conf_key].add(conf_map[..., ix, iy])
             # Add the weighted accuracy and confidence
-            pixel_meter_dict[weighted_acc_key].add(acc_map[..., ix, iy].item(), weight=pix_weights[ix, iy].item()) 
-            pixel_meter_dict[weighted_conf_key].add(conf_map[..., ix, iy].item(), weight=pix_weights[ix, iy].item()) 
+            pixel_meter_dict[weighted_acc_key].add(acc_map[..., ix, iy], weight=pix_weights[ix, iy]) 
+            pixel_meter_dict[weighted_conf_key].add(conf_map[..., ix, iy], weight=pix_weights[ix, iy]) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
