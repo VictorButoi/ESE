@@ -34,7 +34,6 @@ def ECE(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         )
-
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -58,6 +57,7 @@ def TL_ECE(
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
+        top_label=True,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -77,7 +77,6 @@ def TL_ECE(
         lab_prob = cal_info['bin_amounts'][lab_idx].sum() / total_num_samples 
         # Weight the ECE by the prob of the label.
         ece_per_lab[lab_idx] = lab_prob * lab_ece
-
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab.sum()
     # Return the calibration information
@@ -103,6 +102,7 @@ def CW_ECE(
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
+        top_label=False,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -114,14 +114,12 @@ def CW_ECE(
     ece_per_lab = torch.zeros(L)
     # Iterate through each label, calculating ECE
     for lab_idx in range(L):
-        lab_ece = reduce_bin_errors(
+        ece_per_lab[lab_idx] = reduce_bin_errors(
             error_per_bin=cal_info["bin_cal_errors"][lab_idx], 
             amounts_per_bin=cal_info["bin_amounts"][lab_idx], 
             )
-        ece_per_lab[lab_idx] = (1/L) * lab_ece
-
     # Finally, get the calibration score.
-    cal_info['cal_error'] = ece_per_lab.sum()
+    cal_info['cal_error'] = ece_per_lab.mean()
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -201,6 +199,7 @@ def TL_LoMS(
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
+        top_label=True,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -224,7 +223,6 @@ def TL_LoMS(
             lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_num_samples
             # Weight the ECE by the prob of the label.
             ece_per_lab_nn[lab_idx, nn_idx] = lab_nn_prob * lab_nn_ece 
-
     # Finally, get the calibration score.
     cal_info['cal_error'] =  ece_per_lab_nn.sum()
     assert 0 <= cal_info['cal_error'] <= 1,\
@@ -251,6 +249,7 @@ def CW_LoMS(
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
+        top_label=False,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -278,83 +277,9 @@ def CW_LoMS(
             # Weight the ECE by the prob of the label.
             ece_per_nn[nn_idx] = lab_nn_prob * lab_nn_ece 
         # Place the weighted ECE for the label.
-        ece_per_lab[lab_idx] = (1 / L) * ece_per_nn.sum()
-
+        ece_per_lab[lab_idx] = ece_per_nn.sum()
     # Finally, get the calibration score.
-    cal_info['cal_error'] =  ece_per_lab.sum()
+    cal_info['cal_error'] =  ece_per_lab.mean()
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
-
-
-def pw_LoMS(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
-    neighborhood_width: int = 3,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
-    ) -> dict:
-    return LoMS(
-        y_pred=y_pred, 
-        y_true=y_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=True,
-        stats_info_dict=stats_info_dict,
-        ignore_index=ignore_index
-    )
-    
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def pw_TL_LoMS(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
-    neighborhood_width: int = 3,
-    uniform_weighting: bool = True,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
-    ) -> dict:
-    return TL_LoMS(
-        y_pred=y_pred, 
-        y_true=y_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=True,
-        stats_info_dict=stats_info_dict,
-        ignore_index=ignore_index
-    )
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def pw_CW_LoMS(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
-    neighborhood_width: int = 3,
-    uniform_weighting: bool = True,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
-    ) -> dict:
-    return CW_LoMS(
-        y_pred=y_pred, 
-        y_true=y_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=True,
-        stats_info_dict=stats_info_dict,
-        ignore_index=ignore_index
-    )

@@ -58,11 +58,11 @@ def split_tensor(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
     y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
     bin_idx: int, 
     conf_bin: torch.Tensor, 
     conf_bin_widths: torch.Tensor, 
     label: Optional[int] = None,
+    lab_map: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
     num_neighbors_map: Optional[torch.Tensor] = None,
     ignore_index: Optional[int] = None,
@@ -80,11 +80,11 @@ def get_conf_region(
 
     # If we want to only pick things which match the label.
     if label is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (y_hard==label))
+        bin_conf_region = torch.logical_and(bin_conf_region, (lab_map==label))
     # If we want to ignore a particular label, then we set it to 0.
     if ignore_index is not None:
-        assert y_hard is not None, "If ignore_index is not None, then must supply pred map."
-        bin_conf_region = torch.logical_and(bin_conf_region, (y_hard != ignore_index))
+        assert lab_map is not None, "If ignore_index is not None, then must supply pred map."
+        bin_conf_region = torch.logical_and(bin_conf_region, (lab_map != ignore_index))
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
         assert num_neighbors_map is not None, "If num_neighbors is not None, then must supply num neighbors map."

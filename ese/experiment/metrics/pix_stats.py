@@ -11,6 +11,22 @@ from typing import Optional, List, Tuple
 from pydantic import validate_arguments
 
 
+def get_lab_info(y_hard, y_true, top_label, ignore_index):
+    if top_label:
+        lab_map = y_hard
+    else:
+        lab_map = y_true
+    unique_labels = torch.unique(lab_map)
+    if ignore_index is not None:
+        unique_labels = unique_labels[unique_labels != ignore_index]
+    num_labels = len(unique_labels)
+    return {
+        "lab_map": lab_map, 
+        "num_labels": num_labels,
+        "unique_labels": unique_labels,
+    }
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def calc_bin_info(
     y_pred: torch.Tensor,
@@ -27,6 +43,7 @@ def calc_bin_info(
         bin_num_samples = pix_weights[bin_conf_region].sum()
         avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
         avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
+
     # Calculate the calibration error.
     if square_diff:
         cal_error = (avg_bin_confidence - avg_bin_accuracy).square()
@@ -73,14 +90,6 @@ def bin_stats_init(
     else:
         accuracy_map = (y_hard == y_true).float()
 
-    # Keep track of different things for each bin.
-    if "pred_labels" in stats_info_dict:
-        pred_labels = stats_info_dict["pred_labels"]
-    else:
-        pred_labels = y_hard.unique().tolist()
-        if ignore_index is not None and ignore_index in pred_labels:
-            pred_labels.remove(ignore_index)
-
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     if neighborhood_width is not None:
         if "nn_neighbors_map" in stats_info_dict:
@@ -111,10 +120,10 @@ def bin_stats_init(
     return {
         "y_pred": y_pred,
         "y_hard": y_hard,
+        "y_true": y_true,
         "conf_bins": conf_bins,
         "conf_bin_widths": conf_bin_widths,
         "pixelwise_accuracy": accuracy_map,
-        "pred_labels": pred_labels,
         "matching_neighbors_map": nn_neighborhood_map,
         "pix_weights": pixel_weights
     } 
@@ -155,7 +164,6 @@ def bin_stats(
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
             y_pred=obj_dict["y_pred"],
-            y_hard=obj_dict["y_hard"],
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
             conf_bin_widths=obj_dict["conf_bin_widths"], 
@@ -184,6 +192,7 @@ def bin_stats(
 def label_bin_stats(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
+    top_label: bool,
     num_bins: int,
     conf_interval: Tuple[float, float],
     square_diff: bool,
@@ -203,7 +212,15 @@ def label_bin_stats(
         stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
-    num_labels = len(obj_dict["pred_labels"])
+    # If top label, then everything is done based on
+    # predicted values, not ground truth. 
+    lab_info = get_lab_info(
+        y_hard=obj_dict["y_hard"],
+        y_true=obj_dict["y_true"],
+        top_label=top_label,
+        ignore_index=ignore_index
+        )
+    num_labels = lab_info["num_labels"]
     # Setup the cal info tracker.
     cal_info = {
         "bin_confs": torch.zeros((num_labels, num_bins)),
@@ -211,16 +228,16 @@ def label_bin_stats(
         "bin_accs": torch.zeros((num_labels, num_bins)),
         "bin_cal_errors": torch.zeros((num_labels, num_bins))
     }
-    for lab_idx, p_label in enumerate(obj_dict["pred_labels"]):
+    for lab_idx, lab in enumerate(lab_info["unique_labels"]):
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 y_pred=obj_dict["y_pred"],
-                y_hard=obj_dict["y_hard"],
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
-                label=p_label,
+                label=lab,
+                lab_map=lab_info["lab_map"],
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -279,7 +296,6 @@ def neighbors_bin_stats(
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 y_pred=obj_dict["y_pred"],
-                y_hard=obj_dict["y_hard"],
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
@@ -310,6 +326,7 @@ def neighbors_bin_stats(
 def label_neighbors_bin_stats(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
+    top_label: bool,
     num_bins: int,
     conf_interval: Tuple[float, float],
     square_diff: bool,
@@ -329,7 +346,15 @@ def label_neighbors_bin_stats(
         stats_info_dict=stats_info_dict,
         ignore_index=ignore_index
         )
-    num_labels = len(obj_dict["pred_labels"])
+    # Get the label information.
+    lab_info = get_lab_info(
+        y_hard=obj_dict["y_hard"],
+        y_true=obj_dict["y_true"],
+        top_label=top_label,
+        ignore_index=ignore_index
+        )
+    num_labels = lab_info["num_labels"]
+    # Get the num of neighbor classes.
     unique_num_neighbors = obj_dict["matching_neighbors_map"].unique()
     num_neighbors = len(unique_num_neighbors)
     # Init the cal info tracker.
@@ -339,19 +364,19 @@ def label_neighbors_bin_stats(
         "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins)),
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
     }
-    for lab_idx, p_label in enumerate(obj_dict["pred_labels"]):
+    for lab_idx, lab in enumerate(lab_info["unique_labels"]):
         for nn_idx, p_nn in enumerate(unique_num_neighbors):
             for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
                     y_pred=obj_dict["y_pred"],
-                    y_hard=obj_dict["y_hard"],
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
                     conf_bin_widths=obj_dict["conf_bin_widths"], 
                     num_neighbors=p_nn,
                     num_neighbors_map=obj_dict["matching_neighbors_map"],
-                    label=p_label,
+                    label=lab,
+                    lab_map=lab_info["lab_map"],
                     ignore_index=ignore_index
                     )
                 # If there are some pixels in this confidence bin.
