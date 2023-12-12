@@ -131,7 +131,7 @@ def viz_accuracy_vs_confidence(
     x: str,
     kind: Literal["bar", "line"],
     add_avg: bool,
-    add_proportion: bool = True,
+    add_weighted: bool = True,
     x_labels: bool = True,
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
@@ -153,7 +153,12 @@ def viz_accuracy_vs_confidence(
     avg_data_dict = defaultdict(lambda: defaultdict(dict))
 
     # These are the metrics we care about for each x group.
-    measure_names = ["confidence", "accuracy", "weighted confidence", "weighted accuracy"]
+    meter_measure_names = [
+        "confidence", 
+        "accuracy", 
+        "weighted confidence", 
+        "weighted accuracy"
+        ]
     
     # Helpful trackers for counting samples in each bin.
     bin_samples = {
@@ -164,7 +169,7 @@ def viz_accuracy_vs_confidence(
     for bin_num, x_var_set in data_dict.items():
         # SETUP A METER FOR EACH X GROUP, THIS WILL TRACK ONLY THE MEAN, STD, AND N
         # FOR EACH GROUP IN THIS BIN.
-        avg_bin_met_meters = {measure_group: StatsMeter() for measure_group in measure_names}
+        avg_bin_met_meters = {mg: StatsMeter() for mg in meter_measure_names}
         for x_var, measures in x_var_set.items():
             for measure, values in measures.items():
                 bin_x_group_stats = StatsMeter()
@@ -179,7 +184,7 @@ def viz_accuracy_vs_confidence(
                     "n_samples": bin_x_group_stats.n
                 } 
         #  GET THE AVERAGE FOR EACH CONFIDENCE BIN.
-        for mes in measure_names:
+        for mes in meter_measure_names:
             # Add the number of samples, both unwieghted and weighted. NOTE: We only do this for 
             # confidence because otherwise we would be double counting the samples.
             if "accuracy" in mes:
@@ -226,10 +231,7 @@ def viz_accuracy_vs_confidence(
             avg_data_dict[bin_num]["avg"]["weighted proportion"] = bin_samples["weighted"][bin_num] / total_weighted 
 
     # Add the proportion to the measures list.
-    if add_proportion:
-        measure_names = ["confidence", "accuracy"]
-        measure_names += ["weighted confidence", "weighted accuracy"]
-        measure_names += ["proportion", "weighted proportion"]
+    measure_names =  meter_measure_names + ["proportion", "weighted proportion"]
 
     # Set a bunch of information for plotting the graphs.
     num_bins = len(avg_data_dict)

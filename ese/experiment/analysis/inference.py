@@ -452,10 +452,6 @@ def update_image_records(
     cal_metric_cfgs: List[dict],
     ignore_index: Optional[int] = None,
 ):
-    # Setup some variables.
-    if "ignore_index" in inference_cfg["log"]:
-        ignore_index = inference_cfg["log"]["ignore_index"]
-
     # Setup the image stats config.
     image_stats_cfg = {
         "y_pred": output_dict["y_pred"],
@@ -507,31 +503,10 @@ def update_pixel_meters(
     inference_cfg: dict,
     conf_bins: torch.Tensor,
     conf_bin_widths: torch.Tensor,
+    ignore_index: Optional[int] = None,
 ):
     # Setup variables.
-    n_width = inference_cfg["calibration"]["neighborhood_width"]
     H, W = output_dict["y_hard"].shape[-2:]
-    if "ignore_index" in inference_cfg["log"]:
-        ignore_index = inference_cfg["log"]["ignore_index"]
-    else:
-        ignore_index = None
-
-    # Calculate the pixel-wise accuracy map.
-    acc_map = (output_dict["y_hard"] == output_dict["y_true"]).float().cpu()
-
-    # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
-    matching_neighbors_0pad = count_matching_neighbors(
-        output_dict["y_hard"], 
-        neighborhood_width=n_width,
-        ).cpu()
-
-    # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
-    pix_weights = get_uni_pixel_weights(
-        output_dict["y_hard"], 
-        uni_w_attributes=["labels", "neighbors"],
-        neighborhood_width=n_width,
-        ignore_index=ignore_index
-        ).cpu()
 
     # If the confidence map is mulitclass, then we need to do some extra work.
     conf_map = output_dict["y_pred"]
@@ -543,41 +518,60 @@ def update_pixel_meters(
         confidences=conf_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
-        ).cpu()
-    
+        ).cpu().numpy()
+
+    # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
+    num_matching_neighbors_map = count_matching_neighbors(
+        output_dict["y_hard"], 
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        ).cpu().numpy()
+
+    # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
+    pix_weights = get_uni_pixel_weights(
+        output_dict["y_hard"], 
+        uni_w_attributes=["labels", "neighbors"],
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        ignore_index=ignore_index
+        ).cpu().numpy()
+
     # CPU-ize conf_map, y_hard, and y_true
-    conf_map = conf_map.cpu()
-    y_hard = output_dict["y_hard"].cpu()
+    conf_map = conf_map.cpu().squeeze().numpy()
+    y_true = output_dict["y_true"].cpu().squeeze().numpy()
+    y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
+
+    # Calculate the accuracy map.
+    acc_map = (y_hard == y_true).astype(np.float32)
 
     # Build the valid map.
     if ignore_index is not None:
-        valid_idx_map = (y_hard.squeeze() != ignore_index)
+        valid_idx_map = (y_hard != ignore_index)
     else:
-        valid_idx_map = torch.ones((H, W)).bool()
+        valid_idx_map = np.ones((H, W)).astype(np.bool)
 
     # Iterate through each pixel in the image.
     for (ix, iy) in np.ndindex((H, W)):
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
-            # Get the label, neighbors, neighbor_weighted proportion, and confidence bin for this pixel.
-            pix_pred_label = y_hard[..., ix, iy]
-            pix_c_bin = bin_ownership_map[ix, iy]
-            pix_lab_neighbors = matching_neighbors_0pad[ix, iy]
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "confidence")
-            acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "accuracy")
-            weighted_acc_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted accuracy")
-            weighted_conf_key = (pix_pred_label, pix_lab_neighbors, pix_c_bin, "weighted confidence")
+            prefix = (y_hard[ix, iy], num_matching_neighbors_map[ix, iy], bin_ownership_map[ix, iy])
+            acc_key = prefix + ("accuracy",)
+            conf_key = prefix + ("confidence",)
+            weighted_acc_key = prefix + ("weighted accuracy",)
+            weighted_conf_key = prefix + ("weighted confidence",)
             # If this key doesn't exist in the dictionary, add it
             if conf_key not in pixel_meter_dict:
                 for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
+            # (acc , conf)
+            acc = acc_map[ix, iy]
+            conf = conf_map[ix, iy]
+            pix_w = pix_weights[ix, iy]
             # Finally, add the points to the meters.
-            pixel_meter_dict[acc_key].add(acc_map[..., ix, iy]) 
-            pixel_meter_dict[conf_key].add(conf_map[..., ix, iy])
+            pixel_meter_dict[acc_key].add(acc) 
+            pixel_meter_dict[conf_key].add(conf)
             # Add the weighted accuracy and confidence
-            pixel_meter_dict[weighted_acc_key].add(acc_map[..., ix, iy], weight=pix_weights[ix, iy]) 
-            pixel_meter_dict[weighted_conf_key].add(conf_map[..., ix, iy], weight=pix_weights[ix, iy]) 
+            pixel_meter_dict[weighted_acc_key].add(acc, weight=pix_w) 
+            pixel_meter_dict[weighted_conf_key].add(conf, weight=pix_w) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -590,7 +584,11 @@ def get_calibration_item_info(
     conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None,
+    ignore_index: Optional[int] = None,
     ):
+    # Setup some variables.
+    if "ignore_index" in inference_cfg["log"]:
+        ignore_index = inference_cfg["log"]["ignore_index"]
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -600,7 +598,8 @@ def get_calibration_item_info(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
             qual_metric_cfgs=qual_metric_cfgs,
-            cal_metric_cfgs=cal_metric_cfgs
+            cal_metric_cfgs=cal_metric_cfgs,
+            ignore_index=ignore_index
         ) 
     ########################
     # PIXEL LEVEL TRACKING #
@@ -612,4 +611,5 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             conf_bins=conf_bins,
             conf_bin_widths=conf_bin_widths,
+            ignore_index=ignore_index
         )

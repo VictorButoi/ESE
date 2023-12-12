@@ -171,7 +171,6 @@ def LoMS(
         nn_prob = cal_info['bin_amounts'][nn_idx].sum() / total_num_samples
         # Weight the ECE by the prob of the num neighbors.
         ece_per_nn[nn_idx] = nn_prob * nn_ece 
-
     # Finally, get the calibration score.
     cal_info['cal_error'] = ece_per_nn.sum()
     # Return the calibration information
