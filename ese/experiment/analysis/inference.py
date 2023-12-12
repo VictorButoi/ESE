@@ -384,9 +384,14 @@ def get_image_stats(
 
     # Get the amount of label, assuming 0 is a background class.
     if label is not None:
-        label_amount = (y_true > 0).sum().item()
-        assert not(label_amount == 0 and inference_cfg["calibration"]["binarize"]), "Label amount can not be 0 if we are binarizing."
-        log_label_amount = np.log(label_amount)
+        true_lab_amount = (y_true > 0).sum().item()
+        pred_lab_amount = (y_hard > 0).sum().item()
+        assert not(pred_lab_amount == 0 and inference_cfg["calibration"]["binarize"]),\
+            "Predicted label amount can not be 0 if we are binarizing."
+        if true_lab_amount == 0:
+            true_log_lab_amount = 0
+        else:
+            true_log_lab_amount = np.log(true_lab_amount)
 
     # Go through each calibration metric and calculate the score.
     cal_metric_scores_dict = {}
@@ -428,8 +433,8 @@ def get_image_stats(
         # If we are binarizing, then we need to add the label info.
         if label is not None:
             cal_record["label"] = label
-            cal_record["true_lab_amount"] = label_amount
-            cal_record["log_true_lab_amount"] = log_label_amount
+            cal_record["true_lab_amount"] = true_lab_amount
+            cal_record["log_true_lab_amount"] = true_log_lab_amount
         # Add the dataset info to the record
         record = {
             **cal_record, 
@@ -468,9 +473,9 @@ def update_image_records(
     # Loop through each label in the prediction or just once if we are not binarizing.
     if inference_cfg["calibration"]["binarize"]:
         # Go through each label in the prediction.
-        unique_labels = torch.unique(output_dict["y_hard"]).tolist()
+        unique_pred_labels = torch.unique(output_dict["y_hard"]).tolist()
         # Loop through unique labels.
-        for label in unique_labels:
+        for label in unique_pred_labels:
             if ignore_index is None or label != ignore_index:
                 image_stats_cfg["label"] = label
                 image_stats_cfg["y_pred"] = binarize(
