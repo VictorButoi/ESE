@@ -29,7 +29,7 @@ def get_lab_info(y_hard, y_true, top_label, ignore_index):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def calc_bin_info(
-    y_pred: torch.Tensor,
+    conf_map: torch.Tensor,
     bin_conf_region: torch.Tensor,
     pixelwise_accuracy: torch.Tensor,
     square_diff: bool,
@@ -37,11 +37,11 @@ def calc_bin_info(
 ):
     if pix_weights is None:
         bin_num_samples = bin_conf_region.sum() 
-        avg_bin_confidence = y_pred[bin_conf_region].sum() / bin_num_samples
+        avg_bin_confidence = conf_map[bin_conf_region].sum() / bin_num_samples
         avg_bin_accuracy = pixelwise_accuracy[bin_conf_region].sum() / bin_num_samples
     else:
         bin_num_samples = pix_weights[bin_conf_region].sum()
-        avg_bin_confidence = (pix_weights[bin_conf_region] * y_pred[bin_conf_region]).sum() / bin_num_samples
+        avg_bin_confidence = (pix_weights[bin_conf_region] * conf_map[bin_conf_region]).sum() / bin_num_samples
         avg_bin_accuracy = (pix_weights[bin_conf_region] * pixelwise_accuracy[bin_conf_region]).sum() / bin_num_samples
 
     # Calculate the calibration error.
@@ -75,7 +75,7 @@ def bin_stats_init(
 
     # Get the hard predictions and the max confidences.
     y_hard = y_pred.argmax(dim=0)
-    y_pred = y_pred.max(dim=0).values
+    y_max_prob_map = y_pred.max(dim=0).values
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
@@ -118,7 +118,7 @@ def bin_stats_init(
 
     # Wrap this into a dictionary.
     return {
-        "y_pred": y_pred,
+        "y_max_prob_map": y_max_prob_map,
         "y_hard": y_hard,
         "y_true": y_true,
         "conf_bins": conf_bins,
@@ -163,17 +163,18 @@ def bin_stats(
     for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
-            y_pred=obj_dict["y_pred"],
+            prob_map=obj_dict["y_max_prob_map"],
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
             conf_bin_widths=obj_dict["conf_bin_widths"], 
+            lab_map=obj_dict["y_hard"],
             ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.
             bi = calc_bin_info(
-                y_pred=obj_dict["y_pred"],
+                conf_map=obj_dict["y_max_prob_map"],
                 bin_conf_region=bin_conf_region,
                 square_diff=square_diff,
                 pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -232,7 +233,7 @@ def label_bin_stats(
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
-                y_pred=obj_dict["y_pred"],
+                prob_map=obj_dict["y_max_prob_map"],
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
@@ -244,7 +245,7 @@ def label_bin_stats(
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 bi = calc_bin_info(
-                    y_pred=obj_dict["y_pred"],
+                    conf_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
                     square_diff=square_diff,
                     pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -295,19 +296,20 @@ def neighbors_bin_stats(
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
-                y_pred=obj_dict["y_pred"],
+                prob_map=obj_dict["y_max_prob_map"],
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
                 num_neighbors=p_nn,
                 num_neighbors_map=obj_dict["matching_neighbors_map"],
+                lab_map=obj_dict["y_hard"],
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
                 bi = calc_bin_info(
-                    y_pred=obj_dict["y_pred"],
+                    conf_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
                     square_diff=square_diff,
                     pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
@@ -369,7 +371,7 @@ def label_neighbors_bin_stats(
             for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
-                    y_pred=obj_dict["y_pred"],
+                    prob_map=obj_dict["y_max_prob_map"],
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
                     conf_bin_widths=obj_dict["conf_bin_widths"], 
@@ -383,7 +385,7 @@ def label_neighbors_bin_stats(
                 if bin_conf_region.sum() > 0:
                     # Calculate the average score for the regions in the bin.
                     bi = calc_bin_info(
-                        y_pred=obj_dict["y_pred"],
+                        conf_map=obj_dict["y_max_prob_map"],
                         bin_conf_region=bin_conf_region,
                         square_diff=square_diff,
                         pixelwise_accuracy=obj_dict["pixelwise_accuracy"],

@@ -57,7 +57,7 @@ def split_tensor(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
-    y_pred: torch.Tensor,
+    prob_map: torch.Tensor,
     bin_idx: int, 
     conf_bin: torch.Tensor, 
     conf_bin_widths: torch.Tensor, 
@@ -69,13 +69,13 @@ def get_conf_region(
     ):
     # Get the region of image corresponding to the confidence
     if conf_bin_widths[bin_idx] == 0:
-        bin_conf_region = (y_pred == conf_bin) 
+        bin_conf_region = (prob_map == conf_bin) 
     else:
-        upper_condition = y_pred <= conf_bin + conf_bin_widths[bin_idx]
+        upper_condition = prob_map <= (conf_bin + conf_bin_widths[bin_idx])
         if bin_idx == 0:
-            lower_condition = y_pred >= conf_bin
+            lower_condition = prob_map >= conf_bin
         else:
-            lower_condition = y_pred > conf_bin
+            lower_condition = prob_map > conf_bin
         bin_conf_region = torch.logical_and(lower_condition, upper_condition)
 
     # If we want to only pick things which match the label.
@@ -83,7 +83,7 @@ def get_conf_region(
         bin_conf_region = torch.logical_and(bin_conf_region, (lab_map==label))
     # If we want to ignore a particular label, then we set it to 0.
     if ignore_index is not None:
-        assert lab_map is not None, "If ignore_index is not None, then must supply pred map."
+        assert lab_map is not None, "If ignore_index is not None, then must supply label map."
         bin_conf_region = torch.logical_and(bin_conf_region, (lab_map != ignore_index))
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
