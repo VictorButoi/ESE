@@ -3,6 +3,11 @@ import pandas as pd
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 from ionpy.experiment.util import absolute_import
+from typing import Optional
+from ..metrics.utils import (
+    count_matching_neighbors, 
+    get_uni_pixel_weights
+)
 
 
 # This function will take in a dictionary of pixel meters and a metadata dataframe
@@ -71,3 +76,43 @@ def binarize(
         background_channel = label_tensor.sum(dim=1, keepdim=True) - label_channel 
         binary_label_tensor = torch.cat([background_channel, label_channel], dim=1)
     return binary_label_tensor
+
+
+def get_image_aux_info(
+        y_hard: torch.Tensor,
+        y_true: torch.Tensor,
+        neighborhood_width: int,
+        ignore_index: Optional[int] = None
+):
+    # Get the pixelwise accuracy.
+    accuracy_map = (y_hard == y_true).float().squeeze()
+
+    # Keep track of different things for each bin.
+    pred_labels = y_hard.unique().tolist()
+    if ignore_index is not None and ignore_index in pred_labels:
+        pred_labels.remove(ignore_index)
+
+    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
+    # For both our prediction and the true label map.
+    pred_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_hard, 
+        neighborhood_width=neighborhood_width
+    )
+    true_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_true, 
+        neighborhood_width=neighborhood_width
+    )
+    # Get the pixel-weights if we are using them.
+    pixel_weights = get_uni_pixel_weights(
+        y_hard, 
+        uni_w_attributes=["labels", "neighbors"],
+        neighborhood_width=neighborhood_width,
+        ignore_index=ignore_index
+        )
+    return {
+        "accuracy_map": accuracy_map,
+        "pred_labels": pred_labels,
+        "pred_matching_neighbors_map": pred_matching_neighbors_map,
+        "true_matching_neighbors_map": true_matching_neighbors_map,
+        "pixel_weights": pixel_weights
+    }

@@ -242,42 +242,35 @@ def find_bins(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
-    y_true: Union[torch.Tensor, np.ndarray],
+    lab_map: Union[torch.Tensor, np.ndarray],
     neighborhood_width: int = 3,
 ):
-    y_true = y_true.squeeze()
-    assert len(y_true.shape) == 2, "Label map can only currently be (H, W)."
+    lab_map = lab_map.squeeze()
+    assert len(lab_map.shape) == 2, "Label map can only currently be (H, W)."
     # Optionally take in numpy array, convert to torch tensor
-    if isinstance(y_true, np.ndarray):
-        y_true = torch.from_numpy(y_true)
+    if isinstance(lab_map, np.ndarray):
+        lab_map = torch.from_numpy(lab_map)
         return_numpy = True
     else:
         return_numpy = False
-    # Ensure y_true is on the correct device (e.g., CUDA if using GPU)
-    device = y_true.device
-    # Get unique labels (assuming y_true is already a long tensor with discrete labels)
-    y_true = y_true.long()
-    unique_labels = y_true.unique()
-    # Create an array to store the counts
-    count_array = torch.zeros_like(y_true)
+    # Convert to long tensor
+    lab_map = lab_map.long()
+    count_array = torch.zeros_like(lab_map)
     # Define a 3x3 kernel of ones for the convolution
-    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=device)
-    # Reflective padding if reflect_boundaries is True
-    # padding_mode = 'reflect' if reflect_boundaries else 'constant'
-    padding_mode = 'constant'
-    for label in unique_labels:
+    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=lab_map.device)
+    for label in lab_map.unique():
         # Create a binary mask for the current label
-        mask = (y_true == label).float()
+        mask = (lab_map == label).float()
         # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
         mask_unsqueezed = mask.unsqueeze(0).unsqueeze(0)
         # Apply padding
-        padded_mask = F.pad(mask_unsqueezed, pad=(1, 1, 1, 1), mode=padding_mode)
+        padded_mask = F.pad(mask_unsqueezed, pad=(1, 1, 1, 1), mode='constant')
         # Convolve the mask with the kernel to get the neighbor count using 2D convolution
         neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
         # Squeeze the result back to the original shape (Height x Width)
         neighbor_count_squeezed = neighbor_count.squeeze().long()
         # Update the count_array where the y_true matches the current label
-        count_array[y_true == label] = neighbor_count_squeezed[y_true == label]
+        count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
     # Subtract 1 because the center pixel is included in the 3x3 neighborhood count
     count_array -= 1
     # Return the count_array
@@ -323,7 +316,7 @@ def get_perpix_group_size(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_uni_pixel_weights(
-    y_hard: Union[torch.Tensor, np.ndarray],
+    lab_map: Union[torch.Tensor, np.ndarray],
     uni_w_attributes: List[str],
     neighborhood_width: Optional[int] = None,
     num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
@@ -335,7 +328,7 @@ def get_uni_pixel_weights(
     a particular number of neighbors. The weights are normalized such that the sum of the weights
     for each label is 1.0.
     Args:
-    - y_hard (torch.Tensor): A 2D tensor of labels.
+    - lab_map (torch.Tensor): A 2D tensor of labels.
     - uni_w_attributes (List[str]): A list of unique label attributes to use for weighting.
     - neighborhood_width (int): The width of the neighborhood to use when counting neighbors.
     - num_neighbors_map (torch.Tensor): A 2D tensor of the number of neighbors for each pixel in
@@ -343,25 +336,25 @@ def get_uni_pixel_weights(
     Returns:
     - torch.Tensor: A 2D tensor of pixel weights for each pixel in the label map.
     """
-    y_hard = y_hard.squeeze()
-    assert len(y_hard.shape) == 2, "Pred map can only currently be (H, W)."
+    lab_map = lab_map.squeeze()
+    assert len(lab_map.shape) == 2, "Pred map can only currently be (H, W)."
     # Optionally take in numpy array, convert to torch tensor
-    if isinstance(y_hard, np.ndarray):
-        y_hard = torch.from_numpy(y_hard)
+    if isinstance(lab_map, np.ndarray):
+        lab_map = torch.from_numpy(lab_map)
         return_numpy = True
     else:
         return_numpy = False
 
     # Get a map where each pixel corresponds to the amount of pixels with that label who have 
     # that number of neighbors, and the total amount of pixels with that label.
-    nn_balanced_weights_map = torch.zeros_like(y_hard).float()
+    nn_balanced_weights_map = torch.zeros_like(lab_map).float()
     if ignore_index is not None:
-        NUM_SAMPLES = y_hard[y_hard != ignore_index].numel()
+        NUM_SAMPLES = lab_map[lab_map != ignore_index].numel()
     else:
-        NUM_SAMPLES = y_hard.numel()
+        NUM_SAMPLES = lab_map.numel()
 
     # Get information about labels.
-    unique_pred_labels = torch.unique(y_hard)
+    unique_pred_labels = torch.unique(lab_map)
     if ignore_index is not None:
         unique_pred_labels = unique_pred_labels[unique_pred_labels != ignore_index]
     NUM_LAB = len(unique_pred_labels)
@@ -373,17 +366,17 @@ def get_uni_pixel_weights(
     # If doing something with neighbors, get the neighbor map (if not passed in).
     if num_neighbors_map is None:
         num_neighbors_map = count_matching_neighbors(
-            y_true=y_hard, 
+            lab_map=lab_map, 
             neighborhood_width=neighborhood_width
             )
     if ignore_index is not None:
-        num_neighbors_map[y_hard == ignore_index] = -1
+        num_neighbors_map[lab_map == ignore_index] = -1
 
     # If we are conditioning on both.
     if neighbor_and_label_condition:
         # Loop through each unique label and its number of neighbors.
         for label in unique_pred_labels:
-            label_group = (y_hard == label)
+            label_group = (lab_map == label)
             unique_label_nns = torch.unique(num_neighbors_map[label_group])
             NUM_NN = len(unique_label_nns)
             for nn in unique_label_nns:
@@ -405,7 +398,7 @@ def get_uni_pixel_weights(
     elif label_condition:
         # Loop through each label.
         for label in unique_pred_labels:
-            label_group = (y_hard == label)
+            label_group = (lab_map == label)
             nn_balanced_weights_map[label_group] = (NUM_SAMPLES / label_group.sum().item()) * (1 / NUM_LAB)
 
     else:
@@ -421,11 +414,11 @@ def get_uni_pixel_weights(
 # Helpful for calculating edge accuracies.
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_edge_map(
-    y_true: torch.Tensor
+    lab_map: torch.Tensor
     ) -> torch.Tensor:
     # Neighbor map
     num_neighbor_map = count_matching_neighbors(
-        y_true, 
+        lab_map=lab_map, 
         neighborhood_width=3
         )
     edge_map = (num_neighbor_map < 8)

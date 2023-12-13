@@ -133,7 +133,8 @@ def viz_accuracy_vs_confidence(
     relative_props: bool = False,
     add_weighted: bool = False,
     add_edge_props: bool = False,
-    x_labels: bool = True,
+    label: Optional[int] = None,
+    show_x_labels: bool = True,
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
 ):
@@ -141,12 +142,13 @@ def viz_accuracy_vs_confidence(
     # Structure: data_dict[bin_num][pred_label][measure] = list of values
     data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for (pred_label, num_neighbors, bin_num, measure), value in pixel_preds.items():
-        pred_dict = {
-            "pred_label": pred_label,
-            "num_neighbors": num_neighbors,
-            "bin_num": bin_num,
-        }
-        data_dict[bin_num][pred_dict[x]][measure].append(value)
+        if (label is None) or (pred_label == label):
+            pred_dict = {
+                "pred_label": pred_label,
+                "num_neighbors": num_neighbors,
+                "bin_num": bin_num,
+            }
+            data_dict[bin_num][pred_dict[x]][measure].append(value)
 
     # Calculate the average for each pred_label and measure within each bin_num
     avg_data_dict = defaultdict(lambda: defaultdict(dict))
@@ -187,8 +189,9 @@ def viz_accuracy_vs_confidence(
     total_samples = sum(bin_samples["uniform"].values())
     total_edge_samples = sum(bin_samples["edge"].values())
     total_weighted_samples = sum(bin_samples["weighted"].values())
-    assert np.abs(total_samples - total_weighted_samples) < 5,\
-        f"Total uniform samples: {total_samples} and Total weighted samples: {total_weighted_samples} should be ~basically the same."
+    if label is None:
+        assert np.abs(total_samples - total_weighted_samples) < 5,\
+            f"Total uniform samples: {total_samples} and Total weighted samples: {total_weighted_samples} should be ~basically the same."
     # Loop through every bin and x_var
     for bin_num, x_var_set in avg_data_dict.items():
         for x_group in x_var_set.keys():
@@ -311,7 +314,7 @@ def viz_accuracy_vs_confidence(
         ax.set_title(f'{col} = {bin_num}')
         ax.set_ylabel('value')
         # Optionally remove the x labels
-        if x_labels:
+        if show_x_labels:
             ax.set_xlabel(x)
             if kind == "bar":
                 ax.set_xticks(inds + width * (len(measures) - 1) / 2)
@@ -321,12 +324,12 @@ def viz_accuracy_vs_confidence(
     # Adjusting the titles
     plt.legend(
         title='measure',
-        bbox_to_anchor=(1.6, 1),  # Adjust the position of the legend
+        bbox_to_anchor=(1.4, 1),  # Adjust the position of the legend
         loc='center right',  # Specify the legend location
         frameon=False,  # Remove the legend background
     )
-    plt.subplots_adjust(top=0.9)
-    plt.suptitle(title, fontsize=16)
+    plt.subplots_adjust(top=0.5)
+    plt.suptitle(title, fontsize=20)
     plt.tight_layout()
     plt.show()
 

@@ -17,7 +17,7 @@ from ionpy.util.torchutils import to_device
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from .utils import dataloader_from_exp, binarize
+from .utils import dataloader_from_exp, binarize, get_image_aux_info
 from ..experiment.ese_exp import CalibrationExperiment
 from ..metrics.utils import (
     get_bins, 
@@ -319,47 +319,19 @@ def get_image_stats(
     ignore_index: Optional[int] = None,
 ):
     # Define the cal config.
-    q_input_config = {
+    qual_input_config = {
         "y_pred": y_pred,
         "y_true": y_true,
         "ignore_index": ignore_index
     }
-    # Go through each calibration metric and calculate the score.
-    qual_metric_scores_dict = {}
-    for qual_metric in inference_cfg["qual_metric_cfgs"]:
-        # Get the calibration error. 
-        q_met_name = list(qual_metric.keys())[0] # kind of hacky
-        qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config).item()
 
-    # Get the pixelwise accuracy.
-    accuracy_map = (y_hard == y_true).float().squeeze()
-
-    # Keep track of different things for each bin.
-    pred_labels = y_hard.unique().tolist()
-    if ignore_index is not None and ignore_index in pred_labels:
-        pred_labels.remove(ignore_index)
-
-    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
-    nn_neighborhood_map = count_matching_neighbors(
-        y_hard, 
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"]
-    )
-
-    # Get the pixel-weights if we are using them.
-    pixel_weights = get_uni_pixel_weights(
-        y_hard, 
-        uni_w_attributes=["labels", "neighbors"],
+    # Calculate some qualities about the image, used for various bookeeping, that can be reused.
+    stats_info_dict = get_image_aux_info(
+        y_hard=y_hard,
+        y_true=y_true,
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ignore_index=ignore_index
-        )
-
-    # Get the amount of label, assuming 0 is a background class.
-    if label is not None:
-        true_lab_amount = (y_true > 0).sum().item()
-        pred_lab_amount = (y_hard > 0).sum().item()
-        assert not(pred_lab_amount == 0 and inference_cfg["calibration"]["binarize"]),\
-            "Predicted label amount can not be 0 if we are binarizing."
-        true_log_lab_amount = 0 if true_lab_amount == 0 else np.log(true_lab_amount)
+    ) 
 
     # Define the cal config.
     cal_input_config = {
@@ -370,15 +342,29 @@ def get_image_stats(
             inference_cfg["calibration"]["conf_interval_start"],
             inference_cfg["calibration"]["conf_interval_end"]
         ],
-        "stats_info_dict": {
-            "accuracy_map": accuracy_map,
-            "pred_labels": pred_labels,
-            "nn_neighbors_map": nn_neighborhood_map,
-            "pixel_weights": pixel_weights
-        },
+        "stats_info_dict": stats_info_dict,
         "square_diff": inference_cfg["calibration"]["square_diff"],
         "ignore_index": ignore_index
     }
+    # Go through each calibration metric and calculate the score.
+    qual_metric_scores_dict = {}
+    for qual_metric in inference_cfg["qual_metric_cfgs"]:
+        # Get the calibration error. 
+        q_met_name = list(qual_metric.keys())[0] # kind of hacky
+        if "ECE" in q_met_name:
+            qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**cal_input_config).item()
+        else:
+            qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**qual_input_config).item()
+
+
+    # Get the amount of label, assuming 0 is a background class.
+    if label is not None:
+        true_lab_amount = (y_true > 0).sum().item()
+        pred_lab_amount = (y_hard > 0).sum().item()
+        assert not(pred_lab_amount == 0 and inference_cfg["calibration"]["binarize"]),\
+            "Predicted label amount can not be 0 if we are binarizing."
+        true_log_lab_amount = 0 if true_lab_amount == 0 else np.log(true_lab_amount)
+
     # Go through each calibration metric and calculate the score.
     cal_metric_scores_dict = {}
     for cal_metric in inference_cfg["cal_metric_cfgs"]:
@@ -490,14 +476,14 @@ def update_pixel_meters(
         ).cpu().numpy()
 
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
-    num_matching_neighbors_map = count_matching_neighbors(
-        output_dict["y_hard"], 
+    pred_matching_neighbors_map = count_matching_neighbors(
+        lab_map=output_dict["y_hard"], 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ).cpu().numpy()
 
     # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
     pix_weights = get_uni_pixel_weights(
-        output_dict["y_hard"], 
+        lab_map=output_dict["y_hard"], 
         uni_w_attributes=["labels", "neighbors"],
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ignore_index=ignore_index
@@ -522,7 +508,7 @@ def update_pixel_meters(
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            prefix = (y_hard[ix, iy], num_matching_neighbors_map[ix, iy], bin_ownership_map[ix, iy])
+            prefix = (y_hard[ix, iy], pred_matching_neighbors_map[ix, iy], bin_ownership_map[ix, iy])
             acc_key = prefix + ("accuracy",)
             conf_key = prefix + ("confidence",)
             weighted_acc_key = prefix + ("weighted accuracy",)

@@ -7,7 +7,7 @@ from .utils import (
 )
 # misc. imports
 import torch
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 from pydantic import validate_arguments
 
 
@@ -92,15 +92,23 @@ def bin_stats_init(
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     if neighborhood_width is not None:
-        if "nn_neighbors_map" in stats_info_dict:
-            nn_neighborhood_map = stats_info_dict["nn_neighbors_map"]
+        if "pred_matching_neighbors_map" in stats_info_dict:
+            pred_matching_neighbors_map = stats_info_dict["nn_neighbors_map"]
         else:
-            nn_neighborhood_map = count_matching_neighbors(
-                y_hard, 
+            pred_matching_neighbors_map = count_matching_neighbors(
+                lab_map=y_hard, 
+                neighborhood_width=neighborhood_width
+            )
+        if "true_matching_neighbors_map" in stats_info_dict:
+            true_matching_neighbors_map = stats_info_dict["nn_neighbors_map"]
+        else:
+            true_matching_neighbors_map = count_matching_neighbors(
+                lab_map=y_true, 
                 neighborhood_width=neighborhood_width
             )
     else:
-        nn_neighborhood_map = None
+        pred_matching_neighbors_map = None
+        true_matching_neighbors_map = None 
 
     # Get the pixel-weights if we are using them.
     if uniform_weighting:
@@ -124,7 +132,8 @@ def bin_stats_init(
         "conf_bins": conf_bins,
         "conf_bin_widths": conf_bin_widths,
         "pixelwise_accuracy": accuracy_map,
-        "matching_neighbors_map": nn_neighborhood_map,
+        "pred_matching_neighbors_map": pred_matching_neighbors_map,
+        "true_matching_neighbors_map": true_matching_neighbors_map,
         "pix_weights": pixel_weights
     } 
 

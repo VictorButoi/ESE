@@ -1,5 +1,5 @@
 from .pix_stats import bin_stats, label_bin_stats, neighbors_bin_stats, label_neighbors_bin_stats
-from .utils import reduce_bin_errors
+from .utils import reduce_bin_errors, get_edge_map
 # misc imports
 import torch
 from typing import Tuple, Optional
@@ -38,6 +38,40 @@ def ECE(
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def Edge_ECE(
+    y_pred: torch.Tensor, 
+    y_true: torch.Tensor,
+    num_bins: int,
+    conf_interval: Tuple[float, float],
+    square_diff: bool,
+    stats_info_dict: Optional[dict] = {},
+    ignore_index: Optional[int] = None
+    ) -> dict:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    # Get the edge map.
+    if "true_matching_neighbors_map" in stats_info_dict:
+        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
+    else:
+        y_true_squeezed = y_true.squeeze()
+        y_true_edge_map = get_edge_map(y_true_squeezed)
+    # Get the edge regions of both the prediction and the ground truth.
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Return the calibration information
+    return ECE(
+        y_pred=y_pred_e_reg,
+        y_true=y_true_e_reg,
+        num_bins=num_bins,
+        conf_interval=conf_interval,
+        square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
+        ignore_index=ignore_index
+    ) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -86,6 +120,40 @@ def TL_ECE(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def Edge_TL_ECE(
+    y_pred: torch.Tensor, 
+    y_true: torch.Tensor,
+    num_bins: int,
+    conf_interval: Tuple[float, float],
+    square_diff: bool,
+    stats_info_dict: Optional[dict] = {},
+    ignore_index: Optional[int] = None
+    ) -> dict:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    # Get the edge map.
+    if "true_matching_neighbors_map" in stats_info_dict:
+        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
+    else:
+        y_true_squeezed = y_true.squeeze()
+        y_true_edge_map = get_edge_map(y_true_squeezed)
+    # Get the edge regions of both the prediction and the ground truth.
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Return the calibration information
+    return TL_ECE(
+        y_pred=y_pred_e_reg,
+        y_true=y_true_e_reg,
+        num_bins=num_bins,
+        conf_interval=conf_interval,
+        square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
+        ignore_index=ignore_index
+    ) 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def CW_ECE(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
@@ -124,6 +192,40 @@ def CW_ECE(
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def Edge_CW_ECE(
+    y_pred: torch.Tensor, 
+    y_true: torch.Tensor,
+    num_bins: int,
+    conf_interval: Tuple[float, float],
+    square_diff: bool,
+    stats_info_dict: Optional[dict] = {},
+    ignore_index: Optional[int] = None
+    ) -> dict:
+    """
+    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    """
+    # Get the edge map.
+    if "true_matching_neighbors_map" in stats_info_dict:
+        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
+    else:
+        y_true_squeezed = y_true.squeeze()
+        y_true_edge_map = get_edge_map(y_true_squeezed)
+    # Get the edge regions of both the prediction and the ground truth.
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Return the calibration information
+    return CW_ECE(
+        y_pred=y_pred_e_reg,
+        y_true=y_true_e_reg,
+        num_bins=num_bins,
+        conf_interval=conf_interval,
+        square_diff=square_diff,
+        stats_info_dict=stats_info_dict,
+        ignore_index=ignore_index
+    ) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
