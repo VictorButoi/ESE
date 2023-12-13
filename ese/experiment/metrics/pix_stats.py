@@ -68,8 +68,8 @@ def bin_stats_init(
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
 ):
-    y_pred = y_pred.squeeze()
-    y_true = y_true.squeeze()
+    y_pred = y_pred.squeeze(0) # Remove the batch dimension.
+    y_true = y_true.squeeze(0) # Remove the batch dimension.
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
         f"y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
