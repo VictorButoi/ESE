@@ -26,7 +26,7 @@ def ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -61,7 +61,7 @@ def TL_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -106,7 +106,7 @@ def CW_ECE(
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -126,6 +126,30 @@ def CW_ECE(
     return cal_info
 
 
+def get_edge_pixels(
+        y_pred: torch.Tensor,
+        y_true: torch.Tensor,
+        image_info_dict: dict
+        ) -> torch.Tensor:
+    """
+    Returns the edge pixels of the ground truth label map.
+    """
+    # Get the edge map.
+    if "true_matching_neighbors_map" in image_info_dict:
+        y_true_edge_map = (image_info_dict["true_matching_neighbors_map"] < 8)
+    else:
+        y_true_squeezed = y_true.squeeze()
+        y_true_edge_map = get_edge_map(y_true_squeezed)
+    # Get the edge regions of both the prediction and the ground truth.
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Add a height dim.
+    y_edge_pred = y_pred_e_reg.unsqueeze(-2)
+    y_edge_true= y_true_e_reg.unsqueeze(-2)
+    # Return the edge-ified values.
+    return y_edge_pred, y_edge_true
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def Edge_ECE(
     y_pred: torch.Tensor, 
@@ -139,23 +163,20 @@ def Edge_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    # Get the edge map.
-    if "true_matching_neighbors_map" in stats_info_dict:
-        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
-    else:
-        y_true_squeezed = y_true.squeeze()
-        y_true_edge_map = get_edge_map(y_true_squeezed)
-    # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., y_true_edge_map].unsqueeze(1) # Add a height dimension.
-    y_true_e_reg = y_true[..., y_true_edge_map].unsqueeze(1) # Add a height dimension.
+    # Get the edge pixels.
+    y_edge_pred, y_edge_true = get_edge_pixels(
+        y_pred=y_pred, 
+        y_true=y_true,
+        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+    )
     # Return the calibration information
     return ECE(
-        y_pred=y_pred_e_reg,
-        y_true=y_true_e_reg,
+        y_pred=y_edge_pred,
+        y_true=y_edge_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         ignore_index=ignore_index
     ) 
 
@@ -173,23 +194,20 @@ def Edge_TL_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    # Get the edge map.
-    if "true_matching_neighbors_map" in stats_info_dict:
-        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
-    else:
-        y_true_squeezed = y_true.squeeze()
-        y_true_edge_map = get_edge_map(y_true_squeezed)
-    # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., y_true_edge_map]
-    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Get the edge pixels.
+    y_edge_pred, y_edge_true = get_edge_pixels(
+        y_pred=y_pred, 
+        y_true=y_true,
+        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+    )
     # Return the calibration information
     return TL_ECE(
-        y_pred=y_pred_e_reg,
-        y_true=y_true_e_reg,
+        y_pred=y_edge_pred,
+        y_true=y_edge_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         ignore_index=ignore_index
     ) 
 
@@ -207,22 +225,19 @@ def Edge_CW_ECE(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    # Get the edge map.
-    if "true_matching_neighbors_map" in stats_info_dict:
-        y_true_edge_map = (stats_info_dict["true_matching_neighbors_map"] < 8)
-    else:
-        y_true_squeezed = y_true.squeeze()
-        y_true_edge_map = get_edge_map(y_true_squeezed)
-    # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., y_true_edge_map]
-    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Get the edge pixels.
+    y_edge_pred, y_edge_true = get_edge_pixels(
+        y_pred=y_pred, 
+        y_true=y_true,
+        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+    )
     # Return the calibration information
     return CW_ECE(
-        y_pred=y_pred_e_reg,
-        y_true=y_true_e_reg,
+        y_pred=y_edge_pred,
+        y_true=y_edge_true,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
-        stats_info_dict=stats_info_dict,
+        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         ignore_index=ignore_index
     ) 

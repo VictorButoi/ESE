@@ -17,8 +17,13 @@ from ionpy.util.torchutils import to_device
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from .utils import dataloader_from_exp, binarize, get_image_aux_info
 from ..experiment.ese_exp import CalibrationExperiment
+from .utils import (
+    binarize, 
+    get_edge_aux_info,
+    get_image_aux_info, 
+    dataloader_from_exp
+)
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
@@ -326,7 +331,13 @@ def get_image_stats(
     }
 
     # Calculate some qualities about the image, used for various bookeeping, that can be reused.
-    stats_info_dict = get_image_aux_info(
+    image_info_dict = get_image_aux_info(
+        y_hard=y_hard,
+        y_true=y_true,
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        ignore_index=ignore_index
+    ) 
+    edge_info_dict = get_edge_aux_info(
         y_hard=y_hard,
         y_true=y_true,
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
@@ -342,7 +353,10 @@ def get_image_stats(
             inference_cfg["calibration"]["conf_interval_start"],
             inference_cfg["calibration"]["conf_interval_end"]
         ],
-        "stats_info_dict": stats_info_dict,
+        "stats_info_dict": {
+            "image_info": image_info_dict,
+            "edge_info": edge_info_dict
+        },
         "square_diff": inference_cfg["calibration"]["square_diff"],
         "ignore_index": ignore_index
     }
@@ -352,7 +366,8 @@ def get_image_stats(
         # Get the calibration error. 
         q_met_name = list(qual_metric.keys())[0] # kind of hacky
         if "ECE" in q_met_name:
-            qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**cal_input_config).item()
+            # Higher is better for scores.
+            qual_metric_scores_dict[q_met_name] = 1 - qual_metric[q_met_name]['func'](**cal_input_config)['cal_error'].item() 
         else:
             qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**qual_input_config).item()
 
@@ -366,20 +381,20 @@ def get_image_stats(
         true_log_lab_amount = 0 if true_lab_amount == 0 else np.log(true_lab_amount)
 
     # Go through each calibration metric and calculate the score.
-    cal_metric_scores_dict = {}
+    cal_metric_errors_dict = {}
     for cal_metric in inference_cfg["cal_metric_cfgs"]:
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_metric_scores_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'].item() 
+        cal_metric_errors_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'].item() 
 
     # Iterate through the cross product of calibration metrics and quality metrics.
-    for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_scores_dict.keys())):
+    for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):
         cal_record = {
             "cal_metric_type": cm_name.split("_")[-1],
             "cal_metric": cm_name.replace("_", " "),
             "qual_metric": qm_name,
-            "cal_m_score": (1 - cal_metric_scores_dict[cm_name]),
-            "cal_m_error": cal_metric_scores_dict[cm_name],
+            "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
+            "cal_m_error": cal_metric_errors_dict[cm_name],
             "qual_score": qual_metric_scores_dict[qm_name],
             "data_id": data_id,
             "slice_idx": slice_idx

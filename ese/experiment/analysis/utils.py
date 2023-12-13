@@ -5,10 +5,20 @@ from torch.utils.data import DataLoader
 from ionpy.experiment.util import absolute_import
 from typing import Optional
 from ..metrics.utils import (
-    count_matching_neighbors, 
-    get_uni_pixel_weights
+    get_edge_map,
+    get_uni_pixel_weights,
+    count_matching_neighbors
 )
 
+def reorder_splits(df):
+    if 'split' in df.keys():
+        train_logs = df[df['split'] == 'train']
+        val_logs = df[df['split'] == 'val']
+        cal_logs = df[df['split'] == 'cal']
+        fixed_df = pd.concat([train_logs, val_logs, cal_logs])
+        return fixed_df
+    else:
+        return df
 
 # This function will take in a dictionary of pixel meters and a metadata dataframe
 # from which to select the log_set corresponding to particular attributes, then 
@@ -52,21 +62,11 @@ def dataloader_from_exp(
     return dataloader, exp_data_cfg
 
 
-def reorder_splits(df):
-    if 'split' in df.keys():
-        train_logs = df[df['split'] == 'train']
-        val_logs = df[df['split'] == 'val']
-        cal_logs = df[df['split'] == 'cal']
-        fixed_df = pd.concat([train_logs, val_logs, cal_logs])
-        return fixed_df
-    else:
-        return df
-
-
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def binarize(
-    label_tensor, 
-    label,
-    discretize
+    label_tensor: torch.Tensor, 
+    label: int,
+    discretize: bool
     ):
     assert label_tensor.dim() == 4, f"Expected 4D tensor, found: {label_tensor.dim()}."
     if discretize:
@@ -78,6 +78,7 @@ def binarize(
     return binary_label_tensor
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_aux_info(
         y_hard: torch.Tensor,
         y_true: torch.Tensor,
@@ -115,4 +116,57 @@ def get_image_aux_info(
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
         "pixel_weights": pixel_weights
+    }
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_edge_aux_info(
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
+    neighborhood_width: int,
+    ignore_index: Optional[int] = None
+):
+    # Get the edge map.
+    y_true_squeezed = y_true.squeeze()
+    y_true_edge_map = get_edge_map(y_true_squeezed)
+
+    # Get the edge regions of both the prediction and the ground truth.
+    y_edge_hard = y_hard[..., y_true_edge_map].unsqueeze(-2)
+    y_edge_true = y_true[..., y_true_edge_map].unsqueeze(-2)
+
+    # Calculate the edge accuracy
+    edge_acc_map = (y_edge_hard == y_edge_true).float().squeeze()
+
+    # Keep track of different things for each bin.
+    edge_pred_labels = y_edge_hard.unique().tolist()
+    if ignore_index is not None and ignore_index in edge_pred_labels:
+        edge_pred_labels.remove(ignore_index)
+
+    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
+    # For both our prediction and the true label map.
+    edge_pred_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_hard, 
+        neighborhood_width=neighborhood_width
+    )[..., y_true_edge_map].unsqueeze(-2)
+
+    #Get the true matching neighbors map
+    edge_true_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_true, 
+        neighborhood_width=neighborhood_width
+    )[..., y_true_edge_map].unsqueeze(-2)
+
+    # Get the pixel-weights if we are using them.
+    edge_pixel_weights = get_uni_pixel_weights(
+        y_hard, 
+        uni_w_attributes=["labels", "neighbors"],
+        neighborhood_width=neighborhood_width,
+        ignore_index=ignore_index
+    )[..., y_true_edge_map].unsqueeze(-2)
+
+    return {
+        "accuracy_map": edge_acc_map,
+        "pred_labels": edge_pred_labels,
+        "pred_matching_neighbors_map": edge_pred_matching_neighbors_map,
+        "true_matching_neighbors_map": edge_true_matching_neighbors_map,
+        "pixel_weights": edge_pixel_weights 
     }

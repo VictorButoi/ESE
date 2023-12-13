@@ -68,10 +68,12 @@ def bin_stats_init(
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
 ):
+    assert len(y_pred.shape) == len(y_true.shape) == 4,\
+        f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
     y_pred = y_pred.squeeze(0) # Remove the batch dimension.
-    y_true = y_true.squeeze(0) # Remove the batch dimension.
+    y_true = y_true.squeeze(0).squeeze(0) # Remove the batch and channels dimensions.
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
-        f"y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
+        f"After squeezing, y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
     # Get the hard predictions and the max confidences.
     y_hard = y_pred.argmax(dim=0)
@@ -293,15 +295,15 @@ def neighbors_bin_stats(
         ignore_index=ignore_index
         )
     # Set the cal info tracker.
-    unique_num_neighbors = obj_dict["matching_neighbors_map"].unique()
-    num_neighbors = len(unique_num_neighbors)
+    unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
+    num_neighbors = len(unique_pred_matching_neighbors)
     cal_info = {
         "bin_cal_errors": torch.zeros((num_neighbors, num_bins)),
         "bin_accs": torch.zeros((num_neighbors, num_bins)),
         "bin_confs": torch.zeros((num_neighbors, num_bins)),
         "bin_amounts": torch.zeros((num_neighbors, num_bins))
     }
-    for nn_idx, p_nn in enumerate(unique_num_neighbors):
+    for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
@@ -310,7 +312,7 @@ def neighbors_bin_stats(
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
                 num_neighbors=p_nn,
-                num_neighbors_map=obj_dict["matching_neighbors_map"],
+                num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
                 lab_map=obj_dict["y_hard"],
                 ignore_index=ignore_index
                 )
@@ -366,8 +368,8 @@ def label_neighbors_bin_stats(
         )
     num_labels = lab_info["num_labels"]
     # Get the num of neighbor classes.
-    unique_num_neighbors = obj_dict["matching_neighbors_map"].unique()
-    num_neighbors = len(unique_num_neighbors)
+    unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
+    num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
         "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),
@@ -376,7 +378,7 @@ def label_neighbors_bin_stats(
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
     }
     for lab_idx, lab in enumerate(lab_info["unique_labels"]):
-        for nn_idx, p_nn in enumerate(unique_num_neighbors):
+        for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
@@ -385,7 +387,7 @@ def label_neighbors_bin_stats(
                     conf_bin=conf_bin, 
                     conf_bin_widths=obj_dict["conf_bin_widths"], 
                     num_neighbors=p_nn,
-                    num_neighbors_map=obj_dict["matching_neighbors_map"],
+                    num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
                     label=lab,
                     lab_map=lab_info["lab_map"],
                     ignore_index=ignore_index
