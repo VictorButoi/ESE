@@ -5,9 +5,7 @@ import einops
 import pathlib
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from itertools import product
-import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Any, Optional, List
 # torch imports
@@ -189,7 +187,6 @@ def get_cal_stats(
     for q_metric in qual_metric_cfgs:
         for q_key in q_metric.keys():
             q_metric[q_key]['func'] = absolute_import(q_metric[q_key]['func'])
-
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
@@ -197,13 +194,9 @@ def get_cal_stats(
     for cal_metric in cal_metric_cfgs:
         for c_key in cal_metric.keys():
             cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
-
-    # Define the confidence bins and bin widths.
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=cfg_dict['calibration']['num_bins'], 
-        start=cfg_dict['calibration']['conf_interval_start'], 
-        end=cfg_dict['calibration']['conf_interval_end']
-    )
+    # Place these dictionaries into the config dictionary.
+    cfg_dict["qual_metric_cfgs"] = qual_metric_cfgs
+    cfg_dict["cal_metric_cfgs"] = cal_metric_cfgs
 
     # Loop through the data, gather your stats!
     with torch.no_grad():
@@ -219,10 +212,6 @@ def get_cal_stats(
                     exp=best_exp, 
                     batch=batch, 
                     inference_cfg=cfg_dict, 
-                    qual_metric_cfgs=qual_metric_cfgs,
-                    cal_metric_cfgs=cal_metric_cfgs,
-                    conf_bins=conf_bins,
-                    conf_bin_widths=conf_bin_widths,
                     image_level_records=image_level_records,
                     pixel_meter_dict=pixel_meter_dict
                 )
@@ -246,10 +235,6 @@ def volume_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    qual_metric_cfgs: List[dict],
-    cal_metric_cfgs: List[dict],
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None
 ):
@@ -283,10 +268,6 @@ def volume_forward_loop(
         get_calibration_item_info(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            qual_metric_cfgs=qual_metric_cfgs,
-            cal_metric_cfgs=cal_metric_cfgs,
-            conf_bins=conf_bins,
-            conf_bin_widths=conf_bin_widths,
             image_level_records=image_level_records,
             pixel_meter_dict=pixel_meter_dict
         )
@@ -297,10 +278,6 @@ def image_forward_loop(
     exp: CalibrationExperiment,
     batch: Any,
     inference_cfg: dict,
-    qual_metric_cfgs: List[dict],
-    cal_metric_cfgs: List[dict],
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list],
     pixel_meter_dict: Optional[dict] = None
 ):
@@ -324,10 +301,6 @@ def image_forward_loop(
     get_calibration_item_info(
         output_dict=output_dict,
         inference_cfg=inference_cfg,
-        qual_metric_cfgs=qual_metric_cfgs,
-        cal_metric_cfgs=cal_metric_cfgs,
-        conf_bins=conf_bins,
-        conf_bin_widths=conf_bin_widths,
         image_level_records=image_level_records,
         pixel_meter_dict=pixel_meter_dict
     )
@@ -340,22 +313,20 @@ def get_image_stats(
     y_true: torch.Tensor,
     data_id: Any,
     inference_cfg: dict,
-    qual_metric_cfgs: List[dict],
-    cal_metric_cfgs: List[dict],
     image_level_records: list,
     slice_idx: Optional[int] = None,
     label: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
+    # Define the cal config.
+    q_input_config = {
+        "y_pred": y_pred,
+        "y_true": y_true,
+        "ignore_index": ignore_index
+    }
     # Go through each calibration metric and calculate the score.
     qual_metric_scores_dict = {}
-    for qual_metric in qual_metric_cfgs:
-        # Define the cal config.
-        q_input_config = {
-            "y_pred": y_pred,
-            "y_true": y_true,
-            "ignore_index": ignore_index
-        }
+    for qual_metric in inference_cfg["qual_metric_cfgs"]:
         # Get the calibration error. 
         q_met_name = list(qual_metric.keys())[0] # kind of hacky
         qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**q_input_config).item()
@@ -388,32 +359,29 @@ def get_image_stats(
         pred_lab_amount = (y_hard > 0).sum().item()
         assert not(pred_lab_amount == 0 and inference_cfg["calibration"]["binarize"]),\
             "Predicted label amount can not be 0 if we are binarizing."
-        if true_lab_amount == 0:
-            true_log_lab_amount = 0
-        else:
-            true_log_lab_amount = np.log(true_lab_amount)
+        true_log_lab_amount = 0 if true_lab_amount == 0 else np.log(true_lab_amount)
 
+    # Define the cal config.
+    cal_input_config = {
+        "y_pred": y_pred,
+        "y_true": y_true,
+        "num_bins": inference_cfg["calibration"]["num_bins"],
+        "conf_interval":[
+            inference_cfg["calibration"]["conf_interval_start"],
+            inference_cfg["calibration"]["conf_interval_end"]
+        ],
+        "stats_info_dict": {
+            "accuracy_map": accuracy_map,
+            "pred_labels": pred_labels,
+            "nn_neighbors_map": nn_neighborhood_map,
+            "pixel_weights": pixel_weights
+        },
+        "square_diff": inference_cfg["calibration"]["square_diff"],
+        "ignore_index": ignore_index
+    }
     # Go through each calibration metric and calculate the score.
     cal_metric_scores_dict = {}
-    for cal_metric in cal_metric_cfgs:
-        # Define the cal config.
-        cal_input_config = {
-            "y_pred": y_pred,
-            "y_true": y_true,
-            "num_bins": inference_cfg["calibration"]["num_bins"],
-            "conf_interval":[
-                inference_cfg["calibration"]["conf_interval_start"],
-                inference_cfg["calibration"]["conf_interval_end"]
-            ],
-            "stats_info_dict": {
-                "accuracy_map": accuracy_map,
-                "pred_labels": pred_labels,
-                "nn_neighbors_map": nn_neighborhood_map,
-                "pixel_weights": pixel_weights
-            },
-            "square_diff": inference_cfg["calibration"]["square_diff"],
-            "ignore_index": ignore_index
-        }
+    for cal_metric in inference_cfg["cal_metric_cfgs"]:
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0] # kind of hacky
         cal_metric_scores_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'].item() 
@@ -448,8 +416,6 @@ def update_image_records(
     image_level_records: list,
     output_dict: dict,
     inference_cfg: dict,
-    qual_metric_cfgs: List[dict],
-    cal_metric_cfgs: List[dict],
     ignore_index: Optional[int] = None,
 ):
     # Setup the image stats config.
@@ -460,8 +426,6 @@ def update_image_records(
         "data_id": output_dict["data_id"],
         "slice_idx": output_dict["slice_idx"], # None if not a volume
         "inference_cfg": inference_cfg,
-        "qual_metric_cfgs": qual_metric_cfgs,
-        "cal_metric_cfgs": cal_metric_cfgs,
         "image_level_records": image_level_records,
         "ignore_index": ignore_index
     }
@@ -501,8 +465,6 @@ def update_pixel_meters(
     pixel_meter_dict: dict,
     output_dict: dict,
     inference_cfg: dict,
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
     ignore_index: Optional[int] = None,
 ):
     # Setup variables.
@@ -512,6 +474,13 @@ def update_pixel_meters(
     conf_map = output_dict["y_pred"]
     if conf_map.shape[1] > 1:
         conf_map = torch.max(conf_map, dim=1, keepdim=True)[0]
+
+    # Define the confidence bins and bin widths.
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=inference_cfg['calibration']['num_bins'], 
+        start=inference_cfg['calibration']['conf_interval_start'], 
+        end=inference_cfg['calibration']['conf_interval_end']
+    )
 
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
@@ -578,10 +547,6 @@ def update_pixel_meters(
 def get_calibration_item_info(
     output_dict: dict,
     inference_cfg: dict,
-    qual_metric_cfgs: List[dict],
-    cal_metric_cfgs: List[dict],
-    conf_bins: torch.Tensor,
-    conf_bin_widths: torch.Tensor,
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None,
     ignore_index: Optional[int] = None,
@@ -597,8 +562,6 @@ def get_calibration_item_info(
             image_level_records=image_level_records,
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            qual_metric_cfgs=qual_metric_cfgs,
-            cal_metric_cfgs=cal_metric_cfgs,
             ignore_index=ignore_index
         ) 
     ########################
@@ -609,7 +572,5 @@ def get_calibration_item_info(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            conf_bins=conf_bins,
-            conf_bin_widths=conf_bin_widths,
             ignore_index=ignore_index
         )
