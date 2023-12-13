@@ -129,9 +129,10 @@ def viz_accuracy_vs_confidence(
     pixel_preds: Any,
     title: str,
     x: str,
-    kind: Literal["bar", "line"],
-    add_avg: bool,
-    add_weighted: bool = True,
+    kind: Literal["bar", "line"] = "bar",
+    relative_props: bool = False,
+    add_weighted: bool = False,
+    add_edge_props: bool = False,
     x_labels: bool = True,
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
@@ -140,28 +141,18 @@ def viz_accuracy_vs_confidence(
     # Structure: data_dict[bin_num][pred_label][measure] = list of values
     data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for (pred_label, num_neighbors, bin_num, measure), value in pixel_preds.items():
-        if x == "pred_label":
-            data_dict[bin_num][pred_label][measure].append(value)
-        elif x == "num_neighbors":
-            data_dict[bin_num][num_neighbors][measure].append(value)
-        elif x == "pred_label,num_neighbors":
-            data_dict[bin_num][f"{pred_label},{num_neighbors}"][measure].append(value)
-        else:
-            raise NotImplementedError(f"Haven't configured {x} for bar plot.")
+        pred_dict = {
+            "pred_label": pred_label,
+            "num_neighbors": num_neighbors,
+            "bin_num": bin_num,
+        }
+        data_dict[bin_num][pred_dict[x]][measure].append(value)
 
     # Calculate the average for each pred_label and measure within each bin_num
     avg_data_dict = defaultdict(lambda: defaultdict(dict))
-
-    # These are the metrics we care about for each x group.
-    meter_measure_names = [
-        "confidence", 
-        "accuracy", 
-        "weighted confidence", 
-        "weighted accuracy"
-        ]
-    
     # Helpful trackers for counting samples in each bin.
     bin_samples = {
+        "edge": {},
         "uniform": {},
         "weighted": {}
     }
@@ -169,76 +160,77 @@ def viz_accuracy_vs_confidence(
     for bin_num, x_var_set in data_dict.items():
         # SETUP A METER FOR EACH X GROUP, THIS WILL TRACK ONLY THE MEAN, STD, AND N
         # FOR EACH GROUP IN THIS BIN.
-        avg_bin_met_meters = {mg: StatsMeter() for mg in meter_measure_names}
-        for x_var, measures in x_var_set.items():
+        bin_metric_meters = {mg: StatsMeter() for mg in ["accuracy", "weighted accuracy", "confidence", "weighted confidence"]}
+        edge_pixels = 0
+        # Loop through each x group and measure.
+        for x_group, measures in x_var_set.items():
             for measure, values in measures.items():
-                bin_x_group_stats = StatsMeter()
+                x_group_meter = StatsMeter()
                 # Accumulate all of the values in this group, and at to our total bin trackers.
-                for value in values:
-                    bin_x_group_stats += value
-                    avg_bin_met_meters[measure] += value
+                for val in values:
+                    x_group_meter += val
+                    bin_metric_meters[measure] += val
                 # Record the mean, std, and n for the bin.
-                avg_data_dict[int(bin_num)][str(x_var)][measure] = {
-                    "mean": bin_x_group_stats.mean, 
-                    "std": bin_x_group_stats.std, 
-                    "n_samples": bin_x_group_stats.n
+                avg_data_dict[int(bin_num)][str(x_group)][measure] = {
+                    "mean": x_group_meter.mean, 
+                    "std": x_group_meter.std, 
+                    "n_samples": x_group_meter.n
                 } 
-        #  GET THE AVERAGE FOR EACH CONFIDENCE BIN.
-        for mes in meter_measure_names:
-            # Add the number of samples, both unwieghted and weighted. NOTE: We only do this for 
-            # confidence because otherwise we would be double counting the samples.
-            if "accuracy" in mes:
-                if "weighted" in mes:
-                    bin_samples_key = "weighted"
-                else:  
-                    bin_samples_key = "uniform"
-                # Add the number of samples in this bin.
-                bin_samples[bin_samples_key][bin_num] = avg_bin_met_meters[mes].n
-            # Optionally add the average to the data_dict. 
-            if add_avg:
-                avg_data_dict[int(bin_num)]["avg"][mes] = {
-                    "mean": avg_bin_met_meters[mes].mean, 
-                    "std": avg_bin_met_meters[mes].std, 
-                    "n_samples": avg_bin_met_meters[mes].n
-                    }
+                if x == "num_neighbors" and measure == "accuracy" and x_group < 8:
+                    edge_pixels += x_group_meter.n
+        # Add the number of samples in this bin.
+        bin_samples["edge"][bin_num] = edge_pixels
+        bin_samples["uniform"][bin_num] = bin_metric_meters["accuracy"].n
+        bin_samples["weighted"][bin_num] = bin_metric_meters["weighted accuracy"].n
 
     # NORMALIZE THE PROPORTION BY THE TOTAL NUMBER OF SAMPLES IN THE EXPERIMENT.
-    total_uniform = sum(bin_samples["uniform"].values())
-    total_weighted = int(sum(bin_samples["weighted"].values()))
-    assert np.abs(total_uniform - total_weighted) < 5,\
-        f"Total uniform samples: {total_uniform} and Total weighted samples: {total_weighted} should be ~basically the same."
+    total_samples = sum(bin_samples["uniform"].values())
+    total_edge_samples = sum(bin_samples["edge"].values())
+    total_weighted_samples = sum(bin_samples["weighted"].values())
+    assert np.abs(total_samples - total_weighted_samples) < 5,\
+        f"Total uniform samples: {total_samples} and Total weighted samples: {total_weighted_samples} should be ~basically the same."
     # Loop through every bin and x_var
     for bin_num, x_var_set in avg_data_dict.items():
-        for x_var in x_var_set.keys():
+        for x_group in x_var_set.keys():
+            x_group_dict = avg_data_dict[bin_num][x_group]
             # NORMALIZE THE STANDARD PROPORTIONS
-            bin_x_samples = avg_data_dict[bin_num][x_var]["accuracy"]["n_samples"]
-            if add_avg:
-                # In this case, we weigh within the bin because the avg is being added to each bin anyways.
-                avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / bin_samples["uniform"][bin_num]
-            else:
-                avg_data_dict[bin_num][x_var]["proportion"] = bin_x_samples / total_weighted
+            bin_x_samples = x_group_dict["accuracy"]["n_samples"]
+            u_denom_samples = bin_samples["uniform"][bin_num] if relative_props else total_samples
+            avg_data_dict[bin_num][x_group]["proportion"] = bin_x_samples / u_denom_samples 
 
             # NORMALIZE THE WEIGHTED PROPORTIONS
-            weighted_bin_x_samples = avg_data_dict[bin_num][x_var]["weighted accuracy"]["n_samples"]
-            if add_avg:
-                # In this case, we weigh within the bin because the avg is being added to each bin anyways.
-                avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_bin_x_samples / bin_samples["weighted"][bin_num]
-            else:
-                avg_data_dict[bin_num][x_var]["weighted proportion"] = weighted_bin_x_samples / total_weighted
-        # We are adding the avg to each bin, normalize by the total number of samples.
-        if add_avg:
-            avg_data_dict[bin_num]["avg"]["proportion"] = bin_samples["uniform"][bin_num] / total_uniform 
-            avg_data_dict[bin_num]["avg"]["weighted proportion"] = bin_samples["weighted"][bin_num] / total_weighted 
+            weighted_bin_x_samples = x_group_dict["weighted accuracy"]["n_samples"]
+            w_denom_samples = bin_samples["weighted"][bin_num] if relative_props else total_weighted_samples
+            avg_data_dict[bin_num][x_group]["weighted proportion"] = weighted_bin_x_samples / w_denom_samples 
 
-    # Add the proportion to the measures list.
-    measure_names =  meter_measure_names + ["proportion", "weighted proportion"]
+            # NORMALIZE THE EDGE PROPORTIONS
+            if add_edge_props:
+                edge_x_samples = x_group_dict["accuracy"]["n_samples"] if int(x_group) < 8 else 0 
+                e_denom_samples = bin_samples["edge"][bin_num] if relative_props else total_edge_samples
+                avg_data_dict[bin_num][x_group]["edge proportion"] = edge_x_samples / e_denom_samples 
+
+    # These are the metrics we care about for each x group.
+    measure_names = [
+        "confidence", 
+        "accuracy", 
+        "weighted confidence", 
+        "weighted accuracy",
+        "proportion",
+        "weighted proportion"
+        ]
+    if add_edge_props:
+        measure_names += ["edge proportion"]
 
     # Set a bunch of information for plotting the graphs.
     num_bins = len(avg_data_dict)
     num_rows, num_cols = math.ceil(num_bins/5), 5
     sharex, sharey = True, True
     if facet_kws is not None:
-        sharex, sharey = facet_kws["sharex"], facet_kws["sharey"]
+        if "sharex" in facet_kws.keys():
+            sharex = facet_kws["sharex"]
+        if "sharey" in facet_kws.keys():
+            sharey = facet_kws["sharey"]
+
     # Setup the subplot array.
     fig, axes = plt.subplots(
         nrows=num_rows, 
@@ -247,19 +239,16 @@ def viz_accuracy_vs_confidence(
         sharex=sharex, 
         sharey=sharey
         )
+
     # Define the colors for the plot.
     metric_colors = {
         "confidence": "cornflowerblue",
         "weighted confidence": "mediumblue",
-        "avg confidence": "dodgerblue",
         "accuracy": "sandybrown",
         "weighted accuracy": "darkorange",
-        "avg accuracy": "sandybrown",
-        "avg weighted accuracy": "peachpuff",
-        "proportion": "lightgreen",
-        "weighted proportion": "darkgreen",
-        "avg proportion": "darkseagreen",
-        "avg weighted proportion": "lightgreen",
+        "proportion": "darkgreen",
+        "edge proportion": "mediumorchid",
+        "weighted proportion": "lightgreen",
     }
 
     # Loop through the axes, and if there isn't a bin number for that axis, remove it first sorting the avg_data_dict indices by col.
@@ -268,6 +257,15 @@ def viz_accuracy_vs_confidence(
     for ax_idx, ax in enumerate(axes.flat):
         if ax_idx not in bin_nums:
             fig.delaxes(ax)
+        
+    # If not adding weighting, remove the weighted measures.
+    if not add_weighted:
+        for measure in [
+            "weighted confidence", 
+            "weighted accuracy", 
+            "weighted proportion", 
+        ]:
+            measure_names.remove(measure)
 
     # Loop through the subplots and plot the data.
     for bin_num, x_var_set in data_sorted_by_bin_num:
