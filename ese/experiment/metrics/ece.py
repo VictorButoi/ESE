@@ -151,7 +151,7 @@ def get_edge_pixels(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def Edge_ECE(
+def EdgeCE(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
@@ -182,7 +182,7 @@ def Edge_ECE(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def Edge_TL_ECE(
+def TL_EdgeCE(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
@@ -213,7 +213,7 @@ def Edge_TL_ECE(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def Edge_CW_ECE(
+def CW_EdgeCE(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,

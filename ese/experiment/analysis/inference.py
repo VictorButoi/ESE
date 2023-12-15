@@ -365,7 +365,7 @@ def get_image_stats(
     for qual_metric in inference_cfg["qual_metric_cfgs"]:
         # Get the calibration error. 
         q_met_name = list(qual_metric.keys())[0] # kind of hacky
-        if "ECE" in q_met_name:
+        if qual_metric[q_met_name]['metric_type'] == 'calibration':
             # Higher is better for scores.
             qual_metric_scores_dict[q_met_name] = 1 - qual_metric[q_met_name]['func'](**cal_input_config)['cal_error'].item() 
         else:
