@@ -7,7 +7,7 @@ from pydantic import validate_arguments
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def LoMS(
+def ELM(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
@@ -60,7 +60,7 @@ def LoMS(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def TL_LoMS(
+def TL_ELM(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
@@ -110,7 +110,7 @@ def TL_LoMS(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def CW_LoMS(
+def CW_ELM(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
     num_bins: int,
