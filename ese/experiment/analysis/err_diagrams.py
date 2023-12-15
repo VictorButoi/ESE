@@ -364,7 +364,7 @@ def viz_cal_metric_corr(
     else:
         correlations_melted = correlations.pivot_table(index=['cal_metric', 'qual_metric'], values='correlation').reset_index()
     # Add a new column for cal_metric_type if row is specified
-    correlations_melted['cal_metric_type'] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'LoMS'})
+    correlations_melted['cal_metric_type'] = correlations_melted['cal_metric'].str.contains('ECE').map({True: 'ECE', False: 'ELM'})
     # Initialize the FacetGrid with the reshaped DataFrame
     grid_kwargs = {
         'col': col, 

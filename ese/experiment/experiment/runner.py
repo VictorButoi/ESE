@@ -4,20 +4,16 @@ from ionpy.util import Config
 from ionpy.util.config import config_digest
 from ionpy.util.ioutil import autosave
 from ionpy.experiment.util import generate_tuid
-
-# local imports
-from .ese_exp import CalibrationExperiment 
-
 # misc imports
 import os
-import pathlib
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 from pydantic import validate_arguments
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def run_ese_exp(
     config: Config,
+    experiment_class: Any,
     gpu: str,
     run_name: str = None,
     show_examples: bool = False,
@@ -38,7 +34,7 @@ def run_ese_exp(
 
     # Run the experiment.
     slite.run_exp(
-        exp_class=CalibrationExperiment,
+        exp_class=experiment_class,
         exp_object=Config(cfg), 
         gpu=gpu,
     )
@@ -47,6 +43,7 @@ def run_ese_exp(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def submit_ese_exps(
     exp_root : str,
+    experiment_class: Any,
     config_list: List[Config],
     available_gpus: List[str],
     wandb: bool = False
@@ -62,7 +59,7 @@ def submit_ese_exps(
     # Run the experiments 
     slite.submit_exps(
         exp_root=exp_root,
-        exp_class=CalibrationExperiment,
+        exp_class=experiment_class,
         available_gpus=available_gpus,
         config_list=config_list
     ) 
@@ -71,6 +68,7 @@ def submit_ese_exps(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def restart_ese_exps(
     exp_root : str,
+    experiment_class: Any,
     job_names: Union[str, List[str]],
     available_gpus: List[str],
     modifications: Optional[dict] = None,
@@ -123,7 +121,7 @@ def restart_ese_exps(
     # Run the experiments 
     slite.submit_exps(
         exp_root=exp_root,
-        exp_class=CalibrationExperiment,
+        exp_class=experiment_class,
         exp_path_list=exp_path_files,
         available_gpus=available_gpus
     ) 
