@@ -1,18 +1,11 @@
-# local imports
-from typing import Literal
-from ..augmentation import augmentations_from_config
 # torch imports
-import torch
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params
 from ionpy.util import Config
-from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
-# misc imports
-import einops
 
 
 class PostHocExperiment(TrainExperiment):
@@ -46,17 +39,18 @@ class PostHocExperiment(TrainExperiment):
         total_config = self.config.to_dict()
         # Set important things about the model.
         self.config = Config(total_config)
-        self.model = eval_config(self.config["model"])
+        self.base_model = None
+        self.calibrator = eval_config(self.config["model"])
         self.properties["num_params"] = num_params(self.model)
     
     def build_loss(self):
         self.loss_func = eval_config(self.config["loss_func"])
     
-    def run_step(self, batch_idx, batch, backward, augmentation, epoch=None, phase=None):
+    def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
         # Forward pass
-        yhat = self.model(x)
+        yhat = self.base_model(x)
         # Calculate the loss between the pred and original preds.
         loss = self.loss_func(yhat, y)
         # If backward then backprop the gradients.
