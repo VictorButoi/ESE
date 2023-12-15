@@ -125,7 +125,6 @@ def get_cal_stats(
     ###################
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
-
     # Results loader object does everything
     save_root = pathlib.Path(cfg_dict['log']['root'])
     # Get the configs of the experiment

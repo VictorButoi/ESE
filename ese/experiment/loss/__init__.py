@@ -1,1 +1,1 @@
-from .combo import SoftDiceLoss, NllWithDice
+from .calibration import NLLPixelLoss

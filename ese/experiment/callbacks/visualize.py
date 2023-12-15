@@ -8,20 +8,6 @@ def ShowPredictions(
         experiment
         ):
 
-    # Get the experiment config
-    exp_config = experiment.config.to_dict() 
-
-    # Generate a list of random colors, starting with black for background
-    num_pred_classes = exp_config['model']['out_channels']
-
-    if num_pred_classes == 2:
-        colors = [(0, 0, 0), (1, 1, 1)]
-    else:
-        colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
-
-    cmap_name = "seg_map"
-    cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
-
     def ShowPredictionsCallback(batch):
         # Move the channel dimension to the last dimension
         x = batch["x"].detach().cpu()
@@ -32,6 +18,14 @@ def ShowPredictions(
         yhat = batch["ypred"].detach().cpu()
         bs = x.shape[0]
         num_pred_classes = yhat.shape[1]
+
+        if num_pred_classes == 2:
+            colors = [(0, 0, 0), (1, 1, 1)]
+        else:
+            colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+
+        cmap_name = "seg_map"
+        cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
 
         # Prints some metric stuff
         print("Loss: ", batch["loss"].item())
