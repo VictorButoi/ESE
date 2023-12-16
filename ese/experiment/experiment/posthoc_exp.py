@@ -67,8 +67,11 @@ class PostHocExperiment(TrainExperiment):
         x, y = to_device(batch, self.device)
         # Forward pass
         yhat = self.base_model(x)
+        # Calibrate the predictions.
+        yhat_cal = self.model(yhat)
         # Calculate the loss between the pred and original preds.
-        loss = self.loss_func(yhat, y)
+        print(yhat_cal.shape, y.shape)
+        loss = self.loss_func(yhat_cal, y)
         # If backward then backprop the gradients.
         if backward:
             loss.backward()
