@@ -66,10 +66,16 @@ def bin_stats_init(
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
         f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
+    
+    # If from logits, apply softmax along channels of y pred.
+    if from_logits:
+        y_pred = torch.softmax(y_pred, dim=1)
+
     y_pred = y_pred.squeeze(0) # Remove the batch dimension.
     y_true = y_true.squeeze(0).squeeze(0) # Remove the batch and channels dimensions.
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
@@ -150,6 +156,7 @@ def bin_stats(
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -161,6 +168,7 @@ def bin_stats(
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
         )
     # Keep track of different things for each bin.
@@ -211,6 +219,7 @@ def label_bin_stats(
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -222,6 +231,7 @@ def label_bin_stats(
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
         )
     # If top label, then everything is done based on
@@ -281,6 +291,7 @@ def neighbors_bin_stats(
     neighborhood_width: int,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -292,6 +303,7 @@ def neighbors_bin_stats(
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
         )
     # Set the cal info tracker.
@@ -346,6 +358,7 @@ def label_neighbors_bin_stats(
     neighborhood_width: int,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -357,6 +370,7 @@ def label_neighbors_bin_stats(
         uniform_weighting=uniform_weighting,
         neighborhood_width=neighborhood_width,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
         )
     # Get the label information.

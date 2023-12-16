@@ -57,6 +57,7 @@ class PostHocExperiment(TrainExperiment):
         # BUILD THE CALIBRATOR #
         ########################
         self.model = eval_config(self.config["model"])
+        self.model.weights_init()
         self.properties["num_params"] = num_params(self.model)
     
     def build_loss(self):
@@ -68,9 +69,8 @@ class PostHocExperiment(TrainExperiment):
         # Forward pass
         yhat = self.base_model(x)
         # Calibrate the predictions.
-        yhat_cal = self.model(yhat)
+        yhat_cal = self.model(yhat, image=x)
         # Calculate the loss between the pred and original preds.
-        print(yhat_cal.shape, y.shape)
         loss = self.loss_func(yhat_cal, y)
         # If backward then backprop the gradients.
         if backward:

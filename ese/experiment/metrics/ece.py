@@ -14,6 +14,7 @@ def ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -27,6 +28,7 @@ def ECE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -48,6 +50,7 @@ def TL_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -62,6 +65,7 @@ def TL_ECE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -93,6 +97,7 @@ def CW_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -107,6 +112,7 @@ def CW_ECE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -158,6 +164,7 @@ def Edge_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -177,6 +184,7 @@ def Edge_ECE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     ) 
 
@@ -189,6 +197,7 @@ def TL_EdgeCE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -208,6 +217,7 @@ def TL_EdgeCE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     ) 
 
@@ -220,6 +230,7 @@ def ECW_ECE(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -239,5 +250,6 @@ def ECW_ECE(
         conf_interval=conf_interval,
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        from_logits=from_logits,
         ignore_index=ignore_index
     ) 

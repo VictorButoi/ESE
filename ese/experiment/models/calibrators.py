@@ -1,9 +1,28 @@
+# torch imports
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as td
+# misc imports
+import math
 import numpy as np
 
+    
+def initialization(m):
+    # Initialize kernel weights with Gaussian distributions
+    if isinstance(m, nn.Conv2d):
+        n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+        m.weight.data.normal_(0, math.sqrt(2. / n))
+        if m.bias is not None:
+            m.bias.data.zero_()
+    elif isinstance(m, nn.ConvTranspose2d):
+        n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
+        m.weight.data.normal_(0, math.sqrt(2. / n))
+        if m.bias is not None:
+            m.bias.data.zero_()
+    elif isinstance(m, nn.BatchNorm2d):
+        m.weight.data.fill_(1)
+        m.bias.data.zero_()
+        
 
 class Temperature_Scaling(nn.Module):
     def __init__(self):
@@ -13,8 +32,8 @@ class Temperature_Scaling(nn.Module):
     def weights_init(self):
         self.temperature_single.data.fill_(1)
 
-    def forward(self, logits):
-        temperature = self.temperature_single.expand(logits.size()).cuda()
+    def forward(self, logits, image=None):
+        temperature = self.temperature_single.expand(logits.size())
         return logits / temperature
 
 
@@ -28,71 +47,29 @@ class Vector_Scaling(nn.Module):
         self.vector_offset.data.fill_(0)
         self.vector_parameters.data.fill_(1)
 
-    def forward(self, logits):
-        return logits * self.vector_parameters.cuda() + self.vector_offset.cuda()
-        
-
-class Stochastic_Spatial_Scaling(nn.Module):
-    def __init__(self, num_classes):
-        super(Stochastic_Spatial_Scaling, self).__init__()
-
-        conv_fn = nn.Conv2d
-        self.rank = 10
-        self.num_classes = num_classes 
-        self.epsilon = 1e-5
-        self.diagonal = False  # whether to use only the diagonal (independent normals)
-        self.conv_logits = conv_fn(num_classes, num_classes, kernel_size=(1, ) * 2)
-
-    def weights_init(self):
-        initialization(self.conv_logits)
-        
-    def fixed_re_parametrization_trick(dist, num_samples):
-        assert num_samples % 2 == 0
-        samples = dist.rsample((num_samples // 2,))
-        mean = dist.mean.unsqueeze(0)
-        samples = samples - mean
-        return torch.cat([samples, -samples]) + mean
-                
-    def forward(self, logits):
-
-        batch_size = logits.shape[0]
-        event_shape = (self.num_classes,) + logits.shape[2:]
-
-
-        mean = self.conv_logits(logits)
-        cov_diag = (mean*1e-5).exp() + self.epsilon
-        mean = mean.view((batch_size, -1))
-        cov_diag = cov_diag.view((batch_size, -1))                     
-
-        base_distribution = td.Independent(td.Normal(loc=mean, scale=torch.sqrt(cov_diag)), 1)
-        distribution = ReshapedDistribution(base_distribution, event_shape)
-
-        num_samples=2
-        samples = distribution.rsample((num_samples // 2,)).cpu()
-        mean = distribution.mean.unsqueeze(0).cpu()
-        samples = samples - mean
-        logit_samples = torch.cat([samples, -samples]) + mean
-        logit_mean = logit_samples.mean(dim=0).cuda()
-
-        return logit_mean
+    def forward(self, logits, image=None):
+        return (logits * self.vector_parameters) + self.vector_offset
         
 
 class Dirichlet_Scaling(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, eps=1e-10):
         super(Dirichlet_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
+        self.eps = eps
 
     def weights_init(self):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
         self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
 
-    def forward(self, logits):
-        logits = logits.permute(0,2,3,1)
-        softmax = torch.nn.Softmax(dim=-1)
-        probs = softmax(logits)
-        ln_probs = torch.log(probs+1e-10)
-
-        return self.dirichlet_linear(ln_probs).permute(0,3,1,2)   
+    def forward(self, logits, image=None):
+        probs = torch.softmax(logits, dim=1)
+        ln_probs = torch.log(probs + self.eps)
+        # Move channel dim to the back (for broadcasting)
+        ln_probs = ln_probs.permute(0,2,3,1).contiguous()
+        ds_probs = self.dirichlet_linear(ln_probs)
+        ds_probs = ds_probs.permute(0,3,1,2).contiguous()
+        # Return scaled log probabilities
+        return ds_probs
 
         
 class Meta_Scaling(nn.Module):
@@ -153,19 +130,24 @@ class Meta_Scaling(nn.Module):
         return cal_logits, cal_gt
 
 
-class LTS_CamVid_With_Image(nn.Module):
-    def __init__(self, num_classes):
-        super(LTS_CamVid_With_Image, self).__init__()
+class LTS(nn.Module):
+    def __init__(self, num_classes, image_channels, sigma=1e-8):
+        super(LTS, self).__init__()
         self.num_classes = num_classes
+
         self.temperature_level_2_conv1 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_conv2 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_conv3 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_conv4 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
+
         self.temperature_level_2_param1 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_param2 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_param3 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_conv_img = nn.Conv2d(3, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
+
+        self.temperature_level_2_conv_img = nn.Conv2d(image_channels, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_param_img = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
+
+        self.sigma = sigma
 
     def weights_init(self):
         torch.nn.init.zeros_(self.temperature_level_2_conv1.weight.data)
@@ -205,15 +187,14 @@ class LTS_CamVid_With_Image(nn.Module):
         temp_2 = self.temperature_level_2_conv_img(image) + torch.ones(1).cuda()
         temp_param = self.temperature_level_2_param_img(logits)
         temperature = temp_1 * torch.sigmoid(temp_param) + temp_2 * (1.0 - torch.sigmoid(temp_param))
-        sigma = 1e-8
-        temperature = F.relu(temperature + torch.ones(1).cuda()) + sigma
+        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.sigma 
         temperature = temperature.repeat(1, self.num_classes, 1, 1)
         return logits / temperature
 
 
-class Binary_Classifier(nn.Module):
+class Selective_Scaling(nn.Module):
     def __init__(self, num_classes):
-        super(Binary_Classifier, self).__init__()
+        super(Selective_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.binary_linear = nn.Linear(num_classes, 2)
         

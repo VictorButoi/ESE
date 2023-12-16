@@ -16,6 +16,7 @@ def ELM(
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -31,6 +32,7 @@ def ELM(
         neighborhood_width=neighborhood_width,
         uniform_weighting=uniform_weighting,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the calibration score.
@@ -69,6 +71,7 @@ def TL_ELM(
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -85,6 +88,7 @@ def TL_ELM(
         neighborhood_width=neighborhood_width,
         uniform_weighting=uniform_weighting,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
@@ -119,6 +123,7 @@ def CW_ELM(
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -135,6 +140,7 @@ def CW_ELM(
         neighborhood_width=neighborhood_width,
         uniform_weighting=uniform_weighting,
         stats_info_dict=stats_info_dict,
+        from_logits=from_logits,
         ignore_index=ignore_index
     )
     # Finally, get the ECE score.
