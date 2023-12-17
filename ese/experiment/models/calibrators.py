@@ -32,7 +32,7 @@ class Temperature_Scaling(nn.Module):
     def weights_init(self):
         self.temperature_single.data.fill_(1)
 
-    def forward(self, logits, image=None):
+    def forward(self, logits, image=None, label=None):
         temperature = self.temperature_single.expand(logits.size())
         return logits / temperature
 
@@ -47,7 +47,7 @@ class Vector_Scaling(nn.Module):
         self.vector_offset.data.fill_(0)
         self.vector_parameters.data.fill_(1)
 
-    def forward(self, logits, image=None):
+    def forward(self, logits, image=None, label=None):
         return (logits * self.vector_parameters) + self.vector_offset
         
 
@@ -61,7 +61,7 @@ class Dirichlet_Scaling(nn.Module):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
         self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
 
-    def forward(self, logits, image=None):
+    def forward(self, logits, image=None, label=None):
         probs = torch.softmax(logits, dim=1)
         ln_probs = torch.log(probs + self.eps)
         # Move channel dim to the back (for broadcasting)
@@ -72,64 +72,6 @@ class Dirichlet_Scaling(nn.Module):
         return ds_probs
 
         
-class Meta_Scaling(nn.Module):
-    def __init__(self, num_classes):
-        super(Meta_Scaling, self).__init__()
-        self.temperature_single = nn.Parameter(torch.ones(1))
-        self.num_classes = num_classes
-        self.alpha = 0.05
-
-    def weights_init(self):
-        self.temperature_single.data.fill_(1)
-        
-    def forward(self, logits, gt, threshold):
-
-        logits = logits.permute(0,2,3,1).view(-1, self.num_classes)
-        gt = gt.view(-1)
-    
-        if self.training:
-            neg_ind = torch.argmax(logits, axis=1) == gt
-            
-            xs_pos, ys_pos = logits[~neg_ind], gt[~neg_ind]
-            xs_neg, ys_neg = logits[neg_ind], gt[neg_ind]
-            
-            start = np.random.randint(int(xs_neg.shape[0]*1/3))+1
-            x2 = torch.cat((xs_pos, xs_neg[start:int(xs_neg.shape[0]/2)+start]), 0)
-            y2 = torch.cat((ys_pos, ys_neg[start:int(xs_neg.shape[0]/2)+start]), 0)
-            
-            softmax = torch.nn.Softmax(dim=-1)
-            p = softmax(x2)
-            scores_x2 = torch.sum(-p*torch.log(p), dim=-1)
-        
-            cond_ind = scores_x2 < threshold
-            cal_logits, cal_gt = x2[cond_ind], y2[cond_ind]
-        
-            temperature = self.temperature_single.expand(cal_logits.size())
-            cal_logits = cal_logits / temperature
-            
-        else:
-            x2 = logits
-            y2 = gt
-        
-            softmax = torch.nn.Softmax(dim=-1)
-            p = softmax(x2)
-            scores_x2 = torch.sum(-p*torch.log(p), dim=-1)
-        
-            cond_ind = scores_x2 < threshold
-            scaled_logits, scaled_gt = x2[cond_ind], y2[cond_ind]
-            inference_logits, inference_gt = x2[~cond_ind], y2[~cond_ind]
-        
-            temperature = self.temperature_single.expand(scaled_logits.size())
-            scaled_logits = scaled_logits / temperature
-
-            inference_logits = torch.ones_like(inference_logits)
-            
-            cal_logits = torch.cat((scaled_logits, inference_logits), 0)
-            cal_gt = torch.cat((scaled_gt, inference_gt), 0)
-
-        return cal_logits, cal_gt
-
-
 class LTS(nn.Module):
     def __init__(self, num_classes, image_channels, sigma=1e-8):
         super(LTS, self).__init__()
@@ -169,7 +111,7 @@ class LTS(nn.Module):
         torch.nn.init.zeros_(self.temperature_level_2_param_img.weight.data)
         torch.nn.init.zeros_(self.temperature_level_2_param_img.bias.data)
 
-    def forward(self, logits, image):
+    def forward(self, logits, image, label=None):
         temperature_1 = self.temperature_level_2_conv1(logits)
         temperature_1 += (torch.ones(1)).cuda()
         temperature_2 = self.temperature_level_2_conv2(logits)
@@ -192,6 +134,58 @@ class LTS(nn.Module):
         return logits / temperature
 
 
+class Meta_Scaling(nn.Module):
+    def __init__(self, num_classes, threshold):
+        super(Meta_Scaling, self).__init__()
+        self.temperature_single = nn.Parameter(torch.ones(1))
+        self.num_classes = num_classes
+        self.theshold = threshold
+
+    def weights_init(self):
+        self.temperature_single.data.fill_(1)
+        
+    def forward(self, logits, label, image=None):
+
+        logits = logits.permute(0,2,3,1).view(-1, self.num_classes)
+        label = label.view(-1)
+    
+        if self.training:
+            correct_pred_map = (torch.argmax(logits, axis=1) == label) 
+            
+            incorrect_logits = logits[~correct_pred_map]
+            correct_logits = logits[correct_pred_map]
+            
+            num_correct = correct_logits.shape[0]   
+            start = np.random.randint(int(num_correct/3)) + 1 # no idea what this is doing.
+            # Concat incorrect and up to half of correct
+            half_correct = int(num_correct/2) 
+            logits_cat = torch.cat((incorrect_logits, correct_logits[start:half_correct+start]), 0) # Or this
+            
+            probs = torch.softmax(logits_cat)
+            cross_entropy = torch.sum(-probs*torch.log(probs), dim=-1)
+        
+            ce_sub_thresh = (cross_entropy < self.threshold)
+            cal_logits  = logits_cat[ce_sub_thresh]
+        
+            temperature = self.temperature_single.expand(cal_logits.size())
+            cal_logits = cal_logits / temperature
+
+        else:
+            probs = torch.softmax(logits)
+            cross_entropy = torch.sum(-probs*torch.log(probs), dim=-1)
+        
+            ce_sub_thresh = (cross_entropy < self.threshold)
+            scaled_logits = logits[ce_sub_thresh]
+            inference_logits = logits[~ce_sub_thresh]
+        
+            temperature = self.temperature_single.expand(scaled_logits.size())
+            scaled_logits = scaled_logits / temperature
+            inference_logits = torch.ones_like(inference_logits) # This seems so bad.
+            cal_logits = torch.cat((scaled_logits, inference_logits), 0)
+
+        return cal_logits
+
+
 class Selective_Scaling(nn.Module):
     def __init__(self, num_classes):
         super(Selective_Scaling, self).__init__()
@@ -210,12 +204,10 @@ class Selective_Scaling(nn.Module):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
         self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
 
-    def forward(self, logits, gt):
+    def forward(self, logits, images=None, labels=None):
         logits = logits.permute(0,2,3,1)   
-        softmax = torch.nn.Softmax(dim=-1)
-        probs = softmax(logits)
-
-        ln_probs = torch.log(probs+1e-16)
+        probs = torch.softmax(logits)
+        ln_probs = torch.log(probs + 1e-16)
 
         out = self.dirichlet_linear(ln_probs)
         out = self.bn0(out.permute(0,3,1,2))
@@ -230,10 +222,7 @@ class Selective_Scaling(nn.Module):
         out = self.relu(out)       
 
         tf_positive = self.binary_linear(out.permute(0,2,3,1))
-        _, pred = torch.max(probs, dim=-1)
         
-        mask = pred == gt
-        
-        return  tf_positive.permute(0,3,1,2), mask.long()
+        return  tf_positive.permute(0,3,1,2)
         
         

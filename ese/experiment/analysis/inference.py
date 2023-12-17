@@ -366,7 +366,7 @@ def get_image_stats(
         q_met_name = list(qual_metric.keys())[0] # kind of hacky
         if qual_metric[q_met_name]['metric_type'] == 'calibration':
             # Higher is better for scores.
-            qual_metric_scores_dict[q_met_name] = 1 - qual_metric[q_met_name]['func'](**cal_input_config)['cal_error'].item() 
+            qual_metric_scores_dict[q_met_name] = 1 - qual_metric[q_met_name]['func'](**cal_input_config).item() 
         else:
             qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**qual_input_config).item()
 
@@ -384,7 +384,7 @@ def get_image_stats(
     for cal_metric in inference_cfg["cal_metric_cfgs"]:
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_metric_errors_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config)['cal_error'].item() 
+        cal_metric_errors_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config).item() 
 
     # Iterate through the cross product of calibration metrics and quality metrics.
     for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):

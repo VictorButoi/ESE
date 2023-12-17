@@ -126,7 +126,7 @@ def viz_region_size_distribution(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def viz_accuracy_vs_confidence(
-    pixel_preds: Any,
+    pixel_preds: dict,
     title: str,
     x: str,
     kind: Literal["bar", "line"] = "bar",
@@ -138,8 +138,8 @@ def viz_accuracy_vs_confidence(
     col: Optional[Literal["bin_num"]] = None,
     facet_kws: Optional[dict] = None,
 ):
-    # Organize data into a structure for plotting
     # Structure: data_dict[bin_num][pred_label][measure] = list of values
+    # Organize data into a structure for plotting
     data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for (pred_label, num_neighbors, bin_num, measure), value in pixel_preds.items():
         if (label is None) or (pred_label == label):
