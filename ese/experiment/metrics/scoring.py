@@ -14,9 +14,9 @@ def brier_score(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
     square_diff: bool = True,
-    from_logits: bool = False,
     batch_reduction: Reduction = "mean",
     ignore_empty_labels: bool = False,
+    from_logits: bool = False,
     ignore_index: Optional[int] = None,
 ):
     """

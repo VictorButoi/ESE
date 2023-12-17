@@ -9,6 +9,31 @@ from scipy.ndimage import distance_transform_edt, binary_erosion, label
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_edge_pixels(
+        y_pred: torch.Tensor,
+        y_true: torch.Tensor,
+        image_info_dict: dict
+        ) -> torch.Tensor:
+    """
+    Returns the edge pixels of the ground truth label map.
+    """
+    # Get the edge map.
+    if "true_matching_neighbors_map" in image_info_dict:
+        y_true_edge_map = (image_info_dict["true_matching_neighbors_map"] < 8)
+    else:
+        y_true_squeezed = y_true.squeeze()
+        y_true_edge_map = get_edge_map(y_true_squeezed)
+    # Get the edge regions of both the prediction and the ground truth.
+    y_pred_e_reg = y_pred[..., y_true_edge_map]
+    y_true_e_reg = y_true[..., y_true_edge_map]
+    # Add a height dim.
+    y_edge_pred = y_pred_e_reg.unsqueeze(-2)
+    y_edge_true= y_true_e_reg.unsqueeze(-2)
+    # Return the edge-ified values.
+    return y_edge_pred, y_edge_true
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_bin_errors(
     error_per_bin: torch.Tensor, 
     amounts_per_bin: torch.Tensor, 

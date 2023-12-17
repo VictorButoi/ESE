@@ -4,19 +4,22 @@ from .utils import reduce_bin_errors
 import torch
 from typing import Tuple, Optional
 from pydantic import validate_arguments
+# ionpy imports
+from ionpy.loss.util import _loss_module_from_func
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ELM(
+def elm_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -58,20 +61,25 @@ def ELM(
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
+    else:
+        return cal_info['cal_error']
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def TL_ELM(
+def tl_elm_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -110,20 +118,25 @@ def TL_ELM(
     cal_info['cal_error'] =  ece_per_lab_nn.sum()
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
+    else:
+        return cal_info['cal_error']
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def CW_ELM(
+def cw_elm_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -167,4 +180,14 @@ def CW_ELM(
     cal_info['cal_error'] =  ece_per_lab.mean()
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
+    else:
+        return cal_info['cal_error']
+
+
+# Loss modules
+ELM = _loss_module_from_func("ELM", elm_loss)
+TL_ELM = _loss_module_from_func("TL_ELM", tl_elm_loss)
+CW_ELM = _loss_module_from_func("CW_ELM", cw_elm_loss)

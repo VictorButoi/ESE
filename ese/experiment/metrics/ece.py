@@ -1,20 +1,24 @@
+# local imports
 from .pix_stats import bin_stats, label_bin_stats
-from .utils import reduce_bin_errors, get_edge_map
+from .utils import reduce_bin_errors, get_edge_pixels
 # misc imports
 import torch
 from typing import Tuple, Optional
 from pydantic import validate_arguments
+# ionpy imports
+from ionpy.loss.util import _loss_module_from_func
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ECE(
+def ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -36,21 +40,26 @@ def ECE(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
         )
-    # Return the calibration information
+    # Return the calibration information.
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
+    else:
+        return cal_info['cal_error']
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def TL_ECE(
+def tl_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -86,18 +95,23 @@ def TL_ECE(
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
+    else:
+        return cal_info['cal_error']
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def CW_ECE(
+def cw_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -129,42 +143,23 @@ def CW_ECE(
     # Return the calibration information
     assert 0 <= cal_info['cal_error'] <= 1,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    return cal_info
-
-
-def get_edge_pixels(
-        y_pred: torch.Tensor,
-        y_true: torch.Tensor,
-        image_info_dict: dict
-        ) -> torch.Tensor:
-    """
-    Returns the edge pixels of the ground truth label map.
-    """
-    # Get the edge map.
-    if "true_matching_neighbors_map" in image_info_dict:
-        y_true_edge_map = (image_info_dict["true_matching_neighbors_map"] < 8)
+    # Return the calibration information.
+    if return_dict:
+        return cal_info
     else:
-        y_true_squeezed = y_true.squeeze()
-        y_true_edge_map = get_edge_map(y_true_squeezed)
-    # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., y_true_edge_map]
-    y_true_e_reg = y_true[..., y_true_edge_map]
-    # Add a height dim.
-    y_edge_pred = y_pred_e_reg.unsqueeze(-2)
-    y_edge_true= y_true_e_reg.unsqueeze(-2)
-    # Return the edge-ified values.
-    return y_edge_pred, y_edge_true
+        return cal_info['cal_error']
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def Edge_ECE(
+def edge_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -177,7 +172,7 @@ def Edge_ECE(
         image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
     )
     # Return the calibration information
-    return ECE(
+    return ece_loss(
         y_pred=y_edge_pred,
         y_true=y_edge_true,
         num_bins=num_bins,
@@ -185,19 +180,21 @@ def Edge_ECE(
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         from_logits=from_logits,
+        return_dict=return_dict,
         ignore_index=ignore_index
     ) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def TL_EdgeCE(
+def etl_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -210,7 +207,7 @@ def TL_EdgeCE(
         image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
     )
     # Return the calibration information
-    return TL_ECE(
+    return tl_ece_loss(
         y_pred=y_edge_pred,
         y_true=y_edge_true,
         num_bins=num_bins,
@@ -218,19 +215,21 @@ def TL_EdgeCE(
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         from_logits=from_logits,
+        return_dict=return_dict,
         ignore_index=ignore_index
     ) 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ECW_ECE(
+def ecw_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    num_bins: int,
-    conf_interval: Tuple[float, float],
-    square_diff: bool,
+    num_bins: int = 10,
+    square_diff: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    return_dict: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     """
@@ -243,7 +242,7 @@ def ECW_ECE(
         image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
     )
     # Return the calibration information
-    return CW_ECE(
+    return cw_ece_loss(
         y_pred=y_edge_pred,
         y_true=y_edge_true,
         num_bins=num_bins,
@@ -251,5 +250,16 @@ def ECW_ECE(
         square_diff=square_diff,
         stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
         from_logits=from_logits,
+        return_dict=return_dict,
         ignore_index=ignore_index
     ) 
+
+
+# Loss modules
+ECE = _loss_module_from_func("ECE", ece_loss)
+TL_ECE = _loss_module_from_func("TL_ECE", tl_ece_loss)
+CW_ECE = _loss_module_from_func("CW_ECE", cw_ece_loss)
+# Edge loss modules
+Edge_ECE = _loss_module_from_func("Edge_ECE", edge_ece_loss)
+ETL_ECE = _loss_module_from_func("ETL_ECE", etl_ece_loss)
+ECW_ECE = _loss_module_from_func("ECW_ECE", ecw_ece_loss)

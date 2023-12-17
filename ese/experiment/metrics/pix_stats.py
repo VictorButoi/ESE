@@ -1,3 +1,7 @@
+# misc. imports
+import torch
+from typing import Optional, Tuple
+from pydantic import validate_arguments
 # local imports 
 from .utils import (
     get_bins,
@@ -5,10 +9,6 @@ from .utils import (
     get_uni_pixel_weights,
     count_matching_neighbors
 )
-# misc. imports
-import torch
-from typing import Optional, Tuple
-from pydantic import validate_arguments
 
 
 def get_lab_info(y_hard, y_true, top_label, ignore_index):
@@ -71,6 +71,8 @@ def bin_stats_init(
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
         f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
+    assert y_pred.shape[0] == y_true.shape[0] == 1,\
+        f"y_pred and y_true must have a batch dimension of 1. Got {y_pred.shape[0]} and {y_true.shape[0]}."
     
     # If from logits, apply softmax along channels of y pred.
     if from_logits:
