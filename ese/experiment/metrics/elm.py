@@ -10,17 +10,18 @@ from .global_ps import (
 from .utils import reduce_bin_errors, cal_input_check
 # misc imports
 import torch
-from typing import Tuple, Optional
+from typing import Dict, Tuple, Optional
 from pydantic import validate_arguments
 # ionpy imports
 from ionpy.loss.util import _loss_module_from_func
+from ionpy.util.meter import Meter
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -35,9 +36,12 @@ def elm_loss(
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     if use_global: 
         cal_info = global_neighbors_bin_stats(
+            pixel_meters_dict=pixel_meters_dict,
+            square_diff=square_diff,
+            weighted=uniform_weighting,
             ignore_index=ignore_index
         )
     else:
@@ -87,7 +91,7 @@ def elm_loss(
 def tl_elm_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -102,10 +106,13 @@ def tl_elm_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     if use_global:
         cal_info = global_label_neighbors_bin_stats(
-            ignore_index=ignore_index 
+            pixel_meters_dict=pixel_meters_dict,
+            square_diff=square_diff,
+            weighted=uniform_weighting,
+            ignore_index=ignore_index
         )
     else:
         cal_info = label_neighbors_bin_stats(
@@ -151,7 +158,7 @@ def tl_elm_loss(
 def cw_elm_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -166,10 +173,13 @@ def cw_elm_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     if use_global:
         cal_info = global_label_neighbors_bin_stats(
-            ignore_index=ignore_index 
+            pixel_meters_dict=pixel_meters_dict,
+            square_diff=square_diff,
+            weighted=uniform_weighting,
+            ignore_index=ignore_index
         )
     else:
         cal_info = label_neighbors_bin_stats(

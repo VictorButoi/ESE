@@ -16,6 +16,10 @@ def accumulate_pixel_preds(
 ) -> dict:
     # Accumulate the dictionaries corresponding to a single bin.
     accumulated_meters_dict = {}
+    unique_key_1 = []
+    unique_key_2 = []
+    unique_key_3 = []
+    # Iterate through the meters.
     for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
         item = {
             "true_label": true_label,
@@ -24,11 +28,19 @@ def accumulate_pixel_preds(
             "prob_bin": prob_bin,
             "measure": measure,
         }
+        # Keep track of unique values.
+        if item[key_1] not in unique_key_1:
+            unique_key_1.append(item[key_1])
+        if key_2 is not None:
+            if item[key_2] not in unique_key_2:
+                unique_key_2.append(item[key_2])
+        if key_3 is not None:
+            if item[key_3] not in unique_key_3:
+                unique_key_3.append(item[key_3])
         # El Monstro
         if ignore_index is None or true_label != ignore_index:
             if item[key_1] not in accumulated_meters_dict:
                 accumulated_meters_dict[item[key_1]] = {}
-
             level1_dict = accumulated_meters_dict[item[key_1]]
             if key_2 is None:
                 if measure not in level1_dict:
@@ -38,7 +50,6 @@ def accumulate_pixel_preds(
             else:
                 if item[key_2] not in level1_dict:
                     level1_dict[item[key_2]] = {}
-
                 level2_dict = level1_dict[item[key_2]]
                 if key_3 is None:                
                     if measure not in level2_dict:
@@ -48,30 +59,38 @@ def accumulate_pixel_preds(
                 else:
                     if item[key_3] not in level2_dict:
                         level2_dict[item[key_3]] = {}
-
                     level3_dict = level2_dict[item[key_3]]
                     if measure not in level3_dict:
                         level3_dict[measure] = value
                     else:
                         level3_dict[measure] += value
-                    
-    return accumulated_meters_dict
+    # Wrap the unique values into a dictionary.
+    unique_values_dict = {
+        key_1: sorted(unique_key_1)
+    }
+    if key_2 is not None:
+        unique_values_dict[key_2] = sorted(unique_key_2)
+    if key_3 is not None:
+        unique_values_dict[key_3] = sorted(unique_key_3)
+    # Return the accumulated values and the unique keys.
+    return accumulated_meters_dict, unique_values_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_bin_stats(
     pixel_meters_dict: dict,
-    square_diff: bool,
+    square_diff: bool = False,
     weighted: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
-    data_dict = accumulate_pixel_preds(
+    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1="prob_bin",
         ignore_index=ignore_index
         )
+    unique_bins = unique_values_dict["prob_bin"]
     # Get the num bins.
-    num_bins = len(data_dict.keys()) 
+    num_bins = len(unique_bins) 
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_bins),
@@ -83,138 +102,175 @@ def global_bin_stats(
     conf_key = "confidence" if not weighted else "weighted confidence"
     acc_key = "accuracy" if not weighted else "weighted accuracy"
     # Get the regions of the prediction corresponding to each bin of confidence.
-    for bin_idx in data_dict.keys():
+    for prob_bin in accumulated_meters_dict.keys():
         # Choose what key to use.
-        bin_conf = data_dict[bin_idx][conf_key].mean
-        bin_acc = data_dict[bin_idx][acc_key].mean
-        num_samples = data_dict[bin_idx][acc_key].n
+        bin_conf = accumulated_meters_dict[prob_bin][conf_key].mean
+        bin_acc = accumulated_meters_dict[prob_bin][acc_key].mean
+        num_samples = accumulated_meters_dict[prob_bin][acc_key].n
         # Calculate the average calibration error for the regions in the bin.
-        cal_info["bin_confs"][int(bin_idx)] = bin_conf
-        cal_info["bin_accs"][int(bin_idx)] = bin_acc
-        cal_info["bin_amounts"][int(bin_idx)] = num_samples
+        bin_idx = unique_bins.index(prob_bin)
+        cal_info["bin_confs"][bin_idx] = bin_conf
+        cal_info["bin_accs"][bin_idx] = bin_acc
+        cal_info["bin_amounts"][bin_idx] = num_samples
         # Choose whether or not to square for the cal error.
         if square_diff:
-            cal_info["bin_cal_errors"][int(bin_idx)] = np.power(bin_conf - bin_acc, 2)
+            cal_info["bin_cal_errors"][bin_idx] = np.power(bin_conf - bin_acc, 2)
         else:
-            cal_info["bin_cal_errors"][int(bin_idx)] = np.abs(bin_conf - bin_acc)
+            cal_info["bin_cal_errors"][bin_idx] = np.abs(bin_conf - bin_acc)
     # Return the calibration information.
     return cal_info
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_label_bin_stats(
-    data_dict: dict,
-    square_diff: bool,
+    pixel_meters_dict: dict,
+    top_label: bool,
+    square_diff: bool = False,
     weighted: bool = False,
+    ignore_index: Optional[int] = None
     ) -> dict:
-    # num_labels = None
-    # num_bins = None
-    # # Setup the cal info tracker.
-    # cal_info = {
-    #     "bin_confs": torch.zeros((num_labels, num_bins)),
-    #     "bin_amounts": torch.zeros((num_labels, num_bins)),
-    #     "bin_accs": torch.zeros((num_labels, num_bins)),
-    #     "bin_cal_errors": torch.zeros((num_labels, num_bins))
-    # }
-    # # Either use the weighted or unweighted confidence and accuracy.
-    # conf_key = "confidence" if not weighted else "weighted confidence"
-    # acc_key = "accuracy" if not weighted else "weighted accuracy"
-    # # Go through each of the labels and bins.
-    # for lab_idx in data_dict.keys():
-    #     for bin_idx in data_dict[lab_idx].keys():
-    #         # Choose what key to use.
-    #         bin_conf = data_dict[lab_idx][bin_idx][conf_key].mean
-    #         bin_acc = data_dict[lab_idx][bin_idx][acc_key].mean
-    #         num_samples = data_dict[lab_idx][bin_idx][acc_key].n
-    #         # Calculate the average calibration error for the regions in the bin.
-    #         cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
-    #         cal_info["bin_accs"][lab_idx, bin_idx] = bin_acc
-    #         cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
-    #         # Choose whether or not to square for the cal error.
-    #         if square_diff:
-    #             cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).pow(2)
-    #         else:
-    #             cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).abs()
-    # # Return the label-wise calibration information.
-    # return cal_info
-    pass
+    label_key = "pred_label" if top_label else "true_label"
+    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+        pixel_meters_dict,
+        key_1=label_key,
+        key_2="prob_bin",
+        ignore_index=ignore_index
+        )
+    unique_labels = unique_values_dict[label_key]
+    unique_bins = unique_values_dict["prob_bin"]
+    # Get the num bins.
+    num_labels = len(unique_labels)
+    num_bins = len(unique_bins) 
+    # Keep track of different things for each bin.
+    cal_info = {
+        "bin_confs": torch.zeros(num_labels, num_bins),
+        "bin_amounts": torch.zeros(num_labels, num_bins),
+        "bin_accs": torch.zeros(num_labels, num_bins),
+        "bin_cal_errors": torch.zeros(num_labels, num_bins),
+    }
+    # Either use the weighted or unweighted confidence and accuracy.
+    conf_key = "confidence" if not weighted else "weighted confidence"
+    acc_key = "accuracy" if not weighted else "weighted accuracy"
+    for label in enumerate(accumulated_meters_dict.keys()):
+        for prob_bin in accumulated_meters_dict[label].keys():
+            # Choose what key to use.
+            bin_conf = accumulated_meters_dict[label][prob_bin][conf_key].mean
+            bin_acc = accumulated_meters_dict[label][prob_bin][acc_key].mean
+            num_samples = accumulated_meters_dict[label][prob_bin][acc_key].n
+            # Calculate the average calibration error for the regions in the bin.
+            lab_idx = unique_labels.index(label)
+            bin_idx = unique_bins.index(prob_bin)
+            cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
+            cal_info["bin_accs"][lab_idx, bin_idx] = bin_acc
+            cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
+            # Choose whether or not to square for the cal error.
+            if square_diff:
+                cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
+            else:
+                cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+    # Return the calibration information.
+    return cal_info
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_neighbors_bin_stats(
-    data_dict: dict,
-    square_diff: bool,
+    pixel_meters_dict: dict,
+    square_diff: bool = False,
     weighted: bool = False,
+    ignore_index: Optional[int] = None
     ) -> dict:
-    # num_labels = None
-    # num_bins = None
-    # # Setup the cal info tracker.
-    # cal_info = {
-    #     "bin_confs": torch.zeros((num_labels, num_bins)),
-    #     "bin_amounts": torch.zeros((num_labels, num_bins)),
-    #     "bin_accs": torch.zeros((num_labels, num_bins)),
-    #     "bin_cal_errors": torch.zeros((num_labels, num_bins))
-    # }
-    # # Either use the weighted or unweighted confidence and accuracy.
-    # conf_key = "confidence" if not weighted else "weighted confidence"
-    # acc_key = "accuracy" if not weighted else "weighted accuracy"
-    # # Go through each of the labels and bins.
-    # for lab_idx in data_dict.keys():
-    #     for bin_idx in data_dict[lab_idx].keys():
-    #         # Choose what key to use.
-    #         bin_conf = data_dict[lab_idx][bin_idx][conf_key].mean
-    #         bin_acc = data_dict[lab_idx][bin_idx][acc_key].mean
-    #         num_samples = data_dict[lab_idx][bin_idx][acc_key].n
-    #         # Calculate the average calibration error for the regions in the bin.
-    #         cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
-    #         cal_info["bin_accs"][lab_idx, bin_idx] = bin_acc
-    #         cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
-    #         # Choose whether or not to square for the cal error.
-    #         if square_diff:
-    #             cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).pow(2)
-    #         else:
-    #             cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).abs()
-    # # Return the label-wise calibration information.
-    # return cal_info
-    pass
+    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+        pixel_meters_dict,
+        key_1="num_matching_neighbors",
+        key_2="prob_bin",
+        ignore_index=ignore_index
+        )
+    unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
+    unique_prob_bins = unique_values_dict["prob_bin"]
+    # Get the num bins.
+    num_unique_matching_neighbors = len(unique_neighbor_classes)
+    num_bins = len(unique_prob_bins) 
+    # Keep track of different things for each bin.
+    cal_info = {
+        "bin_confs": torch.zeros(num_unique_matching_neighbors, num_bins),
+        "bin_amounts": torch.zeros(num_unique_matching_neighbors, num_bins),
+        "bin_accs": torch.zeros(num_unique_matching_neighbors, num_bins),
+        "bin_cal_errors": torch.zeros(num_unique_matching_neighbors, num_bins),
+    }
+    # Either use the weighted or unweighted confidence and accuracy.
+    conf_key = "confidence" if not weighted else "weighted confidence"
+    acc_key = "accuracy" if not weighted else "weighted accuracy"
+    for neighbor_class in enumerate(accumulated_meters_dict.keys()):
+        for prob_bin in accumulated_meters_dict[neighbor_class].keys():
+            # Choose what key to use.
+            bin_conf = accumulated_meters_dict[neighbor_class][prob_bin][conf_key].mean
+            bin_acc = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].mean
+            num_samples = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].n
+            # Calculate the average calibration error for the regions in the bin.
+            nn_idx = unique_neighbor_classes.index(neighbor_class)
+            bin_idx = unique_prob_bins.index(prob_bin)
+            cal_info["bin_confs"][nn_idx, bin_idx] = bin_conf
+            cal_info["bin_accs"][nn_idx, bin_idx] = bin_acc
+            cal_info["bin_amounts"][nn_idx, bin_idx] = num_samples
+            # Choose whether or not to square for the cal error.
+            if square_diff:
+                cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
+            else:
+                cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+    # Return the calibration information.
+    return cal_info
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_label_neighbors_bin_stats(
-    data_dict: dict,
-    square_diff: bool,
+    pixel_meters_dict: dict,
+    top_label: bool,
+    square_diff: bool = False,
     weighted: bool = False,
+    ignore_index: Optional[int] = None
     ) -> dict:
-    # # Init some things.
-    # num_labels = None
-    # # Get the num of neighbor classes.
-    # unique_pred_matching_neighbors = None
-    # num_neighbors = len(unique_pred_matching_neighbors)
-    # # Define num bins
-    # num_bins = None
-    # # Init the cal info tracker.
-    # cal_info = {
-    #     "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),
-    #     "bin_accs": torch.zeros((num_labels, num_neighbors, num_bins)),
-    #     "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins)),
-    #     "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
-    # }
-    # for lab_idx, lab in enumerate(lab_info["unique_labels"]):
-    #     for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-    #         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
-    #             # Calculate the average score for the regions in the bin.
-    #             bi = calc_bin_info(
-    #                 conf_map=obj_dict["y_max_prob_map"],
-    #                 bin_conf_region=bin_conf_region,
-    #                 square_diff=square_diff,
-    #                 pixelwise_accuracy=obj_dict["pixelwise_accuracy"],
-    #                 pix_weights=obj_dict["pix_weights"]
-    #             )
-    #             # Calculate the average calibration error for the regions in the bin.
-    #             cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-    #             cal_info["bin_accs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-    #             cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["num_samples"] 
-    #             cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = bi["cal_error"] 
-    # # Return the label-wise and neighborhood conditioned calibration information.
-    # return cal_info
-    pass
+    label_key = "pred_label" if top_label else "true_label"
+    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+        pixel_meters_dict,
+        key_1=label_key,
+        key_2="num_matching_neighbors",
+        key_3="prob_bin",
+        ignore_index=ignore_index
+        )
+    unique_labels = unique_values_dict[label_key] 
+    unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
+    unique_prob_bins = unique_values_dict["prob_bin"]
+    num_labels = len(unique_labels) 
+    num_matching_neighbors = len(unique_neighbor_classes)
+    num_bins = len(unique_prob_bins)
+    # Keep track of different things for each bin.
+    cal_info = {
+        "bin_confs": torch.zeros(num_labels, num_matching_neighbors, num_bins),
+        "bin_amounts": torch.zeros(num_labels, num_matching_neighbors, num_bins),
+        "bin_accs": torch.zeros(num_labels, num_matching_neighbors, num_bins),
+        "bin_cal_errors": torch.zeros(num_labels, num_matching_neighbors, num_bins),
+    }
+    # Either use the weighted or unweighted confidence and accuracy.
+    conf_key = "confidence" if not weighted else "weighted confidence"
+    acc_key = "accuracy" if not weighted else "weighted accuracy"
+    for label in accumulated_meters_dict.keys():
+        for neighbor_class in accumulated_meters_dict[label].keys():
+            for prob_bin in accumulated_meters_dict[label][neighbor_class].keys():
+                # Choose what key to use.
+                bin_conf = accumulated_meters_dict[label][neighbor_class][prob_bin][conf_key].mean
+                bin_acc = accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].mean
+                num_samples = accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].n
+                # Calculate the average calibration error for the regions in the bin.
+                lab_idx = unique_labels.index(label)
+                nn_idx = unique_neighbor_classes.index(neighbor_class)
+                bin_idx = unique_prob_bins.index(prob_bin)
+                cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bin_conf
+                cal_info["bin_accs"][lab_idx, nn_idx, bin_idx] = bin_acc
+                cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
+                # Choose whether or not to square for the cal error.
+                if square_diff:
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
+                else:
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+    # Return the calibration information.
+    return cal_info

@@ -15,17 +15,18 @@ from .utils import (
 )
 # misc imports
 import torch
-from typing import Tuple, Optional
+from typing import Dict, Tuple, Optional
 from pydantic import validate_arguments
 # ionpy imports
 from ionpy.loss.util import _loss_module_from_func
+from ionpy.util.meter import Meter
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -38,11 +39,11 @@ def ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_bin_stats(
-            pixel_meters_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -77,7 +78,7 @@ def ece_loss(
 def tl_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -90,11 +91,11 @@ def tl_ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
-            pixel_meters_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -140,7 +141,7 @@ def tl_ece_loss(
 def cw_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -153,11 +154,11 @@ def cw_ece_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
-            pixel_meters_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -199,7 +200,7 @@ def cw_ece_loss(
 def edge_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -212,7 +213,7 @@ def edge_ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Define the config for all common factors.
     ece_config = {
         "num_bins": num_bins,
@@ -225,7 +226,7 @@ def edge_ece_loss(
     }
     # Get the statistics either from images or pixel meter dict.
     if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
+        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
         ece_config["pixel_preds_dict"] = edge_pixel_preds
     else:
         y_edge_pred, y_edge_true = get_edge_pixels(
@@ -243,7 +244,7 @@ def edge_ece_loss(
 def etl_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -256,7 +257,7 @@ def etl_ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Define the config for all common factors.
     tl_ece_config = {
         "num_bins": num_bins,
@@ -269,7 +270,7 @@ def etl_ece_loss(
     }
     # Get the statistics either from images or pixel meter dict.
     if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
+        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
         tl_ece_config["pixel_preds_dict"] = edge_pixel_preds
     else:
         y_edge_pred, y_edge_true = get_edge_pixels(
@@ -287,7 +288,7 @@ def etl_ece_loss(
 def ecw_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    pixel_preds_dict: dict = None,
+    pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -300,7 +301,7 @@ def ecw_ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Define the config for all common factors.
     cw_ece_config = {
         "num_bins": num_bins,
@@ -313,8 +314,8 @@ def ecw_ece_loss(
     }
     # Get the statistics either from images or pixel meter dict.
     if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
-        cw_ece_config["pixel_preds_dict"] = edge_pixel_preds
+        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
+        cw_ece_config["pixel_meters_dict"] = edge_pixel_preds
     else:
         y_edge_pred, y_edge_true = get_edge_pixels(
             y_pred=y_pred, 
