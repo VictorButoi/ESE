@@ -1,6 +1,13 @@
 # local imports
-from .pix_stats import bin_stats, label_bin_stats
-from .utils import reduce_bin_errors, get_edge_pixels
+from .local_ps import (
+    bin_stats, 
+    label_bin_stats
+)
+from .global_ps import (
+    global_bin_stats, 
+    global_label_bin_stats
+)
+from .utils import reduce_bin_errors, get_edge_pixels, cal_input_check 
 # misc imports
 import torch
 from typing import Tuple, Optional
@@ -11,8 +18,9 @@ from ionpy.loss.util import _loss_module_from_func
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -24,17 +32,25 @@ def ece_loss(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
-    # Keep track of different things for each bin.
-    cal_info = bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    if use_global:
+        cal_info = global_bin_stats(
+            data_dict=pixel_preds_dict,
+            square_diff=square_diff,
+            weighted=False,
+        )
+    else: 
+        cal_info = bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
@@ -52,8 +68,9 @@ def ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -65,18 +82,27 @@ def tl_ece_loss(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
     # Keep track of different things for each bin.
-    cal_info = label_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        top_label=True,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    if use_global:
+        cal_info = global_label_bin_stats(
+            data_dict=pixel_preds_dict,
+            square_diff=square_diff,
+            weighted=False,
+        )
+    else: 
+        cal_info = label_bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            top_label=True,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the ECE score.
     L, _ = cal_info["bin_cal_errors"].shape
     total_num_samples = cal_info['bin_amounts'].sum()
@@ -104,8 +130,9 @@ def tl_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -117,18 +144,27 @@ def cw_ece_loss(
     """
     Calculates the LoMS.
     """
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
     # Keep track of different things for each bin.
-    cal_info = label_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        top_label=False,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    if use_global:
+        cal_info = global_label_bin_stats(
+            data_dict=pixel_preds_dict,
+            square_diff=square_diff,
+            weighted=False,
+        )
+    else:
+        cal_info = label_bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            top_label=False,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the ECE score.
     L, _ = cal_info["bin_cal_errors"].shape
     ece_per_lab = torch.zeros(L)
@@ -152,8 +188,9 @@ def cw_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def edge_ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -165,6 +202,8 @@ def edge_ece_loss(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
     # Get the edge pixels.
     y_edge_pred, y_edge_true = get_edge_pixels(
         y_pred=y_pred, 
@@ -187,8 +226,9 @@ def edge_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def etl_ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -200,6 +240,8 @@ def etl_ece_loss(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
     # Get the edge pixels.
     y_edge_pred, y_edge_true = get_edge_pixels(
         y_pred=y_pred, 
@@ -224,6 +266,7 @@ def etl_ece_loss(
 def ecw_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
+    pixel_preds_dict: Optional[dict] = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -235,6 +278,8 @@ def ecw_ece_loss(
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
     # Get the edge pixels.
     y_edge_pred, y_edge_true = get_edge_pixels(
         y_pred=y_pred, 

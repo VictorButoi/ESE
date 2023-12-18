@@ -9,11 +9,25 @@ from scipy.ndimage import distance_transform_edt, binary_erosion, label
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def cal_input_check(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    pixel_preds_dict: dict
+):
+    use_local_funcs = (y_pred is not None and y_true is not None)
+    use_global_funcs = (pixel_preds_dict is not None)
+    # xor images_defined pixel_preds_defined
+    assert use_global_funcs ^ use_local_funcs,\
+        "Either y_pred and y_true or pixel_preds_dict must be defined, but not both."
+    return use_global_funcs 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_edge_pixels(
-        y_pred: torch.Tensor,
-        y_true: torch.Tensor,
-        image_info_dict: dict
-        ) -> torch.Tensor:
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    image_info_dict: dict
+    ) -> torch.Tensor:
     """
     Returns the edge pixels of the ground truth label map.
     """

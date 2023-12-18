@@ -1,4 +1,4 @@
-from .pix_stats import neighbors_bin_stats, label_neighbors_bin_stats
+from .local_ps import neighbors_bin_stats, label_neighbors_bin_stats
 from .utils import reduce_bin_errors
 # misc imports
 import torch
