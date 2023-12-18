@@ -1,33 +1,73 @@
 # torch imports
 import torch 
 # misc imports
+import numpy as np
 from typing import Optional
 from pydantic import validate_arguments
-from collections import defaultdict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def accumulate_pixel_preds(
-    pixel_preds: dict,
+    pixel_meters_dict: dict,
+    key_1: str,
+    key_2: Optional[str] = None,
+    key_3: Optional[str] = None,
     ignore_index: Optional[int] = None
 ) -> dict:
     # Accumulate the dictionaries corresponding to a single bin.
-    data_dict = defaultdict(lambda: defaultdict(list))
-    for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_preds.items():
+    accumulated_meters_dict = {}
+    for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
+        item = {
+            "true_label": true_label,
+            "pred_label": pred_label,
+            "num_matching_neighbors": num_matching_neighbors,
+            "prob_bin": prob_bin,
+            "measure": measure,
+        }
+        # El Monstro
         if ignore_index is None or true_label != ignore_index:
-            data_dict[prob_bin][measure].append(value)
-    return data_dict
+            if item[key_1] not in accumulated_meters_dict:
+                accumulated_meters_dict[item[key_1]] = {}
+
+            level1_dict = accumulated_meters_dict[item[key_1]]
+            if key_2 is None:
+                if measure not in level1_dict:
+                    level1_dict[measure] = value
+                else:
+                    level1_dict[measure] += value
+            else:
+                if item[key_2] not in level1_dict:
+                    level1_dict[item[key_2]] = {}
+
+                level2_dict = level1_dict[item[key_2]]
+                if key_3 is None:                
+                    if measure not in level2_dict:
+                        level2_dict[measure] = value
+                    else:
+                        level2_dict[measure] += value
+                else:
+                    if item[key_3] not in level2_dict:
+                        level2_dict[item[key_3]] = {}
+
+                    level3_dict = level2_dict[item[key_3]]
+                    if measure not in level3_dict:
+                        level3_dict[measure] = value
+                    else:
+                        level3_dict[measure] += value
+                    
+    return accumulated_meters_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_bin_stats(
-    pixel_preds_dict: dict,
+    pixel_meters_dict: dict,
     square_diff: bool,
     weighted: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     data_dict = accumulate_pixel_preds(
-        pixel_preds_dict,
+        pixel_meters_dict,
+        key_1="prob_bin",
         ignore_index=ignore_index
         )
     # Get the num bins.
@@ -45,18 +85,18 @@ def global_bin_stats(
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx in data_dict.keys():
         # Choose what key to use.
-        bin_conf = data_dict[conf_key].mean
-        bin_acc = data_dict[acc_key].mean
-        num_samples = data_dict[acc_key].n
+        bin_conf = data_dict[bin_idx][conf_key].mean
+        bin_acc = data_dict[bin_idx][acc_key].mean
+        num_samples = data_dict[bin_idx][acc_key].n
         # Calculate the average calibration error for the regions in the bin.
-        cal_info["bin_confs"][bin_idx] = bin_conf
-        cal_info["bin_accs"][bin_idx] = bin_acc
-        cal_info["bin_amounts"][bin_idx] = num_samples
+        cal_info["bin_confs"][int(bin_idx)] = bin_conf
+        cal_info["bin_accs"][int(bin_idx)] = bin_acc
+        cal_info["bin_amounts"][int(bin_idx)] = num_samples
         # Choose whether or not to square for the cal error.
         if square_diff:
-            cal_info["bin_cal_errors"][bin_idx] = (bin_conf - bin_acc).pow(2)
+            cal_info["bin_cal_errors"][int(bin_idx)] = np.power(bin_conf - bin_acc, 2)
         else:
-            cal_info["bin_cal_errors"][bin_idx] = (bin_conf - bin_acc).abs()
+            cal_info["bin_cal_errors"][int(bin_idx)] = np.abs(bin_conf - bin_acc)
     # Return the calibration information.
     return cal_info
 

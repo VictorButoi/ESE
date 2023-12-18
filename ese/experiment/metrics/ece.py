@@ -42,7 +42,7 @@ def ece_loss(
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_bin_stats(
-            data_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -94,7 +94,7 @@ def tl_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
-            data_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -157,7 +157,7 @@ def cw_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
-            data_dict=pixel_preds_dict,
+            pixel_meters_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
