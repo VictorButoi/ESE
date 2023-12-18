@@ -22,7 +22,7 @@ def cal_input_check(
     use_global_funcs = (pixel_preds_dict is not None)
     # xor images_defined pixel_preds_defined
     assert use_global_funcs ^ use_local_funcs,\
-        "Either y_pred and y_true or pixel_preds_dict must be defined, but not both."
+        "Either both (y_pred and y_true) or pixel_preds_dict must be defined, but not both."
     return use_global_funcs 
 
 
@@ -56,7 +56,7 @@ def get_edge_pixel_preds(
     pixel_preds_dict: dict,
     ) -> torch.Tensor:
     """
-    Returns the edge pixels of the ground truth label map.
+    Returns the dictionary of meters corresponding to the edge pixels.
     """
     edge_pixel_preds_dict = None
     # Return the edge-ified values.

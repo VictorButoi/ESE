@@ -96,6 +96,7 @@ def tl_ece_loss(
     if use_global:
         cal_info = global_label_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
+            top_label=True,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -159,6 +160,7 @@ def cw_ece_loss(
     if use_global:
         cal_info = global_label_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
+            top_label=False,
             square_diff=square_diff,
             weighted=False,
             ignore_index=ignore_index
@@ -227,7 +229,7 @@ def edge_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
-        ece_config["pixel_preds_dict"] = edge_pixel_preds
+        ece_config["pixel_meters_dict"] = edge_pixel_preds
     else:
         y_edge_pred, y_edge_true = get_edge_pixels(
             y_pred=y_pred, 
@@ -271,7 +273,7 @@ def etl_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     if use_global:
         edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
-        tl_ece_config["pixel_preds_dict"] = edge_pixel_preds
+        tl_ece_config["pixel_meters_dict"] = edge_pixel_preds
     else:
         y_edge_pred, y_edge_true = get_edge_pixels(
             y_pred=y_pred, 

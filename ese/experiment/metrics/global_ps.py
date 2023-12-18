@@ -151,7 +151,7 @@ def global_label_bin_stats(
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
     acc_key = "accuracy" if not weighted else "weighted accuracy"
-    for label in enumerate(accumulated_meters_dict.keys()):
+    for label in accumulated_meters_dict.keys():
         for prob_bin in accumulated_meters_dict[label].keys():
             # Choose what key to use.
             bin_conf = accumulated_meters_dict[label][prob_bin][conf_key].mean
@@ -200,7 +200,7 @@ def global_neighbors_bin_stats(
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
     acc_key = "accuracy" if not weighted else "weighted accuracy"
-    for neighbor_class in enumerate(accumulated_meters_dict.keys()):
+    for neighbor_class in accumulated_meters_dict.keys():
         for prob_bin in accumulated_meters_dict[neighbor_class].keys():
             # Choose what key to use.
             bin_conf = accumulated_meters_dict[neighbor_class][prob_bin][conf_key].mean

@@ -110,6 +110,7 @@ def tl_elm_loss(
     if use_global:
         cal_info = global_label_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
+            top_label=True,
             square_diff=square_diff,
             weighted=uniform_weighting,
             ignore_index=ignore_index
@@ -177,6 +178,7 @@ def cw_elm_loss(
     if use_global:
         cal_info = global_label_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
+            top_label=False,
             square_diff=square_diff,
             weighted=uniform_weighting,
             ignore_index=ignore_index
