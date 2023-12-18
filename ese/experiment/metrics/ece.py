@@ -7,7 +7,12 @@ from .global_ps import (
     global_bin_stats, 
     global_label_bin_stats
 )
-from .utils import reduce_bin_errors, get_edge_pixels, cal_input_check 
+from .utils import (
+    reduce_bin_errors, 
+    get_edge_pixels, 
+    get_edge_pixel_preds,
+    cal_input_check 
+)
 # misc imports
 import torch
 from typing import Tuple, Optional
@@ -20,7 +25,7 @@ from ionpy.loss.util import _loss_module_from_func
 def ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -34,11 +39,13 @@ def ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_bin_stats(
             data_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
+            ignore_index=ignore_index
         )
     else: 
         cal_info = bin_stats(
@@ -70,7 +77,7 @@ def ece_loss(
 def tl_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -84,12 +91,13 @@ def tl_ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
-    # Keep track of different things for each bin.
+    # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
             data_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
+            ignore_index=ignore_index
         )
     else: 
         cal_info = label_bin_stats(
@@ -132,7 +140,7 @@ def tl_ece_loss(
 def cw_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -146,12 +154,13 @@ def cw_ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
-    # Keep track of different things for each bin.
+    # Get the statistics either from images or pixel meter dict.
     if use_global:
         cal_info = global_label_bin_stats(
             data_dict=pixel_preds_dict,
             square_diff=square_diff,
             weighted=False,
+            ignore_index=ignore_index
         )
     else:
         cal_info = label_bin_stats(
@@ -190,7 +199,7 @@ def cw_ece_loss(
 def edge_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -204,31 +213,37 @@ def edge_ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
-    # Get the edge pixels.
-    y_edge_pred, y_edge_true = get_edge_pixels(
-        y_pred=y_pred, 
-        y_true=y_true,
-        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-    )
+    # Define the config for all common factors.
+    ece_config = {
+        "num_bins": num_bins,
+        "conf_interval": conf_interval,
+        "square_diff": square_diff,
+        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        "from_logits": from_logits,
+        "return_dict": return_dict,
+        "ignore_index": ignore_index
+    }
+    # Get the statistics either from images or pixel meter dict.
+    if use_global:
+        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
+        ece_config["pixel_preds_dict"] = edge_pixel_preds
+    else:
+        y_edge_pred, y_edge_true = get_edge_pixels(
+            y_pred=y_pred, 
+            y_true=y_true,
+            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+        )
+        ece_config["y_pred"] = y_edge_pred
+        ece_config["y_true"] = y_edge_true
     # Return the calibration information
-    return ece_loss(
-        y_pred=y_edge_pred,
-        y_true=y_edge_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        return_dict=return_dict,
-        ignore_index=ignore_index
-    ) 
+    return ece_loss(**ece_config)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def etl_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -242,31 +257,37 @@ def etl_ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
-    # Get the edge pixels.
-    y_edge_pred, y_edge_true = get_edge_pixels(
-        y_pred=y_pred, 
-        y_true=y_true,
-        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-    )
+    # Define the config for all common factors.
+    tl_ece_config = {
+        "num_bins": num_bins,
+        "conf_interval": conf_interval,
+        "square_diff": square_diff,
+        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        "from_logits": from_logits,
+        "return_dict": return_dict,
+        "ignore_index": ignore_index
+    }
+    # Get the statistics either from images or pixel meter dict.
+    if use_global:
+        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
+        tl_ece_config["pixel_preds_dict"] = edge_pixel_preds
+    else:
+        y_edge_pred, y_edge_true = get_edge_pixels(
+            y_pred=y_pred, 
+            y_true=y_true,
+            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+        )
+        tl_ece_config["y_pred"] = y_edge_pred
+        tl_ece_config["y_true"] = y_edge_true
     # Return the calibration information
-    return tl_ece_loss(
-        y_pred=y_edge_pred,
-        y_true=y_edge_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        return_dict=return_dict,
-        ignore_index=ignore_index
-    ) 
+    return tl_ece_loss(**tl_ece_config)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ecw_ece_loss(
     y_pred: torch.Tensor, 
     y_true: torch.Tensor,
-    pixel_preds_dict: Optional[dict] = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -280,24 +301,30 @@ def ecw_ece_loss(
     """
     # Verify input.
     use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
-    # Get the edge pixels.
-    y_edge_pred, y_edge_true = get_edge_pixels(
-        y_pred=y_pred, 
-        y_true=y_true,
-        image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-    )
+    # Define the config for all common factors.
+    cw_ece_config = {
+        "num_bins": num_bins,
+        "conf_interval": conf_interval,
+        "square_diff": square_diff,
+        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
+        "from_logits": from_logits,
+        "return_dict": return_dict,
+        "ignore_index": ignore_index
+    }
+    # Get the statistics either from images or pixel meter dict.
+    if use_global:
+        edge_pixel_preds = get_edge_pixel_preds(pixel_preds_dict)
+        cw_ece_config["pixel_preds_dict"] = edge_pixel_preds
+    else:
+        y_edge_pred, y_edge_true = get_edge_pixels(
+            y_pred=y_pred, 
+            y_true=y_true,
+            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
+        )
+        cw_ece_config["y_pred"] = y_edge_pred
+        cw_ece_config["y_true"] = y_edge_true
     # Return the calibration information
-    return cw_ece_loss(
-        y_pred=y_edge_pred,
-        y_true=y_edge_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        stats_info_dict=stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        from_logits=from_logits,
-        return_dict=return_dict,
-        ignore_index=ignore_index
-    ) 
+    return cw_ece_loss(**cw_ece_config)
 
 
 # Loss modules

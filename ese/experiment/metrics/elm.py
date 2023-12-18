@@ -1,5 +1,13 @@
-from .local_ps import neighbors_bin_stats, label_neighbors_bin_stats
-from .utils import reduce_bin_errors
+# get the processing function.
+from .local_ps import (
+    neighbors_bin_stats, 
+    label_neighbors_bin_stats
+)
+from .global_ps import (
+    global_neighbors_bin_stats,
+    global_label_neighbors_bin_stats
+)
+from .utils import reduce_bin_errors, cal_input_check
 # misc imports
 import torch
 from typing import Tuple, Optional
@@ -10,8 +18,9 @@ from ionpy.loss.util import _loss_module_from_func
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -25,19 +34,25 @@ def elm_loss(
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
-    # Keep track of different things for each bin.
-    cal_info = neighbors_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=uniform_weighting,
-        stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    if use_global: 
+        cal_info = global_neighbors_bin_stats(
+            ignore_index=ignore_index
+        )
+    else:
+        cal_info = neighbors_bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
+            uniform_weighting=uniform_weighting,
+            stats_info_dict=stats_info_dict,
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
@@ -70,8 +85,9 @@ def elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_elm_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -85,20 +101,26 @@ def tl_elm_loss(
     """
     Calculates the LoMS.
     """
-    # Keep track of different things for each bin.
-    cal_info = label_neighbors_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        top_label=True,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=uniform_weighting,
-        stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    if use_global:
+        cal_info = global_label_neighbors_bin_stats(
+            ignore_index=ignore_index 
+        )
+    else:
+        cal_info = label_neighbors_bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            top_label=True,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
+            uniform_weighting=uniform_weighting,
+            stats_info_dict=stats_info_dict,
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the ECE score.
     L, NN, _ = cal_info["bin_cal_errors"].shape
     total_num_samples = cal_info['bin_amounts'].sum()
@@ -127,8 +149,9 @@ def tl_elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
+    pixel_preds_dict: dict = None,
     num_bins: int = 10,
     square_diff: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
@@ -142,20 +165,26 @@ def cw_elm_loss(
     """
     Calculates the LoMS.
     """
-    # Keep track of different things for each bin.
-    cal_info = label_neighbors_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        top_label=False,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        uniform_weighting=uniform_weighting,
-        stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
+    # Verify input.
+    use_global = cal_input_check(y_pred, y_true, pixel_preds_dict)
+    if use_global:
+        cal_info = global_label_neighbors_bin_stats(
+            ignore_index=ignore_index 
+        )
+    else:
+        cal_info = label_neighbors_bin_stats(
+            y_pred=y_pred,
+            y_true=y_true,
+            top_label=False,
+            num_bins=num_bins,
+            conf_interval=conf_interval,
+            square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
+            uniform_weighting=uniform_weighting,
+            stats_info_dict=stats_info_dict,
+            from_logits=from_logits,
+            ignore_index=ignore_index
+        )
     # Finally, get the ECE score.
     L, NN, _ = cal_info["bin_cal_errors"].shape
     ece_per_lab = torch.zeros(L)

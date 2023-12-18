@@ -1,18 +1,22 @@
-# misc imports
+# torch imports
 import torch
-import numpy as np
 import torch.nn.functional as F
-from scipy.ndimage import label
-from typing import Optional, Union, List
+# misc imports
+import numpy as np
 from pydantic import validate_arguments
-from scipy.ndimage import distance_transform_edt, binary_erosion, label
+from typing import Optional, Union, List
+from scipy.ndimage import (
+    distance_transform_edt, 
+    binary_erosion, 
+    label
+)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cal_input_check(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
-    pixel_preds_dict: dict
+    y_pred: Optional[torch.Tensor] = None,
+    y_true: Optional[torch.Tensor] = None,
+    pixel_preds_dict: Optional[dict] = None
 ):
     use_local_funcs = (y_pred is not None and y_true is not None)
     use_global_funcs = (pixel_preds_dict is not None)
@@ -45,6 +49,18 @@ def get_edge_pixels(
     y_edge_true= y_true_e_reg.unsqueeze(-2)
     # Return the edge-ified values.
     return y_edge_pred, y_edge_true
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_edge_pixel_preds(
+    pixel_preds_dict: dict,
+    ) -> torch.Tensor:
+    """
+    Returns the edge pixels of the ground truth label map.
+    """
+    edge_pixel_preds_dict = None
+    # Return the edge-ified values.
+    return edge_pixel_preds_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

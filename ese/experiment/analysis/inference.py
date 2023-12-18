@@ -522,7 +522,13 @@ def update_pixel_meters(
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            prefix = (y_hard[ix, iy], pred_matching_neighbors_map[ix, iy], bin_ownership_map[ix, iy])
+            true_label = y_true[ix, iy]
+            pred_label = y_hard[ix, iy]
+            num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
+            prob_bin = bin_ownership_map[ix, iy]
+            # Define this dictionary prefix corresponding to a 'kind' of pixel.
+            prefix = (true_label, pred_label, num_matching_neighbors, prob_bin)
+            # Add bin specific keys to the dictionary if they don't exist.
             acc_key = prefix + ("accuracy",)
             conf_key = prefix + ("confidence",)
             weighted_acc_key = prefix + ("weighted accuracy",)
