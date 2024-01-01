@@ -78,8 +78,8 @@ def bin_stats_init(
     if from_logits:
         y_pred = torch.softmax(y_pred, dim=1)
 
-    y_pred = y_pred.squeeze(0) # Remove the batch dimension.
-    y_true = y_true.squeeze(0).squeeze(0) # Remove the batch and channels dimensions.
+    y_pred = y_pred.squeeze(0).to(torch.float64) # Remove the batch dimension.
+    y_true = y_true.squeeze(0).squeeze(0).to(torch.float64) # Remove the batch and channels dimensions.
     assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
         f"After squeezing, y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
@@ -98,7 +98,7 @@ def bin_stats_init(
     if "accuracy_map" in stats_info_dict:
         accuracy_map = stats_info_dict["accuracy_map"]
     else:
-        accuracy_map = (y_hard == y_true).float()
+        accuracy_map = (y_hard == y_true)
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     if neighborhood_width is not None:
@@ -136,12 +136,12 @@ def bin_stats_init(
 
     # Wrap this into a dictionary.
     return {
-        "y_max_prob_map": y_max_prob_map,
-        "y_hard": y_hard,
-        "y_true": y_true,
+        "y_max_prob_map": y_max_prob_map.to(torch.float64),
+        "y_hard": y_hard.to(torch.float64),
+        "y_true": y_true.to(torch.float64),
+        "pixelwise_accuracy": accuracy_map.to(torch.float64),
         "conf_bins": conf_bins,
         "conf_bin_widths": conf_bin_widths,
-        "pixelwise_accuracy": accuracy_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
         "pix_weights": pixel_weights

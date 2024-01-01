@@ -1,12 +1,15 @@
-# local imports
+# local imports for:
+# - pixel statistics
 from .local_ps import (
     bin_stats, 
     label_bin_stats
 )
+# - global statistics
 from .global_ps import (
     global_bin_stats, 
     global_label_bin_stats
 )
+# - misc utils.
 from .utils import (
     reduce_bin_errors, 
     get_edge_pixels, 

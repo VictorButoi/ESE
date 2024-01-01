@@ -569,6 +569,7 @@ def global_cal_sanity_check(
     for cal_metric in inference_cfg["cal_metric_cfgs"]:
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0]
+        image_level_cal_score = cal_metric_errors_dict[cal_met_name]
         pixel_level_cal_score = cal_metric[cal_met_name]['func'](
             pixel_meters_dict=pixel_meter_dict,
             num_bins=inference_cfg["calibration"]["num_bins"],
@@ -580,8 +581,8 @@ def global_cal_sanity_check(
             ignore_index=ignore_index
             ).item() 
         assert cal_metric_errors_dict[cal_met_name] == pixel_level_cal_score, \
-            f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_met_name}':\
-                Pixel level calibration score ({pixel_level_cal_score}) does not match image level score ({cal_metric_errors_dict[cal_met_name]})."
+            f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_met_name}': "+\
+                f"Pixel level calibration score ({pixel_level_cal_score}) does not match image level score ({image_level_cal_score})."
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
