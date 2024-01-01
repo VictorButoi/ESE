@@ -288,8 +288,8 @@ def etl_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ecw_ece_loss(
-    y_pred: torch.Tensor, 
-    y_true: torch.Tensor,
+    y_pred: torch.Tensor = None, 
+    y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
