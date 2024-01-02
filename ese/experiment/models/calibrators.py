@@ -25,7 +25,7 @@ def initialization(m):
         
 
 class Temperature_Scaling(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=None, image_channels=None):
         super(Temperature_Scaling, self).__init__()
         self.temperature_single = nn.Parameter(torch.ones(1))
 
@@ -38,7 +38,7 @@ class Temperature_Scaling(nn.Module):
 
 
 class Vector_Scaling(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, image_channels=None):
         super(Vector_Scaling, self).__init__()
         self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
         self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
@@ -52,7 +52,7 @@ class Vector_Scaling(nn.Module):
         
 
 class Dirichlet_Scaling(nn.Module):
-    def __init__(self, num_classes, eps=1e-10):
+    def __init__(self, num_classes, image_channels=None, eps=1e-10):
         super(Dirichlet_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.eps = eps
@@ -135,7 +135,7 @@ class LTS(nn.Module):
 
 
 class Meta_Scaling(nn.Module):
-    def __init__(self, num_classes, threshold):
+    def __init__(self, num_classes, threshold, image_channels=None):
         super(Meta_Scaling, self).__init__()
         self.temperature_single = nn.Parameter(torch.ones(1))
         self.num_classes = num_classes
@@ -187,7 +187,7 @@ class Meta_Scaling(nn.Module):
 
 
 class Selective_Scaling(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, image_channels=None):
         super(Selective_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.binary_linear = nn.Linear(num_classes, 2)

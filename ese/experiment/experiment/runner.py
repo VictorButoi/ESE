@@ -17,7 +17,7 @@ def run_ese_exp(
     gpu: str,
     run_name: str = None,
     show_examples: bool = False,
-    wandb: bool = False
+    track_wandb: bool = False,
 ):
     # Get the config as a dictionary.
     cfg = config.to_dict()
@@ -29,7 +29,7 @@ def run_ese_exp(
     if not show_examples:
         cfg["callbacks"].pop("step")
 
-    if not wandb:
+    if not track_wandb:
         cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
 
     # Run the experiment.
@@ -46,14 +46,14 @@ def submit_ese_exps(
     experiment_class: Any,
     config_list: List[Config],
     available_gpus: List[str],
-    wandb: bool = False
+    track_wandb: bool = False,
 ):
     # Get the config as a dictionary.
     for config in config_list:
         cfg = config.to_dict()
         # Remove the step callback because it will slow down training.
         cfg["callbacks"].pop("step")
-        if not wandb:
+        if not track_wandb:
             cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
 
     # Run the experiments 
@@ -72,7 +72,7 @@ def restart_ese_exps(
     job_names: Union[str, List[str]],
     available_gpus: List[str],
     modifications: Optional[dict] = None,
-    wandb: bool = False,
+    track_wandb: bool = False,
 ):
     # Either rerun the entire experiment, or specific jobs.
     if job_names == "all":
@@ -92,11 +92,11 @@ def restart_ese_exps(
             cfg["callbacks"].pop("step")
 
         # If you want wandb logging, and it is not already in the config, add it.
-        if wandb and ("ese.experiment.callbacks.WandbLogger" not in cfg["callbacks"]["epoch"]):
+        if track_wandb and ("ese.experiment.callbacks.WandbLogger" not in cfg["callbacks"]["epoch"]):
             cfg["callbacks"]["epoch"].append("ese.experiment.callbacks.WandbLogger")
 
         # If you don't want wandb logging, and it is in the config, remove it.
-        if not wandb and ("ese.experiment.callbacks.WandbLogger" in cfg["callbacks"]["epoch"]):
+        if not track_wandb and ("ese.experiment.callbacks.WandbLogger" in cfg["callbacks"]["epoch"]):
             cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
         
         # Update the config with any modifications
