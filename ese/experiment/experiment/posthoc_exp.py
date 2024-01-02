@@ -81,7 +81,7 @@ class PostHocExperiment(TrainExperiment):
         forward_batch = {
             "x": x,
             "ytrue": y,
-            "ypred": yhat,
+            "ypred": yhat_cal,
             "loss": loss,
             "batch_idx": batch_idx,
         }
