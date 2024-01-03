@@ -18,6 +18,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     num_classes: Any = "all" 
+    iters_per_epoch: Optional[int] = None
     transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
@@ -40,11 +41,14 @@ class OxfordPets(ThunderDataset, DatapathMixin):
             self.classes = classes
         self.class_map = {c: (i + 1) for i, c in enumerate(np.unique(classes))} # 1 -> 38 (0 background)
         self.return_data_id = False
+        # Control how many samples are in each epoch.
+        self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
 
     def __len__(self):
-        return len(self.samples)
+        return self.num_samples
 
     def __getitem__(self, key):
+        key = key % len(self.samples)
         example_name = self.samples[key]
         # Get the class and associated label
         img, mask = self._db[example_name]

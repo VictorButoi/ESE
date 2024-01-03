@@ -26,10 +26,9 @@ class WMH(ThunderDataset, DatapathMixin):
     central_width: int = 32 
     version: float = 0.2
     preload: bool = False
-    dataset: str = None
     slice_batch_size: Optional[int] = 1 
-    transforms: Optional[List[Any]] = None
     iters_per_epoch: Optional[int] = None
+    transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -44,7 +43,7 @@ class WMH(ThunderDataset, DatapathMixin):
         self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
 
     def __len__(self):
-        return len(self.samples)
+        return self.num_samples
 
     def __getitem__(self, key):
         key = key % len(self.samples)

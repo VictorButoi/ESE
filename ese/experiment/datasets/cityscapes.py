@@ -18,6 +18,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
     version: float = 0.1
     preload: bool = False
     cities: Any = "all" 
+    iters_per_epoch: Optional[int] = None
     transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
@@ -40,11 +41,14 @@ class CityScapes(ThunderDataset, DatapathMixin):
             self.sample_cities = sample_cities 
         
         self.return_data_id = False
+        # Control how many samples are in each epoch.
+        self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
 
     def __len__(self):
-        return len(self.samples)
+        return self.num_samples
 
     def __getitem__(self, key):
+        key = key % len(self.samples)
         example_name = self.samples[key]
         # Get the class and associated label
         img, mask = self._db[example_name]

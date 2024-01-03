@@ -24,6 +24,7 @@ class OASIS(ThunderDataset, DatapathMixin):
     version: float = 0.1
     preload: bool = False
     slice_batch_size: Optional[int] = 1 
+    iters_per_epoch: Optional[int] = None
     transforms: Optional[List[Any]] = None
 
     def __post_init__(self):
@@ -32,11 +33,14 @@ class OASIS(ThunderDataset, DatapathMixin):
         self.samples = subjects
         self.subjects = subjects
         self.return_data_id = False
+        # Control how many samples are in each epoch.
+        self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
 
     def __len__(self):
-        return len(self.samples)
+        return self.num_samples
 
     def __getitem__(self, key):
+        key = key % len(self.samples)
         subj = self.subjects[key]
         img_vol, mask_vol = self._db[subj]
 
