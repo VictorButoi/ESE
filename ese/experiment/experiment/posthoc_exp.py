@@ -4,6 +4,7 @@ from .ese_exp import CalibrationExperiment
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.experiment import TrainExperiment
+from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params
 from ionpy.util import Config
@@ -21,10 +22,19 @@ class PostHocExperiment(TrainExperiment):
             pretrained_data_cfg.update(self.config["data"].to_dict())
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
+        if "cuda" in pretrained_data_cfg:
+            assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
+            cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
+        else:
+            cache_dsets_on_gpu = False
         # Build the datasets, apply the transforms
         self.train_dataset = dataset_cls(split="val", **pretrained_data_cfg)
         self.val_dataset = dataset_cls(split="cal", **pretrained_data_cfg)
-    
+        # Optionally cache the datasets on the GPU.
+        if cache_dsets_on_gpu:
+            self.train_dataset = CUDACachedDataset(self.train_dataset)
+            self.val_dataset = CUDACachedDataset(self.val_dataset)
+
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
