@@ -27,7 +27,7 @@ def initialization(m):
 class Temperature_Scaling(nn.Module):
     def __init__(self, num_classes=None, image_channels=None):
         super(Temperature_Scaling, self).__init__()
-        self.temp = nn.Parameter(torch.ones(1))
+        self.temp = nn.Parameter(torch.ones(1) * 1.5)
 
     def weights_init(self):
         self.temp.data.fill_(1)
@@ -39,8 +39,8 @@ class Temperature_Scaling(nn.Module):
 class Vector_Scaling(nn.Module):
     def __init__(self, num_classes, image_channels=None):
         super(Vector_Scaling, self).__init__()
-        self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
-        self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
+        self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1) * 1.5)
+        self.vector_offset = nn.Parameter((torch.zeros(1, num_classes, 1, 1) * 2.0) - 1.0)
 
     def weights_init(self):
         self.vector_offset.data.fill_(0)

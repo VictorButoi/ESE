@@ -4,7 +4,10 @@ from .ece import (
     CW_ECE,
     ece_loss,
     tl_ece_loss,
-    cw_ece_loss
+    cw_ece_loss,
+    edge_ece_loss,
+    etl_ece_loss,
+    ecw_ece_loss
 )
 from .elm import (
     ELM,
