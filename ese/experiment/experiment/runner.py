@@ -26,6 +26,7 @@ def run_ese_exp(
         log_dir_root = "/".join(cfg["log"]["root"].split("/")[:-1])
         cfg["log"]["root"] = "/".join([log_dir_root, run_name])
 
+    # If you don't want to show examples, then remove the step callback.
     if not show_examples:
         cfg["callbacks"].pop("step")
 
@@ -48,20 +49,24 @@ def submit_ese_exps(
     available_gpus: List[str],
     track_wandb: bool = False,
 ):
+    modified_cfgs = [] 
     # Get the config as a dictionary.
     for config in config_list:
         cfg = config.to_dict()
         # Remove the step callback because it will slow down training.
         cfg["callbacks"].pop("step")
+
         if not track_wandb:
             cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
+
+        modified_cfgs.append(Config(cfg))
 
     # Run the experiments 
     slite.submit_exps(
         exp_root=exp_root,
         exp_class=experiment_class,
         available_gpus=available_gpus,
-        config_list=config_list
+        config_list=modified_cfgs
     ) 
 
 
