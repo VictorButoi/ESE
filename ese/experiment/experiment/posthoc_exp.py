@@ -1,6 +1,7 @@
 # local imports
 from .ese_exp import CalibrationExperiment
 # torch imports
+import torch
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.experiment import TrainExperiment
@@ -85,7 +86,8 @@ class PostHocExperiment(TrainExperiment):
         # Send data and labels to device.
         x, y = to_device(batch, self.device)
         # Forward pass
-        yhat = self.base_model(x)
+        with torch.no_grad():
+            yhat = self.base_model(x)
         # Calibrate the predictions.
         yhat_cal = self.model(yhat, image=x)
         # Calculate the loss between the pred and original preds.

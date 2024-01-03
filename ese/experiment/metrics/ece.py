@@ -26,6 +26,20 @@ from ionpy.util.meter import Meter
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def cal_input_check(
+    y_pred: Optional[torch.Tensor] = None,
+    y_true: Optional[torch.Tensor] = None,
+    pixel_preds_dict: Optional[dict] = None
+):
+    use_local_funcs = (y_pred is not None and y_true is not None)
+    use_global_funcs = (pixel_preds_dict is not None)
+    # xor images_defined pixel_preds_defined
+    assert use_global_funcs ^ use_local_funcs,\
+        "Either both (y_pred and y_true) or pixel_preds_dict must be defined, but not both."
+    return use_global_funcs 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,

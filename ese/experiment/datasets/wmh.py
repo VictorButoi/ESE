@@ -57,17 +57,19 @@ class WMH(ThunderDataset, DatapathMixin):
         label_amounts = subj_dict['pixel_proportions'][self.annotator]
         allow_replacement = self.replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
 
+        vol_size = img_vol.shape[0] # Typically 245
+        midvol_idx = vol_size // 2
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
-            slice_indices = np.array([128])
+            slice_indices = np.array([midvol_idx])
         # Sample an image and label slice from around a central region.
         elif self.slicing == "central":
-            central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
+            central_slices = np.arange(midvol_idx - self.central_width, midvol_idx + self.central_width)
             slice_indices = np.random.choice(central_slices, size=self.num_slices, replace=allow_replacement)
         # Sample the slice proportional to how much label they have.
         elif self.slicing == "dense":
             label_probs = label_amounts / np.sum(label_amounts)
-            slice_indices = np.random.choice(np.arange(256), size=self.num_slices, p=label_probs, replace=allow_replacement)
+            slice_indices = np.random.choice(np.arange(vol_size), size=self.num_slices, p=label_probs, replace=allow_replacement)
         # Uniform slice sampling means that we sample all non-zero slices equally.
         elif self.slicing == "uniform":
             slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
@@ -75,7 +77,7 @@ class WMH(ThunderDataset, DatapathMixin):
         elif self.slicing == "dense_full":
             slice_indices = np.where(label_amounts > 0)[0]
         elif self.slicing == "full":
-            slice_indices = np.arange(256)
+            slice_indices = np.arange(vol_size)
         # Throw an error if the slicing method is unknown.
         else:
             raise NotImplementedError(f"Unknown slicing method {self.slicing}")
