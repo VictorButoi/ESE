@@ -4,7 +4,7 @@ from .ese_exp import CalibrationExperiment
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import eval_config
+from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params
 from ionpy.util import Config
 from ionpy.util.torchutils import to_device
@@ -14,9 +14,16 @@ from ionpy.analysis import ResultsLoader
 class PostHocExperiment(TrainExperiment):
 
     def build_data(self):
+        # Get the data and transforms we want to apply
+        pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
+        # Update the old cfg with new cfg (if it exists).
+        if "data" in self.config:
+            pretrained_data_cfg.update(self.config["data"].to_dict())
+        # Get the dataset class and build the transforms
+        dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
         # Build the datasets, apply the transforms
-        self.train_dataset = self.pretrained_exp.cal_dataset
-        self.val_dataset = self.pretrained_exp.val_dataset
+        self.train_dataset = dataset_cls(split="val", **pretrained_data_cfg)
+        self.val_dataset = dataset_cls(split="cal", **pretrained_data_cfg)
     
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
@@ -49,7 +56,8 @@ class PostHocExperiment(TrainExperiment):
         self.pretrained_exp = rs.get_best_experiment(
             df=rs.load_metrics(dfc),
             exp_class=CalibrationExperiment,
-            device="cuda"
+            device="cuda",
+            build_data=False # Important, we might want to modify the data construction.
         )
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()

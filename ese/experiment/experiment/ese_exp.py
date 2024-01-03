@@ -38,7 +38,6 @@ class CalibrationExperiment(TrainExperiment):
         dataset_cls = absolute_import(data_cfg.pop("_class"))
         # Build the datasets, apply the transforms
         self.train_dataset = dataset_cls(split="train", **data_cfg)
-        self.cal_dataset = dataset_cls(split="cal", **data_cfg)
         self.val_dataset = dataset_cls(split="val", **data_cfg)
     
     def build_dataloader(self, batch_size=None):
