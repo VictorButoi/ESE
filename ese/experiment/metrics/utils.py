@@ -12,7 +12,6 @@ from scipy.ndimage import (
 )
 
 
-@validate_ar
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_edge_pixels(
     y_pred: torch.Tensor,

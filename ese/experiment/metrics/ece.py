@@ -14,15 +14,15 @@ from .utils import (
     reduce_bin_errors, 
     get_edge_pixels, 
     get_edge_pixel_preds,
-    cal_input_check 
 )
 # misc imports
 import torch
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union
 from pydantic import validate_arguments
 # ionpy imports
-from ionpy.loss.util import _loss_module_from_func
 from ionpy.util.meter import Meter
+from ionpy.metrics.util import Reduction
+from ionpy.loss.util import _loss_module_from_func
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -46,12 +46,13 @@ def ece_loss(
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    stats_info_dict: Optional[dict] = {},
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -98,12 +99,13 @@ def tl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    stats_info_dict: dict = {},
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -161,13 +163,14 @@ def cw_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    stats_info_dict: dict = {},
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the LoMS.
     """
@@ -221,13 +224,14 @@ def edge_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    stats_info_dict: dict = {},
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -265,13 +269,14 @@ def etl_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    stats_info_dict: dict = {},
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -309,13 +314,14 @@ def ecw_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    stats_info_dict: dict = {},
     square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """

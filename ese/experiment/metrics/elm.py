@@ -7,14 +7,29 @@ from .global_ps import (
     global_neighbors_bin_stats,
     global_label_neighbors_bin_stats
 )
-from .utils import reduce_bin_errors, cal_input_check
+from .utils import reduce_bin_errors
 # misc imports
 import torch
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union
 from pydantic import validate_arguments
 # ionpy imports
-from ionpy.loss.util import _loss_module_from_func
 from ionpy.util.meter import Meter
+from ionpy.metrics.util import Reduction
+from ionpy.loss.util import _loss_module_from_func
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def cal_input_check(
+    y_pred: Optional[torch.Tensor] = None,
+    y_true: Optional[torch.Tensor] = None,
+    pixel_preds_dict: Optional[dict] = None
+):
+    use_local_funcs = (y_pred is not None and y_true is not None)
+    use_global_funcs = (pixel_preds_dict is not None)
+    # xor images_defined pixel_preds_defined
+    assert use_global_funcs ^ use_local_funcs,\
+        "Either both (y_pred and y_true) or pixel_preds_dict must be defined, but not both."
+    return use_global_funcs 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -23,15 +38,15 @@ def elm_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
-    square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
-    uniform_weighting: bool = False,
-    stats_info_dict: Optional[dict] = {},
+    square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    stats_info_dict: Optional[dict] = {},
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
@@ -41,7 +56,6 @@ def elm_loss(
         cal_info = global_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
-            weighted=uniform_weighting,
             ignore_index=ignore_index
         )
     else:
@@ -52,7 +66,6 @@ def elm_loss(
             conf_interval=conf_interval,
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
-            uniform_weighting=uniform_weighting,
             stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
@@ -93,15 +106,15 @@ def tl_elm_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
-    square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
-    uniform_weighting: bool = False,
-    stats_info_dict: Optional[dict] = {},
+    square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    stats_info_dict: Optional[dict] = {},
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the LoMS.
     """
@@ -112,7 +125,6 @@ def tl_elm_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=True,
             square_diff=square_diff,
-            weighted=uniform_weighting,
             ignore_index=ignore_index
         )
     else:
@@ -124,7 +136,6 @@ def tl_elm_loss(
             conf_interval=conf_interval,
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
-            uniform_weighting=uniform_weighting,
             stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
@@ -161,15 +172,15 @@ def cw_elm_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
-    square_diff: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
     neighborhood_width: int = 3,
-    uniform_weighting: bool = False,
-    stats_info_dict: Optional[dict] = {},
+    square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    stats_info_dict: Optional[dict] = {},
+    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
-    ) -> dict:
+    ) -> Union[dict, torch.Tensor]:
     """
     Calculates the LoMS.
     """
@@ -180,7 +191,6 @@ def cw_elm_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=False,
             square_diff=square_diff,
-            weighted=uniform_weighting,
             ignore_index=ignore_index
         )
     else:
@@ -192,7 +202,6 @@ def cw_elm_loss(
             conf_interval=conf_interval,
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
-            uniform_weighting=uniform_weighting,
             stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
