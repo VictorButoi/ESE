@@ -27,14 +27,13 @@ def initialization(m):
 class Temperature_Scaling(nn.Module):
     def __init__(self, num_classes=None, image_channels=None):
         super(Temperature_Scaling, self).__init__()
-        self.temperature_single = nn.Parameter(torch.ones(1))
+        self.temp = nn.Parameter(torch.ones(1))
 
     def weights_init(self):
-        self.temperature_single.data.fill_(1)
+        self.temp.data.fill_(1)
 
     def forward(self, logits, image=None, label=None):
-        temperature = self.temperature_single.expand(logits.size())
-        return logits / temperature
+        return logits / self.temp 
 
 
 class Vector_Scaling(nn.Module):
