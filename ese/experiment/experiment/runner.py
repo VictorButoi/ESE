@@ -21,23 +21,20 @@ def run_ese_exp(
 ):
     # Get the config as a dictionary.
     cfg = config.to_dict()
-
+    # If run num undefined, make a substitute.
     if run_name is not None:
         log_dir_root = "/".join(cfg["log"]["root"].split("/")[:-1])
         cfg["log"]["root"] = "/".join([log_dir_root, run_name])
-
     # If you don't want to show examples, then remove the step callback.
     if not show_examples:
         cfg["callbacks"].pop("step")
-
     if not track_wandb:
         cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
-
     # Run the experiment.
     slite.run_exp(
         exp_class=experiment_class,
-        exp_object=Config(cfg), 
-        gpu=gpu,
+        config=Config(cfg), 
+        available_gpus=gpu,
     )
 
 
@@ -54,21 +51,19 @@ def submit_ese_exps(
     for config in config_list:
         # Get the config as a dictionary.
         cfg = config.to_dict()
-
         # Remove the step callback because it will slow down training.
         cfg["callbacks"].pop("step")
-
+        # If you don't want to track wandb, then remove the wandb callback.
         if not track_wandb:
             cfg["callbacks"]["epoch"].remove("ese.experiment.callbacks.WandbLogger")
-
+        # Add the modified config to the list.
         modified_cfgs.append(Config(cfg))
-
     # Run the experiments 
     slite.submit_exps(
         exp_root=exp_root,
         exp_class=experiment_class,
-        available_gpus=available_gpus,
-        config_list=modified_cfgs
+        config_list=modified_cfgs,
+        available_gpus=available_gpus
     ) 
 
 
