@@ -12,6 +12,7 @@ def accumulate_pixel_preds(
     key_1: str,
     key_2: Optional[str] = None,
     key_3: Optional[str] = None,
+    edge_only: bool = False,
     ignore_index: Optional[int] = None
 ) -> dict:
     # Accumulate the dictionaries corresponding to a single bin.
@@ -21,49 +22,50 @@ def accumulate_pixel_preds(
     unique_key_3 = []
     # Iterate through the meters.
     for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
-        item = {
-            "true_label": true_label,
-            "pred_label": pred_label,
-            "num_matching_neighbors": num_matching_neighbors,
-            "prob_bin": prob_bin,
-            "measure": measure,
-        }
-        # Keep track of unique values.
-        if item[key_1] not in unique_key_1:
-            unique_key_1.append(item[key_1])
-        if key_2 is not None:
-            if item[key_2] not in unique_key_2:
-                unique_key_2.append(item[key_2])
-        if key_3 is not None:
-            if item[key_3] not in unique_key_3:
-                unique_key_3.append(item[key_3])
-        # El Monstro
         if ignore_index is None or true_label != ignore_index:
-            if item[key_1] not in accumulated_meters_dict:
-                accumulated_meters_dict[item[key_1]] = {}
-            level1_dict = accumulated_meters_dict[item[key_1]]
-            if key_2 is None:
-                if measure not in level1_dict:
-                    level1_dict[measure] = value
-                else:
-                    level1_dict[measure] += value
-            else:
-                if item[key_2] not in level1_dict:
-                    level1_dict[item[key_2]] = {}
-                level2_dict = level1_dict[item[key_2]]
-                if key_3 is None:                
-                    if measure not in level2_dict:
-                        level2_dict[measure] = value
+            if not edge_only or num_matching_neighbors < 8:
+                item = {
+                    "true_label": true_label,
+                    "pred_label": pred_label,
+                    "num_matching_neighbors": num_matching_neighbors,
+                    "prob_bin": prob_bin,
+                    "measure": measure,
+                }
+                # Keep track of unique values.
+                if item[key_1] not in unique_key_1:
+                    unique_key_1.append(item[key_1])
+                if key_2 is not None:
+                    if item[key_2] not in unique_key_2:
+                        unique_key_2.append(item[key_2])
+                if key_3 is not None:
+                    if item[key_3] not in unique_key_3:
+                        unique_key_3.append(item[key_3])
+                # El Monstro
+                if item[key_1] not in accumulated_meters_dict:
+                    accumulated_meters_dict[item[key_1]] = {}
+                level1_dict = accumulated_meters_dict[item[key_1]]
+                if key_2 is None:
+                    if measure not in level1_dict:
+                        level1_dict[measure] = value
                     else:
-                        level2_dict[measure] += value
+                        level1_dict[measure] += value
                 else:
-                    if item[key_3] not in level2_dict:
-                        level2_dict[item[key_3]] = {}
-                    level3_dict = level2_dict[item[key_3]]
-                    if measure not in level3_dict:
-                        level3_dict[measure] = value
+                    if item[key_2] not in level1_dict:
+                        level1_dict[item[key_2]] = {}
+                    level2_dict = level1_dict[item[key_2]]
+                    if key_3 is None:                
+                        if measure not in level2_dict:
+                            level2_dict[measure] = value
+                        else:
+                            level2_dict[measure] += value
                     else:
-                        level3_dict[measure] += value
+                        if item[key_3] not in level2_dict:
+                            level2_dict[item[key_3]] = {}
+                        level3_dict = level2_dict[item[key_3]]
+                        if measure not in level3_dict:
+                            level3_dict[measure] = value
+                        else:
+                            level3_dict[measure] += value
     # Wrap the unique values into a dictionary.
     unique_values_dict = {
         key_1: sorted(unique_key_1)
@@ -81,11 +83,13 @@ def global_bin_stats(
     pixel_meters_dict: dict,
     square_diff: bool = False,
     weighted: bool = False,
+    edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1="prob_bin",
+        edge_only=edge_only,
         ignore_index=ignore_index
         )
     unique_bins = unique_values_dict["prob_bin"]
@@ -127,6 +131,7 @@ def global_label_bin_stats(
     top_label: bool,
     square_diff: bool = False,
     weighted: bool = False,
+    edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
@@ -134,6 +139,7 @@ def global_label_bin_stats(
         pixel_meters_dict,
         key_1=label_key,
         key_2="prob_bin",
+        edge_only=edge_only,
         ignore_index=ignore_index
         )
     unique_labels = unique_values_dict[label_key]
@@ -177,12 +183,14 @@ def global_neighbors_bin_stats(
     pixel_meters_dict: dict,
     square_diff: bool = False,
     weighted: bool = False,
+    edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1="num_matching_neighbors",
         key_2="prob_bin",
+        edge_only=edge_only,
         ignore_index=ignore_index
         )
     unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
@@ -227,6 +235,7 @@ def global_label_neighbors_bin_stats(
     top_label: bool,
     square_diff: bool = False,
     weighted: bool = False,
+    edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
@@ -235,6 +244,7 @@ def global_label_neighbors_bin_stats(
         key_1=label_key,
         key_2="num_matching_neighbors",
         key_3="prob_bin",
+        edge_only=edge_only,
         ignore_index=ignore_index
         )
     unique_labels = unique_values_dict[label_key] 

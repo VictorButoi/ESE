@@ -102,6 +102,7 @@ def get_conf_region(
     bin_idx: int, 
     conf_bin: torch.Tensor, 
     conf_bin_widths: torch.Tensor, 
+    edge_only: bool = False,
     label: Optional[int] = None,
     lab_map: Optional[torch.Tensor] = None,
     num_neighbors: Optional[int] = None,
@@ -130,6 +131,10 @@ def get_conf_region(
     if num_neighbors is not None:
         assert num_neighbors_map is not None, "If num_neighbors is not None, then must supply num neighbors map."
         bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map==num_neighbors)
+    # If we are doing edges only, then select those uses 
+    if edge_only:
+        assert num_neighbors_map is not None, "If edge_only is True, then must supply num neighbors map."
+        bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map < 8)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
@@ -286,8 +291,8 @@ def count_matching_neighbors(
     lab_map: Union[torch.Tensor, np.ndarray],
     neighborhood_width: int = 3,
 ):
-    lab_map = lab_map.squeeze()
-    assert len(lab_map.shape) == 2, "Label map can only currently be (H, W)."
+    assert len(lab_map.shape) == 3,\
+        f"Label map shape should be: (B, H, W), got: {lab_map.shape}."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(lab_map, np.ndarray):
         lab_map = torch.from_numpy(lab_map)
@@ -303,7 +308,7 @@ def count_matching_neighbors(
         # Create a binary mask for the current label
         mask = (lab_map == label).float()
         # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
-        mask_unsqueezed = mask.unsqueeze(0).unsqueeze(0)
+        mask_unsqueezed = mask.unsqueeze(1).unsqueeze(0)
         # Apply padding
         padded_mask = F.pad(mask_unsqueezed, pad=(1, 1, 1, 1), mode='constant')
         # Convolve the mask with the kernel to get the neighbor count using 2D convolution

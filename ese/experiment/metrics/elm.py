@@ -14,7 +14,6 @@ from typing import Dict, Tuple, Optional, Union
 from pydantic import validate_arguments
 # ionpy imports
 from ionpy.util.meter import Meter
-from ionpy.metrics.util import Reduction
 from ionpy.loss.util import _loss_module_from_func
 
 
@@ -44,7 +43,6 @@ def elm_loss(
     return_dict: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -112,7 +110,6 @@ def tl_elm_loss(
     return_dict: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -178,7 +175,6 @@ def cw_elm_loss(
     return_dict: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """

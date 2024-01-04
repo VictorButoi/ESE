@@ -71,35 +71,33 @@ def bin_stats_init(
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
         f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
-    assert y_pred.shape[0] == y_true.shape[0] == 1,\
-        f"y_pred and y_true must have a batch dimension of 1. Got {y_pred.shape[0]} and {y_true.shape[0]}."
     
     # If from logits, apply softmax along channels of y pred.
     if from_logits:
         y_pred = torch.softmax(y_pred, dim=1)
 
-    y_pred = y_pred.squeeze(0).to(torch.float64) # Remove the batch dimension.
-    y_true = y_true.squeeze(0).squeeze(0).to(torch.float64) # Remove the batch and channels dimensions.
-    assert len(y_pred.shape) == 3 and len(y_true.shape) == 2,\
-        f"After squeezing, y_pred and y_true must be 3D and 2D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
+    y_pred = y_pred.to(torch.float64) # Get precision for calibration.
+    y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
+    assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
+        f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
     # Get the hard predictions and the max confidences.
-    y_hard = y_pred.argmax(dim=0)
-    y_max_prob_map = y_pred.max(dim=0).values
+    y_hard = y_pred.argmax(dim=1)
+    y_max_prob_map = y_pred.max(dim=1).values
 
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
         start=conf_interval[0], 
         end=conf_interval[1]
-        )
+    )
 
     # Get the pixelwise accuracy.
     if "accuracy_map" in stats_info_dict:
         accuracy_map = stats_info_dict["accuracy_map"]
     else:
         accuracy_map = (y_hard == y_true)
-
+    
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     if neighborhood_width is not None:
         if "pred_matching_neighbors_map" in stats_info_dict:
@@ -157,6 +155,7 @@ def bin_stats(
     square_diff: bool,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
+    edge_only: bool = False,
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     ignore_index: Optional[int] = None
@@ -189,6 +188,8 @@ def bin_stats(
             conf_bin=conf_bin, 
             conf_bin_widths=obj_dict["conf_bin_widths"], 
             lab_map=obj_dict["y_hard"],
+            num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
+            edge_only=edge_only,
             ignore_index=ignore_index
             )
         # If there are some pixels in this confidence bin.
@@ -220,6 +221,7 @@ def label_bin_stats(
     square_diff: bool,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
+    edge_only: bool = False,
     stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
     ignore_index: Optional[int] = None
@@ -262,6 +264,8 @@ def label_bin_stats(
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
                 label=lab,
                 lab_map=lab_info["lab_map"],
+                num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
+                edge_only=edge_only,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -293,6 +297,7 @@ def neighbors_bin_stats(
     neighborhood_width: int,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    edge_only: bool = False,
     from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -325,9 +330,10 @@ def neighbors_bin_stats(
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
+                lab_map=obj_dict["y_hard"],
                 num_neighbors=p_nn,
                 num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
-                lab_map=obj_dict["y_hard"],
+                edge_only=edge_only,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -360,6 +366,7 @@ def label_neighbors_bin_stats(
     neighborhood_width: int,
     uniform_weighting: bool = False,
     stats_info_dict: Optional[dict] = {},
+    edge_only: bool = False,
     from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -402,10 +409,11 @@ def label_neighbors_bin_stats(
                     bin_idx=bin_idx, 
                     conf_bin=conf_bin, 
                     conf_bin_widths=obj_dict["conf_bin_widths"], 
-                    num_neighbors=p_nn,
-                    num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
                     label=lab,
                     lab_map=lab_info["lab_map"],
+                    num_neighbors=p_nn,
+                    num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
+                    edge_only=edge_only,
                     ignore_index=ignore_index
                     )
                 # If there are some pixels in this confidence bin.

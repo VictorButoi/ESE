@@ -12,8 +12,6 @@ from .global_ps import (
 # - misc utils.
 from .utils import (
     reduce_bin_errors, 
-    get_edge_pixels, 
-    get_edge_pixel_preds,
 )
 # misc imports
 import torch
@@ -21,7 +19,6 @@ from pydantic import validate_arguments
 from typing import Dict, Tuple, Optional, Union
 # ionpy imports
 from ionpy.util.meter import Meter
-from ionpy.metrics.util import Reduction
 from ionpy.loss.util import _loss_module_from_func
 
 
@@ -48,9 +45,9 @@ def ece_loss(
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    edge_only: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -63,7 +60,7 @@ def ece_loss(
         cal_info = global_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
-            weighted=False,
+            edge_only=edge_only,
             ignore_index=ignore_index
         )
     else: 
@@ -73,6 +70,7 @@ def ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
             ignore_index=ignore_index
@@ -80,8 +78,7 @@ def ece_loss(
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
-        amounts_per_bin=cal_info["bin_amounts"], 
-        batch_reduction=batch_reduction
+        amounts_per_bin=cal_info["bin_amounts"]
         )
     # Return the calibration information.
     assert 0 <= cal_info['cal_error'] <= 1,\
@@ -102,9 +99,9 @@ def tl_ece_loss(
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    edge_only: bool = False,
     stats_info_dict: dict = {},
     conf_interval: Tuple[float, float] = (0.0, 1.0),
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -118,7 +115,7 @@ def tl_ece_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=True,
             square_diff=square_diff,
-            weighted=False,
+            edge_only=edge_only,
             ignore_index=ignore_index
         )
     else: 
@@ -129,6 +126,7 @@ def tl_ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
             ignore_index=ignore_index
@@ -168,8 +166,8 @@ def cw_ece_loss(
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
+    edge_only: bool = False,
     conf_interval: Tuple[float, float] = (0.0, 1.0),
-    batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -183,7 +181,7 @@ def cw_ece_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=False,
             square_diff=square_diff,
-            weighted=False,
+            edge_only=edge_only,
             ignore_index=ignore_index
         )
     else:
@@ -194,6 +192,7 @@ def cw_ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
             ignore_index=ignore_index
@@ -223,135 +222,48 @@ def cw_ece_loss(
 def edge_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
-    stats_info_dict: dict = {},
-    square_diff: bool = False,
-    from_logits: bool = False,
-    return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    batch_reduction: Reduction = "mean",
-    ignore_index: Optional[int] = None
+    **kwargs
     ) -> Union[dict, torch.Tensor]:
     """
-    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    Calculates the Expected Semantic Error (ECE) of just the edges.
     """
-    # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    # Define the config for all common factors.
-    ece_config = {
-        "num_bins": num_bins,
-        "conf_interval": conf_interval,
-        "square_diff": square_diff,
-        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        "from_logits": from_logits,
-        "return_dict": return_dict,
-        "ignore_index": ignore_index
-    }
-    # Get the statistics either from images or pixel meter dict.
-    if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
-        ece_config["pixel_meters_dict"] = edge_pixel_preds
-    else:
-        y_edge_pred, y_edge_true = get_edge_pixels(
-            y_pred=y_pred, 
-            y_true=y_true,
-            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-        )
-        ece_config["y_pred"] = y_edge_pred
-        ece_config["y_true"] = y_edge_true
+    kwargs["y_pred"] = y_pred
+    kwargs["y_true"] = y_true
+    kwargs["edge_only"] = True
     # Return the calibration information
-    return ece_loss(**ece_config)
+    return ece_loss(**kwargs)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def etl_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
-    stats_info_dict: dict = {},
-    square_diff: bool = False,
-    from_logits: bool = False,
-    return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    batch_reduction: Reduction = "mean",
-    ignore_index: Optional[int] = None
+    **kwargs
     ) -> Union[dict, torch.Tensor]:
     """
-    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    Calculates the Top-label Expected Semantic Error (TL-ECE) for a predicted label map.
     """
-    # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    # Define the config for all common factors.
-    tl_ece_config = {
-        "num_bins": num_bins,
-        "conf_interval": conf_interval,
-        "square_diff": square_diff,
-        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        "from_logits": from_logits,
-        "return_dict": return_dict,
-        "ignore_index": ignore_index
-    }
-    # Get the statistics either from images or pixel meter dict.
-    if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
-        tl_ece_config["pixel_meters_dict"] = edge_pixel_preds
-    else:
-        y_edge_pred, y_edge_true = get_edge_pixels(
-            y_pred=y_pred, 
-            y_true=y_true,
-            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-        )
-        tl_ece_config["y_pred"] = y_edge_pred
-        tl_ece_config["y_true"] = y_edge_true
+    kwargs["y_pred"] = y_pred
+    kwargs["y_true"] = y_true
+    kwargs["edge_only"] = True
     # Return the calibration information
-    return tl_ece_loss(**tl_ece_config)
+    return tl_ece_loss(**kwargs)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ecw_ece_loss(
     y_pred: torch.Tensor = None, 
     y_true: torch.Tensor = None,
-    pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
-    stats_info_dict: dict = {},
-    square_diff: bool = False,
-    from_logits: bool = False,
-    return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
-    batch_reduction: Reduction = "mean",
-    ignore_index: Optional[int] = None
+    **kwargs
     ) -> Union[dict, torch.Tensor]:
     """
-    Calculates the Expected Semantic Error (ECE) for a predicted label map.
+    Calculates the Class-wise Expected Semantic Error (CW-ECE) for a predicted label map.
     """
-    # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    # Define the config for all common factors.
-    cw_ece_config = {
-        "num_bins": num_bins,
-        "conf_interval": conf_interval,
-        "square_diff": square_diff,
-        "stats_info_dict": stats_info_dict["edge_info"] if "edge_info" in stats_info_dict else {},
-        "from_logits": from_logits,
-        "return_dict": return_dict,
-        "ignore_index": ignore_index
-    }
-    # Get the statistics either from images or pixel meter dict.
-    if use_global:
-        edge_pixel_preds = get_edge_pixel_preds(pixel_meters_dict)
-        cw_ece_config["pixel_meters_dict"] = edge_pixel_preds
-    else:
-        y_edge_pred, y_edge_true = get_edge_pixels(
-            y_pred=y_pred, 
-            y_true=y_true,
-            image_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {}
-        )
-        cw_ece_config["y_pred"] = y_edge_pred
-        cw_ece_config["y_true"] = y_edge_true
+    kwargs["y_pred"] = y_pred
+    kwargs["y_true"] = y_true
+    kwargs["edge_only"] = True
     # Return the calibration information
-    return cw_ece_loss(**cw_ece_config)
+    return cw_ece_loss(**kwargs)
 
 
 # Loss modules
