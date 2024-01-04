@@ -38,18 +38,6 @@ def get_edge_pixels(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_edge_pixel_preds(
-    pixel_preds_dict: dict,
-    ) -> torch.Tensor:
-    """
-    Returns the dictionary of meters corresponding to the edge pixels.
-    """
-    edge_pixel_preds_dict = None
-    # Return the edge-ified values.
-    return edge_pixel_preds_dict
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_bin_errors(
     error_per_bin: torch.Tensor, 
     amounts_per_bin: torch.Tensor, 
