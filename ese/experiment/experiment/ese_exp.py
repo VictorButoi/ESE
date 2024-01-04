@@ -24,7 +24,6 @@ class CalibrationExperiment(TrainExperiment):
     def build_augmentations(self):
         # Build the augmentations if they are there to be built.        
         config_dict = self.config.to_dict()
-
         if "augmentations" in config_dict and (config_dict["augmentations"] is not None):
             self.aug_pipeline = augmentations_from_config(config_dict["augmentations"])
             self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
