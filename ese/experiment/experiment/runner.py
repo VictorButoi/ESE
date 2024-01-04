@@ -52,7 +52,9 @@ def submit_ese_exps(
     modified_cfgs = [] 
     # Get the config as a dictionary.
     for config in config_list:
+        # Get the config as a dictionary.
         cfg = config.to_dict()
+
         # Remove the step callback because it will slow down training.
         cfg["callbacks"].pop("step")
 
