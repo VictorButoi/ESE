@@ -1,5 +1,6 @@
 # torch imports
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 # misc imports
 import numpy as np
@@ -14,10 +15,10 @@ from scipy.ndimage import (
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_edge_pixels(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     image_info_dict: dict
-    ) -> torch.Tensor:
+    ) -> Tensor:
     """
     Returns the edge pixels of the ground truth label map.
     """
@@ -39,10 +40,10 @@ def get_edge_pixels(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_bin_errors(
-    error_per_bin: torch.Tensor, 
-    amounts_per_bin: torch.Tensor, 
+    error_per_bin: Tensor, 
+    amounts_per_bin: Tensor, 
     weighting: str = "proportional",
-    bin_weights: Optional[torch.Tensor] = None
+    bin_weights: Optional[Tensor] = None
     ) -> float:
     if bin_weights is None:
         if amounts_per_bin.sum() == 0:
@@ -60,7 +61,7 @@ def reduce_bin_errors(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def split_tensor(
-    tensor: torch.Tensor, 
+    tensor: Tensor, 
     num_bins: int
     ):
     """
@@ -68,7 +69,7 @@ def split_tensor(
     the difference in size between any of the chunks is at most 1.
 
     Args:
-    - tensor (torch.Tensor): Tensor of shape [N] to split
+    - tensor (Tensor): Tensor of shape [N] to split
     - num_bins (int): Number of bins/tensors to split into
 
     Returns:
@@ -86,15 +87,15 @@ def split_tensor(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
-    prob_map: torch.Tensor,
+    prob_map: Tensor,
     bin_idx: int, 
-    conf_bin: torch.Tensor, 
-    conf_bin_widths: torch.Tensor, 
+    conf_bin: Tensor, 
+    conf_bin_widths: Tensor, 
     edge_only: bool = False,
     label: Optional[int] = None,
-    lab_map: Optional[torch.Tensor] = None,
+    lab_map: Optional[Tensor] = None,
+    num_neighbors_map: Optional[Tensor] = None,
     num_neighbors: Optional[int] = None,
-    num_neighbors_map: Optional[torch.Tensor] = None,
     ignore_index: Optional[int] = None,
     ):
     # Get the region of image corresponding to the confidence
@@ -129,9 +130,9 @@ def get_conf_region(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def threshold_min_conf(
-    y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_hard: Tensor,
+    y_true: Tensor,
     min_confidence: float,
     ):
     # Eliminate the super small predictions to get a better picture.
@@ -220,7 +221,7 @@ def get_bins(
     start: float = 0.0,
     end: float = 1.0,
     adaptive: bool = False,
-    y_pred: Optional[torch.Tensor] = None,
+    y_pred: Optional[Tensor] = None,
     device: Optional[torch.device] = "cuda"
     ):
     if adaptive:
@@ -233,8 +234,8 @@ def get_bins(
             if len(chunk) > 0:
                 bin_widths.append(chunk[-1] - chunk[0])
                 bin_starts.append(chunk[0])
-        conf_bin_widths = torch.Tensor(bin_widths)
-        conf_bins = torch.Tensor(bin_starts)
+        conf_bin_widths = Tensor(bin_widths)
+        conf_bins = Tensor(bin_starts)
     else:
         conf_bins = torch.linspace(start, end, num_bins+1)[:-1] # Off by one error
         # Get the confidence bins
@@ -246,17 +247,17 @@ def get_bins(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def find_bins(
-    confidences, 
-    bin_starts, 
-    bin_widths
+    confidences: Tensor, 
+    bin_starts: Tensor, 
+    bin_widths: Tensor
     ):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
     find the bin index for each confidence.
     Args:
     - confidences (numpy.ndarray): A numpy array of confidence values.
-    - bin_starts (torch.Tensor): A 1D tensor representing the start position of each confidence bin.
-    - bin_widths (torch.Tensor): A 1D tensor representing the width of each confidence bin.
+    - bin_starts (Tensor): A 1D tensor representing the start position of each confidence bin.
+    - bin_widths (Tensor): A 1D tensor representing the width of each confidence bin.
     Returns:
     - numpy.ndarray: A numpy array of bin indices corresponding to each confidence value. 
       If a confidence doesn't fit in any bin, its bin index is set to -1.
@@ -276,7 +277,7 @@ def find_bins(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
-    lab_map: Union[torch.Tensor, np.ndarray],
+    lab_map: Union[Tensor, np.ndarray],
     neighborhood_width: int = 3,
 ):
     assert len(lab_map.shape) == 3,\
@@ -318,10 +319,10 @@ def count_matching_neighbors(
 # predicted in.
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_perpix_group_size(
-    y_true: Union[torch.Tensor, np.ndarray],
+    y_true: Union[Tensor, np.ndarray],
 ):
     # Optionally take in numpy array, convert to torch tensor
-    if isinstance(y_true, torch.Tensor):
+    if isinstance(y_true, Tensor):
         y_true = y_true.numpy()
         return_numpy = False 
     else:
@@ -350,10 +351,10 @@ def get_perpix_group_size(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_uni_pixel_weights(
-    lab_map: Union[torch.Tensor, np.ndarray],
+    lab_map: Union[Tensor, np.ndarray],
     uni_w_attributes: List[str],
     neighborhood_width: Optional[int] = None,
-    num_neighbors_map: Optional[Union[torch.Tensor, np.ndarray]] = None,
+    num_neighbors_map: Optional[Union[Tensor, np.ndarray]] = None,
     ignore_index: Optional[int] = None
 ):
     """
@@ -362,13 +363,13 @@ def get_uni_pixel_weights(
     a particular number of neighbors. The weights are normalized such that the sum of the weights
     for each label is 1.0.
     Args:
-    - lab_map (torch.Tensor): A 2D tensor of labels.
+    - lab_map (Tensor): A 2D tensor of labels.
     - uni_w_attributes (List[str]): A list of unique label attributes to use for weighting.
     - neighborhood_width (int): The width of the neighborhood to use when counting neighbors.
-    - num_neighbors_map (torch.Tensor): A 2D tensor of the number of neighbors for each pixel in
+    - num_neighbors_map (Tensor): A 2D tensor of the number of neighbors for each pixel in
         the label map.
     Returns:
-    - torch.Tensor: A 2D tensor of pixel weights for each pixel in the label map.
+    - Tensor: A 2D tensor of pixel weights for each pixel in the label map.
     """
     lab_map = lab_map.squeeze()
     assert len(lab_map.shape) == 2, "Pred map can only currently be (H, W)."
@@ -448,12 +449,13 @@ def get_uni_pixel_weights(
 # Helpful for calculating edge accuracies.
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_edge_map(
-    lab_map: torch.Tensor
-    ) -> torch.Tensor:
+    lab_map: Tensor,
+    neighborhood_width: int = 3
+    ) -> Tensor:
     # Neighbor map
     num_neighbor_map = count_matching_neighbors(
         lab_map=lab_map, 
-        neighborhood_width=3
+        neighborhood_width=neighborhood_width
         )
-    edge_map = (num_neighbor_map < 8)
+    edge_map = (num_neighbor_map < (neighborhood_width**2 - 1))
     return edge_map

@@ -8,10 +8,12 @@ from .global_ps import (
     global_label_neighbors_bin_stats
 )
 from .utils import reduce_bin_errors
-# misc imports
+# torch imports
 import torch
-from typing import Dict, Tuple, Optional, Union
+from torch import Tensor
+# misc imports
 from pydantic import validate_arguments
+from typing import Dict, Tuple, Optional, Union
 # ionpy imports
 from ionpy.util.meter import Meter
 from ionpy.loss.util import _loss_module_from_func
@@ -19,8 +21,8 @@ from ionpy.loss.util import _loss_module_from_func
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cal_input_check(
-    y_pred: Optional[torch.Tensor] = None,
-    y_true: Optional[torch.Tensor] = None,
+    y_pred: Optional[Tensor] = None,
+    y_true: Optional[Tensor] = None,
     pixel_preds_dict: Optional[dict] = None
 ):
     use_local_funcs = (y_pred is not None and y_true is not None)
@@ -33,8 +35,8 @@ def cal_input_check(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
-    y_pred: torch.Tensor = None, 
-    y_true: torch.Tensor = None,
+    y_pred: Tensor = None, 
+    y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     neighborhood_width: int = 3,
@@ -44,7 +46,7 @@ def elm_loss(
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
-    ) -> Union[dict, torch.Tensor]:
+    ) -> Union[dict, Tensor]:
     """
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
@@ -100,8 +102,8 @@ def elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_elm_loss(
-    y_pred: torch.Tensor = None, 
-    y_true: torch.Tensor = None,
+    y_pred: Tensor = None, 
+    y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     neighborhood_width: int = 3,
@@ -111,7 +113,7 @@ def tl_elm_loss(
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
-    ) -> Union[dict, torch.Tensor]:
+    ) -> Union[dict, Tensor]:
     """
     Calculates the LoMS.
     """
@@ -165,8 +167,8 @@ def tl_elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_loss(
-    y_pred: torch.Tensor = None, 
-    y_true: torch.Tensor = None,
+    y_pred: Tensor = None, 
+    y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
     neighborhood_width: int = 3,
@@ -176,7 +178,7 @@ def cw_elm_loss(
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
-    ) -> Union[dict, torch.Tensor]:
+    ) -> Union[dict, Tensor]:
     """
     Calculates the LoMS.
     """

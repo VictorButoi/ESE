@@ -1,5 +1,6 @@
 # torch imports
 import torch
+from torch import Tensor
 # misc imports
 from pydantic import validate_arguments
 from typing import Optional
@@ -11,8 +12,8 @@ from ionpy.metrics.util import (
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def brier_score(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     square_diff: bool = True,
     batch_reduction: Reduction = "mean",
     ignore_empty_labels: bool = False,
@@ -58,8 +59,8 @@ def brier_score(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_brier_score(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     square_diff: bool = True,
     from_logits: bool = False,
     batch_reduction: Reduction = "mean",
