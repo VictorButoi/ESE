@@ -13,6 +13,7 @@ def accumulate_pixel_preds(
     key_2: Optional[str] = None,
     key_3: Optional[str] = None,
     edge_only: bool = False,
+    neighborhood_width: int = 3,
     ignore_index: Optional[int] = None
 ) -> dict:
     # Accumulate the dictionaries corresponding to a single bin.
@@ -23,7 +24,8 @@ def accumulate_pixel_preds(
     # Iterate through the meters.
     for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
         if ignore_index is None or true_label != ignore_index:
-            if not edge_only or num_matching_neighbors < 8:
+            total_nearby_pixels = neighborhood_width**2 - 1
+            if not edge_only or num_matching_neighbors < total_nearby_pixels:
                 item = {
                     "true_label": true_label,
                     "pred_label": pred_label,

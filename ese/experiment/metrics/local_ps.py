@@ -1,5 +1,6 @@
 # misc. imports
 import torch
+from torch import Tensor
 from typing import Optional, Tuple
 from pydantic import validate_arguments
 # local imports 
@@ -29,11 +30,11 @@ def get_lab_info(y_hard, y_true, top_label, ignore_index):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def calc_bin_info(
-    conf_map: torch.Tensor,
-    bin_conf_region: torch.Tensor,
-    pixelwise_accuracy: torch.Tensor,
+    conf_map: Tensor,
+    bin_conf_region: Tensor,
+    pixelwise_accuracy: Tensor,
     square_diff: bool,
-    pix_weights: Optional[torch.Tensor] = None
+    pix_weights: Optional[Tensor] = None
 ):
     if pix_weights is None:
         bin_num_samples = bin_conf_region.sum() 
@@ -59,14 +60,14 @@ def calc_bin_info(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats_init(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
-    uniform_weighting: bool = False,
-    neighborhood_width: Optional[int] = None,
-    stats_info_dict: Optional[dict] = {},
     from_logits: bool = False,
+    uniform_weighting: bool = False,
+    neighborhood_width: int = 3,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
@@ -148,16 +149,16 @@ def bin_stats_init(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
-    square_diff: bool,
+    edge_only: bool = False,
+    from_logits: bool = False,
+    square_diff: bool = False,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
-    edge_only: bool = False,
     stats_info_dict: Optional[dict] = {},
-    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -213,17 +214,17 @@ def bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_bin_stats(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     top_label: bool,
     num_bins: int,
     conf_interval: Tuple[float, float],
-    square_diff: bool,
+    edge_only: bool = False,
+    square_diff: bool = False,
+    from_logits: bool = False,
     uniform_weighting: bool = False,
     neighborhood_width: Optional[int] = None,
-    edge_only: bool = False,
     stats_info_dict: Optional[dict] = {},
-    from_logits: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -289,16 +290,16 @@ def label_bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def neighbors_bin_stats(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     num_bins: int,
     conf_interval: Tuple[float, float],
-    square_diff: bool,
     neighborhood_width: int,
-    uniform_weighting: bool = False,
-    stats_info_dict: Optional[dict] = {},
     edge_only: bool = False,
     from_logits: bool = False,
+    square_diff: bool = False,
+    uniform_weighting: bool = False,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
@@ -357,17 +358,17 @@ def neighbors_bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def label_neighbors_bin_stats(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
+    y_pred: Tensor,
+    y_true: Tensor,
     top_label: bool,
     num_bins: int,
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
-    uniform_weighting: bool = False,
-    stats_info_dict: Optional[dict] = {},
     edge_only: bool = False,
     from_logits: bool = False,
+    uniform_weighting: bool = False,
+    stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.

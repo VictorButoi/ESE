@@ -42,12 +42,13 @@ def ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    neighborhood_width: int = 3,
+    edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    edge_only: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
     stats_info_dict: Optional[dict] = {},
+    conf_interval: Tuple[float, float] = (0.0, 1.0),
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
     """
@@ -61,6 +62,7 @@ def ece_loss(
             pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
             edge_only=edge_only,
+            neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
         )
     else: 
@@ -70,6 +72,7 @@ def ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
             edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
@@ -96,10 +99,11 @@ def tl_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
+    neighborhood_width: int = 3,
+    edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    edge_only: bool = False,
     stats_info_dict: dict = {},
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     ignore_index: Optional[int] = None
@@ -115,6 +119,7 @@ def tl_ece_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=True,
             square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
             edge_only=edge_only,
             ignore_index=ignore_index
         )
@@ -126,6 +131,7 @@ def tl_ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
             edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
@@ -162,11 +168,12 @@ def cw_ece_loss(
     y_true: torch.Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     num_bins: int = 10,
-    stats_info_dict: dict = {},
+    neighborhood_width: int = 3,
+    edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    edge_only: bool = False,
+    stats_info_dict: dict = {},
     conf_interval: Tuple[float, float] = (0.0, 1.0),
     ignore_index: Optional[int] = None
     ) -> Union[dict, torch.Tensor]:
@@ -181,6 +188,7 @@ def cw_ece_loss(
             pixel_meters_dict=pixel_meters_dict,
             top_label=False,
             square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
             edge_only=edge_only,
             ignore_index=ignore_index
         )
@@ -192,6 +200,7 @@ def cw_ece_loss(
             num_bins=num_bins,
             conf_interval=conf_interval,
             square_diff=square_diff,
+            neighborhood_width=neighborhood_width,
             edge_only=edge_only,
             stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
             from_logits=from_logits,
@@ -270,6 +279,7 @@ def ecw_ece_loss(
 ECE = _loss_module_from_func("ECE", ece_loss)
 TL_ECE = _loss_module_from_func("TL_ECE", tl_ece_loss)
 CW_ECE = _loss_module_from_func("CW_ECE", cw_ece_loss)
+
 # Edge loss modules
 Edge_ECE = _loss_module_from_func("Edge_ECE", edge_ece_loss)
 ETL_ECE = _loss_module_from_func("ETL_ECE", etl_ece_loss)
