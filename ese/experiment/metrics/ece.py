@@ -17,8 +17,8 @@ from .utils import (
 )
 # misc imports
 import torch
-from typing import Dict, Tuple, Optional, Union
 from pydantic import validate_arguments
+from typing import Dict, Tuple, Optional, Union
 # ionpy imports
 from ionpy.util.meter import Meter
 from ionpy.metrics.util import Reduction
@@ -81,6 +81,7 @@ def ece_loss(
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
         amounts_per_bin=cal_info["bin_amounts"], 
+        batch_reduction=batch_reduction
         )
     # Return the calibration information.
     assert 0 <= cal_info['cal_error'] <= 1,\
