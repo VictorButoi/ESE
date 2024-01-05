@@ -1,5 +1,4 @@
 # local imports
-from typing import Literal
 from ..augmentation import augmentations_from_config
 # torch imports
 import torch
@@ -15,6 +14,7 @@ from ionpy.util.torchutils import to_device
 import einops
 import numpy as np
 import seaborn as sns
+from typing import Literal
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
