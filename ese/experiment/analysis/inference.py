@@ -141,6 +141,7 @@ def get_cal_stats(
             inference_exp = rs.load_experiment(
                 path=exp_model_root,
                 exp_class=CalibrationExperiment,
+                build_data=False
             )
         # Otheriwse, if given an experiment folder, choose the 
         # subpath with the best selection score.
@@ -154,6 +155,7 @@ def get_cal_stats(
                 exp_class=CalibrationExperiment,
                 checkpoint=inference_model_cfg['checkpoint'],
                 selection_metric=inference_model_cfg['pretrained_select_metric'],
+                build_data=False
             )
     # Put the inference experiment on the device and set the seed.
     inference_exp.to_device()
@@ -189,8 +191,8 @@ def get_cal_stats(
     # data splits so that we can potentially parralelize the inference.
     task_root = save_root / uuid
     metadata_dir = task_root / "metadata.yaml"
-    image_level_dir = task_root / f"image_stats_split:{data_split}.pkl"
-    pixel_level_dir = task_root / f"pixel_stats_split:{data_split}.pkl"
+    image_level_dir = task_root / f"image_stats_split:0.pkl"
+    pixel_level_dir = task_root / f"pixel_stats_split:0.pkl"
     if not task_root.exists():
         task_root.mkdir(parents=True)
         with open(metadata_dir, 'w') as metafile:
