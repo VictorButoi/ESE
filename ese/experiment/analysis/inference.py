@@ -1,4 +1,5 @@
 # Misc imports
+import os
 import yaml
 import pickle
 import einops
@@ -20,15 +21,13 @@ from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from ..experiment import CalibrationExperiment, EnsembleExperiment
 from .utils import (
-    binarize, 
     get_image_aux_info, 
     dataloader_from_exp
 )
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
-    count_matching_neighbors, 
-    get_uni_pixel_weights
+    count_matching_neighbors,
 )
 
 
@@ -117,36 +116,48 @@ def load_cal_inference_stats(
 def get_cal_stats(
     cfg: Config, 
     uuid: Optional[str] = None,
-    data_split: Optional[int] = 0
     ) -> None:
-    ###################
-    # BUILD THE MODEL #
-    ###################
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
     # Results loader object does everything
     save_root = pathlib.Path(cfg_dict['log']['root'])
+
+    ###################
+    # BUILD THE MODEL #
+    ###################
+    inference_model_cfg = cfg_dict['model']
+    exp_model_root = inference_model_cfg['exp_root']
     # Get the configs of the experiment
-    if cfg_dict['model']['ensemble']:
+    if 'ensemble' in inference_model_cfg and inference_model_cfg['ensemble']:
         inference_exp = EnsembleExperiment(
-            cfg_dict['model']['exp_root'],
-            combine_fn=cfg_dict['model']['ensemble_combine_fn'], 
-            checkpoint=cfg_dict['model']['checkpoint']
+            exp_model_root,
+            combine_fn=inference_model_cfg['ensemble_combine_fn'], 
+            checkpoint=inference_model_cfg['checkpoint']
             )
     else:
         rs = ResultsLoader()
-        dfc = rs.load_configs(
-            cfg_dict['model']['exp_root'],
-            properties=False,
-        )
-        inference_exp = rs.get_best_experiment(
-            df=rs.load_metrics(dfc),
-            exp_class=CalibrationExperiment,
-            checkpoint=cfg_dict['model']['checkpoint'],
-        )
+        # Load the experiment directly if you give a sub-path.
+        if "config.yml" in os.listdir(exp_model_root):
+            inference_exp = rs.load_experiment(
+                path=exp_model_root,
+                exp_class=CalibrationExperiment,
+            )
+        # Otheriwse, if given an experiment folder, choose the 
+        # subpath with the best selection score.
+        else:
+            dfc = rs.load_configs(
+                exp_model_root,
+                properties=False,
+            )
+            inference_exp = rs.load_experiment(
+                df=rs.load_metrics(dfc),
+                exp_class=CalibrationExperiment,
+                checkpoint=inference_model_cfg['checkpoint'],
+                selection_metric=inference_model_cfg['pretrained_select_metric'],
+            )
     # Put the inference experiment on the device and set the seed.
     inference_exp.to_device()
-    fix_seed(cfg_dict['experiment']['seed'])
+    fix_seed(cfg_dict['experiment']['seed']) # Make sure they are all evaluated in the same manner.
 
     #####################
     # BUILD THE DATASET #
