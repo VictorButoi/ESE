@@ -1,3 +1,5 @@
+# misc imports
+import os
 # local imports
 from .ese_exp import CalibrationExperiment
 # torch imports
@@ -60,16 +62,26 @@ class PostHocExperiment(TrainExperiment):
         ###################
         # Get the configs of the experiment
         rs = ResultsLoader()
-        dfc = rs.load_configs(
-            total_config['train']['pretrained_dir'],
-            properties=False,
-        )
-        self.pretrained_exp = rs.get_best_experiment(
-            df=rs.load_metrics(dfc),
-            exp_class=CalibrationExperiment,
-            device="cuda",
-            build_data=False # Important, we might want to modify the data construction.
-        )
+        load_exp_cfg = {
+            "exp_class": CalibrationExperiment,
+            "device": "cuda",
+            "build_data": False, # Important, we might want to modify the data construction.
+        }
+        if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
+            self.pretrained_exp = rs.load_experiment(
+                path=total_config['train']['pretrained_dir'],
+                **load_exp_cfg
+            )
+        else:
+            dfc = rs.load_configs(
+                total_config['train']['pretrained_dir'],
+                properties=False,
+            )
+            self.pretrained_exp = rs.load_experiment(
+                df=rs.load_metrics(dfc),
+                selection_metric=total_config['train']['pretrained_select_metric'],
+                **load_exp_cfg
+            )
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         ########################

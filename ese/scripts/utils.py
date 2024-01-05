@@ -1,6 +1,6 @@
 # random imports
+import os
 import pickle
-
 # ionpy imports
 from ionpy.util.config import check_missing
 from ionpy.util import dict_product
@@ -22,6 +22,17 @@ def LOAD_AUG_CONFIG():
     return lite_aug_cfg
 
 
+def gather_exp_paths(root):
+    # For ensembles, define the root dir.
+    run_names = os.listdir(root)
+    if "submitit" in run_names:
+        run_names.remove("submitit")
+    if "wandb" in run_names:
+        run_names.remove("wandb")
+    run_names = [f"{root}/{run_name}" for run_name in run_names]
+    return run_names
+
+
 def get_option_product(
     exp_name,
     option_set,
@@ -37,7 +48,6 @@ def get_option_product(
                 cfgs.append(cfg)
             except Exception as e:
                 print("Not a valid config!")
-
     return cfgs
 
 
