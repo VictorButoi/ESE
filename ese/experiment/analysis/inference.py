@@ -21,7 +21,6 @@ from ionpy.experiment.util import absolute_import, generate_tuid
 from ..experiment import CalibrationExperiment, EnsembleExperiment
 from .utils import (
     binarize, 
-    get_edge_aux_info,
     get_image_aux_info, 
     dataloader_from_exp
 )
@@ -118,8 +117,7 @@ def load_cal_inference_stats(
 def get_cal_stats(
     cfg: Config, 
     uuid: Optional[str] = None,
-    data_split: Optional[int] = 0,
-    split_data_ids: Optional[List[str]] = None
+    data_split: Optional[int] = 0
     ) -> None:
     ###################
     # BUILD THE MODEL #
@@ -160,7 +158,7 @@ def get_cal_stats(
     dataloader, modified_cfg = dataloader_from_exp( 
         inference_exp,
         new_dset_options=new_dset_options, 
-        return_data_id=True,
+        batch_size=cfg_dict['dataloader']['batch_size'],
         num_workers=cfg_dict['dataloader']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
@@ -217,20 +215,15 @@ def get_cal_stats(
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
-            # Get the batch info
-            _, _, batch_data_id = batch
-            # Only run the loop if we are using all the data or if the batch_id is in the data_ids.
-            # we do [0] because the batchsize is 1.
-            if split_data_ids is None or batch_data_id[0] in split_data_ids:
-                # Run the forward loop
-                forward_loop_func(
-                    exp=inference_exp, 
-                    batch_idx=batch_idx,
-                    batch=batch, 
-                    inference_cfg=cfg_dict, 
-                    image_level_records=image_level_records,
-                    pixel_meter_dict=pixel_meter_dict
-                )
+            # Run the forward loop
+            forward_loop_func(
+                exp=inference_exp, 
+                batch_idx=batch_idx,
+                batch=batch, 
+                inference_cfg=cfg_dict, 
+                image_level_records=image_level_records,
+                pixel_meter_dict=pixel_meter_dict
+            )
             # Save the records every so often, to get intermediate results. Note, because of data_ids
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
@@ -256,20 +249,16 @@ def volume_forward_loop(
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
-    image_vol, label_vol, batch_data_id = batch
-    data_id = batch_data_id[0]
+    image_vol, label_vol  = batch
     # Get your image label pair and define some regions.
     img_vol_cuda , label_vol_cuda = to_device((image_vol, label_vol), exp.device)
-    # Reshape so that we will like the shape.
-    x_batch = einops.rearrange(img_vol_cuda, "b c h w -> (b c) 1 h w")
-    y_batch = einops.rearrange(label_vol_cuda, "b c h w -> (b c) 1 h w")
     # Go through each slice and predict the metrics.
-    num_slices = x_batch.shape[0]
+    num_slices = img_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Extract the slices from the volumes.
-        image_cuda = x_batch[slice_idx, ...][None]
-        label_map_cuda = y_batch[slice_idx, ...][None]
+        image_cuda = img_vol_cuda[:, slice_idx:slice_idx+1, ...]
+        label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
         # Get the prediction
         prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
         # Wrap the outputs into a dictionary.
@@ -278,12 +267,11 @@ def volume_forward_loop(
             "y_true": label_map_cuda.long(),
             "y_pred": prob_map,
             "y_hard": pred_map,
-            "data_id": data_id,
             "slice_idx": slice_idx 
         }
         # Get the calibration item info.  
         get_calibration_item_info(
-            data_idx=batch_idx*num_slices + slice_idx,
+            data_idx=(batch_idx*num_slices) + slice_idx,
             output_dict=output_dict,
             inference_cfg=inference_cfg,
             image_level_records=image_level_records,
@@ -301,8 +289,7 @@ def image_forward_loop(
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
-    image, label_map, batch_data_id = batch
-    data_id = batch_data_id[0]
+    image, label_map  = batch
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction
@@ -313,7 +300,6 @@ def image_forward_loop(
         "y_pred": prob_map,
         "y_hard": pred_map,
         "y_true": label_map_cuda.long(),
-        "data_id": data_id,
         "slice_idx": None
     }
     # Get the calibration item info.  
@@ -331,7 +317,6 @@ def get_image_stats(
     y_pred: torch.Tensor,
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
-    data_id: Any,
     inference_cfg: dict,
     image_level_records: list,
     slice_idx: Optional[int] = None,
@@ -397,7 +382,6 @@ def get_image_stats(
             "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
             "cal_m_error": cal_metric_errors_dict[cm_name],
             "qual_score": qual_metric_scores_dict[qm_name],
-            "data_id": data_id,
             "slice_idx": slice_idx
         }
         # If we are binarizing, then we need to add the label info.
@@ -427,43 +411,12 @@ def update_image_records(
         "y_pred": output_dict["y_pred"],
         "y_hard": output_dict["y_hard"],
         "y_true": output_dict["y_true"],
-        "data_id": output_dict["data_id"],
         "slice_idx": output_dict["slice_idx"], # None if not a volume
         "inference_cfg": inference_cfg,
         "image_level_records": image_level_records,
         "ignore_index": ignore_index
     }
-
-    # Loop through each label in the prediction or just once if we are not binarizing.
-    if inference_cfg["calibration"]["binarize"]:
-        # Go through each label in the prediction.
-        unique_pred_labels = torch.unique(output_dict["y_hard"]).tolist()
-        # Loop through unique labels.
-        for label in unique_pred_labels:
-            if ignore_index is None or label != ignore_index:
-                image_stats_cfg["label"] = label
-                image_stats_cfg["y_pred"] = binarize(
-                    output_dict["y_pred"], 
-                    label=label, 
-                    discretize=False
-                    )
-                image_stats_cfg["y_hard"] = binarize(
-                    output_dict["y_hard"], 
-                    label=label, 
-                    discretize=True
-                    )
-                image_stats_cfg["y_true"] = binarize(
-                    output_dict["y_true"], 
-                    label=label, 
-                    discretize=True
-                    )
-                # run inner loop
-                cal_metric_errors_dict = get_image_stats(**image_stats_cfg)
-    else:
-        # If no binarization, then just run the inner loop once.
-        cal_metric_errors_dict = get_image_stats(**image_stats_cfg)
-    
-    return cal_metric_errors_dict
+    return get_image_stats(**image_stats_cfg)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -493,21 +446,13 @@ def update_pixel_meters(
         confidences=prob_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
-        ).cpu().numpy()
+        ).squeeze().cpu().numpy()
 
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
     pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=output_dict["y_hard"], 
+        lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ).cpu().numpy()
-
-    # Get the pixel-weightings by the number of neighbors in blobs. Edge pixels have minimum 1 neighbor.
-    pix_weights = get_uni_pixel_weights(
-        lab_map=output_dict["y_hard"], 
-        uni_w_attributes=["labels", "neighbors"],
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ignore_index=ignore_index
-        ).cpu().numpy()
+        ).squeeze().cpu().numpy()
 
     # CPU-ize prob_map, y_hard, and y_true
     prob_map = prob_map.cpu().squeeze().numpy()
@@ -515,7 +460,7 @@ def update_pixel_meters(
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
 
     # Calculate the accuracy map.
-    acc_map = (y_hard == y_true).astype(np.float32)
+    acc_map = (y_hard == y_true).astype(np.float64)
 
     # Build the valid map.
     if ignore_index is not None:
@@ -537,22 +482,16 @@ def update_pixel_meters(
             # Add bin specific keys to the dictionary if they don't exist.
             acc_key = prefix + ("accuracy",)
             conf_key = prefix + ("confidence",)
-            weighted_acc_key = prefix + ("weighted accuracy",)
-            weighted_conf_key = prefix + ("weighted confidence",)
             # If this key doesn't exist in the dictionary, add it
             if conf_key not in pixel_meter_dict:
-                for meter_key in [acc_key, conf_key, weighted_acc_key, weighted_conf_key]:
+                for meter_key in [acc_key, conf_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
             # (acc , conf)
             acc = acc_map[ix, iy]
             conf = prob_map[ix, iy]
-            pix_w = pix_weights[ix, iy]
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(acc) 
             pixel_meter_dict[conf_key].add(conf)
-            # Add the weighted accuracy and confidence
-            pixel_meter_dict[weighted_acc_key].add(acc, weight=pix_w) 
-            pixel_meter_dict[weighted_conf_key].add(conf, weight=pix_w) 
 
 
 def global_cal_sanity_check(

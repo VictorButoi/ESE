@@ -38,6 +38,7 @@ def dataloader_from_exp(
         exp, 
         new_dset_options=None, 
         return_data_id=False,
+        batch_size=1,
         num_workers=1
         ):
     exp_data_cfg = exp.config['data'].to_dict()
@@ -60,7 +61,7 @@ def dataloader_from_exp(
     # Build the dataset and dataloader.
     dataloader = DataLoader(
         dataset_obj, 
-        batch_size=1, 
+        batch_size=batch_size, 
         num_workers=num_workers,
         shuffle=False
     )
@@ -90,8 +91,10 @@ def get_image_aux_info(
         neighborhood_width: int,
         ignore_index: Optional[int] = None
 ):
+    assert y_hard.dim() == 4, f"Expected 4D tensor for y_hard, found shape: {y_hard.shape}."
+    assert y_true.dim() == 4, f"Expected 4D tensor for y_true, found shape: {y_true.shape}."
     # Get the pixelwise accuracy.
-    accuracy_map = (y_hard == y_true).float().squeeze()
+    accuracy_map = (y_hard == y_true).squeeze(1).float()
 
     # Keep track of different things for each bin.
     pred_labels = y_hard.unique().tolist()
@@ -101,26 +104,18 @@ def get_image_aux_info(
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     # For both our prediction and the true label map.
     pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_hard, 
+        lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=neighborhood_width
     )
     true_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_true, 
+        lab_map=y_true.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=neighborhood_width
     )
-    # Get the pixel-weights if we are using them.
-    pixel_weights = get_uni_pixel_weights(
-        y_hard, 
-        uni_w_attributes=["labels", "neighbors"],
-        neighborhood_width=neighborhood_width,
-        ignore_index=ignore_index
-        )
     return {
         "accuracy_map": accuracy_map,
         "pred_labels": pred_labels,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
-        "pixel_weights": pixel_weights
     }
 
 

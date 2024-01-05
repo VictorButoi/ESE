@@ -13,9 +13,13 @@ def accumulate_pixel_preds(
     key_2: Optional[str] = None,
     key_3: Optional[str] = None,
     edge_only: bool = False,
-    neighborhood_width: int = 3,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
 ) -> dict:
+    assert (not edge_only) or (edge_only and neighborhood_width is not None),\
+        "If edge_only is True, neighborhood_width must be defined."
+    if neighborhood_width is not None:
+        total_nearby_pixels = (neighborhood_width**2 - 1)
     # Accumulate the dictionaries corresponding to a single bin.
     accumulated_meters_dict = {}
     unique_key_1 = []
@@ -24,8 +28,7 @@ def accumulate_pixel_preds(
     # Iterate through the meters.
     for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
         if ignore_index is None or true_label != ignore_index:
-            total_nearby_pixels = neighborhood_width**2 - 1
-            if not edge_only or num_matching_neighbors < total_nearby_pixels:
+            if (not edge_only) or (num_matching_neighbors < total_nearby_pixels):
                 item = {
                     "true_label": true_label,
                     "pred_label": pred_label,
@@ -86,12 +89,14 @@ def global_bin_stats(
     square_diff: bool = False,
     weighted: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1="prob_bin",
         edge_only=edge_only,
+        neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
     unique_bins = unique_values_dict["prob_bin"]
@@ -134,6 +139,7 @@ def global_label_bin_stats(
     square_diff: bool = False,
     weighted: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
@@ -142,6 +148,7 @@ def global_label_bin_stats(
         key_1=label_key,
         key_2="prob_bin",
         edge_only=edge_only,
+        neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
     unique_labels = unique_values_dict[label_key]
@@ -186,6 +193,7 @@ def global_neighbors_bin_stats(
     square_diff: bool = False,
     weighted: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
@@ -193,6 +201,7 @@ def global_neighbors_bin_stats(
         key_1="num_matching_neighbors",
         key_2="prob_bin",
         edge_only=edge_only,
+        neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
     unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
@@ -238,6 +247,7 @@ def global_label_neighbors_bin_stats(
     square_diff: bool = False,
     weighted: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
@@ -247,6 +257,7 @@ def global_label_neighbors_bin_stats(
         key_2="num_matching_neighbors",
         key_3="prob_bin",
         edge_only=edge_only,
+        neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
     unique_labels = unique_values_dict[label_key] 

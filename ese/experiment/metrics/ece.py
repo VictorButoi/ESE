@@ -76,7 +76,7 @@ def ece_loss(
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
             edge_only=edge_only,
-            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
         )
@@ -135,7 +135,7 @@ def tl_ece_loss(
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
             edge_only=edge_only,
-            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
         )
@@ -204,7 +204,7 @@ def cw_ece_loss(
             square_diff=square_diff,
             neighborhood_width=neighborhood_width,
             edge_only=edge_only,
-            stats_info_dict=stats_info_dict["image_info"] if "image_info" in stats_info_dict else {},
+            stats_info_dict=stats_info_dict,
             from_logits=from_logits,
             ignore_index=ignore_index
         )
