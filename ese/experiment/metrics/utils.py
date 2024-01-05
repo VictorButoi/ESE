@@ -281,7 +281,7 @@ def count_matching_neighbors(
     neighborhood_width: int = 3,
 ):
     assert len(lab_map.shape) == 3,\
-        f"Label map shape should be: (B, H, W), got: {lab_map.shape}."
+        f"Label map shape should be: (B, H, W), got shape: {lab_map.shape}."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(lab_map, np.ndarray):
         lab_map = torch.from_numpy(lab_map)

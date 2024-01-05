@@ -1,4 +1,5 @@
 # local imports
+from .utils import process_logits_map
 from ..augmentation import augmentations_from_config
 # torch imports
 import torch
@@ -127,23 +128,15 @@ class CalibrationExperiment(TrainExperiment):
                 threshold=0.5):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Get the label predictions
-        conf_map = self.model(x) 
-        # Dealing with multi-class segmentation.
-        if conf_map.shape[1] > 1:
-            conf_map = torch.softmax(conf_map, dim=1)
-            # Add back the channel dimension (1)
-            pred_map = torch.argmax(conf_map, dim=1)
-            pred_map = einops.rearrange(pred_map, "b h w -> b 1 h w")
-        else:
-            # Get the prediction
-            conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
-            pred_map = (conf_map >= threshold).float()
-            if multi_class:
-                conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0]
-                # Add back the channel dimension (1)
-                conf_map = einops.rearrange(conf_map, "b h w -> b 1 h w")
+        logit_map = self.model(x) 
+        # Get the hard prediction and probabilities
+        prob_map, pred_map = process_logits_map(
+            logit_map, 
+            multi_class=multi_class, 
+            threshold=threshold
+            )
         # Return the outputs probs and predicted label map.
-        return conf_map, pred_map
+        return prob_map, pred_map
 
     def run(self):
         super().run()

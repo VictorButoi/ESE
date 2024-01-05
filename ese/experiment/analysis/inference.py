@@ -13,6 +13,7 @@ import torch
 # ionpy imports
 from ionpy.analysis import ResultsLoader
 from ionpy.util import Config, StatsMeter
+from ionpy.experiment.util import fix_seed
 from ionpy.util.torchutils import to_device
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid
@@ -131,7 +132,7 @@ def get_cal_stats(
     if cfg_dict['model']['ensemble']:
         inference_exp = EnsembleExperiment(
             cfg_dict['model']['exp_root'],
-            seed=cfg_dict['experiment']['seed'],
+            combine_fn=cfg_dict['model']['ensemble_combine_fn'], 
             checkpoint=cfg_dict['model']['checkpoint']
             )
     else:
@@ -144,8 +145,10 @@ def get_cal_stats(
             df=rs.load_metrics(dfc),
             exp_class=CalibrationExperiment,
             checkpoint=cfg_dict['model']['checkpoint'],
-            device="cuda"
         )
+    # Put the inference experiment on the device and set the seed.
+    inference_exp.to_device()
+    fix_seed(cfg_dict['experiment']['seed'])
 
     #####################
     # BUILD THE DATASET #
@@ -268,12 +271,12 @@ def volume_forward_loop(
         image_cuda = x_batch[slice_idx, ...][None]
         label_map_cuda = y_batch[slice_idx, ...][None]
         # Get the prediction
-        conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
+        prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "image": image_cuda,
             "y_true": label_map_cuda.long(),
-            "y_pred": conf_map,
+            "y_pred": prob_map,
             "y_hard": pred_map,
             "data_id": data_id,
             "slice_idx": slice_idx 
@@ -303,11 +306,11 @@ def image_forward_loop(
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction
-    conf_map, pred_map = exp.predict(image_cuda, multi_class=True)
+    prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
     # Wrap the outputs into a dictionary.
     output_dict = {
         "image": image_cuda,
-        "y_pred": conf_map,
+        "y_pred": prob_map,
         "y_hard": pred_map,
         "y_true": label_map_cuda.long(),
         "data_id": data_id,
@@ -341,21 +344,6 @@ def get_image_stats(
         "y_true": y_true,
         "ignore_index": ignore_index
     }
-
-    # Calculate some qualities about the image, used for various bookeeping, that can be reused.
-    image_info_dict = get_image_aux_info(
-        y_hard=y_hard,
-        y_true=y_true,
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ignore_index=ignore_index
-    ) 
-    edge_info_dict = get_edge_aux_info(
-        y_hard=y_hard,
-        y_true=y_true,
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ignore_index=ignore_index
-    ) 
-
     # Define the cal config.
     cal_input_config = {
         "y_pred": y_pred,
@@ -365,10 +353,12 @@ def get_image_stats(
             inference_cfg["calibration"]["conf_interval_start"],
             inference_cfg["calibration"]["conf_interval_end"]
         ],
-        "stats_info_dict": {
-            "image_info": image_info_dict,
-            "edge_info": edge_info_dict
-        },
+        "stats_info_dict": get_image_aux_info(
+            y_hard=y_hard,
+            y_true=y_true,
+            neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+            ignore_index=ignore_index
+        ),
         "square_diff": inference_cfg["calibration"]["square_diff"],
         "ignore_index": ignore_index
     }
@@ -487,9 +477,9 @@ def update_pixel_meters(
     H, W = output_dict["y_hard"].shape[-2:]
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    conf_map = output_dict["y_pred"]
-    if conf_map.shape[1] > 1:
-        conf_map = torch.max(conf_map, dim=1, keepdim=True)[0]
+    prob_map = output_dict["y_pred"]
+    if prob_map.shape[1] > 1:
+        prob_map = torch.max(prob_map, dim=1, keepdim=True)[0]
 
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
@@ -500,7 +490,7 @@ def update_pixel_meters(
 
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
-        confidences=conf_map, 
+        confidences=prob_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
         ).cpu().numpy()
@@ -519,8 +509,8 @@ def update_pixel_meters(
         ignore_index=ignore_index
         ).cpu().numpy()
 
-    # CPU-ize conf_map, y_hard, and y_true
-    conf_map = conf_map.cpu().squeeze().numpy()
+    # CPU-ize prob_map, y_hard, and y_true
+    prob_map = prob_map.cpu().squeeze().numpy()
     y_true = output_dict["y_true"].cpu().squeeze().numpy()
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
 
@@ -555,7 +545,7 @@ def update_pixel_meters(
                     pixel_meter_dict[meter_key] = StatsMeter()
             # (acc , conf)
             acc = acc_map[ix, iy]
-            conf = conf_map[ix, iy]
+            conf = prob_map[ix, iy]
             pix_w = pix_weights[ix, iy]
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(acc) 
@@ -605,7 +595,6 @@ def get_calibration_item_info(
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]
-    
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -617,7 +606,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             ignore_index=ignore_index
         ) 
-
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
@@ -629,7 +617,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             ignore_index=ignore_index
         )
-
     # Run a check on the image_level stats for a single image are the same as the pixel level stats.
     # This is just a sanity check. NOTE: data_idx has a small bug that if the inputs are volumes that 
     # have different numbers of slices, then the data_idx will not be correct but the first will be correct.

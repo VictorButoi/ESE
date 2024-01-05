@@ -48,3 +48,26 @@ class ModelEnsemble(nn.Module):
         output = self.combine_fn(model_outputs)
         # Return the outputs
         return output
+
+
+def get_combine_fn(combine_fn):
+    if combine_fn == "identity":
+        return identity_combine_fn
+    elif combine_fn == "mean":
+        return mean_combine_fn
+    elif combine_fn == "max":
+        return max_combine_fn
+    else:
+        raise ValueError(f"Unknown combine function '{combine_fn}'.")
+
+
+def identity_combine_fn(model_outputs: dict):
+    return list(model_outputs.values())
+
+
+def mean_combine_fn(model_outputs: dict):
+    return torch.mean(torch.stack(list(model_outputs.values())), dim=0)
+
+
+def max_combine_fn(model_outputs: dict):
+    return torch.max(torch.stack(list(model_outputs.values())), dim=0)
