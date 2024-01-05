@@ -129,7 +129,11 @@ def get_cal_stats(
     save_root = pathlib.Path(cfg_dict['log']['root'])
     # Get the configs of the experiment
     if cfg_dict['model']['ensemble']:
-        inference_exp = EnsembleExperiment(cfg_dict['model']['exp_root'])
+        inference_exp = EnsembleExperiment(
+            cfg_dict['model']['exp_root'],
+            seed=cfg_dict['experiment']['seed'],
+            checkpoint=cfg_dict['model']['checkpoint']
+            )
     else:
         rs = ResultsLoader()
         dfc = rs.load_configs(
@@ -139,6 +143,7 @@ def get_cal_stats(
         inference_exp = rs.get_best_experiment(
             df=rs.load_metrics(dfc),
             exp_class=CalibrationExperiment,
+            checkpoint=cfg_dict['model']['checkpoint'],
             device="cuda"
         )
 
@@ -153,7 +158,7 @@ def get_cal_stats(
         inference_exp,
         new_dset_options=new_dset_options, 
         return_data_id=True,
-        num_workers=cfg_dict['model']['num_workers']
+        num_workers=cfg_dict['dataloader']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
     # Set the looping function based on the input type.

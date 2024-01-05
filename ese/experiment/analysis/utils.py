@@ -49,6 +49,11 @@ def dataloader_from_exp(
         assert exp_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
     dataset_cls = exp_data_cfg.pop("_class")
+    # Drop auxiliary information used for making the models.
+    if "in_channels" in exp_data_cfg.keys():
+        exp_data_cfg.pop("in_channels")
+    if "out_channels" in exp_data_cfg.keys():
+        exp_data_cfg.pop("out_channels")
     dataset_obj = absolute_import(dataset_cls)(**exp_data_cfg)
     exp_data_cfg["_class"] = dataset_cls        
     dataset_obj.return_data_id = return_data_id 
