@@ -17,7 +17,7 @@ from ionpy.util.torchutils import to_device
 from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from ..experiment.ese_exp import CalibrationExperiment
+from ..experiment import CalibrationExperiment, EnsembleExperiment
 from .utils import (
     binarize, 
     get_edge_aux_info,
@@ -128,16 +128,19 @@ def get_cal_stats(
     # Results loader object does everything
     save_root = pathlib.Path(cfg_dict['log']['root'])
     # Get the configs of the experiment
-    rs = ResultsLoader()
-    dfc = rs.load_configs(
-        cfg_dict['model']['exp_root'],
-        properties=False,
-    )
-    best_exp = rs.get_best_experiment(
-        df=rs.load_metrics(dfc),
-        exp_class=CalibrationExperiment,
-        device="cuda"
-    )
+    if cfg_dict['model']['ensemble']:
+        inference_exp = EnsembleExperiment(cfg_dict['model']['exp_root'])
+    else:
+        rs = ResultsLoader()
+        dfc = rs.load_configs(
+            cfg_dict['model']['exp_root'],
+            properties=False,
+        )
+        inference_exp = rs.get_best_experiment(
+            df=rs.load_metrics(dfc),
+            exp_class=CalibrationExperiment,
+            device="cuda"
+        )
 
     #####################
     # BUILD THE DATASET #
@@ -147,7 +150,7 @@ def get_cal_stats(
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     dataloader, modified_cfg = dataloader_from_exp( 
-        best_exp,
+        inference_exp,
         new_dset_options=new_dset_options, 
         return_data_id=True,
         num_workers=cfg_dict['model']['num_workers']
@@ -213,7 +216,7 @@ def get_cal_stats(
             if split_data_ids is None or batch_data_id[0] in split_data_ids:
                 # Run the forward loop
                 forward_loop_func(
-                    exp=best_exp, 
+                    exp=inference_exp, 
                     batch_idx=batch_idx,
                     batch=batch, 
                     inference_cfg=cfg_dict, 
@@ -237,7 +240,7 @@ def get_cal_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
-    exp: CalibrationExperiment,
+    exp: Any,
     batch_idx: int,
     batch: Any,
     inference_cfg: dict,
@@ -282,7 +285,7 @@ def volume_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_forward_loop(
-    exp: CalibrationExperiment,
+    exp: Any,
     batch_idx: int,
     batch: Any,
     inference_cfg: dict,
