@@ -10,7 +10,7 @@ from ionpy.analysis import ResultsLoader
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import BaseExperiment 
 # misc imports
-from typing import Optional
+from typing import Any, Optional
 
 
 class EnsembleExperiment(BaseExperiment):
@@ -18,9 +18,11 @@ class EnsembleExperiment(BaseExperiment):
     def __init__(
             self, 
             expgroup_path: str, 
-            combine_fn: str,
+            exp_class: Any,
+            combine_fn: str = "mean",
             checkpoint: Optional[str] = None
             ):
+        self.exp_class = exp_class
         self.build_model(expgroup_path, combine_fn, checkpoint)
         super().__init__(self.paths[0]) # Use the first path as the path for the ensemble.
         self.properties["num_params"] = self.num_params 
@@ -54,7 +56,7 @@ class EnsembleExperiment(BaseExperiment):
         self.models= {}
         total_params = 0
         for exp_path in dfc["path"].unique():
-            loaded_exp = CalibrationExperiment(exp_path, build_data=False)
+            loaded_exp = self.exp_class(exp_path, build_data=False)
             if checkpoint is not None:
                 loaded_exp.load(tag=checkpoint)
             loaded_exp.model.eval()

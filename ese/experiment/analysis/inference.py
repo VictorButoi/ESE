@@ -1,18 +1,15 @@
 # Misc imports
-import os
 import yaml
 import pickle
-import einops
 import pathlib
 import numpy as np
 import pandas as pd
 from itertools import product
 from pydantic import validate_arguments
-from typing import Any, Optional, List
+from typing import Any, Optional
 # torch imports
 import torch
 # ionpy imports
-from ionpy.analysis import ResultsLoader
 from ionpy.util import Config, StatsMeter
 from ionpy.experiment.util import fix_seed
 from ionpy.util.torchutils import to_device
@@ -22,7 +19,8 @@ from ionpy.experiment.util import absolute_import, generate_tuid
 from ..experiment import CalibrationExperiment, EnsembleExperiment
 from .utils import (
     get_image_aux_info, 
-    dataloader_from_exp
+    dataloader_from_exp,
+    load_inference_exp_from_cfg
 )
 from ..metrics.utils import (
     get_bins, 
@@ -109,42 +107,14 @@ def get_cal_stats(
     ###################
     # BUILD THE MODEL #
     ###################
-    inference_model_cfg = cfg_dict['model']
-    exp_model_root = inference_model_cfg['exp_root']
-    # Get the configs of the experiment
-    if 'ensemble' in inference_model_cfg and inference_model_cfg['ensemble']:
-        inference_exp = EnsembleExperiment(
-            exp_model_root,
-            combine_fn=inference_model_cfg['ensemble_combine_fn'], 
-            checkpoint=inference_model_cfg['checkpoint']
-            )
-    else:
-        rs = ResultsLoader()
-        # Load the experiment directly if you give a sub-path.
-        if "config.yml" in os.listdir(exp_model_root):
-            inference_exp = rs.load_experiment(
-                path=exp_model_root,
-                exp_class=CalibrationExperiment,
-                build_data=False
-            )
-        # Otheriwse, if given an experiment folder, choose the 
-        # subpath with the best selection score.
-        else:
-            dfc = rs.load_configs(
-                exp_model_root,
-                properties=False,
-            )
-            inference_exp = rs.load_experiment(
-                df=rs.load_metrics(dfc),
-                exp_class=CalibrationExperiment,
-                checkpoint=inference_model_cfg['checkpoint'],
-                selection_metric=inference_model_cfg['pretrained_select_metric'],
-                build_data=False
-            )
-    # Put the inference experiment on the device and set the seed.
-    inference_exp.to_device()
-    fix_seed(cfg_dict['experiment']['seed']) # Make sure they are all evaluated in the same manner.
-
+    inference_exp = load_inference_exp_from_cfg(
+        model_cfg=cfg_dict['model'],
+        exp_class=CalibrationExperiment
+        )
+    # Make sure they are all evaluated in the same manner. This needs to go
+    # below inference exp because loading the exp will overwrite the seed.
+    fix_seed(cfg_dict['experiment']['seed'])
+    
     #####################
     # BUILD THE DATASET #
     #####################
@@ -175,8 +145,6 @@ def get_cal_stats(
     # data splits so that we can potentially parralelize the inference.
     task_root = save_root / uuid
     metadata_dir = task_root / "metadata.yaml"
-    image_level_dir = task_root / "image_stats.pkl"
-    pixel_level_dir = task_root / "pixel_stats.pkl"
     if not task_root.exists():
         task_root.mkdir(parents=True)
         with open(metadata_dir, 'w') as metafile:
@@ -185,29 +153,38 @@ def get_cal_stats(
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     image_level_records = None
     pixel_meter_dict = None
-    if cfg_dict["log"]["track_image_level"]:
+    if cfg_dict["log"]["log_image_stats"]:
         image_level_records = []
-    if cfg_dict["log"]["track_pixel_level"]:
+    if cfg_dict["log"]["log_pixel_stats"]:
         pixel_meter_dict = {}
         
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
-    qual_metric_cfgs = cfg_dict['qual_metrics']
-    for q_metric in qual_metric_cfgs:
-        for q_key in q_metric.keys():
-            q_metric[q_key]['func'] = absolute_import(q_metric[q_key]['func'])
+    if 'qual_metrics' in cfg_dict.keys():
+        qual_metric_cfgs = cfg_dict['qual_metrics']
+        for q_metric in qual_metric_cfgs:
+            for q_key in q_metric.keys():
+                q_metric[q_key]['func'] = absolute_import(q_metric[q_key]['func'])
+    else:
+        qual_metric_cfgs = []
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    cal_metric_cfgs = cfg_dict['cal_metrics']
-    for cal_metric in cal_metric_cfgs:
-        for c_key in cal_metric.keys():
-            cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
+    if 'cal_metrics' in cfg_dict.keys():
+        cal_metric_cfgs = cfg_dict['cal_metrics']
+        for cal_metric in cal_metric_cfgs:
+            for c_key in cal_metric.keys():
+                cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
+    else:
+        cal_metric_cfgs = []
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metric_cfgs"] = qual_metric_cfgs
     cfg_dict["cal_metric_cfgs"] = cal_metric_cfgs
 
+    # Setup the log directories.
+    image_level_dir = task_root / "image_stats.pkl"
+    pixel_level_dir = task_root / "pixel_stats.pkl"
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
