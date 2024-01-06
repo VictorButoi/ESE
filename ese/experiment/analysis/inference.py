@@ -56,14 +56,15 @@ def load_cal_inference_stats(
     ) -> dict:
     # Load the calibration inference stats from the log directory.
     log_dir = pathlib.Path(log_dir)
-
-    cal_info_dict = {}
-    cal_info_dict["pixel_info_dicts"] = {}
-    cal_info_dict["image_info_df"] = pd.DataFrame([])
-    cal_info_dict["metadata"] = pd.DataFrame([])
+    # Build a dictionary to store the inference info.
+    cal_info_dict = {
+        "pixel_meter_dicts": {},
+        "image_info_df": pd.DataFrame([]),
+        "metadata": pd.DataFrame([])
+    }
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
-        if log_set.name != "submitit":
+        if log_set.name not in ["wandb", "submitit"]:
             # Load the metadata file (json) and add it to the metadata dataframe.
             log_mdata_yaml = log_set / "metadata.yaml"
             with open(log_mdata_yaml, 'r') as stream:
@@ -81,32 +82,15 @@ def load_cal_inference_stats(
             cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
 
             # Loop through the different splits and load the image stats.
-            image_stats_df = pd.DataFrame([])
-            for image_stats_split in log_set.glob("image_stats_split*"):
-                image_split_df = pd.read_pickle(image_stats_split)
-                image_stats_df = pd.concat([image_stats_df, image_split_df])
-            image_stats_df["log_set"] = log_set.name
-            cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], image_stats_df])
+            log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
+            log_image_df["log_set"] = log_set.name
+            cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
 
-            # Loop through each of the different splits, and accumulate the bin 
-            # pixel data.
-            running_meter_dict = None
-            for pixel_split in log_set.glob("pixel_stats_split*"):
-                # Load the pkl file
-                with open(pixel_split, 'rb') as f:
-                    pixel_meter_dict = pickle.load(f)
-                # Combine the different data splits.
-                if running_meter_dict is None:
-                    running_meter_dict = pixel_meter_dict
-                else:
-                    # Go through all keys and combine the meters.
-                    for key in pixel_meter_dict.keys():
-                        if key not in running_meter_dict.keys():
-                            running_meter_dict[key] = pixel_meter_dict[key]
-                        else:
-                            running_meter_dict[key] += pixel_meter_dict[key] 
+            # Load the pixel stats.
+            with open(log_set / "pixel_stats.pkl", 'rb') as f:
+                pixel_meter_dict = pickle.load(f)
             # Set the pixel dict of the log set.
-            cal_info_dict["pixel_info_dicts"][log_set.name] = running_meter_dict
+            cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
 
     # Finally, return the dictionary of inference info.
     return cal_info_dict
@@ -191,8 +175,8 @@ def get_cal_stats(
     # data splits so that we can potentially parralelize the inference.
     task_root = save_root / uuid
     metadata_dir = task_root / "metadata.yaml"
-    image_level_dir = task_root / f"image_stats_split:0.pkl"
-    pixel_level_dir = task_root / f"pixel_stats_split:0.pkl"
+    image_level_dir = task_root / "image_stats.pkl"
+    pixel_level_dir = task_root / "pixel_stats.pkl"
     if not task_root.exists():
         task_root.mkdir(parents=True)
         with open(metadata_dir, 'w') as metafile:
