@@ -34,7 +34,9 @@ def cal_input_check(
     use_global_funcs = (pixel_preds_dict is not None)
     # xor images_defined pixel_preds_defined
     assert use_global_funcs ^ use_local_funcs,\
-        "Either both (y_pred and y_true) or pixel_preds_dict must be defined, but not both."
+        "Exactly one of (y_pred and y_true) or pixel_preds_dict must be defined,"\
+             + " but y_pred defined = {}, y_true defined = {}, pixel_preds_dict defined = {}.".format(\
+            y_pred is not None, y_true is not None, pixel_preds_dict is not None)
     return use_global_funcs 
 
 
