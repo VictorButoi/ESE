@@ -391,6 +391,7 @@ def get_image_stats(
             qual_metric_scores_dict[qual_metric_name] = 1 - qual_metric_dict['_fn'](**cal_input_config).item() 
         else:
             qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
+        # If you're showing the predictions, also print the scores.
         if inference_cfg["log"]["show_examples"]:
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
     # Go through each calibration metric and calculate the score.

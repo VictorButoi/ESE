@@ -4,7 +4,11 @@ import numpy as np
 import matplotlib.colors as mcolors
 
 
-def ShowPredictionsCallback(batch):
+def ShowPredictionsCallback(
+        batch, 
+        from_logits: bool = True,
+        threshold: float = 0.5
+        ):
     # Move the channel dimension to the last dimension
     x = batch["x"].detach().cpu()
     x = x.permute(0, 2, 3, 1)
@@ -35,9 +39,13 @@ def ShowPredictionsCallback(batch):
         img_cmap = "gray"
 
     if num_pred_classes > 1:
-        yhat = torch.argmax(torch.softmax(yhat, dim=1), dim=1).numpy()
+        if from_logits:
+            y_hat = torch.softmax(yhat, dim=1)
+        yhat = torch.argmax(y_hat, dim=1).numpy()
     else:
-        yhat = torch.sigmoid(yhat).numpy()
+        if from_logits:
+            y_hat = torch.sigmoid(yhat)
+        yhat = (y_hat > threshold).numpy()
     
     num_cols =  3
     f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
