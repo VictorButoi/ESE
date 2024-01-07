@@ -11,12 +11,11 @@ from typing import Any, Optional
 import torch
 # ionpy imports
 from ionpy.util import Config, StatsMeter
-from ionpy.experiment.util import fix_seed
+from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
-from ionpy.util.config import config_digest, HDict, valmap
-from ionpy.experiment.util import absolute_import, generate_tuid
+from ionpy.experiment.util import fix_seed, eval_config
 # local imports
-from ..experiment import CalibrationExperiment, EnsembleExperiment
+from ..experiment import CalibrationExperiment
 from .utils import (
     get_image_aux_info, 
     dataloader_from_exp,
@@ -61,7 +60,7 @@ def load_cal_inference_stats(
     cal_info_dict = {
         "pixel_meter_dicts": {},
         "image_info_df": pd.DataFrame([]),
-        "metadata": pd.DataFrame([])
+        "metadata_df": pd.DataFrame([])
     }
     # Loop through every configuration in the log directory.
     for log_set in log_dir.iterdir():
@@ -82,7 +81,7 @@ def load_cal_inference_stats(
                 flat_cfg.pop("calibration.bin_weightings")
             # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
             cfg_df = pd.DataFrame(flat_cfg, index=[0])
-            cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
+            cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
             # Loop through the different splits and load the image stats.
             if load_image_df:
                 log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
@@ -138,23 +137,30 @@ def get_cal_stats(
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
+    qual_metrics = {}
     if 'qual_metrics' in cfg_dict.keys():
-        qual_metric_cfgs = cfg_dict['qual_metrics']
-        for q_metric in qual_metric_cfgs:
-            for q_key in q_metric.keys():
-                q_metric[q_key]['func'] = absolute_import(q_metric[q_key]['func'])
-    else:
-        qual_metric_cfgs = []
+        for q_met_cfg in cfg_dict['qual_metrics']:
+            q_metric_name = list(q_met_cfg.keys())[0]
+            quality_metric_options = q_met_cfg[q_metric_name]
+            metric_type = quality_metric_options.pop("metric_type")
+            # Add the quality metric to the dictionary.
+            qual_metrics[q_metric_name] = {
+                "name": q_metric_name,
+                "_fn": eval_config(quality_metric_options),
+                "_type": metric_type
+            }
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
+    cal_metrics = {}
     if 'cal_metrics' in cfg_dict.keys():
-        cal_metric_cfgs = cfg_dict['cal_metrics']
-        for cal_metric in cal_metric_cfgs:
-            for c_key in cal_metric.keys():
-                cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
-    else:
-        cal_metric_cfgs = []
+        for c_met_cfg in cfg_dict['cal_metrics']:
+            c_metric_name = list(c_met_cfg.keys())[0]
+            # Add the calibration metric to the dictionary.
+            cal_metrics[c_metric_name] = {
+                "name": c_metric_name,
+                "_fn": eval_config(c_met_cfg[c_metric_name])
+            }
     #############################
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     if cfg_dict["log"]["log_image_stats"]:
@@ -166,13 +172,13 @@ def get_cal_stats(
     else:
         pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.
-    cfg_dict["qual_metric_cfgs"] = qual_metric_cfgs
-    cfg_dict["cal_metric_cfgs"] = cal_metric_cfgs
+    cfg_dict["qual_metrics"] = qual_metrics 
+    cfg_dict["cal_metrics"] = cal_metrics 
     # Setup the log directories.
     image_level_dir = task_root / "image_stats.pkl"
     pixel_level_dir = task_root / "pixel_stats.pkl"
     # Set the looping function based on the input type.
-    forward_loop_func = volume_forward_loop if input_type == "volume" else image_forward_loop
+    forward_loop_func = volume_forward_loop if (input_type == "volume") else image_forward_loop
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
@@ -375,21 +381,18 @@ def get_image_stats(
     }
     # Go through each calibration metric and calculate the score.
     qual_metric_scores_dict = {}
-    for qual_metric in inference_cfg["qual_metric_cfgs"]:
+    for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
         # Get the calibration error. 
-        q_met_name = list(qual_metric.keys())[0] # kind of hacky
-        if qual_metric[q_met_name]['metric_type'] == 'calibration':
+        if qual_metric_dict['_type'] == 'calibration':
             # Higher is better for scores.
-            qual_metric_scores_dict[q_met_name] = 1 - qual_metric[q_met_name]['func'](**cal_input_config).item() 
+            qual_metric_scores_dict[qual_metric_name] = 1 - qual_metric_dict['_fn'](**cal_input_config).item() 
         else:
-            qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**qual_input_config).item()
-
+            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
     # Go through each calibration metric and calculate the score.
     cal_metric_errors_dict = {}
-    for cal_metric in inference_cfg["cal_metric_cfgs"]:
+    for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
         # Get the calibration error. 
-        cal_met_name = list(cal_metric.keys())[0] # kind of hacky
-        cal_metric_errors_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config).item() 
+        cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config).item() 
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
