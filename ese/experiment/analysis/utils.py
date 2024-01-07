@@ -76,9 +76,9 @@ def dataloader_from_exp(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_inference_exp_from_cfg(
-    model_cfg: dict,
-    exp_class: Any
+    model_cfg: dict
 ): 
+    exp_class = absolute_import(model_cfg['exp_class'])
     exp_model_root = model_cfg['exp_root']
     is_exp_group = not ("config.yml" in os.listdir(exp_model_root)) 
     # Get the configs of the experiment

@@ -16,7 +16,6 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import fix_seed, eval_config
 # local imports
 from ..callbacks.visualize import ShowPredictionsCallback
-from ..experiment import CalibrationExperiment
 from .utils import (
     get_image_aux_info, 
     dataloader_from_exp,
@@ -108,8 +107,7 @@ def get_cal_stats(
     # BUILD THE MODEL #
     ###################
     inference_exp = load_inference_exp_from_cfg(
-        model_cfg=cfg_dict['model'],
-        exp_class=CalibrationExperiment
+        model_cfg=cfg_dict['model']
         )
     # Make sure they are all evaluated in the same manner. This needs to go
     # below inference exp because loading the exp will overwrite the seed.
