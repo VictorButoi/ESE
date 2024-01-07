@@ -50,7 +50,9 @@ def save_dict(dict, log_dir):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
-    log_dir: pathlib.Path
+    log_dir: pathlib.Path,
+    load_image_df: bool,
+    load_pixel_meters_dict: bool
     ) -> dict:
     # Load the calibration inference stats from the log directory.
     log_dir = pathlib.Path(log_dir)
@@ -71,25 +73,27 @@ def load_cal_inference_stats(
             flat_cfg = valmap(list2tuple, cfg.flatten())
             flat_cfg["log_set"] = log_set.name
             # Remove some columns we don't care about.
-            flat_cfg.pop("qual_metrics")
-            flat_cfg.pop("cal_metrics")
-            if "calibration.bin_weightings" in flat_cfg.keys():
+            if "qual_metrics" in flat_cfg:
+                flat_cfg.pop("qual_metrics")
+            if "cal_metrics" in flat_cfg:
+                flat_cfg.pop("cal_metrics")
+            if "calibration.bin_weightings" in flat_cfg:
                 flat_cfg.pop("calibration.bin_weightings")
             # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
             cfg_df = pd.DataFrame(flat_cfg, index=[0])
             cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
 
             # Loop through the different splits and load the image stats.
-            log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-            log_image_df["log_set"] = log_set.name
-            cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
-
+            if load_image_df:
+                log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
+                log_image_df["log_set"] = log_set.name
+                cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
             # Load the pixel stats.
-            with open(log_set / "pixel_stats.pkl", 'rb') as f:
-                pixel_meter_dict = pickle.load(f)
-            # Set the pixel dict of the log set.
-            cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
-
+            if load_pixel_meters_dict:
+                with open(log_set / "pixel_stats.pkl", 'rb') as f:
+                    pixel_meter_dict = pickle.load(f)
+                # Set the pixel dict of the log set.
+                cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
     # Finally, return the dictionary of inference info.
     return cal_info_dict
 
@@ -129,9 +133,6 @@ def get_cal_stats(
         num_workers=cfg_dict['dataloader']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
-    # Set the looping function based on the input type.
-    forward_loop_func = volume_forward_loop if input_type == "volume" else image_forward_loop
-
     #####################
     # DEFINE THE OUTPUT #
     #####################
@@ -140,7 +141,6 @@ def get_cal_stats(
         create_time, nonce = generate_tuid()
         digest = config_digest(cfg_dict)
         uuid = f"{create_time}-{nonce}-{digest}"
-
     # make sure to add inference in front of the exp name (easy grep). We have multiple
     # data splits so that we can potentially parralelize the inference.
     task_root = save_root / uuid
@@ -149,7 +149,6 @@ def get_cal_stats(
         task_root.mkdir(parents=True)
         with open(metadata_dir, 'w') as metafile:
             yaml.dump(cfg_dict, metafile, default_flow_style=False) 
-
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     image_level_records = None
     pixel_meter_dict = None
@@ -157,7 +156,6 @@ def get_cal_stats(
         image_level_records = []
     if cfg_dict["log"]["log_pixel_stats"]:
         pixel_meter_dict = {}
-        
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
@@ -181,10 +179,11 @@ def get_cal_stats(
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metric_cfgs"] = qual_metric_cfgs
     cfg_dict["cal_metric_cfgs"] = cal_metric_cfgs
-
     # Setup the log directories.
     image_level_dir = task_root / "image_stats.pkl"
     pixel_level_dir = task_root / "pixel_stats.pkl"
+    # Set the looping function based on the input type.
+    forward_loop_func = volume_forward_loop if input_type == "volume" else image_forward_loop
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
@@ -205,7 +204,6 @@ def get_cal_stats(
                     save_records(image_level_records, image_level_dir)
                 if pixel_meter_dict is not None:
                     save_dict(pixel_meter_dict, pixel_level_dir)
-
     # Save the records at the end too
     if image_level_records is not None:
         save_records(image_level_records, image_level_dir)
