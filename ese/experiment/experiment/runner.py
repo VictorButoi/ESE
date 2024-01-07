@@ -47,17 +47,19 @@ def run_ese_exp(
         if not track_wandb and wandb_callback in cfg["callbacks"]["epoch"]:
             cfg["callbacks"]["epoch"].remove(wandb_callback)
     # Either run the experiment or the job function.
+    run_args = {
+        "config": Config(cfg),
+        "available_gpus": gpu,
+    }
     if experiment_class is not None:
         slite.run_exp(
             exp_class=experiment_class,
-            config=Config(cfg), 
-            available_gpus=gpu,
+            **run_args
         )
     else:
         slite.run_job(
             job_func=job_func,
-            config=Config(cfg), 
-            available_gpus=gpu,
+            **run_args
         )
 
 

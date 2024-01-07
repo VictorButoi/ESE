@@ -15,6 +15,7 @@ from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import fix_seed, eval_config
 # local imports
+from ..callbacks.visualize import ShowPredictionsCallback
 from ..experiment import CalibrationExperiment
 from .utils import (
     get_image_aux_info, 
@@ -230,10 +231,10 @@ def volume_forward_loop(
         prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
         # Wrap the outputs into a dictionary.
         output_dict = {
-            "image": image_cuda,
-            "y_true": label_map_cuda.long(),
-            "y_pred": prob_map,
-            "y_hard": pred_map,
+            "x": image_cuda,
+            "ytrue": label_map_cuda.long(),
+            "ypred": prob_map,
+            "yhard": pred_map,
             "slice_idx": slice_idx 
         }
         # Get the calibration item info.  
@@ -263,10 +264,10 @@ def image_forward_loop(
     prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
     # Wrap the outputs into a dictionary.
     output_dict = {
-        "image": image_cuda,
-        "y_pred": prob_map,
-        "y_hard": pred_map,
-        "y_true": label_map_cuda.long(),
+        "x": image_cuda,
+        "ypred": prob_map,
+        "yhard": pred_map,
+        "ytrue": label_map_cuda.long(),
         "slice_idx": None
     }
     # Get the calibration item info.  
@@ -288,6 +289,8 @@ def get_calibration_item_info(
     pixel_meter_dict: Optional[dict] = None,
     ignore_index: Optional[int] = None,
     ):
+    if "show_examples" in inference_cfg["log"] and inference_cfg["log"]["show_examples"]:
+        ShowPredictionsCallback(output_dict)
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]
@@ -334,9 +337,9 @@ def update_image_records(
 ):
     # Setup the image stats config.
     image_stats_cfg = {
-        "y_pred": output_dict["y_pred"],
-        "y_hard": output_dict["y_hard"],
-        "y_true": output_dict["y_true"],
+        "ypred": output_dict["ypred"],
+        "yhard": output_dict["yhard"],
+        "ytrue": output_dict["ytrue"],
         "slice_idx": output_dict["slice_idx"], # None if not a volume
         "inference_cfg": inference_cfg,
         "image_level_records": image_level_records,
@@ -347,9 +350,9 @@ def update_image_records(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_stats(
-    y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
-    y_true: torch.Tensor,
+    ypred: torch.Tensor,
+    yhard: torch.Tensor,
+    ytrue: torch.Tensor,
     inference_cfg: dict,
     image_level_records: list,
     slice_idx: Optional[int] = None,
@@ -357,22 +360,22 @@ def get_image_stats(
 ):
     # Define the cal config.
     qual_input_config = {
-        "y_pred": y_pred,
-        "y_true": y_true,
+        "y_pred": ypred,
+        "y_true": ytrue,
         "ignore_index": ignore_index
     }
     # Define the cal config.
     cal_input_config = {
-        "y_pred": y_pred,
-        "y_true": y_true,
+        "y_pred": ypred,
+        "y_true": ytrue,
         "num_bins": inference_cfg["calibration"]["num_bins"],
         "conf_interval":[
             inference_cfg["calibration"]["conf_interval_start"],
             inference_cfg["calibration"]["conf_interval_end"]
         ],
         "stats_info_dict": get_image_aux_info(
-            y_hard=y_hard,
-            y_true=y_true,
+            yhard=yhard,
+            ytrue=ytrue,
             neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
             ignore_index=ignore_index
         ),
@@ -388,6 +391,8 @@ def get_image_stats(
             qual_metric_scores_dict[qual_metric_name] = 1 - qual_metric_dict['_fn'](**cal_input_config).item() 
         else:
             qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
+        if inference_cfg["log"]["show_examples"]:
+            print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
     # Go through each calibration metric and calculate the score.
     cal_metric_errors_dict = {}
     for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
@@ -454,10 +459,10 @@ def update_pixel_meters(
     ignore_index: Optional[int] = None,
 ):
     # Setup variables.
-    H, W = output_dict["y_hard"].shape[-2:]
+    H, W = output_dict["yhard"].shape[-2:]
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    prob_map = output_dict["y_pred"]
+    prob_map = output_dict["ypred"]
     if prob_map.shape[1] > 1:
         prob_map = torch.max(prob_map, dim=1, keepdim=True)[0]
 
@@ -477,21 +482,21 @@ def update_pixel_meters(
 
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
     pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
+        lab_map=output_dict["yhard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ).squeeze().cpu().numpy()
 
-    # CPU-ize prob_map, y_hard, and y_true
+    # CPU-ize prob_map, yhard, and ytrue
     prob_map = prob_map.cpu().squeeze().numpy()
-    y_true = output_dict["y_true"].cpu().squeeze().numpy()
-    y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
+    ytrue = output_dict["ytrue"].cpu().squeeze().numpy()
+    yhard = output_dict["yhard"].cpu().squeeze().numpy()
 
     # Calculate the accuracy map.
-    acc_map = (y_hard == y_true).astype(np.float64)
+    acc_map = (yhard == ytrue).astype(np.float64)
 
     # Build the valid map.
     if ignore_index is not None:
-        valid_idx_map = (y_hard != ignore_index)
+        valid_idx_map = (yhard != ignore_index)
     else:
         valid_idx_map = np.ones((H, W)).astype(np.bool)
 
@@ -500,8 +505,8 @@ def update_pixel_meters(
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            true_label = y_true[ix, iy]
-            pred_label = y_hard[ix, iy]
+            true_label = ytrue[ix, iy]
+            pred_label = yhard[ix, iy]
             num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
             prob_bin = bin_ownership_map[ix, iy]
             # Define this dictionary prefix corresponding to a 'kind' of pixel.
