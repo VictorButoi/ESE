@@ -67,8 +67,8 @@ def load_cal_inference_stats(
     for log_set in log_dir.iterdir():
         if log_set.name not in ["wandb", "submitit"]:
             # Load the metadata file (json) and add it to the metadata dataframe.
-            log_mdata_yaml = log_set / "metadata.yaml"
-            with open(log_mdata_yaml, 'r') as stream:
+            config_dir = log_set / "config.yml"
+            with open(config_dir, 'r') as stream:
                 cfg_yaml = yaml.safe_load(stream)
             cfg = HDict(cfg_yaml)
             flat_cfg = valmap(list2tuple, cfg.flatten())
@@ -100,7 +100,7 @@ def load_cal_inference_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
-    cfg: Config
+    cfg: Config,
     ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
@@ -274,6 +274,72 @@ def image_forward_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_calibration_item_info(
+    data_idx: int,
+    output_dict: dict,
+    inference_cfg: dict,
+    image_level_records: Optional[list] = None,
+    pixel_meter_dict: Optional[dict] = None,
+    ignore_index: Optional[int] = None,
+    ):
+    # Setup some variables.
+    if "ignore_index" in inference_cfg["log"]:
+        ignore_index = inference_cfg["log"]["ignore_index"]
+    ########################
+    # IMAGE LEVEL TRACKING #
+    ########################
+    check_image_stats = (image_level_records is not None)
+    if check_image_stats:
+        cal_metric_errors_dict = update_image_records(
+            image_level_records=image_level_records,
+            output_dict=output_dict,
+            inference_cfg=inference_cfg,
+            ignore_index=ignore_index
+        ) 
+    ########################
+    # PIXEL LEVEL TRACKING #
+    ########################
+    check_pixel_stats = (pixel_meter_dict is not None)
+    if check_pixel_stats:
+        update_pixel_meters(
+            pixel_meter_dict=pixel_meter_dict,
+            output_dict=output_dict,
+            inference_cfg=inference_cfg,
+            ignore_index=ignore_index
+        )
+    # Run a check on the image_level stats for a single image are the same as the pixel level stats.
+    # This is just a sanity check. NOTE: data_idx has a small bug that if the inputs are volumes that 
+    # have different numbers of slices, then the data_idx will not be correct but the first will be correct.
+    if (data_idx == 0) and (check_image_stats and check_pixel_stats ): 
+        global_cal_sanity_check(
+            inference_cfg=inference_cfg, 
+            cal_metric_errors_dict=cal_metric_errors_dict, 
+            pixel_meter_dict=pixel_meter_dict,
+            ignore_index=ignore_index
+        )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def update_image_records(
+    image_level_records: list,
+    output_dict: dict,
+    inference_cfg: dict,
+    ignore_index: Optional[int] = None,
+):
+    # Setup the image stats config.
+    image_stats_cfg = {
+        "y_pred": output_dict["y_pred"],
+        "y_hard": output_dict["y_hard"],
+        "y_true": output_dict["y_true"],
+        "slice_idx": output_dict["slice_idx"], # None if not a volume
+        "inference_cfg": inference_cfg,
+        "image_level_records": image_level_records,
+        "ignore_index": ignore_index
+    }
+    return get_image_stats(**image_stats_cfg)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_stats(
     y_pred: torch.Tensor,
     y_hard: torch.Tensor,
@@ -281,7 +347,6 @@ def get_image_stats(
     inference_cfg: dict,
     image_level_records: list,
     slice_idx: Optional[int] = None,
-    label: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
     # Define the cal config.
@@ -319,65 +384,63 @@ def get_image_stats(
         else:
             qual_metric_scores_dict[q_met_name] = qual_metric[q_met_name]['func'](**qual_input_config).item()
 
-    # Get the amount of label, assuming 0 is a background class.
-    if label is not None:
-        true_lab_amount = (y_true > 0).sum().item()
-        pred_lab_amount = (y_hard > 0).sum().item()
-        assert not(pred_lab_amount == 0 and inference_cfg["calibration"]["binarize"]),\
-            "Predicted label amount can not be 0 if we are binarizing."
-        true_log_lab_amount = 0 if true_lab_amount == 0 else np.log(true_lab_amount)
-
     # Go through each calibration metric and calculate the score.
     cal_metric_errors_dict = {}
     for cal_metric in inference_cfg["cal_metric_cfgs"]:
         # Get the calibration error. 
         cal_met_name = list(cal_metric.keys())[0] # kind of hacky
         cal_metric_errors_dict[cal_met_name] = cal_metric[cal_met_name]['func'](**cal_input_config).item() 
-
-    # Iterate through the cross product of calibration metrics and quality metrics.
-    for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):
-        cal_record = {
-            "cal_metric_type": cm_name.split("_")[-1],
-            "cal_metric": cm_name.replace("_", " "),
-            "qual_metric": qm_name,
-            "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
-            "cal_m_error": cal_metric_errors_dict[cm_name],
-            "qual_score": qual_metric_scores_dict[qm_name],
-            "slice_idx": slice_idx
-        }
-        # If we are binarizing, then we need to add the label info.
-        if label is not None:
-            cal_record["label"] = label
-            cal_record["true_lab_amount"] = true_lab_amount
-            cal_record["log_true_lab_amount"] = true_log_lab_amount
-        # Add the dataset info to the record
-        record = {
-            **cal_record, 
-            **inference_cfg["calibration"]
+    
+    assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
+        "No metrics were specified in the config file."
+    if len(qual_metric_scores_dict) == 0:
+        for cm_name in list(cal_metric_errors_dict.keys()):
+            cal_record = {
+                "cal_metric_type": cm_name.split("_")[-1],
+                "cal_metric": cm_name.replace("_", " "),
+                "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
+                "cal_m_error": cal_metric_errors_dict[cm_name],
+                "slice_idx": slice_idx
             }
-        image_level_records.append(record)
+            # Add the dataset info to the record
+            record = {
+                **cal_record, 
+                **inference_cfg["calibration"]
+                }
+            image_level_records.append(record)
+    elif len(cal_metric_errors_dict) == 0:
+        for qm_name in list(qual_metric_scores_dict.keys()):
+            cal_record = {
+                "qual_metric": qm_name,
+                "qual_score": qual_metric_scores_dict[qm_name],
+                "slice_idx": slice_idx
+            }
+            # Add the dataset info to the record
+            record = {
+                **cal_record, 
+                **inference_cfg["calibration"]
+                }
+            image_level_records.append(record)
+    else:
+        # Iterate through the cross product of calibration metrics and quality metrics.
+        for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):
+            cal_record = {
+                "cal_metric_type": cm_name.split("_")[-1],
+                "cal_metric": cm_name.replace("_", " "),
+                "qual_metric": qm_name,
+                "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
+                "cal_m_error": cal_metric_errors_dict[cm_name],
+                "qual_score": qual_metric_scores_dict[qm_name],
+                "slice_idx": slice_idx
+            }
+            # Add the dataset info to the record
+            record = {
+                **cal_record, 
+                **inference_cfg["calibration"]
+                }
+            image_level_records.append(record)
     
     return cal_metric_errors_dict
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def update_image_records(
-    image_level_records: list,
-    output_dict: dict,
-    inference_cfg: dict,
-    ignore_index: Optional[int] = None,
-):
-    # Setup the image stats config.
-    image_stats_cfg = {
-        "y_pred": output_dict["y_pred"],
-        "y_hard": output_dict["y_hard"],
-        "y_true": output_dict["y_true"],
-        "slice_idx": output_dict["slice_idx"], # None if not a volume
-        "inference_cfg": inference_cfg,
-        "image_level_records": image_level_records,
-        "ignore_index": ignore_index
-    }
-    return get_image_stats(**image_stats_cfg)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -482,48 +545,3 @@ def global_cal_sanity_check(
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_met_name}': "+\
                 f"Pixel level calibration score ({pixel_level_cal_score}) does not match image level score ({image_level_cal_score})."
 
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_calibration_item_info(
-    data_idx: int,
-    output_dict: dict,
-    inference_cfg: dict,
-    image_level_records: Optional[list] = None,
-    pixel_meter_dict: Optional[dict] = None,
-    ignore_index: Optional[int] = None,
-    ):
-    # Setup some variables.
-    if "ignore_index" in inference_cfg["log"]:
-        ignore_index = inference_cfg["log"]["ignore_index"]
-    ########################
-    # IMAGE LEVEL TRACKING #
-    ########################
-    check_image_stats = (image_level_records is not None)
-    if check_image_stats:
-        cal_metric_errors_dict = update_image_records(
-            image_level_records=image_level_records,
-            output_dict=output_dict,
-            inference_cfg=inference_cfg,
-            ignore_index=ignore_index
-        ) 
-    ########################
-    # PIXEL LEVEL TRACKING #
-    ########################
-    check_pixel_stats = (pixel_meter_dict is not None)
-    if check_pixel_stats:
-        update_pixel_meters(
-            pixel_meter_dict=pixel_meter_dict,
-            output_dict=output_dict,
-            inference_cfg=inference_cfg,
-            ignore_index=ignore_index
-        )
-    # Run a check on the image_level stats for a single image are the same as the pixel level stats.
-    # This is just a sanity check. NOTE: data_idx has a small bug that if the inputs are volumes that 
-    # have different numbers of slices, then the data_idx will not be correct but the first will be correct.
-    if (data_idx == 0) and (check_image_stats and check_pixel_stats ): 
-        global_cal_sanity_check(
-            inference_cfg=inference_cfg, 
-            cal_metric_errors_dict=cal_metric_errors_dict, 
-            pixel_meter_dict=pixel_meter_dict,
-            ignore_index=ignore_index
-        )
