@@ -72,11 +72,11 @@ def submit_ese_exps(
 ):
     submit_input_check(experiment_class, job_func)
     # Modify a few things relating to callbacks.
-    if "callbacks" in cfg:
-        modified_cfgs = [] 
-        for config in config_list:
+    modified_cfgs = [] 
+    for config in config_list:
+        cfg = config.to_dict()
+        if "callbacks" in cfg:
             # Get the config as a dictionary.
-            cfg = config.to_dict()
             # Remove the step callbacks because it will slow down training.
             if "step" in cfg["callbacks"]:
                 cfg["callbacks"].pop("step")
@@ -84,10 +84,8 @@ def submit_ese_exps(
             wandb_callback = "ese.experiment.callbacks.WandbLogger"
             if not track_wandb and wandb_callback in cfg["callbacks"]["epoch"]:
                 cfg["callbacks"]["epoch"].remove(wandb_callback)
-            # Add the modified config to the list.
-            modified_cfgs.append(Config(cfg))
-    else:
-        modified_cfgs = config_list
+        # Add the modified config to the list.
+        modified_cfgs.append(Config(cfg))
     # Either run the experiment or the job function.
     run_cfg = {
         "exp_root": exp_root,
