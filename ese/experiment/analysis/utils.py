@@ -1,13 +1,14 @@
 #misc imports
 import os
-import yaml
 import torch
 import pandas as pd
+from pathlib import Path
 from typing import Any, Optional
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 # ionpy imports
 from ionpy.analysis import ResultsLoader
+from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
@@ -119,22 +120,19 @@ def load_inference_exp_from_cfg(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def save_inference_metadata(
-    save_root: str,
+    save_root: Path,
     cfg_dict: dict
     ):
     # Prepare the output dir for saving the results
     create_time, nonce = generate_tuid()
     digest = config_digest(cfg_dict)
     uuid = f"{create_time}-{nonce}-{digest}"
-    # make sure to add inference in front of the exp name (easy grep). We have multiple
-    # data splits so that we can potentially parralelize the inference.
-    task_root = save_root / uuid
-    metadata_dir = task_root / "metadata.yaml"
-    if not task_root.exists():
-        task_root.mkdir(parents=True)
-    with open(metadata_dir, 'w') as metafile:
-        yaml.dump(cfg_dict, metafile, default_flow_style=False) 
-
+    path = save_root / uuid
+    metadata = {"create_time": create_time, "nonce": nonce, "digest": digest}
+    autosave(metadata, path / "metadata.json")
+    autosave(cfg_dict, path / "config.yml")
+    return path
+    
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def binarize(
