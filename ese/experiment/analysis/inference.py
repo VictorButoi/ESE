@@ -20,6 +20,7 @@ from ..experiment import CalibrationExperiment, EnsembleExperiment
 from .utils import (
     get_image_aux_info, 
     dataloader_from_exp,
+    save_inference_metadata,
     load_inference_exp_from_cfg
 )
 from ..metrics.utils import (
@@ -82,7 +83,6 @@ def load_cal_inference_stats(
             # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
             cfg_df = pd.DataFrame(flat_cfg, index=[0])
             cal_info_dict["metadata"] = pd.concat([cal_info_dict["metadata"], cfg_df])
-
             # Loop through the different splits and load the image stats.
             if load_image_df:
                 log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
@@ -100,14 +100,10 @@ def load_cal_inference_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
-    cfg: Config, 
-    uuid: Optional[str] = None,
+    cfg: Config
     ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
-    # Results loader object does everything
-    save_root = pathlib.Path(cfg_dict['log']['root'])
-
     ###################
     # BUILD THE MODEL #
     ###################
@@ -118,7 +114,6 @@ def get_cal_stats(
     # Make sure they are all evaluated in the same manner. This needs to go
     # below inference exp because loading the exp will overwrite the seed.
     fix_seed(cfg_dict['experiment']['seed'])
-    
     #####################
     # BUILD THE DATASET #
     #####################
@@ -134,28 +129,12 @@ def get_cal_stats(
         )
     cfg_dict['dataset'] = modified_cfg 
     #####################
-    # DEFINE THE OUTPUT #
+    # SAVE THE METADATA #
     #####################
-    # Prepare the output dir for saving the results
-    if uuid is None:
-        create_time, nonce = generate_tuid()
-        digest = config_digest(cfg_dict)
-        uuid = f"{create_time}-{nonce}-{digest}"
-    # make sure to add inference in front of the exp name (easy grep). We have multiple
-    # data splits so that we can potentially parralelize the inference.
-    task_root = save_root / uuid
-    metadata_dir = task_root / "metadata.yaml"
-    if not task_root.exists():
-        task_root.mkdir(parents=True)
-        with open(metadata_dir, 'w') as metafile:
-            yaml.dump(cfg_dict, metafile, default_flow_style=False) 
-    # Setup trackers for both or either of image level statistics and pixel level statistics.
-    image_level_records = None
-    pixel_meter_dict = None
-    if cfg_dict["log"]["log_image_stats"]:
-        image_level_records = []
-    if cfg_dict["log"]["log_pixel_stats"]:
-        pixel_meter_dict = {}
+    task_root = save_inference_metadata(
+        save_root=pathlib.Path(cfg_dict['log']['root']),
+        cfg_dict=cfg_dict
+    )
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
@@ -176,6 +155,16 @@ def get_cal_stats(
                 cal_metric[c_key]['func'] = absolute_import(cal_metric[c_key]['func'])
     else:
         cal_metric_cfgs = []
+    #############################
+    # Setup trackers for both or either of image level statistics and pixel level statistics.
+    if cfg_dict["log"]["log_image_stats"]:
+        image_level_records = []
+    else:
+        image_level_records = None
+    if cfg_dict["log"]["log_pixel_stats"]:
+        pixel_meter_dict = {}
+    else:
+        pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metric_cfgs"] = qual_metric_cfgs
     cfg_dict["cal_metric_cfgs"] = cal_metric_cfgs
