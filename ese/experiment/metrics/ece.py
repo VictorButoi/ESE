@@ -37,7 +37,6 @@ def cal_input_check(
         "Exactly one of (y_pred and y_true) or pixel_preds_dict must be defined,"\
              + " but y_pred defined = {}, y_true defined = {}, pixel_preds_dict defined = {}.".format(\
             y_pred is not None, y_true is not None, pixel_preds_dict is not None)
-    return use_global_funcs 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -59,9 +58,9 @@ def ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
-    if use_global:
+    if pixel_meters_dict is not None:
         cal_info = global_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
@@ -116,9 +115,9 @@ def tl_ece_loss(
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
-    if use_global:
+    if pixel_meters_dict is not None:
         cal_info = global_label_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             top_label=True,
@@ -185,9 +184,9 @@ def cw_ece_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
     # Get the statistics either from images or pixel meter dict.
-    if use_global:
+    if pixel_meters_dict is not None:
         cal_info = global_label_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             top_label=False,

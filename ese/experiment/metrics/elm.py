@@ -29,8 +29,9 @@ def cal_input_check(
     use_global_funcs = (pixel_preds_dict is not None)
     # xor images_defined pixel_preds_defined
     assert use_global_funcs ^ use_local_funcs,\
-        "Either both (y_pred and y_true) or pixel_preds_dict must be defined, but not both."
-    return use_global_funcs 
+        "Exactly one of (y_pred and y_true) or pixel_preds_dict must be defined,"\
+             + " but y_pred defined = {}, y_true defined = {}, pixel_preds_dict defined = {}.".format(\
+            y_pred is not None, y_true is not None, pixel_preds_dict is not None)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -51,8 +52,8 @@ def elm_loss(
     Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    if use_global: 
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
+    if pixel_meters_dict is not None:
         cal_info = global_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             square_diff=square_diff,
@@ -118,8 +119,8 @@ def tl_elm_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    if use_global:
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
+    if pixel_meters_dict is not None:
         cal_info = global_label_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             top_label=True,
@@ -183,8 +184,8 @@ def cw_elm_loss(
     Calculates the LoMS.
     """
     # Verify input.
-    use_global = cal_input_check(y_pred, y_true, pixel_meters_dict)
-    if use_global:
+    cal_input_check(y_pred, y_true, pixel_meters_dict)
+    if pixel_meters_dict is not None:
         cal_info = global_label_neighbors_bin_stats(
             pixel_meters_dict=pixel_meters_dict,
             top_label=False,
