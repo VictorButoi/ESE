@@ -55,8 +55,6 @@ class PostHocExperiment(TrainExperiment):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
-        # Set important things about the model.
-        self.config = Config(total_config)
         ###################
         # BUILD THE MODEL #
         ###################
@@ -82,6 +80,12 @@ class PostHocExperiment(TrainExperiment):
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )
+        # Make sure we use the old experiment seed.
+        old_exp_config = self.pretrained_exp.config.to_dict() 
+        total_config['experiment'] = old_exp_config['experiment']
+        # Set important things about the model.
+        self.config = Config(total_config)
+        # Set the base model to not get updates.
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         ########################

@@ -114,6 +114,11 @@ def get_cal_stats(
     # Make sure they are all evaluated in the same manner. This needs to go
     # below inference exp because loading the exp will overwrite the seed.
     fix_seed(cfg_dict['experiment']['seed'])
+    # Make a new value for the pretrained seed, so we can differentiate between
+    # members of ensemble
+    old_inference_cfg = inference_exp.config.to_dict()
+    cfg_dict['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
+
     #####################
     # BUILD THE DATASET #
     #####################
