@@ -70,7 +70,7 @@ class PostHocExperiment(TrainExperiment):
         # Get the configs of the experiment
         load_exp_cfg = {
             "device": "cuda",
-            "build_data": False, # Important, we might want to modify the data construction.
+            "load_data": False, # Important, we might want to modify the data construction.
         }
         if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
             self.pretrained_exp = load_experiment(
