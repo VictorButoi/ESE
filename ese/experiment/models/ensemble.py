@@ -45,6 +45,6 @@ def max_combine_fn(model_outputs: dict, pre_softmax: bool):
     batch_max_tensors = torch.max(batch_ensemble_tensor, dim=1)[0] # B, C, H, W, max returns max vals and indices
 
     if not pre_softmax:
-        batch_mean_tensors = torch.softmax(batch_mean_tensors, dim=1)
+        batch_max_tensors = torch.softmax(batch_max_tensors, dim=1)
 
     return batch_max_tensors
