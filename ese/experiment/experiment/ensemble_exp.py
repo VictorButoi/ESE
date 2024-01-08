@@ -1,6 +1,5 @@
 # local imports
 from .utils import process_logits_map
-from .ese_exp import CalibrationExperiment
 from ..models.ensemble import get_combine_fn
 # torch imports
 import torch
@@ -8,37 +7,31 @@ import torch
 from ionpy.nn.util import num_params
 from ionpy.analysis import ResultsLoader
 from ionpy.util.torchutils import to_device
-from ionpy.experiment import BaseExperiment 
+from ionpy.experiment import BaseExperiment
+from ionpy.experiment.util import absolute_import
 # misc imports
-from typing import Any, Optional
+import json
+from pathlib import Path
+from typing import Optional
 
 
+# Very similar to BaseExperiment, but with a few changes.
 class EnsembleExperiment(BaseExperiment):
 
-    def __init__(
-            self, 
-            expgroup_path: str, 
-            exp_class: Any,
-            combine_fn: str = "mean",
-            checkpoint: Optional[str] = None
-            ):
-        self.exp_class = exp_class
-        self.build_model(expgroup_path, combine_fn, checkpoint)
-        super().__init__(self.paths[0]) # Use the first path as the path for the ensemble.
-        self.properties["num_params"] = self.num_params 
+    def __init__(self, path, set_seed=True, build_data=False):
+        torch.backends.cudnn.benchmark = True
+        super().__init__(path, set_seed)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-    def build_model(
-            self, 
-            expgroup_path: str, 
-            combine_fn: str, 
-            checkpoint: Optional[str] = None
-            ):
+        self.build_model()
+
+    def build_model(self):
+        # Use the model config.
+        model_cfg = self.config["model"].to_dict()
         # Get the configs of the experiment
         rs = ResultsLoader()
         # Load ALL the configs in the directory.
         dfc = rs.load_configs(
-            expgroup_path,
+            model_cfg["pretrained_exp_root"],
             properties=False,
         )
         def check_configs(dfc):
@@ -56,23 +49,32 @@ class EnsembleExperiment(BaseExperiment):
         self.models= {}
         total_params = 0
         for exp_path in dfc["path"].unique():
-            loaded_exp = self.exp_class(exp_path, build_data=False)
-            if checkpoint is not None:
-                loaded_exp.load(tag=checkpoint)
+            # Get the experiment class
+            print(exp_path)
+            properties_dir = Path(exp_path) / "properties.json"
+            with open(properties_dir, 'r') as prop_file:
+                props = json.load(prop_file)
+            exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
+            # Load the experiment
+            print(exp_class)
+            loaded_exp = exp_class(exp_path, build_data=False)
+            if model_cfg["checkpoint"] is not None:
+                loaded_exp.load(tag=model_cfg["checkpoint"])
             loaded_exp.model.eval()
             self.paths.append(exp_path)
             self.models[exp_path] = loaded_exp.model
             total_params += num_params(loaded_exp.model)
         self.num_params = total_params
         # Build the combine function.
-        self.combine_fn = get_combine_fn(combine_fn)
+        self.combine_fn = get_combine_fn(model_cfg["ensemble_combine_fn"])
+        self.properties["num_params"] = self.num_params 
 
     def to_device(self):
         for model_path in self.models:
             self.models[model_path] = to_device(
                 self.models[model_path], self.device, self.config.get("train.channels_last", False)
             )
-    
+
     def predict(self, x, multi_class, threshold=0.5):
         # Get the label predictions for each model.
         model_outputs = {}

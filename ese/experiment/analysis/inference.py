@@ -106,7 +106,7 @@ def get_cal_stats(
     # BUILD THE MODEL #
     ###################
     inference_exp = load_inference_exp_from_cfg(
-        model_cfg=cfg_dict['model']
+        inference_cfg=cfg_dict
         )
     # Make sure they are all evaluated in the same manner. This needs to go
     # below inference exp because loading the exp will overwrite the seed.

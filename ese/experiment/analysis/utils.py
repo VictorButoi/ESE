@@ -77,25 +77,22 @@ def dataloader_from_exp(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_inference_exp_from_cfg(
-    model_cfg: dict
+    inference_cfg: dict
 ): 
-    exp_model_root = model_cfg['exp_root']
-    is_exp_group = not ("config.yml" in os.listdir(exp_model_root)) 
+    model_cfg = inference_cfg['model']
+    pretrained_exp_root = model_cfg['pretrained_exp_root']
+    is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
     # Get the configs of the experiment
     if model_cfg['ensemble']:
         assert is_exp_group, "Ensemble inference only works with experiment groups."
         assert 'ensemble_combine_fn' in model_cfg.keys(), "Ensemble inference requires a combine function."
-        inference_exp = EnsembleExperiment(
-            exp_model_root,
-            combine_fn=model_cfg['ensemble_combine_fn'], 
-            checkpoint=model_cfg['checkpoint']
-            )
+        inference_exp = EnsembleExperiment.from_config(inference_cfg)
     else:
         rs = ResultsLoader()
         # If the experiment is a group, then load the configs and build the experiment.
         if is_exp_group: 
             dfc = rs.load_configs(
-                exp_model_root,
+                pretrained_exp_root,
                 properties=False,
             )
             inference_exp = load_experiment(
@@ -107,7 +104,7 @@ def load_inference_exp_from_cfg(
         # Load the experiment directly if you give a sub-path.
         else:
             inference_exp = load_experiment(
-                path=exp_model_root,
+                path=pretrained_exp_root,
                 checkpoint=model_cfg['checkpoint'],
                 build_data=False
             )
