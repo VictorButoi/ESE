@@ -1,12 +1,12 @@
 # Misc imports
 import yaml
 import pickle
-import pathlib
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from itertools import product
 from pydantic import validate_arguments
-from typing import Any, Optional
+from typing import Any, Optional, List
 # torch imports
 import torch
 # ionpy imports
@@ -50,12 +50,10 @@ def save_dict(dict, log_dir):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
-    log_dir: pathlib.Path,
+    log_dirs: List[Path],
     load_image_df: bool,
     load_pixel_meters_dict: bool
     ) -> dict:
-    # Load the calibration inference stats from the log directory.
-    log_dir = pathlib.Path(log_dir)
     # Build a dictionary to store the inference info.
     cal_info_dict = {
         "pixel_meter_dicts": {},
@@ -63,36 +61,37 @@ def load_cal_inference_stats(
         "metadata_df": pd.DataFrame([])
     }
     # Loop through every configuration in the log directory.
-    for log_set in log_dir.iterdir():
-        if log_set.name not in ["wandb", "submitit"]:
-            # Load the metadata file (json) and add it to the metadata dataframe.
-            config_dir = log_set / "config.yml"
-            with open(config_dir, 'r') as stream:
-                cfg_yaml = yaml.safe_load(stream)
-            cfg = HDict(cfg_yaml)
-            flat_cfg = valmap(list2tuple, cfg.flatten())
-            flat_cfg["log_set"] = log_set.name
-            # Remove some columns we don't care about.
-            if "qual_metrics" in flat_cfg:
-                flat_cfg.pop("qual_metrics")
-            if "cal_metrics" in flat_cfg:
-                flat_cfg.pop("cal_metrics")
-            if "calibration.bin_weightings" in flat_cfg:
-                flat_cfg.pop("calibration.bin_weightings")
-            # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-            cfg_df = pd.DataFrame(flat_cfg, index=[0])
-            cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
-            # Loop through the different splits and load the image stats.
-            if load_image_df:
-                log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-                log_image_df["log_set"] = log_set.name
-                cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
-            # Load the pixel stats.
-            if load_pixel_meters_dict:
-                with open(log_set / "pixel_stats.pkl", 'rb') as f:
-                    pixel_meter_dict = pickle.load(f)
-                # Set the pixel dict of the log set.
-                cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
+    for log_dir in log_dirs:
+        for log_set in log_dir.iterdir():
+            if log_set.name not in ["wandb", "submitit"]:
+                # Load the metadata file (json) and add it to the metadata dataframe.
+                config_dir = log_set / "config.yml"
+                with open(config_dir, 'r') as stream:
+                    cfg_yaml = yaml.safe_load(stream)
+                cfg = HDict(cfg_yaml)
+                flat_cfg = valmap(list2tuple, cfg.flatten())
+                flat_cfg["log_set"] = log_set.name
+                # Remove some columns we don't care about.
+                if "qual_metrics" in flat_cfg:
+                    flat_cfg.pop("qual_metrics")
+                if "cal_metrics" in flat_cfg:
+                    flat_cfg.pop("cal_metrics")
+                if "calibration.bin_weightings" in flat_cfg:
+                    flat_cfg.pop("calibration.bin_weightings")
+                # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
+                cfg_df = pd.DataFrame(flat_cfg, index=[0])
+                cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
+                # Loop through the different splits and load the image stats.
+                if load_image_df:
+                    log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
+                    log_image_df["log_set"] = log_set.name
+                    cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
+                # Load the pixel stats.
+                if load_pixel_meters_dict:
+                    with open(log_set / "pixel_stats.pkl", 'rb') as f:
+                        pixel_meter_dict = pickle.load(f)
+                    # Set the pixel dict of the log set.
+                    cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
     # Finally, return the dictionary of inference info.
     return cal_info_dict
 
@@ -135,7 +134,7 @@ def get_cal_stats(
     # SAVE THE METADATA #
     #####################
     task_root = save_inference_metadata(
-        save_root=pathlib.Path(cfg_dict['log']['root']),
+        save_root=Path(cfg_dict['log']['root']),
         cfg_dict=cfg_dict
     )
     ##################################
