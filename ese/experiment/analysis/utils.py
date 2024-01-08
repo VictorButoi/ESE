@@ -122,13 +122,17 @@ def save_inference_metadata(
     ):
     if save_root is None:
         save_root = Path(cfg_dict['log']['root'])
-    # Prepare the output dir for saving the results
-    create_time, nonce = generate_tuid()
-    digest = config_digest(cfg_dict)
-    uuid = f"{create_time}-{nonce}-{digest}"
-    path = save_root / uuid
-    metadata = {"create_time": create_time, "nonce": nonce, "digest": digest}
-    autosave(metadata, path / "metadata.json")
+        # Prepare the output dir for saving the results
+        create_time, nonce = generate_tuid()
+        digest = config_digest(cfg_dict)
+        uuid = f"{create_time}-{nonce}-{digest}"
+        path = save_root / uuid
+        # Save the metadata if the path isn't defined yet.
+        metadata = {"create_time": create_time, "nonce": nonce, "digest": digest}
+        autosave(metadata, path / "metadata.json")
+    else:
+        path = save_root
+    # Save the config.
     autosave(cfg_dict, path / "config.yml")
     return path
     
