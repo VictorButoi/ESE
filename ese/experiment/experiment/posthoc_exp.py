@@ -11,6 +11,7 @@ from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params
 from ionpy.util import Config
+from ionpy.util.ioutil import autosave
 from ionpy.util.torchutils import to_device
 from ionpy.analysis import ResultsLoader
 
@@ -27,6 +28,7 @@ class PostHocExperiment(TrainExperiment):
         if "data" in self.config:
             pretrained_data_cfg.update(self.config["data"].to_dict())
         total_config["data"] = pretrained_data_cfg
+        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
         
         # Get the dataset class and build the transforms
