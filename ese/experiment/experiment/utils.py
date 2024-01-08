@@ -1,7 +1,7 @@
 import torch
 import einops
 import json
-import pathlib
+from pathlib import Path
 from typing import Any, Optional
 # ionpy imports
 from ionpy.experiment.util import absolute_import
@@ -47,9 +47,10 @@ def load_experiment(
     else:
         exp_path = path
     # Get the experiment class
-    properties_dir = pathlib.Path(exp_path) / "properties.json"
+    properties_dir = Path(exp_path) / "properties.json"
+    print(f"Loading experiment from {properties_dir}")
     with open(properties_dir, 'r') as prop_file:
-        props = json.load(prop_file)
+        props = json.loads(prop_file.read())
     exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
     # Load the experiment
     loaded_exp = exp_class(exp_path, load_data=load_data)
