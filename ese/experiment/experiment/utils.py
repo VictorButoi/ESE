@@ -48,7 +48,6 @@ def load_experiment(
         exp_path = path
     # Get the experiment class
     properties_dir = Path(exp_path) / "properties.json"
-    print(f"Loading experiment from {properties_dir}")
     with open(properties_dir, 'r') as prop_file:
         props = json.loads(prop_file.read())
     exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
