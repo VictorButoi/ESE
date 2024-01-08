@@ -1,7 +1,7 @@
 # misc imports
 import os
 # local imports
-from .utils import load_experiment
+from .utils import load_experiment, process_logits_map
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -130,6 +130,25 @@ class PostHocExperiment(TrainExperiment):
         }
         self.run_callbacks("step", batch=forward_batch)
         return forward_batch
+
+    def predict(self, 
+                x, 
+                multi_class,
+                threshold=0.5):
+        assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
+        # Predict with the base model.
+        with torch.no_grad():
+            yhat = self.base_model(x)
+        # Apply post-hoc calibration.
+        logit_map = self.model(yhat, image=x) 
+        # Get the hard prediction and probabilities
+        prob_map, pred_map = process_logits_map(
+            logit_map, 
+            multi_class=multi_class, 
+            threshold=threshold
+            )
+        # Return the outputs probs and predicted label map.
+        return prob_map, pred_map
 
     def run(self):
         super().run()
