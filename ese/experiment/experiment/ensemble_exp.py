@@ -1,5 +1,5 @@
 # local imports
-from .utils import process_logits_map
+from .utils import process_pred_map
 from ..models.ensemble import get_combine_fn
 # torch imports
 import torch
@@ -115,13 +115,16 @@ class EnsembleInferenceExperiment(BaseExperiment):
         model_outputs = {}
         for model_path in self.models:
             model_outputs[model_path] = self.models[model_path](x)
+        #Get the model cfg
+        model_cfg = self.config["model"].to_dict()
         # Combine the outputs of the models.
-        logit_map = self.combine_fn(model_outputs)
+        prob_map = self.combine_fn(model_outputs, pre_softmax=model_cfg["ensemble_pre_softmax"])
         # Get the hard prediction and probabilities
-        prob_map, pred_map = process_logits_map(
-            logit_map, 
+        prob_map, pred_map = process_pred_map(
+            prob_map, 
             multi_class=multi_class, 
-            threshold=threshold
+            threshold=threshold,
+            from_logits=False # The combine_fn already returns probs.
             )
         # Return the outputs
         return prob_map, pred_map 

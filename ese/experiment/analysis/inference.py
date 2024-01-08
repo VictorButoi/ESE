@@ -229,8 +229,9 @@ def volume_forward_loop(
         # Extract the slices from the volumes.
         image_cuda = img_vol_cuda[:, slice_idx:slice_idx+1, ...]
         label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
-        # Get the prediction
-        prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
+        # Get the prediction and don't track gradients.
+        with torch.no_grad():
+            prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
@@ -262,8 +263,9 @@ def image_forward_loop(
     image, label_map  = batch
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
-    # Get the prediction
-    prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
+    # Get the prediction with no gradient accumulation.
+    with torch.no_grad():
+        prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,

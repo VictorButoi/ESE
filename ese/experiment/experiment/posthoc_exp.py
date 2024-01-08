@@ -1,7 +1,7 @@
 # misc imports
 import os
 # local imports
-from .utils import load_experiment, process_logits_map
+from .utils import load_experiment, process_pred_map
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -143,7 +143,7 @@ class PostHocExperiment(TrainExperiment):
         # Apply post-hoc calibration.
         logit_map = self.model(yhat, image=x) 
         # Get the hard prediction and probabilities
-        prob_map, pred_map = process_logits_map(
+        prob_map, pred_map = process_pred_map(
             logit_map, 
             multi_class=multi_class, 
             threshold=threshold

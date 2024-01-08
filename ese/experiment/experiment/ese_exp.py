@@ -1,5 +1,5 @@
 # local imports
-from .utils import process_logits_map
+from .utils import process_pred_map
 from ..augmentation import augmentations_from_config
 # torch imports
 import torch
@@ -131,7 +131,7 @@ class CalibrationExperiment(TrainExperiment):
         # Get the label predictions
         logit_map = self.model(x) 
         # Get the hard prediction and probabilities
-        prob_map, pred_map = process_logits_map(
+        prob_map, pred_map = process_pred_map(
             logit_map, 
             multi_class=multi_class, 
             threshold=threshold
