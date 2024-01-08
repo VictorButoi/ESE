@@ -18,11 +18,17 @@ from ionpy.analysis import ResultsLoader
 class PostHocExperiment(TrainExperiment):
 
     def build_data(self):
+        # Move the information about channels to the model config.
+        # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
+        total_config = self.config.to_dict()
         # Get the data and transforms we want to apply
         pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
         # Update the old cfg with new cfg (if it exists).
         if "data" in self.config:
             pretrained_data_cfg.update(self.config["data"].to_dict())
+        total_config["data"] = pretrained_data_cfg
+        self.config = Config(total_config)
+        
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
         if "cuda" in pretrained_data_cfg:

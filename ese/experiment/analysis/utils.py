@@ -111,6 +111,7 @@ def load_inference_exp_from_cfg(
             inference_exp = rs.load_experiment(
                 path=exp_model_root,
                 exp_class=exp_class,
+                checkpoint=model_cfg['checkpoint'],
                 build_data=False
             )
     # Put the inference experiment on the device and set the seed.
