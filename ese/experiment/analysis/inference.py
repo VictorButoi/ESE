@@ -102,10 +102,11 @@ def get_cal_stats(
     ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
+
     ###################
     # BUILD THE MODEL #
     ###################
-    inference_exp = load_inference_exp_from_cfg(
+    inference_exp, save_root = load_inference_exp_from_cfg(
         inference_cfg=cfg_dict
         )
     # Make sure they are all evaluated in the same manner. This needs to go
@@ -130,13 +131,15 @@ def get_cal_stats(
         num_workers=cfg_dict['dataloader']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
+
     #####################
     # SAVE THE METADATA #
     #####################
     task_root = save_inference_metadata(
-        save_root=Path(cfg_dict['log']['root']),
-        cfg_dict=cfg_dict
+        cfg_dict=cfg_dict,
+        save_root=save_root
     )
+
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################

@@ -87,6 +87,7 @@ def load_inference_exp_from_cfg(
         assert is_exp_group, "Ensemble inference only works with experiment groups."
         assert 'ensemble_combine_fn' in model_cfg.keys(), "Ensemble inference requires a combine function."
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
+        save_root = Path(inference_exp.path)
     else:
         rs = ResultsLoader()
         # If the experiment is a group, then load the configs and build the experiment.
@@ -108,16 +109,19 @@ def load_inference_exp_from_cfg(
                 checkpoint=model_cfg['checkpoint'],
                 load_data=False
             )
+        save_root = None
     # Put the inference experiment on the device and set the seed.
     inference_exp.to_device()
-    return inference_exp
+    return inference_exp, save_root
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def save_inference_metadata(
-    save_root: Path,
-    cfg_dict: dict
+    cfg_dict: dict,
+    save_root: Optional[Path] = None
     ):
+    if save_root is None:
+        save_root = Path(cfg_dict['log']['root'])
     # Prepare the output dir for saving the results
     create_time, nonce = generate_tuid()
     digest = config_digest(cfg_dict)
