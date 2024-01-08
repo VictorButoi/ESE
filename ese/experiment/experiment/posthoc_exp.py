@@ -18,7 +18,7 @@ from ionpy.analysis import ResultsLoader
 
 class PostHocExperiment(TrainExperiment):
 
-    def build_data(self):
+    def build_data(self, load_data):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
@@ -31,20 +31,21 @@ class PostHocExperiment(TrainExperiment):
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
         
-        # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
-        if "cuda" in pretrained_data_cfg:
-            assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
-            cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
-        else:
-            cache_dsets_on_gpu = False
-        # Build the datasets, apply the transforms
-        self.train_dataset = dataset_cls(split="val", **pretrained_data_cfg)
-        self.val_dataset = dataset_cls(split="cal", **pretrained_data_cfg)
-        # Optionally cache the datasets on the GPU.
-        if cache_dsets_on_gpu:
-            self.train_dataset = CUDACachedDataset(self.train_dataset)
-            self.val_dataset = CUDACachedDataset(self.val_dataset)
+        if load_data:
+            # Get the dataset class and build the transforms
+            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
+            if "cuda" in pretrained_data_cfg:
+                assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
+                cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
+            else:
+                cache_dsets_on_gpu = False
+            # Build the datasets, apply the transforms
+            self.train_dataset = dataset_cls(split="val", **pretrained_data_cfg)
+            self.val_dataset = dataset_cls(split="cal", **pretrained_data_cfg)
+            # Optionally cache the datasets on the GPU.
+            if cache_dsets_on_gpu:
+                self.train_dataset = CUDACachedDataset(self.train_dataset)
+                self.val_dataset = CUDACachedDataset(self.val_dataset)
 
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them

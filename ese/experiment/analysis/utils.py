@@ -12,8 +12,8 @@ from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from ..experiment import EnsembleExperiment
 from ..experiment.utils import load_experiment
+from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import count_matching_neighbors 
 
 
@@ -86,7 +86,7 @@ def load_inference_exp_from_cfg(
     if model_cfg['ensemble']:
         assert is_exp_group, "Ensemble inference only works with experiment groups."
         assert 'ensemble_combine_fn' in model_cfg.keys(), "Ensemble inference requires a combine function."
-        inference_exp = EnsembleExperiment.from_config(inference_cfg)
+        inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
     else:
         rs = ResultsLoader()
         # If the experiment is a group, then load the configs and build the experiment.
@@ -99,14 +99,14 @@ def load_inference_exp_from_cfg(
                 df=rs.load_metrics(dfc),
                 checkpoint=model_cfg['checkpoint'],
                 selection_metric=model_cfg['pretrained_select_metric'],
-                build_data=False
+                load_data=False
             )
         # Load the experiment directly if you give a sub-path.
         else:
             inference_exp = load_experiment(
                 path=pretrained_exp_root,
                 checkpoint=model_cfg['checkpoint'],
-                build_data=False
+                load_data=False
             )
     # Put the inference experiment on the device and set the seed.
     inference_exp.to_device()

@@ -31,14 +31,15 @@ class CalibrationExperiment(TrainExperiment):
                 :8
             ]
 
-    def build_data(self):
+    def build_data(self, load_data):
         # Get the data and transforms we want to apply
         data_cfg = self.config["data"].to_dict()
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(data_cfg.pop("_class"))
         # Build the datasets, apply the transforms
-        self.train_dataset = dataset_cls(split="train", **data_cfg)
-        self.val_dataset = dataset_cls(split="val", **data_cfg)
+        if load_data:
+            self.train_dataset = dataset_cls(split="train", **data_cfg)
+            self.val_dataset = dataset_cls(split="val", **data_cfg)
     
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them

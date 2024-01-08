@@ -29,7 +29,7 @@ def process_logits_map(conf_map, multi_class, threshold=0.5):
 def load_experiment(
     device="cuda",
     checkpoint="max-val-dice_score",
-    build_data=True,
+    load_data=True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
     selection_metric: Optional[str] = None,
@@ -49,7 +49,7 @@ def load_experiment(
         props = json.load(prop_file)
     exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
     # Load the experiment
-    loaded_exp = exp_class(exp_path, build_data=build_data)
+    loaded_exp = exp_class(exp_path, load_data=load_data)
     if checkpoint is not None:
         loaded_exp.load(tag=checkpoint)
     # Set the device
