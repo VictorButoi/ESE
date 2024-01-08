@@ -110,8 +110,6 @@ def load_inference_exp_from_cfg(
                 load_data=False
             )
         save_root = None
-    # Put the inference experiment on the device and set the seed.
-    inference_exp.to_device()
     return inference_exp, save_root
 
 

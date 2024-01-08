@@ -109,6 +109,7 @@ def get_cal_stats(
     inference_exp, save_root = load_inference_exp_from_cfg(
         inference_cfg=cfg_dict
         )
+    inference_exp.to_device()
     # Make sure they are all evaluated in the same manner. This needs to go
     # below inference exp because loading the exp will overwrite the seed.
     fix_seed(cfg_dict['experiment']['seed'])
@@ -234,13 +235,13 @@ def volume_forward_loop(
         label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
         # Get the prediction and don't track gradients.
         with torch.no_grad():
-            prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
+            exp_output = exp.predict(image_cuda, multi_class=True)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
             "ytrue": label_map_cuda.long(),
-            "ypred": prob_map,
-            "yhard": pred_map,
+            "ypred": exp_output["ypred"],
+            "yhard": exp_output["yhard"],
             "slice_idx": slice_idx 
         }
         # Get the calibration item info.  
@@ -268,12 +269,12 @@ def image_forward_loop(
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
     with torch.no_grad():
-        prob_map, pred_map = exp.predict(image_cuda, multi_class=True)
+        exp_output = exp.predict(image_cuda, multi_class=True)
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,
-        "ypred": prob_map,
-        "yhard": pred_map,
+        "ypred": exp_output["ypred"],
+        "yhard": exp_output["yhard"],
         "ytrue": label_map_cuda.long(),
         "slice_idx": None
     }
@@ -298,6 +299,7 @@ def get_calibration_item_info(
     ):
     if "show_examples" in inference_cfg["log"] and inference_cfg["log"]["show_examples"]:
         ShowPredictionsCallback(output_dict)
+    raise ValueError
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]

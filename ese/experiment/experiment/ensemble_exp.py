@@ -78,8 +78,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
         # Loop through each config and build the experiment, placing it in a dictionary.
-        self.model_paths = []
-        self.models= {}
+        self.ens_exp_paths = []
+        self.ens_exps = {}
         total_params = 0
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Get the experiment class
@@ -92,9 +92,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
             if model_cfg["checkpoint"] is not None:
                 loaded_exp.load(tag=model_cfg["checkpoint"])
             loaded_exp.model.eval()
-            self.model_paths.append(exp_path)
-            self.models[exp_path] = loaded_exp.model
-            total_params += num_params(loaded_exp.model)
+            self.ens_exp_paths.append(exp_path)
+            self.ens_exps[exp_path] = loaded_exp
+            total_params += loaded_exp.properties["num_params"]
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
@@ -105,20 +105,23 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.properties["num_params"] = self.num_params 
 
     def to_device(self):
-        for model_path in self.models:
-            self.models[model_path] = to_device(
-                self.models[model_path], self.device, self.config.get("train.channels_last", False)
-            )
+        for exp_path in self.ens_exp_paths:
+            self.ens_exps[exp_path].to_device()
 
     def predict(self, x, multi_class, threshold=0.5):
         # Get the label predictions for each model.
-        model_outputs = {}
-        for model_path in self.models:
-            model_outputs[model_path] = self.models[model_path](x)
+        ensemble_model_outputs = {}
+        for exp_path in self.ens_exp_paths:
+            ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
+                x=x, multi_class=True # Multi-class needs to be true here so that we can combine the outputs.
+            )['ypred']
         #Get the model cfg
         model_cfg = self.config["model"].to_dict()
         # Combine the outputs of the models.
-        prob_map = self.combine_fn(model_outputs, pre_softmax=model_cfg["ensemble_pre_softmax"])
+        prob_map = self.combine_fn(
+            ensemble_model_outputs, 
+            pre_softmax=model_cfg["ensemble_pre_softmax"]
+            )
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             prob_map, 
@@ -127,4 +130,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             from_logits=False # The combine_fn already returns probs.
             )
         # Return the outputs
-        return prob_map, pred_map 
+        return {
+            'ypred': prob_map, 
+            'yhard': pred_map 
+        }

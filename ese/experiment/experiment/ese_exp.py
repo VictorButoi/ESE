@@ -136,8 +136,11 @@ class CalibrationExperiment(TrainExperiment):
             multi_class=multi_class, 
             threshold=threshold
             )
-        # Return the outputs probs and predicted label map.
-        return prob_map, pred_map
+        # Return the outputs
+        return {
+            'ypred': prob_map, 
+            'yhard': pred_map 
+        }
 
     def run(self):
         super().run()

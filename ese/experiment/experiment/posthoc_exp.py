@@ -46,7 +46,7 @@ class PostHocExperiment(TrainExperiment):
             if cache_dsets_on_gpu:
                 self.train_dataset = CUDACachedDataset(self.train_dataset)
                 self.val_dataset = CUDACachedDataset(self.val_dataset)
-
+    
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
@@ -148,8 +148,15 @@ class PostHocExperiment(TrainExperiment):
             multi_class=multi_class, 
             threshold=threshold
             )
-        # Return the outputs probs and predicted label map.
-        return prob_map, pred_map
+        # Return the outputs
+        return {
+            'ypred': prob_map, 
+            'yhard': pred_map 
+        }
+
+    def to_device(self):
+        self.base_model = to_device(self.base_model, self.device, channels_last=False)
+        self.model = to_device(self.model, self.device, channels_last=False)
 
     def run(self):
         super().run()
