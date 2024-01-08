@@ -3,7 +3,7 @@ import os
 import torch
 import pandas as pd
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 # ionpy imports
@@ -13,6 +13,7 @@ from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
 from ..experiment import EnsembleExperiment
+from ..experiment.utils import load_experiment
 from ..metrics.utils import count_matching_neighbors 
 
 
@@ -78,7 +79,6 @@ def dataloader_from_exp(
 def load_inference_exp_from_cfg(
     model_cfg: dict
 ): 
-    exp_class = absolute_import(model_cfg['exp_class'])
     exp_model_root = model_cfg['exp_root']
     is_exp_group = not ("config.yml" in os.listdir(exp_model_root)) 
     # Get the configs of the experiment
@@ -87,7 +87,6 @@ def load_inference_exp_from_cfg(
         assert 'ensemble_combine_fn' in model_cfg.keys(), "Ensemble inference requires a combine function."
         inference_exp = EnsembleExperiment(
             exp_model_root,
-            exp_class=exp_class,
             combine_fn=model_cfg['ensemble_combine_fn'], 
             checkpoint=model_cfg['checkpoint']
             )
@@ -99,18 +98,16 @@ def load_inference_exp_from_cfg(
                 exp_model_root,
                 properties=False,
             )
-            inference_exp = rs.load_experiment(
+            inference_exp = load_experiment(
                 df=rs.load_metrics(dfc),
-                exp_class=exp_class,
                 checkpoint=model_cfg['checkpoint'],
                 selection_metric=model_cfg['pretrained_select_metric'],
                 build_data=False
             )
         # Load the experiment directly if you give a sub-path.
         else:
-            inference_exp = rs.load_experiment(
+            inference_exp = load_experiment(
                 path=exp_model_root,
-                exp_class=exp_class,
                 checkpoint=model_cfg['checkpoint'],
                 build_data=False
             )

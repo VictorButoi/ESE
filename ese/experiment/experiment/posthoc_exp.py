@@ -1,7 +1,7 @@
 # misc imports
 import os
 # local imports
-from .ese_exp import CalibrationExperiment
+from .utils import load_experiment
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -65,23 +65,22 @@ class PostHocExperiment(TrainExperiment):
         # BUILD THE MODEL #
         ###################
         # Get the configs of the experiment
-        rs = ResultsLoader()
         load_exp_cfg = {
-            "exp_class": CalibrationExperiment,
             "device": "cuda",
             "build_data": False, # Important, we might want to modify the data construction.
         }
         if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
-            self.pretrained_exp = rs.load_experiment(
+            self.pretrained_exp = load_experiment(
                 path=total_config['train']['pretrained_dir'],
                 **load_exp_cfg
             )
         else:
+            rs = ResultsLoader()
             dfc = rs.load_configs(
                 total_config['train']['pretrained_dir'],
                 properties=False,
             )
-            self.pretrained_exp = rs.load_experiment(
+            self.pretrained_exp = load_experiment(
                 df=rs.load_metrics(dfc),
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
