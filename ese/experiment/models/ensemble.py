@@ -19,12 +19,12 @@ def batch_ensemble_preds(model_outputs):
     return batchwise_ensemble_tensor
 
 
-def identity_combine_fn(model_outputs: dict):
-    return batch_ensemble_preds(model_outputs)
+def identity_combine_fn(ensemble_logits: dict):
+    return batch_ensemble_preds(ensemble_logits)
 
 
-def mean_combine_fn(model_outputs: dict, pre_softmax: bool):
-    batch_ensemble_tensor = batch_ensemble_preds(model_outputs) # B, E, C, H, W
+def mean_combine_fn(ensemble_logits: dict, pre_softmax: bool):
+    batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
 
     if pre_softmax:
         batch_ensemble_tensor = torch.softmax(batch_ensemble_tensor, dim=2)
@@ -36,8 +36,8 @@ def mean_combine_fn(model_outputs: dict, pre_softmax: bool):
 
     return batch_mean_tensors
 
-def max_combine_fn(model_outputs: dict, pre_softmax: bool):
-    batch_ensemble_tensor = batch_ensemble_preds(model_outputs) # B, E, C, H, W
+def max_combine_fn(ensemble_logits: dict, pre_softmax: bool):
+    batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
 
     if pre_softmax:
         batch_ensemble_tensor = torch.softmax(batch_ensemble_tensor, dim=2)
