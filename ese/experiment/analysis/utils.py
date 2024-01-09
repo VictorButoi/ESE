@@ -109,6 +109,13 @@ def load_inference_exp_from_cfg(
                 load_data=False
             )
         save_root = None
+    # Make a new value for the pretrained seed, so we can differentiate between
+    # members of ensemble
+    old_inference_cfg = inference_exp.config.to_dict()
+    inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
+    # Update the model cfg to include old model cfg.
+    inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
+
     return inference_exp, save_root
 
 

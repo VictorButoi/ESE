@@ -73,13 +73,18 @@ def load_cal_inference_stats(
                 flat_cfg = valmap(list2tuple, cfg.flatten())
                 flat_cfg["log_set"] = log_set.name
                 # Remove some columns we don't care about.
-                for drop_key in ["qual_metrics", "cal_metrics", "calibration.bin_weightings"]:
+                for drop_key in [
+                    "qual_metrics", 
+                    "cal_metrics", 
+                    "calibration.bin_weightings", 
+                    "model.filters"
+                    ]:
                     if drop_key in flat_cfg:
                         flat_cfg.pop(drop_key)
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
-    
+    print("metadf columns:", cal_info_dict["metadata_df"].columns) 
     # Gather the columns that have unique values amongst the different configurations.
     unique_cols = []
     for col in cal_info_dict["metadata_df"].columns:
@@ -125,13 +130,8 @@ def get_cal_stats(
         inference_cfg=cfg_dict
         )
     inference_exp.to_device()
-    # Make sure they are all evaluated in the same manner. This needs to go
-    # below inference exp because loading the exp will overwrite the seed.
+    # Ensure that inference seed is the same.
     fix_seed(cfg_dict['experiment']['seed'])
-    # Make a new value for the pretrained seed, so we can differentiate between
-    # members of ensemble
-    old_inference_cfg = inference_exp.config.to_dict()
-    cfg_dict['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
 
     #####################
     # BUILD THE DATASET #
@@ -156,7 +156,6 @@ def get_cal_stats(
         cfg_dict=cfg_dict,
         save_root=save_root
     )
-
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
