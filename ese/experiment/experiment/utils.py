@@ -3,32 +3,44 @@ import einops
 import json
 from pathlib import Path
 from typing import Any, Optional
+from pydantic import validate_arguments
 # ionpy imports
 from ionpy.experiment.util import absolute_import
 
 
-def process_pred_map(conf_map, multi_class, threshold=0.5, from_logits=True):
-    # Dealing with multi-class segmentation.
-    if conf_map.shape[1] > 1:
-        # Get the probabilities
-        if from_logits:
-            conf_map = torch.softmax(conf_map, dim=1)
-        # Add back the channel dimension (1)
-        pred_map = torch.argmax(conf_map, dim=1)
-        pred_map = einops.rearrange(pred_map, "b h w -> b 1 h w")
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def process_pred_map(
+    conf_map: torch.Tensor, 
+    multi_class: bool, 
+    threshold: float = 0.5, 
+    from_logits: bool = True,
+    return_logits: bool = False # in the case we just want to pass through.
+    ):
+    if return_logits:
+        return conf_map, None
     else:
-        # Get the prediction
-        if from_logits:
-            conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
-        pred_map = (conf_map >= threshold).float()
-        if multi_class:
-            conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0]
+        # Dealing with multi-class segmentation.
+        if conf_map.shape[1] > 1:
+            # Get the probabilities
+            if from_logits:
+                conf_map = torch.softmax(conf_map, dim=1)
             # Add back the channel dimension (1)
-            conf_map = einops.rearrange(conf_map, "b h w -> b 1 h w")
-    # Return the outputs probs and predicted label map.
-    return conf_map, pred_map
+            pred_map = torch.argmax(conf_map, dim=1)
+            pred_map = einops.rearrange(pred_map, "b h w -> b 1 h w")
+        else:
+            # Get the prediction
+            if from_logits:
+                conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
+            pred_map = (conf_map >= threshold).float()
+            if multi_class:
+                conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0]
+                # Add back the channel dimension (1)
+                conf_map = einops.rearrange(conf_map, "b h w -> b 1 h w")
+        # Return the outputs probs and predicted label map.
+        return conf_map, pred_map
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_experiment(
     device="cuda",
     checkpoint="max-val-dice_score",

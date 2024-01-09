@@ -5,9 +5,7 @@ from ..models.ensemble import get_combine_fn
 import torch
 # IonPy imports
 from ionpy.util import Config
-from ionpy.nn.util import num_params
 from ionpy.analysis import ResultsLoader
-from ionpy.util.torchutils import to_device
 from ionpy.experiment import BaseExperiment
 from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import
@@ -112,8 +110,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Get the label predictions for each model.
         ensemble_model_outputs = {}
         for exp_path in self.ens_exp_paths:
+            # Multi-class needs to be true here so that we can combine the outputs.
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
-                x=x, multi_class=True # Multi-class needs to be true here so that we can combine the outputs.
+                x=x, multi_class=True, return_logits=True
             )['ypred']
         #Get the model cfg
         model_cfg = self.config["model"].to_dict()

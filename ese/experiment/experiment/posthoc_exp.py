@@ -101,7 +101,7 @@ class PostHocExperiment(TrainExperiment):
         ########################
         self.model = eval_config(self.config["model"])
         self.model.weights_init()
-        self.properties["num_params"] = num_params(self.model)
+        self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
     
     def build_loss(self):
         self.loss_func = eval_config(self.config["loss_func"])
@@ -135,7 +135,8 @@ class PostHocExperiment(TrainExperiment):
     def predict(self, 
                 x, 
                 multi_class,
-                threshold=0.5):
+                threshold=0.5,
+                return_logits=False):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Predict with the base model.
         with torch.no_grad():
@@ -146,7 +147,8 @@ class PostHocExperiment(TrainExperiment):
         prob_map, pred_map = process_pred_map(
             logit_map, 
             multi_class=multi_class, 
-            threshold=threshold
+            threshold=threshold,
+            return_logits=return_logits
             )
         # Return the outputs
         return {

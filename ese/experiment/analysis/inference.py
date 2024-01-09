@@ -299,7 +299,6 @@ def get_calibration_item_info(
     ):
     if "show_examples" in inference_cfg["log"] and inference_cfg["log"]["show_examples"]:
         ShowPredictionsCallback(output_dict)
-    raise ValueError
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]

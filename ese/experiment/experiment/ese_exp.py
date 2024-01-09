@@ -126,7 +126,8 @@ class CalibrationExperiment(TrainExperiment):
     def predict(self, 
                 x, 
                 multi_class,
-                threshold=0.5):
+                threshold=0.5,
+                return_logits=False):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Get the label predictions
         logit_map = self.model(x) 
@@ -134,7 +135,8 @@ class CalibrationExperiment(TrainExperiment):
         prob_map, pred_map = process_pred_map(
             logit_map, 
             multi_class=multi_class, 
-            threshold=threshold
+            threshold=threshold,
+            return_logits=return_logits
             )
         # Return the outputs
         return {
