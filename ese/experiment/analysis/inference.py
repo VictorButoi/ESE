@@ -140,6 +140,7 @@ def get_cal_stats(
     new_dset_options = cfg_dict['data']
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
+    assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
     dataloader, modified_cfg = dataloader_from_exp( 
         inference_exp,
         new_dset_options=new_dset_options, 
@@ -239,7 +240,7 @@ def volume_forward_loop(
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
-    image_vol, label_vol  = batch
+    image_vol, label_vol  = batch["img"], batch["label"]
     # Get your image label pair and define some regions.
     img_vol_cuda , label_vol_cuda = to_device((image_vol, label_vol), exp.device)
     # Go through each slice and predict the metrics.
@@ -258,6 +259,7 @@ def volume_forward_loop(
             "ytrue": label_map_cuda.long(),
             "ypred": exp_output["ypred"],
             "yhard": exp_output["yhard"],
+            "data_id": batch["data_id"][0], # Works because batchsize = 1
             "slice_idx": slice_idx 
         }
         # Get the calibration item info.  
@@ -280,7 +282,7 @@ def image_forward_loop(
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
-    image, label_map  = batch
+    image, label_map  = batch["img"], batch["label"]
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
@@ -292,6 +294,7 @@ def image_forward_loop(
         "ypred": exp_output["ypred"],
         "yhard": exp_output["yhard"],
         "ytrue": label_map_cuda.long(),
+        "data_id": batch["data_id"][0],
         "slice_idx": None
     }
     # Get the calibration item info.  
@@ -302,7 +305,6 @@ def image_forward_loop(
         image_level_records=image_level_records,
         pixel_meter_dict=pixel_meter_dict
     )
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
@@ -323,10 +325,10 @@ def get_calibration_item_info(
     ########################
     check_image_stats = (image_level_records is not None)
     if check_image_stats:
-        cal_metric_errors_dict = update_image_records(
-            image_level_records=image_level_records,
+        cal_metric_errors_dict = get_image_stats(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
+            image_level_records=image_level_records,
             ignore_index=ignore_index
         ) 
     ########################
@@ -353,53 +355,30 @@ def get_calibration_item_info(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def update_image_records(
-    image_level_records: list,
+def get_image_stats(
     output_dict: dict,
     inference_cfg: dict,
-    ignore_index: Optional[int] = None,
-):
-    # Setup the image stats config.
-    image_stats_cfg = {
-        "ypred": output_dict["ypred"],
-        "yhard": output_dict["yhard"],
-        "ytrue": output_dict["ytrue"],
-        "slice_idx": output_dict["slice_idx"], # None if not a volume
-        "inference_cfg": inference_cfg,
-        "image_level_records": image_level_records,
-        "ignore_index": ignore_index
-    }
-    return get_image_stats(**image_stats_cfg)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_image_stats(
-    ypred: torch.Tensor,
-    yhard: torch.Tensor,
-    ytrue: torch.Tensor,
-    inference_cfg: dict,
     image_level_records: list,
-    slice_idx: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
     # Define the cal config.
     qual_input_config = {
-        "y_pred": ypred,
-        "y_true": ytrue,
+        "y_pred": output_dict["ypred"],
+        "y_true": output_dict["ytrue"],
         "ignore_index": ignore_index
     }
     # Define the cal config.
     cal_input_config = {
-        "y_pred": ypred,
-        "y_true": ytrue,
+        "y_pred": output_dict["ypred"],
+        "y_true": output_dict["ytrue"],
         "num_bins": inference_cfg["calibration"]["num_bins"],
         "conf_interval":[
             inference_cfg["calibration"]["conf_interval_start"],
             inference_cfg["calibration"]["conf_interval_end"]
         ],
         "stats_info_dict": get_image_aux_info(
-            yhard=yhard,
-            ytrue=ytrue,
+            yhard=output_dict["yhard"],
+            ytrue=output_dict["ytrue"],
             neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
             ignore_index=ignore_index
         ),
@@ -426,49 +405,54 @@ def get_image_stats(
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
+    
+    image_log_info = {
+        "data_id": output_dict["data_id"],
+        "slice_idx": output_dict["slice_idx"] 
+    }
     if len(qual_metric_scores_dict) == 0:
         for cm_name in list(cal_metric_errors_dict.keys()):
-            cal_record = {
+            cal_metrics_record = {
                 "cal_metric_type": cm_name.split("_")[-1],
                 "cal_metric": cm_name.replace("_", " "),
                 "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
                 "cal_m_error": cal_metric_errors_dict[cm_name],
-                "slice_idx": slice_idx
             }
             # Add the dataset info to the record
             record = {
-                **cal_record, 
+                **cal_metrics_record, 
+                **image_log_info,
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
     elif len(cal_metric_errors_dict) == 0:
         for qm_name in list(qual_metric_scores_dict.keys()):
-            cal_record = {
+            qual_metrics_record = {
                 "qual_metric": qm_name,
                 "qual_score": qual_metric_scores_dict[qm_name],
-                "slice_idx": slice_idx
             }
             # Add the dataset info to the record
             record = {
-                **cal_record, 
+                **qual_metrics_record, 
+                **image_log_info,
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
     else:
         # Iterate through the cross product of calibration metrics and quality metrics.
         for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):
-            cal_record = {
+            combined_metrics_record = {
                 "cal_metric_type": cm_name.split("_")[-1],
                 "cal_metric": cm_name.replace("_", " "),
                 "qual_metric": qm_name,
                 "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
                 "cal_m_error": cal_metric_errors_dict[cm_name],
                 "qual_score": qual_metric_scores_dict[qm_name],
-                "slice_idx": slice_idx
             }
             # Add the dataset info to the record
             record = {
-                **cal_record, 
+                **combined_metrics_record, 
+                **image_log_info,
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)

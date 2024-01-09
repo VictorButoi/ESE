@@ -44,7 +44,6 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
 def dataloader_from_exp(
     inference_exp, 
     new_dset_options=None, 
-    return_data_id=False,
     batch_size=1,
     num_workers=1
 ):
@@ -60,10 +59,11 @@ def dataloader_from_exp(
     for drop_key in ["in_channels", "out_channels", "iters_per_epoch", "input_type"]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
+    # Ensure that we return the different data ids.
+    inference_data_cfg["return_data_id"] = True
     # Load the dataset with modified arguments.
     dataset_obj = absolute_import(dataset_cls)(**inference_data_cfg)
     inference_data_cfg["_class"] = dataset_cls        
-    dataset_obj.return_data_id = return_data_id 
     # Build the dataset and dataloader.
     dataloader = DataLoader(
         dataset_obj, 

@@ -26,6 +26,7 @@ class WMH(ThunderDataset, DatapathMixin):
     central_width: int = 32 
     version: float = 0.2
     preload: bool = False
+    return_data_id: bool = False
     slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[int] = None
     transforms: Optional[List[Any]] = None
@@ -38,7 +39,6 @@ class WMH(ThunderDataset, DatapathMixin):
         subjects: List[str] = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
-        self.return_data_id = False
         # Control how many samples are in each epoch.
         self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
 
@@ -92,14 +92,15 @@ class WMH(ThunderDataset, DatapathMixin):
         if self.transforms:
             img, mask = self.transforms(img, mask)
 
-        # Convert to torch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
-
+        # Prepare the return dictionary.
+        return_dict = {
+            "img": torch.from_numpy(img),
+            "label": torch.from_numpy(mask),
+        }
         if self.return_data_id:
-            return img, mask, subj
-        else:
-            return img, mask
+            return_dict["data_id"] = subj
+
+        return return_dict
 
     @property
     def _folder_name(self):
