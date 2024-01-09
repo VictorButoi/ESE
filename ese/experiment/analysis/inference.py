@@ -122,7 +122,7 @@ def get_cal_stats(
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = cfg_dict['dataset']
+    new_dset_options = cfg_dict['data']
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     dataloader, modified_cfg = dataloader_from_exp( 
@@ -186,6 +186,8 @@ def get_cal_stats(
     pixel_level_dir = task_root / "pixel_stats.pkl"
     # Set the looping function based on the input type.
     forward_loop_func = volume_forward_loop if (input_type == "volume") else image_forward_loop
+    
+    print(f"Running {str(inference_exp)}")
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):

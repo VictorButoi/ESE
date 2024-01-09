@@ -42,28 +42,27 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
-        exp, 
-        new_dset_options=None, 
-        return_data_id=False,
-        batch_size=1,
-        num_workers=1
-        ):
-    exp_data_cfg = exp.config['data'].to_dict()
+    inference_exp, 
+    new_dset_options=None, 
+    return_data_id=False,
+    batch_size=1,
+    num_workers=1
+):
+    inference_data_cfg = inference_exp.config['data'].to_dict()
     if new_dset_options is not None:
-        for key in new_dset_options.keys():
-            exp_data_cfg[key] = new_dset_options[key]
+        inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 
-    if "slicing" in exp_data_cfg.keys():
-        assert exp_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
+    if "slicing" in inference_data_cfg.keys():
+        assert inference_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
-    dataset_cls = exp_data_cfg.pop("_class")
+    dataset_cls = inference_data_cfg.pop("_class")
     # Drop auxiliary information used for making the models.
-    if "in_channels" in exp_data_cfg.keys():
-        exp_data_cfg.pop("in_channels")
-    if "out_channels" in exp_data_cfg.keys():
-        exp_data_cfg.pop("out_channels")
-    dataset_obj = absolute_import(dataset_cls)(**exp_data_cfg)
-    exp_data_cfg["_class"] = dataset_cls        
+    for drop_key in ["in_channels", "out_channels", "iters_per_epoch", "input_type"]:
+        if drop_key in inference_data_cfg.keys():
+            inference_data_cfg.pop(drop_key)
+    # Load the dataset with modified arguments.
+    dataset_obj = absolute_import(dataset_cls)(**inference_data_cfg)
+    inference_data_cfg["_class"] = dataset_cls        
     dataset_obj.return_data_id = return_data_id 
     # Build the dataset and dataloader.
     dataloader = DataLoader(
@@ -72,7 +71,7 @@ def dataloader_from_exp(
         num_workers=num_workers,
         shuffle=False
     )
-    return dataloader, exp_data_cfg
+    return dataloader, inference_data_cfg
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
