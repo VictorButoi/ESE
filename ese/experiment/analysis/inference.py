@@ -202,7 +202,6 @@ def get_cal_stats(
     # Set the looping function based on the input type.
     forward_loop_func = volume_forward_loop if (input_type == "volume") else image_forward_loop
     
-    print(f"Running {str(inference_exp)}")
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):

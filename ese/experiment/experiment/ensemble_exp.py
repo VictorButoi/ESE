@@ -81,9 +81,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.ens_exp_paths = []
         self.ens_exps = {}
-        # Keep track of the classes used in the ensemble.
-        model_cfg["model_class"] = None 
-        model_cfg["pretrained_class"] = None
         self.num_params = 0
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Get the experiment class
@@ -102,10 +99,14 @@ class EnsembleInferenceExperiment(BaseExperiment):
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
+                def parse_class_name(class_name):
+                    return class_name.split("'")[-2]
                 # Do some bookkeping about the kinds of models we are including in the ensemble.
-                model_cfg["model_class"] = loaded_exp.model.__class__.__name__
+                model_cfg["_class"] = parse_class_name(str(loaded_exp.model.__class__))
                 if hasattr(loaded_exp, "base_model"):
-                    model_cfg["pretrained_class"] = loaded_exp.base_model.__class__.__name__
+                    model_cfg["_pretrained_class"] = parse_class_name(str(loaded_exp.base_model.__class__))
+                else:
+                    model_cfg["_pretrained_class"] = None
         self.properties["num_params"] = self.num_params 
         # Create the new config.
         total_config["model"] = model_cfg
