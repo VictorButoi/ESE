@@ -24,6 +24,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.build_model()
         self.build_data(load_data)
+        # Save the config because we've modified it.
+        autosave(self.config.to_dict(), self.path / "config.yml") # Save the new config because we edited it.
     
     def build_data(self, load_data):
         # Move the information about channels to the model config.
@@ -33,7 +35,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         if "data" in self.config:
             self.pretrained_data_cfg.update(self.config["data"].to_dict())
         total_config["data"] = self.pretrained_data_cfg
-        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
 
         if load_data:
@@ -75,10 +76,15 @@ class EnsembleInferenceExperiment(BaseExperiment):
                     raise ValueError(f"The only difference between the configs should be the seed, but found different values in column '{column}'.")
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
+        # Build the combine function.
+        self.combine_fn = get_combine_fn(model_cfg["ensemble_combine_fn"])
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.ens_exp_paths = []
         self.ens_exps = {}
-        total_params = 0
+        # Keep track of the classes used in the ensemble.
+        model_cfg["model_class"] = None 
+        model_cfg["pretrained_class"] = None
+        self.num_params = 0
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Get the experiment class
             properties_dir = Path(exp_path) / "properties.json"
@@ -92,15 +98,18 @@ class EnsembleInferenceExperiment(BaseExperiment):
             loaded_exp.model.eval()
             self.ens_exp_paths.append(exp_path)
             self.ens_exps[exp_path] = loaded_exp
-            total_params += loaded_exp.properties["num_params"]
+            self.num_params += loaded_exp.properties["num_params"]
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
-
-        self.num_params = total_params
-        # Build the combine function.
-        self.combine_fn = get_combine_fn(model_cfg["ensemble_combine_fn"])
+                # Do some bookkeping about the kinds of models we are including in the ensemble.
+                model_cfg["model_class"] = loaded_exp.model.__class__.__name__
+                if hasattr(loaded_exp, "base_model"):
+                    model_cfg["pretrained_class"] = loaded_exp.base_model.__class__.__name__
         self.properties["num_params"] = self.num_params 
+        # Create the new config.
+        total_config["model"] = model_cfg
+        self.config = Config(total_config)
 
     def to_device(self):
         for exp_path in self.ens_exp_paths:

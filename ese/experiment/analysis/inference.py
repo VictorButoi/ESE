@@ -60,6 +60,7 @@ def load_cal_inference_stats(
         "image_info_df": pd.DataFrame([]),
         "metadata_df": pd.DataFrame([])
     }
+
     # Loop through every configuration in the log directory.
     for log_dir in log_dirs:
         for log_set in log_dir.iterdir():
@@ -72,21 +73,35 @@ def load_cal_inference_stats(
                 flat_cfg = valmap(list2tuple, cfg.flatten())
                 flat_cfg["log_set"] = log_set.name
                 # Remove some columns we don't care about.
-                if "qual_metrics" in flat_cfg:
-                    flat_cfg.pop("qual_metrics")
-                if "cal_metrics" in flat_cfg:
-                    flat_cfg.pop("cal_metrics")
-                if "calibration.bin_weightings" in flat_cfg:
-                    flat_cfg.pop("calibration.bin_weightings")
+                for drop_key in ["qual_metrics", "cal_metrics", "calibration.bin_weightings"]:
+                    if drop_key in flat_cfg:
+                        flat_cfg.pop(drop_key)
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
-                # Loop through the different splits and load the image stats.
+    
+    # Gather the columns that have unique values amongst the different configurations.
+    unique_cols = []
+    for col in cal_info_dict["metadata_df"].columns:
+        if len(cal_info_dict["metadata_df"][col].unique()) > 1:
+            unique_cols.append(col)
+    # Loop through every configuration in the log directory.
+    for log_dir in log_dirs:
+        for log_set in log_dir.iterdir():
+            if log_set.name not in ["wandb", "submitit"]:
+                # Get the metadata corresponding to this log set.
+                metadata_log_df = cal_info_dict["metadata_df"][cal_info_dict["metadata_df"]["log_set"] == log_set.name]
+                # Optionally load the information from image-based metrics.
                 if load_image_df:
                     log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
                     log_image_df["log_set"] = log_set.name
+                    # Add the columns from the metadata dataframe that have unique values.
+                    for col in unique_cols:
+                        assert len(metadata_log_df[col].unique()) == 1, \
+                            f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
+                        log_image_df[col] = metadata_log_df[col].values[0]
                     cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
-                # Load the pixel stats.
+                # Optionally load the pixel stats.
                 if load_pixel_meters_dict:
                     with open(log_set / "pixel_stats.pkl", 'rb') as f:
                         pixel_meter_dict = pickle.load(f)
