@@ -73,7 +73,7 @@ def hd95(
     ignore_index: Optional[int] = None
 ):
     """
-    Calculates the 95% percentile Hausdorff Distance for a predicted label map. 
+    Calculates the 95th percentile Hausdorff Distance for a predicted label map. 
     """
     assert len(y_pred.shape) == 4 and len(y_true.shape) == 4,\
         "y_pred and y_true must be 4D tensors."
@@ -109,10 +109,10 @@ def hd95(
             # If neither have pixels, set the score to 0.
             elif label_pred.sum() == 0 and label_gt.sum() == 0:
                 hd_scores[batch_idx, lab_idx] = 0.0
-            # If one has pixels and the other doesn't, set the score to the max possible.
+            # If one has pixels and the other doesn't, set the score to NaN
             else:
-                hd_scores[batch_idx, lab_idx] = max(label_pred.shape[-2:])
-    
+                hd_scores[batch_idx, lab_idx] = float('nan') 
+        
     if ignore_empty_labels:
         true_amounts = torch.sum(torch.from_numpy(y_true_one_hot), dim=(-2, -1)) # B x C
         existing_label = (true_amounts > 0).float()
@@ -120,6 +120,12 @@ def hd95(
             weights = existing_label
         else:
             weights = weights * existing_label
+
+    # If the weight of a nan score is 0, then we want to set it to 0 instead of nan,
+    # so that the reduction doesn't fail. This only is true if the weight is 0 and the
+    # score is nan.
+    nan_mask = torch.isnan(hd_scores) & (weights == 0)
+    hd_scores[nan_mask] = 0.0
         
     return _metric_reduction(
         hd_scores,
