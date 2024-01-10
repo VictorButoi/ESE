@@ -120,17 +120,23 @@ def hd95(
             weights = existing_label
         else:
             weights = weights * existing_label
-
+    else:
+        weights = torch.ones_like(hd_scores) # Need to set weights to 1 for this in particular.
+    
+    # If we want to ignore a label, set its weight to 0.
+    if ignore_index is not None:
+        assert 0 <= ignore_index < C, "ignore_index must be in [0, channels)"
+        weights[ignore_index] = 0.0
+ 
     # If the weight of a nan score is 0, then we want to set it to 0 instead of nan,
     # so that the reduction doesn't fail. This only is true if the weight is 0 and the
     # score is nan.
-    nan_mask = torch.isnan(hd_scores) & (weights == 0)
+    nan_mask = torch.isnan(hd_scores) & (weights == 0.0)
     hd_scores[nan_mask] = 0.0
         
     return _metric_reduction(
         hd_scores,
         reduction=reduction,
         weights=weights,
-        ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
