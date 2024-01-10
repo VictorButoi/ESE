@@ -8,6 +8,10 @@ from pydantic import validate_arguments
 from ionpy.experiment.util import absolute_import
 
 
+def parse_class_name(class_name):
+    return class_name.split("'")[-2]
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def process_pred_map(
     conf_map: torch.Tensor, 

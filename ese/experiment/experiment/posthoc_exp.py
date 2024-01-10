@@ -1,7 +1,7 @@
 # misc imports
 import os
 # local imports
-from .utils import load_experiment, process_pred_map
+from .utils import load_experiment, process_pred_map, parse_class_name
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -88,12 +88,9 @@ class PostHocExperiment(TrainExperiment):
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )
-        # Make sure we use the old experiment seed.
-        old_exp_config = self.pretrained_exp.config.to_dict() 
-        total_config['experiment'] = old_exp_config['experiment']
-        # Set important things about the model.
-        self.config = Config(total_config)
-        # Set the base model to not get updates.
+        ########################
+        # BUILD THE BASE MODEL #
+        ########################
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         ########################
@@ -102,6 +99,14 @@ class PostHocExperiment(TrainExperiment):
         self.model = eval_config(self.config["model"])
         self.model.weights_init()
         self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
+        ########################################################################
+        # Make sure we use the old experiment seed and add important metadata. #
+        ########################################################################
+        old_exp_config = self.pretrained_exp.config.to_dict() 
+        total_config['experiment'] = old_exp_config['experiment']
+        total_config['model']['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
+        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
+        self.config = Config(total_config)
     
     def build_loss(self):
         self.loss_func = eval_config(self.config["loss_func"])

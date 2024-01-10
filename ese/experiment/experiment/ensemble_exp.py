@@ -1,5 +1,5 @@
 # local imports
-from .utils import process_pred_map
+from .utils import process_pred_map, parse_class_name
 from ..models.ensemble import get_combine_fn
 # torch imports
 import torch
@@ -99,8 +99,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
-                def parse_class_name(class_name):
-                    return class_name.split("'")[-2]
                 # Do some bookkeping about the kinds of models we are including in the ensemble.
                 model_cfg["_class"] = parse_class_name(str(loaded_exp.model.__class__))
                 if hasattr(loaded_exp, "base_model"):
