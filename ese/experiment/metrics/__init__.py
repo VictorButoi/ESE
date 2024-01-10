@@ -17,3 +17,7 @@ from .elm import (
     tl_elm_loss,
     cw_elm_loss
 )
+from .segmentation import (
+    dice_score,
+    hd95
+)
