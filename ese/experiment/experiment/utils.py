@@ -62,20 +62,21 @@ def load_experiment(
         exp_path = sorted_df.iloc[0].path
     else:
         exp_path = path
+
     # Get the experiment class
     properties_dir = Path(exp_path) / "properties.json"
     with open(properties_dir, 'r') as prop_file:
         props = json.loads(prop_file.read())
     exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
+
     # Load the experiment
     loaded_exp = exp_class(exp_path, load_data=load_data)
     if checkpoint is not None:
         loaded_exp.load(tag=checkpoint)
+    
     # Set the device
     loaded_exp.device = torch.device(device)
     if device == "cuda":
         loaded_exp.to_device()
-    # # Place the logs in the experiment, will be hand later
-    # loaded_exp.logs = df.select(path=exp_path).reset_index(drop=True)
-    # Return the modified loaded exp.
+    
     return loaded_exp

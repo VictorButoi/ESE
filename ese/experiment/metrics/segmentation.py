@@ -4,8 +4,8 @@ from torch import Tensor
 from torch.nn import functional as F
 # misc imports
 from pydantic import validate_arguments
-from typing import Optional, Union, List
-from medpy.metric.binary import hd as HausdorffDist
+from typing import Optional, Union, List, Literal
+from medpy.metric.binary import hd95 as HausdorffDist95
 # local imports
 from ionpy.metrics.util import (
     _metric_reduction,
@@ -102,7 +102,7 @@ def hd95(
             label_gt = y_true_one_hot[batch_idx, lab_idx, :, :]
             # If they both have pixels, calculate the hausdorff distance.
             if label_pred.sum() > 0 and label_gt.sum() > 0:
-                hd_scores[batch_idx, lab_idx] = HausdorffDist(
+                hd_scores[batch_idx, lab_idx] = HausdorffDist95(
                     result=label_pred,
                     reference=label_gt
                     )

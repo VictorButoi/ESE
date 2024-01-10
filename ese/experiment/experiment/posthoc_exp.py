@@ -96,7 +96,12 @@ class PostHocExperiment(TrainExperiment):
         ########################
         # BUILD THE CALIBRATOR #
         ########################
-        self.model = eval_config(self.config["model"])
+        model_config_dict = total_config['model']
+        if '_pretrained_class' in model_config_dict:
+            model_config_dict.pop('_pretrained_class')
+        model_class = model_config_dict['_class']
+        # Load the model
+        self.model = eval_config(model_config_dict)
         self.model.weights_init()
         self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
         ########################################################################
@@ -104,7 +109,9 @@ class PostHocExperiment(TrainExperiment):
         ########################################################################
         old_exp_config = self.pretrained_exp.config.to_dict() 
         total_config['experiment'] = old_exp_config['experiment']
-        total_config['model']['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
+        # total_config['model']['_class'] = 
+        model_config_dict['_class'] = model_class
+        model_config_dict['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
     

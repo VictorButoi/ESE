@@ -9,6 +9,7 @@ from pydantic import validate_arguments
 from typing import Any, Optional, List
 # torch imports
 import torch
+from torch.nn import functional as F
 # ionpy imports
 from ionpy.util import Config, StatsMeter
 from ionpy.util.config import HDict, valmap
@@ -84,7 +85,6 @@ def load_cal_inference_stats(
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
-    print("metadf columns:", cal_info_dict["metadata_df"].columns) 
     # Gather the columns that have unique values amongst the different configurations.
     unique_cols = []
     for col in cal_info_dict["metadata_df"].columns:
@@ -405,9 +405,16 @@ def get_image_stats(
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
     
+    # Calculate the amount of present ground-truth there is in the image per label.
+    num_classes = output_dict["ypred"].shape[1]
+    y_true_one_hot = F.one_hot(output_dict["ytrue"], num_classes=num_classes) # B x 1 x H x W x C
+    label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
+    label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+    
     image_log_info = {
         "data_id": output_dict["data_id"],
-        "slice_idx": output_dict["slice_idx"] 
+        "slice_idx": output_dict["slice_idx"],
+        **label_amounts_dict
     }
     if len(qual_metric_scores_dict) == 0:
         for cm_name in list(cal_metric_errors_dict.keys()):

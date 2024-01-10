@@ -115,7 +115,6 @@ def load_inference_exp_from_cfg(
     inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
     # Update the model cfg to include old model cfg.
     inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
-
     return inference_exp, save_root
 
 
