@@ -107,6 +107,7 @@ class CalibrationExperiment(TrainExperiment):
             
         # Forward pass
         yhat = self.model(x)
+        print("Did forward pass.")
         # Calculate the loss between the pred and label map
         # NOTE: If the loss is multi-class, then the label map is one-hot.
         if yhat.shape[1] > 1:

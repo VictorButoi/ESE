@@ -1,5 +1,4 @@
 # ionpy imports
-from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
 from ionpy.util.validation import validate_arguments_init
 # torch imports
@@ -12,7 +11,7 @@ from typing import Any, List, Literal, Optional
 
 @validate_arguments_init
 @dataclass
-class OASIS(ThunderDataset, DatapathMixin):
+class OASIS(ThunderDataset):
 
     axis: Literal[0, 1, 2]
     label_set: Literal["label4", "label35"]
@@ -22,8 +21,8 @@ class OASIS(ThunderDataset, DatapathMixin):
     replace: bool = False
     central_width: int = 32 
     version: float = 0.1
-    preload: bool = False
     binary: bool = False
+    preload: bool = False
     slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[int] = None
     target_labels: Optional[List[int]] = None
