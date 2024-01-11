@@ -245,8 +245,8 @@ def thunderify_OASIS(
         cfg: Config
         ):
     # Append version to our paths
-    proc_root = pathlib.Path(cfg["proc_root"]) / str(cfg['version'])
-    thunder_dst = pathlib.Path(cfg["dst_dir"]) / str(cfg['version'])
+    proc_root = pathlib.Path(cfg["proc_root"]) / str(cfg['proc_version'])
+    thunder_dst = pathlib.Path(cfg["dst_dir"]) / str(cfg['out_version'])
     # Train Calibration Val Test
     splits_ratio = (0.7, 0.1, 0.1, 0.1)
     splits_seed = 42
@@ -260,7 +260,9 @@ def thunderify_OASIS(
             # Iterate through each datacenter, axis  and build it as a task
             with ThunderDB.open(str(task_save_dir), "c") as db:
                 subjects = []
-                for subj in axis_examples_dir.iterdir():
+                total_subjs = len(list(axis_examples_dir.iterdir()))
+                for s_idx, subj in enumerate(axis_examples_dir.iterdir()):
+                    print(f"Axis: {axis_examples_dir.name} | Label set: {label_set} | Working on subject {s_idx}/{total_subjs}")
                     # Load the image
                     img_dir = subj / "image.npy"
                     raw_img = np.load(img_dir) 
@@ -312,13 +314,9 @@ def thunderify_OASIS(
                     "ratio": splits_ratio, 
                     "seed": splits_seed
                     }
-                attrs = dict(
+                db["_attrs"] = dict(
                     dataset="OASIS",
-                    version=cfg['version'],
+                    version=cfg['out_version'],
                     label_set=label_set,
                     axis=axis_examples_dir.name
                 )
-                db["_subjects"] = subjects
-                db["_samples"] = subjects
-                db["_splits"] = splits
-                db["_attrs"] = attrs

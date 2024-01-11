@@ -20,16 +20,16 @@ class OASIS(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "val", "test"]
     slicing: str = "midslice"
     num_slices: int = 1
-    replace: bool = False
+    version: float = 0.2
     central_width: int = 32 
-    version: float = 0.1
+    slice_batch_size: int = 1 
     binary: bool = False
-    return_data_id: bool = False
+    replace: bool = False
     preload: bool = False
-    slice_batch_size: Optional[int] = 1 
+    return_data_id: bool = False
     iters_per_epoch: Optional[int] = None
-    target_labels: Optional[List[int]] = None
     transforms: Optional[List[Any]] = None
+    target_labels: Optional[List[int]] = None
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)
@@ -52,7 +52,6 @@ class OASIS(ThunderDataset, DatapathMixin):
         
         # Control how many samples are in each epoch.
         self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
-
 
     def __len__(self):
         return self.num_samples
@@ -96,21 +95,18 @@ class OASIS(ThunderDataset, DatapathMixin):
             raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
-        img = img_vol[slice_indices, ...].astype(np.float32)
-        mask = mask_vol[slice_indices, ...].astype(np.float32)
-
-        if self.transforms:
-            img, mask = self.transforms(img, mask)
-
-        # Prepare the return dictionary.
-        return_dict = {
-            "img": torch.from_numpy(img),
-            "label": torch.from_numpy(mask),
-        }
+        img = torch.from_numpy(img_vol[slice_indices, ...])
+        mask = torch.from_numpy(mask_vol[slice_indices, ...])
 
         # If we are remapping the labels, then we need to do that here.
         if self.label_map is not None:
-            return_dict["label"] = self.label_map[return_dict["label"]]
+            mask = self.label_map[mask]
+        
+        # Prepare the return dictionary.
+        return_dict = {
+            "img": img.float(),
+            "label": mask.float(),
+        }
 
         if self.return_data_id:
             return_dict["data_id"] = subj
