@@ -1,6 +1,7 @@
 # Misc imports
 import yaml
 import pickle
+import einops
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -258,11 +259,16 @@ def volume_forward_loop(
         label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
-        if inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"]:
+        ensemble_show_preds = (inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"])
+        if ensemble_show_preds:
             predict_args["combine_fn"] = "identity"
-        # Get the prediction and don't track gradients.
+        # Do a forward pass.
         with torch.no_grad():
-            exp_output = exp.predict(image_cuda, **predict_args)
+            exp_output =  exp.predict(image_cuda, **predict_args)
+        # Ensembling the preds and we want to show them we need to change the shape a bit.
+        if ensemble_show_preds: 
+            exp_output["ypred"] = einops.rearrange(exp_output["ypred"], "1 C E H W -> E C H W")
+            exp_output["yhard"] = einops.rearrange(exp_output["yhard"], "1 C E H W -> E C H W")
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
@@ -297,11 +303,16 @@ def image_forward_loop(
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
     predict_args = {'multi_class': True}
-    if inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"]:
+    ensemble_show_preds = (inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"])
+    if ensemble_show_preds:
         predict_args["combine_fn"] = "identity"
     # Do a forward pass.
     with torch.no_grad():
         exp_output =  exp.predict(image_cuda, **predict_args)
+    # Ensembling the preds and we want to show them we need to change the shape a bit.
+    if ensemble_show_preds: 
+        exp_output["ypred"] = einops.rearrange(exp_output["ypred"], "1 C E H W -> E C H W")
+        exp_output["yhard"] = einops.rearrange(exp_output["yhard"], "1 C E H W -> E C H W")
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,
@@ -329,9 +340,11 @@ def get_calibration_item_info(
     pixel_meter_dict: Optional[dict] = None,
     ignore_index: Optional[int] = None,
     ):
-    if "show_examples" in inference_cfg["log"] and inference_cfg["log"]["show_examples"]:
+    if inference_cfg["log"]["show_examples"]:
         ShowPredictionsCallback(output_dict)
         if inference_cfg["model"]["ensemble"]:
+            
+            ShowPredictionsCallback(output_dict)
             raise NotImplementedError("Need to do stuff here.")
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:

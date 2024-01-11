@@ -1,7 +1,10 @@
 # torch imports
 import torch
+from typing import Union
+from pydantic import validate_arguments
 
-def get_combine_fn(combine_fn):
+
+def get_combine_fn(combine_fn: str):
     if combine_fn == "identity":
         return identity_combine_fn
     elif combine_fn == "mean":
@@ -12,18 +15,27 @@ def get_combine_fn(combine_fn):
         raise ValueError(f"Unknown combine function '{combine_fn}'.")
 
 
-def batch_ensemble_preds(model_outputs):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def batch_ensemble_preds(model_outputs: dict):
     preds = list(model_outputs.values())
     pred_tensor = torch.stack(preds) # E, B, C, H, W
     batchwise_ensemble_tensor = pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
     return batchwise_ensemble_tensor
 
 
-def identity_combine_fn(ensemble_logits: dict, pre_softmax: bool):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def identity_combine_fn(
+    ensemble_logits: dict, 
+    pre_softmax: bool
+):
     return batch_ensemble_preds(ensemble_logits)
 
 
-def mean_combine_fn(ensemble_logits: dict, pre_softmax: bool):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def mean_combine_fn(
+    ensemble_logits: dict, 
+    pre_softmax: bool
+):
     batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
 
     if pre_softmax:
@@ -36,7 +48,10 @@ def mean_combine_fn(ensemble_logits: dict, pre_softmax: bool):
 
     return batch_mean_tensors
 
-def max_combine_fn(ensemble_logits: dict, pre_softmax: bool):
+def max_combine_fn(
+    ensemble_logits: dict, 
+    pre_softmax: bool
+):
     batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
 
     if pre_softmax:

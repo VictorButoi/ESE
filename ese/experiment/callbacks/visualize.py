@@ -9,6 +9,17 @@ def ShowPredictionsCallback(
         from_logits: bool = True,
         threshold: float = 0.5
         ):
+    
+    # If our pred has a different batchsize than our inputs, we
+    # need to tile the input and label to match the batchsize of
+    # the prediction.
+    if batch["x"].shape[0] != batch["ypred"].shape[0]:
+        assert batch["x"].shape[0] == 1, "Batchsize of input image must be 1 if batchsize of prediction is not 1."
+        assert batch["ytrue"].shape[0] == 1, "Batchsize of input label must be 1 if batchsize of prediction is not 1."
+        bs = batch["ypred"].shape[0]
+        batch["x"] = batch["x"].repeat(bs, 1, 1, 1)
+        batch["ytrue"] = batch["ytrue"].repeat(bs, 1, 1, 1)
+    
     # Move the channel dimension to the last dimension
     x = batch["x"].detach().cpu()
     x = x.permute(0, 2, 3, 1)
