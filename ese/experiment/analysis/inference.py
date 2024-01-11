@@ -341,10 +341,9 @@ def get_calibration_item_info(
     ignore_index: Optional[int] = None,
     ):
     if inference_cfg["log"]["show_examples"]:
-        ShowPredictionsCallback(output_dict)
+        ShowPredictionsCallback(output_dict, softpred_dim=1)
         if inference_cfg["model"]["ensemble"]:
-            
-            ShowPredictionsCallback(output_dict)
+            ShowPredictionsCallback(output_dict, softpred_dim=1)
             raise NotImplementedError("Need to do stuff here.")
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:

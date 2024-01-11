@@ -1,15 +1,17 @@
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
+from typing import Optional
+import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 
 def ShowPredictionsCallback(
         batch, 
         from_logits: bool = True,
-        threshold: float = 0.5
+        threshold: float = 0.5,
+        size_per_iamge: int = 3,
+        softpred_dim: Optional[int] = None 
         ):
-    
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
@@ -51,15 +53,15 @@ def ShowPredictionsCallback(
 
     if num_pred_classes > 1:
         if from_logits:
-            y_hat = torch.softmax(yhat, dim=1)
-        yhat = torch.argmax(y_hat, dim=1).numpy()
+            yhat = torch.softmax(yhat, dim=1)
+        yhard = torch.argmax(yhat, dim=1).numpy()
     else:
         if from_logits:
-            y_hat = torch.sigmoid(yhat)
-        yhat = (y_hat > threshold).numpy()
+            yhat = torch.sigmoid(yhat)
+        yhard = (yhat > threshold).numpy()
     
-    num_cols =  3
-    f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(20, bs*5))
+    num_cols = 4 if (softpred_dim is not None) else 3
+    f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(4 * size_per_iamge, bs*size_per_iamge))
 
     # Go through each item in the batch.
     for b_idx in range(bs):
@@ -72,9 +74,14 @@ def ShowPredictionsCallback(
             im2 = axarr[1].imshow(y.squeeze(), cmap=label_cm, interpolation='None')
             f.colorbar(im2, ax=axarr[1], orientation='vertical')
 
-            axarr[2].set_title("Prediction")
-            im3 = axarr[2].imshow(yhat.squeeze(), cmap=label_cm, interpolation='None')
+            axarr[2].set_title("Hard Prediction")
+            im3 = axarr[2].imshow(yhard.squeeze(), cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[2], orientation='vertical')
+
+            if softpred_dim is not None:
+                axarr[3].set_title("Soft Prediction")
+                im4 = axarr[3].imshow(yhat[softpred_dim].squeeze(), cmap=label_cm, interpolation='None')
+                f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr:
@@ -89,9 +96,14 @@ def ShowPredictionsCallback(
             im2 = axarr[b_idx, 1].imshow(y[b_idx].squeeze(), cmap=label_cm, interpolation='None')
             f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
 
-            axarr[b_idx, 2].set_title("Prediction")
-            im3 = axarr[b_idx, 2].imshow(yhat[b_idx].squeeze(), cmap=label_cm, interpolation='None')
+            axarr[b_idx, 2].set_title("Hard Prediction")
+            im3 = axarr[b_idx, 2].imshow(yhard[b_idx].squeeze(), cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
+
+            if softpred_dim is not None:
+                axarr[b_idx, 3].set_title("Soft Prediction")
+                im4 = axarr[b_idx, 3].imshow(yhat[b_idx, softpred_dim].squeeze(), cmap=label_cm, interpolation='None')
+                f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr[b_idx]:
