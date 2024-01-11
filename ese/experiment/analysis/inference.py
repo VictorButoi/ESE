@@ -112,6 +112,13 @@ def load_cal_inference_stats(
                         pixel_meter_dict = pickle.load(f)
                     # Set the pixel dict of the log set.
                     cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
+    # If we are loading the image stats df, make sure we check that all log_dirs have the same number of rows.
+    if load_image_df:
+        # Get the number of rows in image_info_df for each log set.
+        num_rows_per_log_set = cal_info_dict["image_info_df"].groupby("log_set").size()
+        # Make sure there is only one unique value in the above.
+        assert len(num_rows_per_log_set.unique()) == 1, \
+            "The number of rows in the image_info_df is not the same for all log sets."
     # Finally, return the dictionary of inference info.
     return cal_info_dict
 
