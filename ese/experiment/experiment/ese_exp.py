@@ -106,12 +106,12 @@ class CalibrationExperiment(TrainExperiment):
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
             
-        # torch.cuda.synchronize()
-        # start = time.time()
+        torch.cuda.synchronize()
+        start = time.time()
         yhat = self.model(x)
-        # torch.cuda.synchronize()
-        # end = time.time()
-        # print("Model forward pass time: ", end - start)
+        torch.cuda.synchronize()
+        end = time.time()
+        print("Model forward pass time: ", end - start)
 
         if yhat.shape[1] > 1:
             y = y.long()
@@ -120,12 +120,13 @@ class CalibrationExperiment(TrainExperiment):
         # If backward then backprop the gradients.
         if backward:
 
-            # torch.cuda.synchronize()
-            # start = time.time()
+            torch.cuda.synchronize()
+            start = time.time()
             loss.backward()
-            # torch.cuda.synchronize()
-            # end = time.time()
-            # print("Backward pass time: ", end - start)
+            torch.cuda.synchronize()
+            end = time.time()
+            print("Backward pass time: ", end - start)
+            print()
 
             self.optim.step()
             self.optim.zero_grad()

@@ -5,6 +5,7 @@ from ionpy.util.validation import validate_arguments_init
 # torch imports
 import torch
 # random imports
+import time
 import numpy as np
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
@@ -23,6 +24,7 @@ class OASIS(ThunderDataset, DatapathMixin):
     central_width: int = 32 
     version: float = 0.1
     binary: bool = False
+    return_data_id: bool = False
     preload: bool = False
     slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[int] = None
@@ -31,52 +33,55 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)
-        subjects = self._db["_splits"][self.split]
-        self.samples = subjects
-        self.subjects = subjects
-        self.return_data_id = False
-        # Control how many samples are in each epoch.
-        self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
+        self.subjects = self._db["_splits"][self.split]
+
         # If target labels is not None, then we need to remap the target labels to a contiguous set.
         if self.target_labels is not None:
-            if self.binary: 
-                self.label_map = {label: 1 for label in self.target_labels}
+            if self.label_set == "label4":
+                self.label_map = torch.zeros(5, dtype=torch.int64)
             else:
-                self.label_map = {label: i for i, label in enumerate(self.target_labels)}
+                self.label_map = torch.zeros(36, dtype=torch.int64)
+            for i, label in enumerate(self.target_labels):
+                if self.binary:
+                    self.label_map[label] = 1
+                else:
+                    self.label_map[label] = i
         else:
             assert not self.binary, "Binary labels require target labels to be specified."
+            self.label_map = None
+        
+        # Control how many samples are in each epoch.
+        self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
+
 
     def __len__(self):
         return self.num_samples
 
     def __getitem__(self, key):
-        key = key % len(self.samples)
+        key = key % len(self.subjects)
         subj = self.subjects[key]
-        img_vol, mask_vol = self._db[subj]
+        subj_dict = self._db[subj]
+        img_vol = subj_dict['image']
+        mask_vol = subj_dict['mask']
+        lab_amounts_per_slice = subj_dict['lab_amounts_per_slice']
 
-       # if target labels are not None, then we need to remap the labels in the target labels
-        # and everything else to background.
-        if self.target_labels is not None:
-            # Define a mapping function
-            def remap_fn(value):
-                # Map the value to the corresponding value in the dictionary, or 0 if not found
-                return self.label_map.get(value, 0)
-            # Use numpy.vectorize to apply the remap function to each element in the array
-            remap_vectorized = np.vectorize(remap_fn)
-            # Apply the remap function to the NumPy array
-            mask_vol = remap_vectorized(mask_vol)
+        # Get the label_amounts
+        label_amounts = np.zeros_like(lab_amounts_per_slice)
+        lab_list = self.target_labels if self.target_labels is not None else lab_amounts_per_slice.keys()
+        for label in lab_list:
+            label_amounts += lab_amounts_per_slice[label]
 
-        label_amounts_per_slice = mask_vol.sum(axis=(1, 2))
+        # Use this for slicing.
         vol_size = mask_vol.shape[0] # Typically 256
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
             slice_indices = np.array([128])
         # Sample the slice proportional to how much label they have.
         elif self.slicing == "dense":
-            label_probs = label_amounts_per_slice / np.sum(label_amounts_per_slice)
+            label_probs = self.label_amounts_per_slice[subj] / np.sum(self.label_amounts_per_slice[subj])
             slice_indices = np.random.choice(np.arange(vol_size), size=self.num_slices, p=label_probs, replace=self.replace)
         elif self.slicing == "uniform":
-            slice_indices = np.random.choice(np.where(label_amounts_per_slice> 0)[0], size=self.num_slices, replace=self.replace)
+            slice_indices = np.random.choice(np.where(self.label_amounts_per_slice[subj] > 0)[0], size=self.num_slices, replace=self.replace)
         # Sample an image and label slice from around a central region.
         elif self.slicing == "central":
             central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
@@ -102,6 +107,11 @@ class OASIS(ThunderDataset, DatapathMixin):
             "img": torch.from_numpy(img),
             "label": torch.from_numpy(mask),
         }
+
+        # If we are remapping the labels, then we need to do that here.
+        if self.label_map is not None:
+            return_dict["label"] = self.label_map[return_dict["label"]]
+
         if self.return_data_id:
             return_dict["data_id"] = subj
 

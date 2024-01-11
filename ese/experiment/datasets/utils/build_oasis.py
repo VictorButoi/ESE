@@ -270,6 +270,12 @@ def thunderify_OASIS(
                     # Convert the img and label to correct types
                     img = raw_img.astype(np.float32)
                     lab = raw_lab.astype(np.int64)
+                    # Calculate the label amounts as a dictionary
+                    # for the number of pixels in the lab for each unique label
+                    label_amounts = {}
+                    for label in np.unique(lab):
+                        one_hot_lab = (lab == label).astype(np.int64)
+                        label_amounts[label] = np.sum(one_hot_lab, axis=(1, 2))
 
                     if cfg['show_examples']:
                         # Set up the figure
@@ -290,7 +296,11 @@ def thunderify_OASIS(
 
                     # Save the datapoint to the database
                     key = subj.name
-                    db[key] = (img, lab) 
+                    db[key] = {
+                        "image": img,
+                        "mask": lab,
+                        "lab_amounts_per_slice": label_amounts 
+                    }
                     subjects.append(key)
                 # Sort the subjects and save some info.
                 subjects = sorted(subjects)
