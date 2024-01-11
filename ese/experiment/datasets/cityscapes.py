@@ -62,14 +62,15 @@ class CityScapes(ThunderDataset, DatapathMixin):
         assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
         assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
 
-        # Convert to torch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)[None] # Add channel dimension
-
+        # Prepare the return dictionary.
+        return_dict = {
+            "img": torch.from_numpy(img),
+            "label": torch.from_numpy(mask),
+        }
         if self.return_data_id:
-            return img, mask, example_name 
-        else:
-            return img, mask
+            return_dict["data_id"] = example_name 
+
+        return return_dict
 
     @property
     def _folder_name(self):

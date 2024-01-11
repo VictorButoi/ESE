@@ -97,14 +97,15 @@ class OASIS(ThunderDataset, DatapathMixin):
         if self.transforms:
             img, mask = self.transforms(img, mask)
 
-        # Convert to torch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
-
+        # Prepare the return dictionary.
+        return_dict = {
+            "img": torch.from_numpy(img),
+            "label": torch.from_numpy(mask),
+        }
         if self.return_data_id:
-            return img, mask, subj
-        else:
-            return img, mask
+            return_dict["data_id"] = subj
+
+        return return_dict
 
     @property
     def _folder_name(self):

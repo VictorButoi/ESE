@@ -90,9 +90,13 @@ class CalibrationExperiment(TrainExperiment):
     
     def run_step(self, batch_idx, batch, backward, augmentation, epoch=None, phase=None):
         # Send data and labels to device.
-        x, y = to_device(batch, self.device)
+        batch = to_device(batch, self.device)
+        # Get the image and label.
+        x, y = batch["img"], batch["label"]
+
         # For volume datasets, sometimes want to treat different slices as a batch.
         if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
+            assert x.shape[0] == 1, "Batch size must be 1 for slice batching."
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
@@ -100,6 +104,7 @@ class CalibrationExperiment(TrainExperiment):
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
+            
         # Forward pass
         yhat = self.model(x)
         # Calculate the loss between the pred and label map

@@ -120,7 +120,10 @@ class PostHocExperiment(TrainExperiment):
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
-        x, y = to_device(batch, self.device)
+        batch = to_device(batch, self.device)
+        # Get the image and label from the batch.
+        x = batch["img"]
+        y = batch["label"]
         # Forward pass
         with torch.no_grad():
             yhat = self.base_model(x)
