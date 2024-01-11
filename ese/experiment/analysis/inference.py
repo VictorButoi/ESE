@@ -256,9 +256,13 @@ def volume_forward_loop(
         # Extract the slices from the volumes.
         image_cuda = img_vol_cuda[:, slice_idx:slice_idx+1, ...]
         label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
+        # Get the prediction with no gradient accumulation.
+        predict_args = {'multi_class': True}
+        if inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"]:
+            predict_args["combine_fn"] = "identity"
         # Get the prediction and don't track gradients.
         with torch.no_grad():
-            exp_output = exp.predict(image_cuda, multi_class=True)
+            exp_output = exp.predict(image_cuda, **predict_args)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
@@ -292,8 +296,12 @@ def image_forward_loop(
     # Get your image label pair and define some regions.
     image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
+    predict_args = {'multi_class': True}
+    if inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"]:
+        predict_args["combine_fn"] = "identity"
+    # Do a forward pass.
     with torch.no_grad():
-        exp_output = exp.predict(image_cuda, multi_class=True)
+        exp_output =  exp.predict(image_cuda, **predict_args)
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,
@@ -323,6 +331,8 @@ def get_calibration_item_info(
     ):
     if "show_examples" in inference_cfg["log"] and inference_cfg["log"]["show_examples"]:
         ShowPredictionsCallback(output_dict)
+        if inference_cfg["model"]["ensemble"]:
+            raise NotImplementedError("Need to do stuff here.")
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]

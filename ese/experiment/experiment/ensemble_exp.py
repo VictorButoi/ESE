@@ -12,6 +12,7 @@ from ionpy.experiment.util import absolute_import
 from ionpy.util.ioutil import autosave
 # misc imports
 import json
+from typing import Optional
 from pathlib import Path
 
 
@@ -77,7 +78,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
         # Build the combine function.
-        self.combine_fn = get_combine_fn(model_cfg["ensemble_combine_fn"])
+        if "ensemble_combine_fn" in model_cfg:
+            self.combine_fn = model_cfg["ensemble_combine_fn"]
+        else:
+            self.combine_fn = None
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.ens_exp_paths = []
         self.ens_exps = {}
@@ -114,7 +118,13 @@ class EnsembleInferenceExperiment(BaseExperiment):
         for exp_path in self.ens_exp_paths:
             self.ens_exps[exp_path].to_device()
 
-    def predict(self, x, multi_class, threshold=0.5):
+    def predict(
+            self, 
+            x: torch.Tensor, 
+            multi_class: bool, 
+            threshold: float = 0.5, 
+            combine_fn: Optional[str] = None
+            ):
         # Get the label predictions for each model.
         ensemble_model_outputs = {}
         for exp_path in self.ens_exp_paths:
@@ -125,7 +135,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
         #Get the model cfg
         model_cfg = self.config["model"].to_dict()
         # Combine the outputs of the models.
-        prob_map = self.combine_fn(
+        if combine_fn is None:
+            assert self.combine_fn is not None, "No combine function provided."
+            combine_fn = self.combine_fn
+        # Combine the outputs of the models.
+        prob_map = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
             pre_softmax=model_cfg["ensemble_pre_softmax"]
             )
@@ -134,7 +148,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             prob_map, 
             multi_class=multi_class, 
             threshold=threshold,
-            from_logits=False # The combine_fn already returns probs.
+            from_logits=(combine_fn == "identity") # The combine_fn already returns probs unless identity.
             )
         # Return the outputs
         return {

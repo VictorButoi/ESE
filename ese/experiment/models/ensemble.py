@@ -15,11 +15,11 @@ def get_combine_fn(combine_fn):
 def batch_ensemble_preds(model_outputs):
     preds = list(model_outputs.values())
     pred_tensor = torch.stack(preds) # E, B, C, H, W
-    batchwise_ensemble_tensor = pred_tensor.permute(1, 0, 2, 3, 4) # B, E, C, H, W
+    batchwise_ensemble_tensor = pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
     return batchwise_ensemble_tensor
 
 
-def identity_combine_fn(ensemble_logits: dict):
+def identity_combine_fn(ensemble_logits: dict, pre_softmax: bool):
     return batch_ensemble_preds(ensemble_logits)
 
 
