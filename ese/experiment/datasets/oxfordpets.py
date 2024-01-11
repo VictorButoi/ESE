@@ -5,13 +5,14 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
 # ionpy imports
+from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
 from ionpy.util.validation import validate_arguments_init
 
 
 @validate_arguments_init
 @dataclass
-class OxfordPets(ThunderDataset):
+class OxfordPets(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
     version: float = 0.2

@@ -1,19 +1,18 @@
 # torch imports
 import torch
 # random imports
-
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
 import numpy as np
-
 # ionpy imports
+from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
 from ionpy.util.validation import validate_arguments_init
 
 
 @validate_arguments_init
 @dataclass
-class WMH(ThunderDataset):
+class WMH(ThunderDataset, DatapathMixin):
 
     axis: Literal[0, 1, 2]
     task: str 

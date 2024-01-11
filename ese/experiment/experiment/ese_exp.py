@@ -12,6 +12,7 @@ from ionpy.util import Config
 from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
 # misc imports
+import time
 import einops
 import numpy as np
 import seaborn as sns
@@ -105,17 +106,27 @@ class CalibrationExperiment(TrainExperiment):
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
             
-        # Forward pass
+        # torch.cuda.synchronize()
+        # start = time.time()
         yhat = self.model(x)
-        print("Did forward pass.")
-        # Calculate the loss between the pred and label map
-        # NOTE: If the loss is multi-class, then the label map is one-hot.
+        # torch.cuda.synchronize()
+        # end = time.time()
+        # print("Model forward pass time: ", end - start)
+
         if yhat.shape[1] > 1:
             y = y.long()
+
         loss = self.loss_func(yhat, y)
         # If backward then backprop the gradients.
         if backward:
+
+            # torch.cuda.synchronize()
+            # start = time.time()
             loss.backward()
+            # torch.cuda.synchronize()
+            # end = time.time()
+            # print("Backward pass time: ", end - start)
+
             self.optim.step()
             self.optim.zero_grad()
         # Run step-wise callbacks if you have them.
