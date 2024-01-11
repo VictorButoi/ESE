@@ -89,7 +89,7 @@ def ShowPredictionsCallback(
                 ax.grid(False)
         else:
             axarr[b_idx, 0].set_title("Image")
-            im1 = axarr[b_idx, 0].imshow(x[b_idx].squeeze(), interpolation='None')
+            im1 = axarr[b_idx, 0].imshow(x[b_idx].squeeze(), cmap=img_cmap, interpolation='None')
             f.colorbar(im1, ax=axarr[b_idx, 0], orientation='vertical')
 
             axarr[b_idx, 1].set_title("Label")
