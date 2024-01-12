@@ -457,8 +457,8 @@ def get_image_stats(
             }
             # Add the dataset info to the record
             record = {
-                **cal_metrics_record, 
                 **image_log_info,
+                **cal_metrics_record, 
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
@@ -470,8 +470,8 @@ def get_image_stats(
             }
             # Add the dataset info to the record
             record = {
-                **qual_metrics_record, 
                 **image_log_info,
+                **qual_metrics_record, 
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
@@ -488,8 +488,8 @@ def get_image_stats(
             }
             # Add the dataset info to the record
             record = {
-                **combined_metrics_record, 
                 **image_log_info,
+                **combined_metrics_record, 
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
@@ -540,9 +540,9 @@ def update_pixel_meters(
     # Calculate the accuracy map.
     acc_map = (yhard == ytrue).astype(np.float64)
 
-    # Build the valid map.
+    # Build the valid map from the ground truth pixels not containing our ignored index.
     if ignore_index is not None:
-        valid_idx_map = (yhard != ignore_index)
+        valid_idx_map = (ytrue != ignore_index)
     else:
         valid_idx_map = np.ones((H, W)).astype(np.bool)
 

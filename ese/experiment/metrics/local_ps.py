@@ -7,12 +7,17 @@ from pydantic import validate_arguments
 from .utils import (
     get_bins,
     get_conf_region, 
-    get_uni_pixel_weights,
     count_matching_neighbors
 )
 
 
-def get_lab_info(y_hard, y_true, top_label, ignore_index):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_lab_info(
+    y_hard: Tensor, 
+    y_true: Tensor, 
+    top_label: bool, 
+    ignore_index: Optional[int] = None
+):
     if top_label:
         lab_map = y_hard
     else:
@@ -169,10 +174,10 @@ def bin_stats(
             bin_idx=bin_idx, 
             conf_bin=conf_bin, 
             conf_bin_widths=obj_dict["conf_bin_widths"], 
-            lab_map=obj_dict["y_hard"],
+            lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
             edge_only=edge_only,
-            ignore_index=ignore_index
+            ignore_index=ignore_index # Ignore index will ignore ground truth pixels with this value.
             )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
@@ -306,7 +311,7 @@ def neighbors_bin_stats(
                 bin_idx=bin_idx, 
                 conf_bin=conf_bin, 
                 conf_bin_widths=obj_dict["conf_bin_widths"], 
-                lab_map=obj_dict["y_hard"],
+                lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 num_neighbors=p_nn,
                 num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
                 edge_only=edge_only,

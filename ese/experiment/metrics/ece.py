@@ -79,6 +79,7 @@ def ece_loss(
             from_logits=from_logits,
             ignore_index=ignore_index
         )
+
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(
         error_per_bin=cal_info["bin_cal_errors"], 
@@ -211,6 +212,7 @@ def cw_ece_loss(
             from_logits=from_logits,
             ignore_index=ignore_index
         )
+
     # Finally, get the ECE score.
     total_num_samples = cal_info['bin_amounts'].sum()
     if total_num_samples == 0:
