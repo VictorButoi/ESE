@@ -117,7 +117,6 @@ class CalibrationExperiment(TrainExperiment):
             y = y.long()
 
         loss = self.loss_func(yhat, y)
-        print("Loss: ", loss.item())
         # If backward then backprop the gradients.
         if backward:
             # torch.cuda.synchronize()
