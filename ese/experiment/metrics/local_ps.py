@@ -161,10 +161,10 @@ def bin_stats(
         )
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_bins),
-        "bin_amounts": torch.zeros(num_bins),
-        "bin_accs": torch.zeros(num_bins),
-        "bin_cal_errors": torch.zeros(num_bins),
+        "bin_confs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
     }
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
@@ -233,10 +233,10 @@ def label_bin_stats(
     num_labels = lab_info["num_labels"]
     # Setup the cal info tracker.
     cal_info = {
-        "bin_confs": torch.zeros((num_labels, num_bins)),
-        "bin_amounts": torch.zeros((num_labels, num_bins)),
-        "bin_accs": torch.zeros((num_labels, num_bins)),
-        "bin_cal_errors": torch.zeros((num_labels, num_bins))
+        "bin_confs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_labels, num_bins), dtype=torch.float64),
+        "bin_accs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((num_labels, num_bins), dtype=torch.float64)
     }
     for lab_idx, lab in enumerate(lab_info["unique_labels"]):
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
@@ -298,10 +298,10 @@ def neighbors_bin_stats(
     unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     cal_info = {
-        "bin_cal_errors": torch.zeros((num_neighbors, num_bins)),
-        "bin_accs": torch.zeros((num_neighbors, num_bins)),
-        "bin_confs": torch.zeros((num_neighbors, num_bins)),
-        "bin_amounts": torch.zeros((num_neighbors, num_bins))
+        "bin_cal_errors": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
+        "bin_accs": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_neighbors, num_bins), dtype=torch.float64)
     }
     for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
         for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
@@ -373,10 +373,10 @@ def label_neighbors_bin_stats(
     num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
-        "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins)),
-        "bin_accs": torch.zeros((num_labels, num_neighbors, num_bins)),
-        "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins)),
-        "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins))
+        "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_accs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64)
     }
     for lab_idx, lab in enumerate(lab_info["unique_labels"]):
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):

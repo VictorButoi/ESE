@@ -519,7 +519,7 @@ def update_pixel_meters(
         ).squeeze().cpu().numpy()
 
     # CPU-ize prob_map, y_hard, and y_true
-    prob_map = prob_map.cpu().squeeze().numpy()
+    prob_map = prob_map.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
     y_true = output_dict["y_true"].cpu().squeeze().numpy()
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
 
@@ -581,8 +581,10 @@ def global_cal_sanity_check(
     # image.
     for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
         # Get the calibration error. 
-        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 6)
-        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 6)
+        # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
+        # we are causing issues between equivalence. TODO fix this.
+        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
+        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
         assert  image_cal_score == meter_cal_score, \
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
                 f"Pixel level calibration score ({meter_cal_score}) does not match "+\

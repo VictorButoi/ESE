@@ -104,10 +104,10 @@ def global_bin_stats(
     num_bins = len(unique_bins) 
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_bins),
-        "bin_amounts": torch.zeros(num_bins),
-        "bin_accs": torch.zeros(num_bins),
-        "bin_cal_errors": torch.zeros(num_bins),
+        "bin_confs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
@@ -158,10 +158,10 @@ def global_label_bin_stats(
     num_bins = len(unique_bins) 
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_labels, num_bins),
-        "bin_amounts": torch.zeros(num_labels, num_bins),
-        "bin_accs": torch.zeros(num_labels, num_bins),
-        "bin_cal_errors": torch.zeros(num_labels, num_bins),
+        "bin_confs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_labels, num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_labels, num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
@@ -211,10 +211,10 @@ def global_neighbors_bin_stats(
     num_bins = len(unique_prob_bins) 
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_unique_matching_neighbors, num_bins),
-        "bin_amounts": torch.zeros(num_unique_matching_neighbors, num_bins),
-        "bin_accs": torch.zeros(num_unique_matching_neighbors, num_bins),
-        "bin_cal_errors": torch.zeros(num_unique_matching_neighbors, num_bins),
+        "bin_confs": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
@@ -268,10 +268,10 @@ def global_label_neighbors_bin_stats(
     num_bins = len(unique_prob_bins)
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_labels, num_matching_neighbors, num_bins),
-        "bin_amounts": torch.zeros(num_labels, num_matching_neighbors, num_bins),
-        "bin_accs": torch.zeros(num_labels, num_matching_neighbors, num_bins),
-        "bin_cal_errors": torch.zeros(num_labels, num_matching_neighbors, num_bins),
+        "bin_confs": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
