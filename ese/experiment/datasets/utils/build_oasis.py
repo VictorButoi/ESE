@@ -295,7 +295,6 @@ def thunderify_OASIS(
                         f.colorbar(im, ax=axarr[1], orientation='vertical')
                         # Show the figure
                         plt.show()  
-
                     # Save the datapoint to the database
                     key = subj.name
                     db[key] = {

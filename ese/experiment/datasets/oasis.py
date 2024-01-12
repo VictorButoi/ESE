@@ -33,7 +33,9 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)
-        self.subjects = self._db["_splits"][self.split]
+        subjects = self._db["_splits"][self.split]
+        self.samples = subjects
+        self.subjects = subjects
 
         # If target labels is not None, then we need to remap the target labels to a contiguous set.
         if self.target_labels is not None:
@@ -57,30 +59,30 @@ class OASIS(ThunderDataset, DatapathMixin):
         return self.num_samples
 
     def __getitem__(self, key):
-        key = key % len(self.subjects)
+        key = key % len(self.samples)
         subj = self.subjects[key]
         subj_dict = self._db[subj]
         img_vol = subj_dict['image']
         mask_vol = subj_dict['mask']
         lab_amounts_per_slice = subj_dict['lab_amounts_per_slice']
-
-        # Get the label_amounts
-        label_amounts = np.zeros_like(lab_amounts_per_slice)
-        lab_list = self.target_labels if self.target_labels is not None else lab_amounts_per_slice.keys()
-        for label in lab_list:
-            label_amounts += lab_amounts_per_slice[label]
-
         # Use this for slicing.
         vol_size = mask_vol.shape[0] # Typically 256
+
+        # Get the label_amounts
+        total_label_amounts = np.zeros(vol_size)
+        lab_list = self.target_labels if self.target_labels is not None else lab_amounts_per_slice.keys()
+        for label in lab_list:
+            total_label_amounts += lab_amounts_per_slice[label]
+
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
             slice_indices = np.array([128])
         # Sample the slice proportional to how much label they have.
         elif self.slicing == "dense":
-            label_probs = self.label_amounts_per_slice[subj] / np.sum(self.label_amounts_per_slice[subj])
+            label_probs = total_label_amounts / np.sum(total_label_amounts)
             slice_indices = np.random.choice(np.arange(vol_size), size=self.num_slices, p=label_probs, replace=self.replace)
         elif self.slicing == "uniform":
-            slice_indices = np.random.choice(np.where(self.label_amounts_per_slice[subj] > 0)[0], size=self.num_slices, replace=self.replace)
+            slice_indices = np.random.choice(np.where(total_label_amounts > 0)[0], size=self.num_slices, replace=self.replace)
         # Sample an image and label slice from around a central region.
         elif self.slicing == "central":
             central_slices = np.arange(128 - self.central_width, 128 + self.central_width)
