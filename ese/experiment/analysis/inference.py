@@ -186,6 +186,8 @@ def get_cal_stats(
     if 'cal_metrics' in cfg_dict.keys():
         for c_met_cfg in cfg_dict['cal_metrics']:
             c_metric_name = list(c_met_cfg.keys())[0]
+            calibration_metric_options = c_met_cfg[c_metric_name]
+            calibration_metric_options.update(cfg_dict['calibration'])
             # Add the calibration metric to the dictionary.
             cal_metrics[c_metric_name] = {
                 "name": c_metric_name,
@@ -336,12 +338,8 @@ def get_calibration_item_info(
     output_dict: dict,
     inference_cfg: dict,
     image_level_records: Optional[list] = None,
-    pixel_meter_dict: Optional[dict] = None,
-    ignore_index: Optional[int] = None,
+    pixel_meter_dict: Optional[dict] = None
     ):
-    # Setup some variables.
-    if "ignore_index" in inference_cfg["log"]:
-        ignore_index = inference_cfg["log"]["ignore_index"]
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################
@@ -358,8 +356,7 @@ def get_calibration_item_info(
         cal_metric_errors_dict = get_image_stats(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            image_level_records=image_level_records,
-            ignore_index=ignore_index
+            image_level_records=image_level_records
         ) 
     ########################
     # PIXEL LEVEL TRACKING #
@@ -369,8 +366,7 @@ def get_calibration_item_info(
         update_pixel_meters(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
-            inference_cfg=inference_cfg,
-            ignore_index=ignore_index
+            inference_cfg=inference_cfg
         )
     # Run a check on the image_level stats for a single image are the same as the pixel level stats.
     # This is just a sanity check. NOTE: data_idx has a small bug that if the inputs are volumes that 
@@ -379,8 +375,7 @@ def get_calibration_item_info(
         global_cal_sanity_check(
             inference_cfg=inference_cfg, 
             cal_metric_errors_dict=cal_metric_errors_dict, 
-            pixel_meter_dict=pixel_meter_dict,
-            ignore_index=ignore_index
+            pixel_meter_dict=pixel_meter_dict
         )
 
 
@@ -389,31 +384,22 @@ def get_image_stats(
     output_dict: dict,
     inference_cfg: dict,
     image_level_records: list,
-    ignore_index: Optional[int] = None,
 ):
     # Define the cal config.
     qual_input_config = {
         "y_pred": output_dict["ypred"],
         "y_true": output_dict["ytrue"],
-        "ignore_index": ignore_index
     }
     # Define the cal config.
     cal_input_config = {
         "y_pred": output_dict["ypred"],
         "y_true": output_dict["ytrue"],
-        "num_bins": inference_cfg["calibration"]["num_bins"],
-        "conf_interval":[
-            inference_cfg["calibration"]["conf_interval_start"],
-            inference_cfg["calibration"]["conf_interval_end"]
-        ],
         "stats_info_dict": get_image_aux_info(
             yhard=output_dict["yhard"],
             ytrue=output_dict["ytrue"],
             neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-            ignore_index=ignore_index
-        ),
-        "square_diff": inference_cfg["calibration"]["square_diff"],
-        "ignore_index": ignore_index
+            ignore_index=inference_cfg["calibration"]["ignore_index"]
+        )
     }
     # Go through each calibration metric and calculate the score.
     qual_metric_scores_dict = {}
@@ -501,8 +487,7 @@ def get_image_stats(
 def update_pixel_meters(
     pixel_meter_dict: dict,
     output_dict: dict,
-    inference_cfg: dict,
-    ignore_index: Optional[int] = None,
+    inference_cfg: dict
 ):
     # Setup variables.
     H, W = output_dict["yhard"].shape[-2:]
@@ -515,8 +500,8 @@ def update_pixel_meters(
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
         num_bins=inference_cfg['calibration']['num_bins'], 
-        start=inference_cfg['calibration']['conf_interval_start'], 
-        end=inference_cfg['calibration']['conf_interval_end']
+        start=inference_cfg['calibration']['conf_interval'][0], 
+        end=inference_cfg['calibration']['conf_interval'][1]
     )
 
     # Figure out where each pixel belongs (in confidence)
@@ -541,7 +526,9 @@ def update_pixel_meters(
     acc_map = (yhard == ytrue).astype(np.float64)
 
     # Build the valid map from the ground truth pixels not containing our ignored index.
+    ignore_index = inference_cfg["calibration"]["ignore_index"]
     if ignore_index is not None:
+        assert isinstance(ignore_index, int)
         valid_idx_map = (ytrue != ignore_index)
     else:
         valid_idx_map = np.ones((H, W)).astype(np.bool)
@@ -575,8 +562,7 @@ def update_pixel_meters(
 def global_cal_sanity_check(
         inference_cfg: dict, 
         cal_metric_errors_dict: dict, 
-        pixel_meter_dict: dict,
-        ignore_index: Optional[int] = None
+        pixel_meter_dict: dict
         ):
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
@@ -585,13 +571,6 @@ def global_cal_sanity_check(
         # Get the calibration error. 
         pixel_level_cal_score = cal_metric_dict['_fn'](
             pixel_meters_dict=pixel_meter_dict,
-            num_bins=inference_cfg["calibration"]["num_bins"],
-            conf_interval=[
-                inference_cfg["calibration"]["conf_interval_start"],
-                inference_cfg["calibration"]["conf_interval_end"]
-            ],
-            square_diff=inference_cfg["calibration"]["square_diff"],
-            ignore_index=ignore_index
             ).item() 
         assert cal_metric_errors_dict[cal_metric_name] == pixel_level_cal_score, \
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\

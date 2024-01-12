@@ -13,7 +13,7 @@ import torch
 from torch import Tensor
 # misc imports
 from pydantic import validate_arguments
-from typing import Dict, Tuple, Optional, Union
+from typing import Dict, Tuple, Optional, Union, List
 # ionpy imports
 from ionpy.util.meter import Meter
 from ionpy.loss.util import _loss_module_from_func
@@ -36,15 +36,15 @@ def cal_input_check(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
+    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
     neighborhood_width: int = 3,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    conf_interval: List[float] = [0.0, 1.0],
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> Union[dict, Tensor]:
@@ -103,15 +103,15 @@ def elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_elm_loss(
+    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
     neighborhood_width: int = 3,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    conf_interval: List[float] = [0.0, 1.0],
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> Union[dict, Tensor]:
@@ -173,15 +173,15 @@ def tl_elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_loss(
+    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
-    num_bins: int = 10,
     neighborhood_width: int = 3,
     square_diff: bool = False,
     from_logits: bool = False,
     return_dict: bool = False,
-    conf_interval: Tuple[float, float] = (0.0, 1.0),
+    conf_interval: List[float] = [0.0, 1.0],
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> Union[dict, Tensor]:
