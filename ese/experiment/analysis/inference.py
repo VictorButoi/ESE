@@ -581,11 +581,9 @@ def global_cal_sanity_check(
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
     # image.
-    for cal_metric in inference_cfg["cal_metric_cfgs"]:
+    for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
         # Get the calibration error. 
-        cal_met_name = list(cal_metric.keys())[0]
-        image_level_cal_score = cal_metric_errors_dict[cal_met_name]
-        pixel_level_cal_score = cal_metric[cal_met_name]['func'](
+        pixel_level_cal_score = cal_metric_dict['_fn'](
             pixel_meters_dict=pixel_meter_dict,
             num_bins=inference_cfg["calibration"]["num_bins"],
             conf_interval=[
@@ -595,7 +593,8 @@ def global_cal_sanity_check(
             square_diff=inference_cfg["calibration"]["square_diff"],
             ignore_index=ignore_index
             ).item() 
-        assert cal_metric_errors_dict[cal_met_name] == pixel_level_cal_score, \
-            f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_met_name}': "+\
-                f"Pixel level calibration score ({pixel_level_cal_score}) does not match image level score ({image_level_cal_score})."
+        assert cal_metric_errors_dict[cal_metric_name] == pixel_level_cal_score, \
+            f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
+                f"Pixel level calibration score ({pixel_level_cal_score}) does not match "+\
+                    f"image level score ({cal_metric_errors_dict[cal_metric_name]})."
 
