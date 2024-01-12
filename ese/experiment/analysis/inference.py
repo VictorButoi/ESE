@@ -354,7 +354,7 @@ def get_calibration_item_info(
     ########################
     check_image_stats = (image_level_records is not None)
     if check_image_stats:
-        cal_metric_errors_dict = get_image_stats(
+        image_cal_metrics_dict = get_image_stats(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
             image_level_records=image_level_records
@@ -364,19 +364,19 @@ def get_calibration_item_info(
     ########################
     check_pixel_stats = (pixel_meter_dict is not None)
     if check_pixel_stats:
-        update_pixel_meters(
+        image_pixel_meter_dict = update_pixel_meters(
             pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
             inference_cfg=inference_cfg
         )
-    # Run a check on the image_level stats for a single image are the same as the pixel level stats.
-    # This is just a sanity check. NOTE: data_idx has a small bug that if the inputs are volumes that 
-    # have different numbers of slices, then the data_idx will not be correct but the first will be correct.
-    if (data_idx == 0) and (check_image_stats and check_pixel_stats ): 
+    ##################################################################
+    # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
+    ##################################################################
+    if check_image_stats and check_pixel_stats: 
         global_cal_sanity_check(
             inference_cfg=inference_cfg, 
-            cal_metric_errors_dict=cal_metric_errors_dict, 
-            pixel_meter_dict=pixel_meter_dict
+            image_cal_metrics_dict=image_cal_metrics_dict, 
+            image_pixel_meter_dict=image_pixel_meter_dict
         )
 
 
@@ -534,6 +534,8 @@ def update_pixel_meters(
     else:
         valid_idx_map = np.ones((H, W)).astype(np.bool)
 
+    # Make a version of pixel meter dict for this image
+    image_pixel_meter_dict = {}
     # Iterate through each pixel in the image.
     for (ix, iy) in np.ndindex((H, W)):
         # Only consider pixels that are valid (not ignored)
@@ -552,27 +554,37 @@ def update_pixel_meters(
             if conf_key not in pixel_meter_dict:
                 for meter_key in [acc_key, conf_key]:
                     pixel_meter_dict[meter_key] = StatsMeter()
+            # Add the keys for the image level tracker.
+            if conf_key not in image_pixel_meter_dict:
+                for meter_key in [acc_key, conf_key]:
+                    image_pixel_meter_dict[meter_key] = StatsMeter()
             # (acc , conf)
             acc = acc_map[ix, iy]
             conf = prob_map[ix, iy]
+            # Add to the local image meter dict.
+            image_pixel_meter_dict[acc_key].add(acc)
+            image_pixel_meter_dict[conf_key].add(conf)
             # Finally, add the points to the meters.
             pixel_meter_dict[acc_key].add(acc) 
             pixel_meter_dict[conf_key].add(conf)
+    # Return the image pixel meter dict.
+    return image_pixel_meter_dict
 
 
 def global_cal_sanity_check(
         inference_cfg: dict, 
-        cal_metric_errors_dict: dict, 
-        pixel_meter_dict: dict
+        image_cal_metrics_dict: dict, 
+        image_pixel_meter_dict: dict
         ):
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
     # image.
     for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
         # Get the calibration error. 
-        pixel_level_cal_score = cal_metric_dict['_fn'](pixel_meters_dict=pixel_meter_dict).item() 
-        assert cal_metric_errors_dict[cal_metric_name] == pixel_level_cal_score, \
+        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 6)
+        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 6)
+        assert  image_cal_score == meter_cal_score, \
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
-                f"Pixel level calibration score ({pixel_level_cal_score}) does not match "+\
-                    f"image level score ({cal_metric_errors_dict[cal_metric_name]})."
+                f"Pixel level calibration score ({meter_cal_score}) does not match "+\
+                    f"image level score ({image_cal_score})."
 
