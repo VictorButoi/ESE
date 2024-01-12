@@ -6,12 +6,12 @@ import matplotlib.colors as mcolors
 
 
 def ShowPredictionsCallback(
-        batch, 
-        from_logits: bool = True,
-        threshold: float = 0.5,
-        size_per_iamge: int = 3,
-        softpred_dim: Optional[int] = None 
-        ):
+    batch, 
+    threshold: float = 0.5,
+    size_per_iamge: int = 3,
+    from_logits: bool = True,
+    softpred_dim: Optional[int] = None 
+):
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
@@ -19,13 +19,15 @@ def ShowPredictionsCallback(
         assert batch["x"].shape[0] == 1, "Batchsize of input image must be 1 if batchsize of prediction is not 1."
         assert batch["ytrue"].shape[0] == 1, "Batchsize of input label must be 1 if batchsize of prediction is not 1."
         bs = batch["ypred"].shape[0]
-        batch["x"] = batch["x"].repeat(bs, 1, 1, 1)
-        batch["ytrue"] = batch["ytrue"].repeat(bs, 1, 1, 1)
+        x = batch["x"].repeat(bs, 1, 1, 1)
+        y = batch["ytrue"].repeat(bs, 1, 1, 1)
+    else:
+        x = batch["x"]
+        y = batch["ytrue"]
     
-    # Move the channel dimension to the last dimension
-    x = batch["x"].detach().cpu()
-    x = x.permute(0, 2, 3, 1)
-    y = batch["ytrue"].detach().cpu().numpy()
+    # Transfer image and label to the cpu.
+    x = x.detach().cpu().permute(0, 2, 3, 1).numpy() # Move channel dimension to last.
+    y = y.detach().cpu().numpy() 
 
     # Get the predicted label
     yhat = batch["ypred"].detach().cpu()
@@ -45,10 +47,9 @@ def ShowPredictionsCallback(
 
     # If x is rgb
     if x.shape[-1] == 3:
-        x = x.numpy().astype(np.uint8)
+        x = x.astype(np.uint8)
         img_cmap = None
     else:
-        x = x.numpy()
         img_cmap = "gray"
 
     if num_pred_classes > 1:
@@ -63,24 +64,30 @@ def ShowPredictionsCallback(
     num_cols = 4 if (softpred_dim is not None) else 3
     f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(4 * size_per_iamge, bs*size_per_iamge))
 
+    # Squeeze all tensors in prep.
+    x = x.squeeze()
+    y = y.squeeze()
+    yhard = yhard.squeeze()
+    yhat = yhat.squeeze()
+
     # Go through each item in the batch.
     for b_idx in range(bs):
         if bs == 1:
             axarr[0].set_title("Image")
-            im1 = axarr[0].imshow(x.squeeze(), cmap=img_cmap, interpolation='None')
+            im1 = axarr[0].imshow(x, cmap=img_cmap, interpolation='None')
             f.colorbar(im1, ax=axarr[0], orientation='vertical')
 
             axarr[1].set_title("Label")
-            im2 = axarr[1].imshow(y.squeeze(), cmap=label_cm, interpolation='None')
+            im2 = axarr[1].imshow(y, cmap=label_cm, interpolation='None')
             f.colorbar(im2, ax=axarr[1], orientation='vertical')
 
             axarr[2].set_title("Hard Prediction")
-            im3 = axarr[2].imshow(yhard.squeeze(), cmap=label_cm, interpolation='None')
+            im3 = axarr[2].imshow(yhard, cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
             if softpred_dim is not None:
                 axarr[3].set_title("Soft Prediction")
-                im4 = axarr[3].imshow(yhat[softpred_dim].squeeze(), cmap=label_cm, interpolation='None')
+                im4 = axarr[3].imshow(yhat[softpred_dim], cmap=label_cm, interpolation='None')
                 f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
             # turn off the axis and grid
@@ -89,20 +96,20 @@ def ShowPredictionsCallback(
                 ax.grid(False)
         else:
             axarr[b_idx, 0].set_title("Image")
-            im1 = axarr[b_idx, 0].imshow(x[b_idx].squeeze(), cmap=img_cmap, interpolation='None')
+            im1 = axarr[b_idx, 0].imshow(x[b_idx], cmap=img_cmap, interpolation='None')
             f.colorbar(im1, ax=axarr[b_idx, 0], orientation='vertical')
 
             axarr[b_idx, 1].set_title("Label")
-            im2 = axarr[b_idx, 1].imshow(y[b_idx].squeeze(), cmap=label_cm, interpolation='None')
+            im2 = axarr[b_idx, 1].imshow(y[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
 
             axarr[b_idx, 2].set_title("Hard Prediction")
-            im3 = axarr[b_idx, 2].imshow(yhard[b_idx].squeeze(), cmap=label_cm, interpolation='None')
+            im3 = axarr[b_idx, 2].imshow(yhard[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
 
             if softpred_dim is not None:
                 axarr[b_idx, 3].set_title("Soft Prediction")
-                im4 = axarr[b_idx, 3].imshow(yhat[b_idx, softpred_dim].squeeze(), cmap=label_cm, interpolation='None')
+                im4 = axarr[b_idx, 3].imshow(yhat[b_idx, softpred_dim], cmap=label_cm, interpolation='None')
                 f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
 
             # turn off the axis and grid

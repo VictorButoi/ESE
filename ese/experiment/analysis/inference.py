@@ -17,10 +17,10 @@ from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import fix_seed, eval_config
 # local imports
-from ..callbacks.visualize import ShowPredictionsCallback
 from .utils import (
     get_image_aux_info, 
     dataloader_from_exp,
+    show_inference_examples,
     save_inference_metadata,
     load_inference_exp_from_cfg
 )
@@ -268,7 +268,6 @@ def volume_forward_loop(
         # Ensembling the preds and we want to show them we need to change the shape a bit.
         if ensemble_show_preds: 
             exp_output["ypred"] = einops.rearrange(exp_output["ypred"], "1 C E H W -> E C H W")
-            exp_output["yhard"] = einops.rearrange(exp_output["yhard"], "1 C E H W -> E C H W")
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
@@ -340,14 +339,17 @@ def get_calibration_item_info(
     pixel_meter_dict: Optional[dict] = None,
     ignore_index: Optional[int] = None,
     ):
-    if inference_cfg["log"]["show_examples"]:
-        ShowPredictionsCallback(output_dict, softpred_dim=1)
-        if inference_cfg["model"]["ensemble"]:
-            ShowPredictionsCallback(output_dict, softpred_dim=1)
-            raise NotImplementedError("Need to do stuff here.")
     # Setup some variables.
     if "ignore_index" in inference_cfg["log"]:
         ignore_index = inference_cfg["log"]["ignore_index"]
+    ###########################
+    # VISUALIZING IMAGE PREDS #
+    ###########################
+    if inference_cfg["log"]["show_examples"]:
+        show_inference_examples(
+            output_dict, 
+            inference_cfg=inference_cfg
+        )
     ########################
     # IMAGE LEVEL TRACKING #
     ########################

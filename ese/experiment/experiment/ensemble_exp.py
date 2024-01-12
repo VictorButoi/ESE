@@ -143,15 +143,17 @@ class EnsembleInferenceExperiment(BaseExperiment):
             ensemble_model_outputs, 
             pre_softmax=model_cfg["ensemble_pre_softmax"]
             )
-        # Get the hard prediction and probabilities
+        # Get the hard prediction and probabilities, if we are doing identity,
+        # then we don't want to return probs.
         prob_map, pred_map = process_pred_map(
             prob_map, 
             multi_class=multi_class, 
             threshold=threshold,
-            from_logits=(combine_fn == "identity") # The combine_fn already returns probs unless identity.
+            from_logits=False, # Ensemble methods already return probs.
+            return_logits=(combine_fn == "identity")
             )
         # Return the outputs
         return {
             'ypred': prob_map, 
-            'yhard': pred_map 
+            'yhard': pred_map # if identity, this will be None.
         }

@@ -1,11 +1,12 @@
+# torch imports
 import torch
-import einops
+# ionpy imports
+from ionpy.experiment.util import absolute_import
+# misc imports
 import json
 from pathlib import Path
 from typing import Any, Optional
 from pydantic import validate_arguments
-# ionpy imports
-from ionpy.experiment.util import absolute_import
 
 
 def parse_class_name(class_name):

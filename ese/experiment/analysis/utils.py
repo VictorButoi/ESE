@@ -12,7 +12,9 @@ from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid
 # local imports
-from ..experiment.utils import load_experiment
+from ..models.ensemble import get_combine_fn
+from ..callbacks.visualize import ShowPredictionsCallback
+from ..experiment.utils import load_experiment, process_pred_map
 from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import count_matching_neighbors 
 
@@ -189,3 +191,41 @@ def get_image_aux_info(
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
     }
+
+
+def show_inference_examples(
+    output_dict: dict,
+    inference_cfg: dict,
+):
+    ShowPredictionsCallback(
+        output_dict, 
+        softpred_dim=1,
+        from_logits=inference_cfg["model"]["ensemble"] # If ensemble, need to do a softmax. over ensemble members.
+        )
+    # If we are showing examples with an ensemble, then we
+    # returned initially the individual predictions.
+    if inference_cfg["model"]["ensemble"]:
+        # ypred is the wrong shape, add back the channel dimension and shuffle the ensemble dimension.
+        output_dict["ypred"] = output_dict["ypred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
+        # Combine the outputs of the models.
+        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
+            output_dict["ypred"], 
+            pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
+            )
+        # Get the hard prediction and probabilities, if we are doing identity,
+        # then we don't want to return probs.
+        ensemble_prob_map, ensemble_pred_map = process_pred_map(
+            ensemble_prob_map, 
+            multi_class=True, 
+            threshold=0.5,
+            from_logits=False, # Ensemble methods already return probs.
+            )
+        # Place the ensemble predictions in the output dict.
+        output_dict["ypred"] = ensemble_prob_map
+        output_dict["yhard"] = ensemble_pred_map
+        # Finally, show the ensemble combination.
+        ShowPredictionsCallback(
+            output_dict, 
+            softpred_dim=1,
+            from_logits=False
+            )

@@ -25,7 +25,7 @@ def batch_ensemble_preds(model_outputs: dict):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def identity_combine_fn(
-    ensemble_logits: dict, 
+    ensemble_logits, # Either a dict or a tensor.
     pre_softmax: bool
 ):
     return batch_ensemble_preds(ensemble_logits)
@@ -33,33 +33,36 @@ def identity_combine_fn(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
-    ensemble_logits: dict, 
+    ensemble_logits,
     pre_softmax: bool
 ):
-    batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
+    if isinstance(ensemble_logits, dict):
+        ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
     if pre_softmax:
-        batch_ensemble_tensor = torch.softmax(batch_ensemble_tensor, dim=2)
+        ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
-    batch_mean_tensors = torch.mean(batch_ensemble_tensor, dim=1) # B, C, H, W
+    ensemble_mean_tensor = torch.mean(ensemble_logits, dim=2) # B, C, H, W
 
     if not pre_softmax:
-        batch_mean_tensors = torch.softmax(batch_mean_tensors, dim=1)
+        ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
 
-    return batch_mean_tensors
+    return ensemble_mean_tensor
+
 
 def max_combine_fn(
-    ensemble_logits: dict, 
+    ensemble_logits, # Either a dict or a tensor.
     pre_softmax: bool
 ):
-    batch_ensemble_tensor = batch_ensemble_preds(ensemble_logits) # B, E, C, H, W
+    if isinstance(ensemble_logits, dict):
+        ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
     if pre_softmax:
-        batch_ensemble_tensor = torch.softmax(batch_ensemble_tensor, dim=2)
+        ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
-    batch_max_tensors = torch.max(batch_ensemble_tensor, dim=1)[0] # B, C, H, W, max returns max vals and indices
+    ensemble_max_tensor = torch.max(ensemble_logits, dim=2)[0] # B, C, H, W, max returns max vals and indices
 
     if not pre_softmax:
-        batch_max_tensors = torch.softmax(batch_max_tensors, dim=1)
+        ensemble_max_tensor = torch.softmax(ensemble_max_tensor, dim=1)
 
-    return batch_max_tensors
+    return ensemble_max_tensor
