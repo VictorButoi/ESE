@@ -309,6 +309,7 @@ def thunderify_OASIS(
                 splits = data_splits(subjects, splits_ratio, splits_seed)
                 splits = dict(zip(("train", "cal", "val", "test"), splits))
                 db["_subjects"] = subjects
+                db['_samples'] = subjects
                 db["_splits"] = splits
                 db["_splits_kwarg"] = {
                     "ratio": splits_ratio, 
