@@ -160,29 +160,29 @@ def binarize(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_aux_info(
-    yhard: torch.Tensor,
-    ytrue: torch.Tensor,
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
     neighborhood_width: int,
     ignore_index: Optional[int] = None
 ) -> dict:
-    assert yhard.dim() == 4, f"Expected 4D tensor for yhard, found shape: {yhard.shape}."
-    assert ytrue.dim() == 4, f"Expected 4D tensor for ytrue, found shape: {ytrue.shape}."
+    assert y_hard.dim() == 4, f"Expected 4D tensor for y_hard, found shape: {y_hard.shape}."
+    assert y_true.dim() == 4, f"Expected 4D tensor for y_true, found shape: {y_true.shape}."
     # Get the pixelwise accuracy.
-    accuracy_map = (yhard == ytrue).squeeze(1).float()
+    accuracy_map = (y_hard == y_true).squeeze(1).float()
 
     # Keep track of different things for each bin.
-    pred_labels = yhard.unique().tolist()
+    pred_labels = y_hard.unique().tolist()
     if ignore_index is not None and ignore_index in pred_labels:
         pred_labels.remove(ignore_index)
 
     # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
     # For both our prediction and the true label map.
     pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=yhard.squeeze(1), # Remove the channel dimension. 
+        lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=neighborhood_width
     )
     true_matching_neighbors_map = count_matching_neighbors(
-        lab_map=ytrue.squeeze(1), # Remove the channel dimension. 
+        lab_map=y_true.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=neighborhood_width
     )
     return {
@@ -205,11 +205,11 @@ def show_inference_examples(
     # If we are showing examples with an ensemble, then we
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
-        # ypred is the wrong shape, add back the channel dimension and shuffle the ensemble dimension.
-        output_dict["ypred"] = output_dict["ypred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
+        # y_pred is the wrong shape, add back the channel dimension and shuffle the ensemble dimension.
+        output_dict["y_pred"] = output_dict["y_pred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
         # Combine the outputs of the models.
         ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
-            output_dict["ypred"], 
+            output_dict["y_pred"], 
             pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
             )
         # Get the hard prediction and probabilities, if we are doing identity,
@@ -221,8 +221,8 @@ def show_inference_examples(
             from_logits=False, # Ensemble methods already return probs.
             )
         # Place the ensemble predictions in the output dict.
-        output_dict["ypred"] = ensemble_prob_map
-        output_dict["yhard"] = ensemble_pred_map
+        output_dict["y_pred"] = ensemble_prob_map
+        output_dict["y_hard"] = ensemble_pred_map
         # Finally, show the ensemble combination.
         ShowPredictionsCallback(
             output_dict, 

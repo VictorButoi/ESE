@@ -131,7 +131,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             # Multi-class needs to be true here so that we can combine the outputs.
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
                 x=x, multi_class=True, return_logits=True
-            )['ypred']
+            )['y_pred']
         #Get the model cfg
         model_cfg = self.config["model"].to_dict()
         # Combine the outputs of the models.
@@ -154,6 +154,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
             )
         # Return the outputs
         return {
-            'ypred': prob_map, 
-            'yhard': pred_map # if identity, this will be None.
+            'y_pred': prob_map, 
+            'y_hard': pred_map # if identity, this will be None.
         }

@@ -139,8 +139,8 @@ class PostHocExperiment(TrainExperiment):
         # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,
-            "ytrue": y,
-            "ypred": yhat_cal,
+            "y_true": y,
+            "y_pred": yhat_cal,
             "loss": loss,
             "batch_idx": batch_idx,
         }
@@ -167,8 +167,8 @@ class PostHocExperiment(TrainExperiment):
             )
         # Return the outputs
         return {
-            'ypred': prob_map, 
-            'yhard': pred_map 
+            'y_pred': prob_map, 
+            'y_hard': pred_map 
         }
 
     def to_device(self):

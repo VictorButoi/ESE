@@ -187,6 +187,7 @@ def get_cal_stats(
         for c_met_cfg in cfg_dict['cal_metrics']:
             c_metric_name = list(c_met_cfg.keys())[0]
             calibration_metric_options = c_met_cfg[c_metric_name]
+            # Update with the inference set of calibration options.
             calibration_metric_options.update(cfg_dict['calibration'])
             # Add the calibration metric to the dictionary.
             cal_metrics[c_metric_name] = {
@@ -269,13 +270,13 @@ def volume_forward_loop(
             exp_output =  exp.predict(image_cuda, **predict_args)
         # Ensembling the preds and we want to show them we need to change the shape a bit.
         if ensemble_show_preds: 
-            exp_output["ypred"] = einops.rearrange(exp_output["ypred"], "1 C E H W -> E C H W")
+            exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image_cuda,
-            "ytrue": label_map_cuda.long(),
-            "ypred": exp_output["ypred"],
-            "yhard": exp_output["yhard"],
+            "y_true": label_map_cuda.long(),
+            "y_pred": exp_output["y_pred"],
+            "y_hard": exp_output["y_hard"],
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "slice_idx": slice_idx 
         }
@@ -312,14 +313,14 @@ def image_forward_loop(
         exp_output =  exp.predict(image_cuda, **predict_args)
     # Ensembling the preds and we want to show them we need to change the shape a bit.
     if ensemble_show_preds: 
-        exp_output["ypred"] = einops.rearrange(exp_output["ypred"], "1 C E H W -> E C H W")
-        exp_output["yhard"] = einops.rearrange(exp_output["yhard"], "1 C E H W -> E C H W")
+        exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
+        exp_output["y_hard"] = einops.rearrange(exp_output["y_hard"], "1 C E H W -> E C H W")
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,
-        "ypred": exp_output["ypred"],
-        "yhard": exp_output["yhard"],
-        "ytrue": label_map_cuda.long(),
+        "y_pred": exp_output["y_pred"],
+        "y_hard": exp_output["y_hard"],
+        "y_true": label_map_cuda.long(),
         "data_id": batch["data_id"][0],
         "slice_idx": None
     }
@@ -387,16 +388,16 @@ def get_image_stats(
 ):
     # Define the cal config.
     qual_input_config = {
-        "y_pred": output_dict["ypred"],
-        "y_true": output_dict["ytrue"],
+        "y_pred": output_dict["y_pred"],
+        "y_true": output_dict["y_true"],
     }
     # Define the cal config.
     cal_input_config = {
-        "y_pred": output_dict["ypred"],
-        "y_true": output_dict["ytrue"],
+        "y_pred": output_dict["y_pred"],
+        "y_true": output_dict["y_true"],
         "stats_info_dict": get_image_aux_info(
-            yhard=output_dict["yhard"],
-            ytrue=output_dict["ytrue"],
+            y_hard=output_dict["y_hard"],
+            y_true=output_dict["y_true"],
             neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
             ignore_index=inference_cfg["calibration"]["ignore_index"]
         )
@@ -423,8 +424,8 @@ def get_image_stats(
         "No metrics were specified in the config file."
     
     # Calculate the amount of present ground-truth there is in the image per label.
-    num_classes = output_dict["ypred"].shape[1]
-    y_true_one_hot = F.one_hot(output_dict["ytrue"], num_classes=num_classes) # B x 1 x H x W x C
+    num_classes = output_dict["y_pred"].shape[1]
+    y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
     label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
     label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
@@ -490,10 +491,10 @@ def update_pixel_meters(
     inference_cfg: dict
 ):
     # Setup variables.
-    H, W = output_dict["yhard"].shape[-2:]
+    H, W = output_dict["y_hard"].shape[-2:]
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    prob_map = output_dict["ypred"]
+    prob_map = output_dict["y_pred"]
     if prob_map.shape[1] > 1:
         prob_map = torch.max(prob_map, dim=1, keepdim=True)[0]
 
@@ -513,23 +514,23 @@ def update_pixel_meters(
 
     # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
     pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=output_dict["yhard"].squeeze(1), # Remove the channel dimension. 
+        lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ).squeeze().cpu().numpy()
 
-    # CPU-ize prob_map, yhard, and ytrue
+    # CPU-ize prob_map, y_hard, and y_true
     prob_map = prob_map.cpu().squeeze().numpy()
-    ytrue = output_dict["ytrue"].cpu().squeeze().numpy()
-    yhard = output_dict["yhard"].cpu().squeeze().numpy()
+    y_true = output_dict["y_true"].cpu().squeeze().numpy()
+    y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
 
     # Calculate the accuracy map.
-    acc_map = (yhard == ytrue).astype(np.float64)
+    acc_map = (y_hard == y_true).astype(np.float64)
 
     # Build the valid map from the ground truth pixels not containing our ignored index.
     ignore_index = inference_cfg["calibration"]["ignore_index"]
     if ignore_index is not None:
         assert isinstance(ignore_index, int)
-        valid_idx_map = (ytrue != ignore_index)
+        valid_idx_map = (y_true != ignore_index)
     else:
         valid_idx_map = np.ones((H, W)).astype(np.bool)
 
@@ -538,8 +539,8 @@ def update_pixel_meters(
         # Only consider pixels that are valid (not ignored)
         if valid_idx_map[ix, iy]:
             # Create a unique key for the combination of label, neighbors, and confidence_bin
-            true_label = ytrue[ix, iy]
-            pred_label = yhard[ix, iy]
+            true_label = y_true[ix, iy]
+            pred_label = y_hard[ix, iy]
             num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
             prob_bin = bin_ownership_map[ix, iy]
             # Define this dictionary prefix corresponding to a 'kind' of pixel.
@@ -569,9 +570,7 @@ def global_cal_sanity_check(
     # image.
     for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
         # Get the calibration error. 
-        pixel_level_cal_score = cal_metric_dict['_fn'](
-            pixel_meters_dict=pixel_meter_dict,
-            ).item() 
+        pixel_level_cal_score = cal_metric_dict['_fn'](pixel_meters_dict=pixel_meter_dict).item() 
         assert cal_metric_errors_dict[cal_metric_name] == pixel_level_cal_score, \
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
                 f"Pixel level calibration score ({pixel_level_cal_score}) does not match "+\

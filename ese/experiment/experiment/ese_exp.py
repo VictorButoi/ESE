@@ -131,8 +131,8 @@ class CalibrationExperiment(TrainExperiment):
         # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,
-            "ytrue": y,
-            "ypred": yhat,
+            "y_true": y,
+            "y_pred": yhat,
             "loss": loss,
             "batch_idx": batch_idx,
         }
@@ -156,8 +156,8 @@ class CalibrationExperiment(TrainExperiment):
             )
         # Return the outputs
         return {
-            'ypred': prob_map, 
-            'yhard': pred_map 
+            'y_pred': prob_map, 
+            'y_hard': pred_map 
         }
 
     def run(self):
