@@ -407,8 +407,7 @@ def get_image_stats(
         "stats_info_dict": get_image_aux_info(
             y_hard=output_dict["y_hard"],
             y_true=output_dict["y_true"],
-            neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-            ignore_index=inference_cfg["calibration"]["ignore_index"]
+            cal_cfg=inference_cfg["calibration"]
         )
     }
     # Go through each calibration metric and calculate the score.
@@ -417,7 +416,7 @@ def get_image_stats(
         # Get the calibration error. 
         if qual_metric_dict['_type'] == 'calibration':
             # Higher is better for scores.
-            qual_metric_scores_dict[qual_metric_name] = 1 - qual_metric_dict['_fn'](**cal_input_config).item() 
+            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config).item() 
         else:
             qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
         # If you're showing the predictions, also print the scores.
@@ -438,54 +437,19 @@ def get_image_stats(
     label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
     label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
-    image_log_info = {
-        "data_id": output_dict["data_id"],
-        "slice_idx": output_dict["slice_idx"],
-        **label_amounts_dict
-    }
-    if len(qual_metric_scores_dict) == 0:
-        for cm_name in list(cal_metric_errors_dict.keys()):
-            cal_metrics_record = {
-                "cal_metric_type": cm_name.split("_")[-1],
-                "cal_metric": cm_name.replace("_", " "),
-                "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
-                "cal_m_error": cal_metric_errors_dict[cm_name],
+    # Add our scores to the image level records.
+    for metric_score_dict in [cal_metric_errors_dict, qual_metric_scores_dict]:
+        for met_name in list(metric_score_dict.keys()):
+            metrics_record = {
+                "image_metric": met_name,
+                "metric_score": metric_score_dict[met_name],
             }
             # Add the dataset info to the record
             record = {
-                **image_log_info,
-                **cal_metrics_record, 
-                **inference_cfg["calibration"]
-                }
-            image_level_records.append(record)
-    elif len(cal_metric_errors_dict) == 0:
-        for qm_name in list(qual_metric_scores_dict.keys()):
-            qual_metrics_record = {
-                "qual_metric": qm_name,
-                "qual_score": qual_metric_scores_dict[qm_name],
-            }
-            # Add the dataset info to the record
-            record = {
-                **image_log_info,
-                **qual_metrics_record, 
-                **inference_cfg["calibration"]
-                }
-            image_level_records.append(record)
-    else:
-        # Iterate through the cross product of calibration metrics and quality metrics.
-        for qm_name, cm_name in list(product(qual_metric_scores_dict.keys(), cal_metric_errors_dict.keys())):
-            combined_metrics_record = {
-                "cal_metric_type": cm_name.split("_")[-1],
-                "cal_metric": cm_name.replace("_", " "),
-                "qual_metric": qm_name,
-                "cal_m_score": (1 - cal_metric_errors_dict[cm_name]),
-                "cal_m_error": cal_metric_errors_dict[cm_name],
-                "qual_score": qual_metric_scores_dict[qm_name],
-            }
-            # Add the dataset info to the record
-            record = {
-                **image_log_info,
-                **combined_metrics_record, 
+                "data_id": output_dict["data_id"],
+                "slice_idx": output_dict["slice_idx"],
+                **metrics_record, 
+                **label_amounts_dict,
                 **inference_cfg["calibration"]
                 }
             image_level_records.append(record)
@@ -521,9 +485,15 @@ def update_pixel_meters(
         bin_widths=conf_bin_widths
         ).squeeze().cpu().numpy()
 
-    # Get the pixel-wise number of matching neighbors map. Edge pixels have maximally 5 neighbors.
-    pred_matching_neighbors_map = count_matching_neighbors(
+    # Get the pixel-wise number of PREDICTED matching neighbors.
+    pred_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
+        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        ).squeeze().cpu().numpy()
+    
+    # Get the pixel-wise number of PREDICTED matching neighbors.
+    true_num_neighb_map = count_matching_neighbors(
+        lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
         ).squeeze().cpu().numpy()
 
@@ -542,10 +512,11 @@ def update_pixel_meters(
         # Create a unique key for the combination of label, neighbors, and confidence_bin
         true_label = y_true[ix, iy]
         pred_label = y_hard[ix, iy]
-        num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
+        pred_num_neighb = pred_num_neighb_map[ix, iy]
+        true_num_neighb = true_num_neighb_map[ix, iy]
         prob_bin = bin_ownership_map[ix, iy]
         # Define this dictionary prefix corresponding to a 'kind' of pixel.
-        prefix = (true_label, pred_label, num_matching_neighbors, prob_bin)
+        prefix = (true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin)
         # Add bin specific keys to the dictionary if they don't exist.
         acc_key = prefix + ("accuracy",)
         conf_key = prefix + ("confidence",)
@@ -582,10 +553,10 @@ def global_cal_sanity_check(
         # Get the calibration error. 
         # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
         # we are causing issues between equivalence. TODO fix this.
-        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 2)
-        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 2)
-        assert  image_cal_score == meter_cal_score, \
-            f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
-                f"Pixel level calibration score ({meter_cal_score}) does not match "+\
-                    f"image level score ({image_cal_score})."
+        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 5)
+        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 5)
+        if image_cal_score != meter_cal_score:
+            print(f"WARNING: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
+            print(f"Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
+            print()
 

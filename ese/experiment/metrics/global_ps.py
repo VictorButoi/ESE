@@ -26,13 +26,14 @@ def accumulate_pixel_preds(
     unique_key_2 = []
     unique_key_3 = []
     # Iterate through the meters.
-    for (true_label, pred_label, num_matching_neighbors, prob_bin, measure), value in pixel_meters_dict.items():
+    for (true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure), value in pixel_meters_dict.items():
         if ignore_index is None or true_label != ignore_index:
-            if (not edge_only) or (num_matching_neighbors < total_nearby_pixels):
+            if (not edge_only) or (true_num_neighb < total_nearby_pixels):
                 item = {
                     "true_label": true_label,
                     "pred_label": pred_label,
-                    "num_matching_neighbors": num_matching_neighbors,
+                    "pred_num_neighb": pred_num_neighb,
+                    "true_num_neighb": true_num_neighb,
                     "prob_bin": prob_bin,
                     "measure": measure,
                 }
@@ -192,29 +193,27 @@ def global_neighbors_bin_stats(
     pixel_meters_dict: dict,
     square_diff: bool = False,
     weighted: bool = False,
-    edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
-        key_1="num_matching_neighbors",
+        key_1="pred_num_neighb",
         key_2="prob_bin",
-        edge_only=edge_only,
         neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
-    unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
+    unique_pred_neighbor_classes = unique_values_dict["pred_num_neighb"]
     unique_prob_bins = unique_values_dict["prob_bin"]
     # Get the num bins.
-    num_unique_matching_neighbors = len(unique_neighbor_classes)
+    num_pred_neighb_classes = len(unique_pred_neighbor_classes)
     num_bins = len(unique_prob_bins) 
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_unique_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_confs": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
@@ -226,7 +225,7 @@ def global_neighbors_bin_stats(
             bin_acc = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].mean
             num_samples = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].n
             # Calculate the average calibration error for the regions in the bin.
-            nn_idx = unique_neighbor_classes.index(neighbor_class)
+            nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
             bin_idx = unique_prob_bins.index(prob_bin)
             cal_info["bin_confs"][nn_idx, bin_idx] = bin_conf
             cal_info["bin_accs"][nn_idx, bin_idx] = bin_acc
@@ -246,7 +245,6 @@ def global_label_neighbors_bin_stats(
     top_label: bool,
     square_diff: bool = False,
     weighted: bool = False,
-    edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -254,24 +252,24 @@ def global_label_neighbors_bin_stats(
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1=label_key,
-        key_2="num_matching_neighbors",
+        key_2="pred_num_neighb",
         key_3="prob_bin",
-        edge_only=edge_only,
         neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
         )
     unique_labels = unique_values_dict[label_key] 
-    unique_neighbor_classes = unique_values_dict["num_matching_neighbors"]
+    unique_pred_neighbor_classes = unique_values_dict["pred_num_neighb"]
     unique_prob_bins = unique_values_dict["prob_bin"]
+    # Get the num bins.
     num_labels = len(unique_labels) 
-    num_matching_neighbors = len(unique_neighbor_classes)
+    num_pred_neighb_classes = len(unique_pred_neighbor_classes)
     num_bins = len(unique_prob_bins)
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_labels, num_matching_neighbors, num_bins, dtype=torch.float64),
+        "bin_confs": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_accs": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
     }
     # Either use the weighted or unweighted confidence and accuracy.
     conf_key = "confidence" if not weighted else "weighted confidence"
@@ -285,7 +283,7 @@ def global_label_neighbors_bin_stats(
                 num_samples = accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].n
                 # Calculate the average calibration error for the regions in the bin.
                 lab_idx = unique_labels.index(label)
-                nn_idx = unique_neighbor_classes.index(neighbor_class)
+                nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
                 bin_idx = unique_prob_bins.index(prob_bin)
                 cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bin_conf
                 cal_info["bin_accs"][lab_idx, nn_idx, bin_idx] = bin_acc
