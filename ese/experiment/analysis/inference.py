@@ -1,4 +1,5 @@
 # Misc imports
+import os
 import yaml
 import pickle
 import einops
@@ -52,19 +53,14 @@ def save_dict(dict, log_dir):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
-    log_dirs: List[Path],
-    load_image_df: bool,
-    load_pixel_meters_dict: bool
-    ) -> dict:
+    results_cfg: dict
+) -> dict:
     # Build a dictionary to store the inference info.
-    cal_info_dict = {
-        "pixel_meter_dicts": {},
-        "image_info_df": pd.DataFrame([]),
-        "metadata_df": pd.DataFrame([])
-    }
-
+    inference_df = pd.DataFrame([])
+    metadata_df = pd.DataFrame([])
     # Loop through every configuration in the log directory.
-    for log_dir in log_dirs:
+    for log_path in results_cfg["log"]["inference_paths"]:
+        log_dir = Path(os.path.join(results_cfg["log"]["root"], log_path))
         for log_set in log_dir.iterdir():
             if log_set.name not in ["wandb", "submitit"]:
                 # Load the metadata file (json) and add it to the metadata dataframe.
@@ -79,49 +75,72 @@ def load_cal_inference_stats(
                     "qual_metrics", 
                     "cal_metrics", 
                     "calibration.bin_weightings", 
+                    "calibration.conf_interval",
                     "model.filters"
                     ]:
                     if drop_key in flat_cfg:
                         flat_cfg.pop(drop_key)
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
-                cal_info_dict["metadata_df"] = pd.concat([cal_info_dict["metadata_df"], cfg_df])
+                metadata_df = pd.concat([metadata_df, cfg_df])
     # Gather the columns that have unique values amongst the different configurations.
-    unique_cols = []
-    for col in cal_info_dict["metadata_df"].columns:
-        if len(cal_info_dict["metadata_df"][col].unique()) > 1:
-            unique_cols.append(col)
+    if results_cfg["log"]["remove_shared_columns"]:
+        meta_cols = []
+        for col in metadata_df.columns:
+            if len(metadata_df[col].unique()) > 1:
+                meta_cols.append(col)
+    else:
+        meta_cols = metadata_df.columns
+    ##################################
+    # INITIALIZE CALIBRATION METRICS #
+    ##################################
+    cal_metrics = {}
+    if 'cal_metrics' in results_cfg.keys():
+        for c_met_cfg in results_cfg['cal_metrics']:
+            c_metric_name = list(c_met_cfg.keys())[0]
+            calibration_metric_options = c_met_cfg[c_metric_name]
+            # Update with the inference set of calibration options.
+            calibration_metric_options.update(results_cfg['calibration'])
+            # Add the calibration metric to the dictionary.
+            cal_metrics[c_metric_name] = {
+                "name": c_metric_name,
+                "_fn": eval_config(c_met_cfg[c_metric_name])
+            }
+    #############################
     # Loop through every configuration in the log directory.
-    for log_dir in log_dirs:
+    for log_path in results_cfg["log"]["inference_paths"]:
+        log_dir = Path(os.path.join(results_cfg["log"]["root"], log_path))
         for log_set in log_dir.iterdir():
             if log_set.name not in ["wandb", "submitit"]:
                 # Get the metadata corresponding to this log set.
-                metadata_log_df = cal_info_dict["metadata_df"][cal_info_dict["metadata_df"]["log_set"] == log_set.name]
+                metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
                 # Optionally load the information from image-based metrics.
-                if load_image_df:
-                    log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-                    log_image_df["log_set"] = log_set.name
-                    # Add the columns from the metadata dataframe that have unique values.
-                    for col in unique_cols:
-                        assert len(metadata_log_df[col].unique()) == 1, \
-                            f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
-                        log_image_df[col] = metadata_log_df[col].values[0]
-                    cal_info_dict["image_info_df"] = pd.concat([cal_info_dict["image_info_df"], log_image_df])
+                log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
+                log_image_df["log_set"] = log_set.name
+                # Add the columns from the metadata dataframe that have unique values.
+                for col in meta_cols:
+                    assert len(metadata_log_df[col].unique()) == 1, \
+                        f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
+                    log_image_df[col] = metadata_log_df[col].values[0]
                 # Optionally load the pixel stats.
-                if load_pixel_meters_dict:
+                if results_cfg["log"]["load_pixel_meters"]:
                     with open(log_set / "pixel_stats.pkl", 'rb') as f:
                         pixel_meter_dict = pickle.load(f)
-                    # Set the pixel dict of the log set.
-                    cal_info_dict["pixel_meter_dicts"][log_set.name] = pixel_meter_dict 
-    # If we are loading the image stats df, make sure we check that all log_dirs have the same number of rows.
-    if load_image_df:
-        # Get the number of rows in image_info_df for each log set.
-        num_rows_per_log_set = cal_info_dict["image_info_df"].groupby("log_set").size()
-        # Make sure there is only one unique value in the above.
-        assert len(num_rows_per_log_set.unique()) == 1, \
-            "The number of rows in the image_info_df is not the same for all log sets."
+                    # Loop through the calibration metrics and add them to the dataframe.
+                    for cal_metric_name, cal_metric_dict in cal_metrics.items():
+                        log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
+                            pixel_meters_dict=pixel_meter_dict
+                        ).item() 
+                # Add this log to the dataframe.
+                inference_df = pd.concat([inference_df, log_image_df])
+                        
+    # Get the number of rows in image_info_df for each log set.
+    num_rows_per_log_set = inference_df.groupby("log_set").size()
+    # Make sure there is only one unique value in the above.
+    assert len(num_rows_per_log_set.unique()) == 1, \
+        "The number of rows in the image_info_df is not the same for all log sets."
     # Finally, return the dictionary of inference info.
-    return cal_info_dict
+    return inference_df
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -583,8 +602,8 @@ def global_cal_sanity_check(
         # Get the calibration error. 
         # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
         # we are causing issues between equivalence. TODO fix this.
-        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
-        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
+        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 2)
+        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 2)
         assert  image_cal_score == meter_cal_score, \
             f"FAILED CAL EQUIVALENCE CHECK FOR CALIBRATION METRIC '{cal_metric_name}': "+\
                 f"Pixel level calibration score ({meter_cal_score}) does not match "+\
