@@ -133,7 +133,6 @@ def load_cal_inference_stats(
                         ).item() 
                 # Add this log to the dataframe.
                 inference_df = pd.concat([inference_df, log_image_df])
-                        
     # Get the number of rows in image_info_df for each log set.
     num_rows_per_log_set = inference_df.groupby("log_set").size()
     # Make sure there is only one unique value in the above.
