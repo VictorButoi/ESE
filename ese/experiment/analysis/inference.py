@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 from itertools import product
 from pydantic import validate_arguments
-from typing import Any, Optional, List
+from typing import Any, Optional
 # torch imports
 import torch
 from torch.nn import functional as F
@@ -23,6 +23,7 @@ from .utils import (
     dataloader_from_exp,
     show_inference_examples,
     save_inference_metadata,
+    preload_calibrator_classes,
     load_inference_exp_from_cfg
 )
 from ..metrics.utils import (
@@ -94,18 +95,13 @@ def load_cal_inference_stats(
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    cal_metrics = {}
     if 'cal_metrics' in results_cfg.keys():
-        for c_met_cfg in results_cfg['cal_metrics']:
-            c_metric_name = list(c_met_cfg.keys())[0]
-            calibration_metric_options = c_met_cfg[c_metric_name]
-            # Update with the inference set of calibration options.
-            calibration_metric_options.update(results_cfg['calibration'])
-            # Add the calibration metric to the dictionary.
-            cal_metrics[c_metric_name] = {
-                "name": c_metric_name,
-                "_fn": eval_config(c_met_cfg[c_metric_name])
-            }
+        cal_metrics = preload_calibrator_classes(
+            results_cfg["calibration"],
+            cal_metrics_dict=results_cfg["cal_metrics"]
+        )
+    else:
+        cal_metrics = {}
     #############################
     # Loop through every configuration in the log directory.
     for log_path in results_cfg["log"]["inference_paths"]:
@@ -200,18 +196,13 @@ def get_cal_stats(
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    cal_metrics = {}
     if 'cal_metrics' in cfg_dict.keys():
-        for c_met_cfg in cfg_dict['cal_metrics']:
-            c_metric_name = list(c_met_cfg.keys())[0]
-            calibration_metric_options = c_met_cfg[c_metric_name]
-            # Update with the inference set of calibration options.
-            calibration_metric_options.update(cfg_dict['calibration'])
-            # Add the calibration metric to the dictionary.
-            cal_metrics[c_metric_name] = {
-                "name": c_metric_name,
-                "_fn": eval_config(c_met_cfg[c_metric_name])
-            }
+        cal_metrics = preload_calibrator_classes(
+            cfg_dict["calibration"],
+            cal_metrics_dict=cfg_dict["cal_metrics"]
+        )
+    else:
+        cal_metrics = {}
     #############################
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     if cfg_dict["log"]["log_image_stats"]:

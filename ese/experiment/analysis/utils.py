@@ -10,13 +10,32 @@ from torch.utils.data import DataLoader
 from ionpy.analysis import ResultsLoader
 from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
-from ionpy.experiment.util import absolute_import, generate_tuid
+from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ..models.ensemble import get_combine_fn
 from ..callbacks.visualize import ShowPredictionsCallback
 from ..experiment.utils import load_experiment, process_pred_map
 from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import count_matching_neighbors 
+
+
+def preload_calibrator_classes(
+        base_calibration_cfg: dict, 
+        cal_metrics_dict: dict
+):
+    cal_metrics = {}
+    for c_met_cfg in cal_metrics_dict:
+        c_metric_name = list(c_met_cfg.keys())[0]
+        calibration_metric_options = c_met_cfg[c_metric_name]
+        calibrator_config = base_calibration_cfg.copy()
+        # Update with the inference set of calibration options.
+        calibrator_config.update(calibration_metric_options)
+        # Add the calibration metric to the dictionary.
+        cal_metrics[c_metric_name] = {
+            "name": c_metric_name,
+            "_fn": eval_config(c_met_cfg[c_metric_name])
+        }
+    return cal_metrics
 
 
 def reorder_splits(df):
