@@ -36,9 +36,9 @@ def cal_input_check(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
+    num_bins: int = 10,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     neighborhood_width: int = 3,
     square_diff: bool = False,
@@ -103,9 +103,9 @@ def elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_elm_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
+    num_bins: int = 10,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     neighborhood_width: int = 3,
     square_diff: bool = False,
@@ -173,9 +173,9 @@ def tl_elm_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
+    num_bins: int = 10,
     pixel_meters_dict: Dict[tuple, Meter] = None,
     neighborhood_width: int = 3,
     square_diff: bool = False,

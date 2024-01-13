@@ -39,10 +39,10 @@ def cal_input_check(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
+    num_bins: int = 10,
     neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
@@ -97,10 +97,10 @@ def ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
+    num_bins: int = 10,
     neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
@@ -170,10 +170,10 @@ def tl_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
-    num_bins: int,
     y_pred: Tensor = None, 
     y_true: Tensor = None,
     pixel_meters_dict: Dict[tuple, Meter] = None,
+    num_bins: int = 10,
     neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
