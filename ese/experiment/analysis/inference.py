@@ -535,47 +535,37 @@ def update_pixel_meters(
     # Calculate the accuracy map.
     acc_map = (y_hard == y_true).astype(np.float64)
 
-    # Build the valid map from the ground truth pixels not containing our ignored index.
-    ignore_index = inference_cfg["calibration"]["ignore_index"]
-    if ignore_index is not None:
-        assert isinstance(ignore_index, int)
-        valid_idx_map = (y_true != ignore_index)
-    else:
-        valid_idx_map = np.ones((H, W)).astype(np.bool)
-
     # Make a version of pixel meter dict for this image
     image_pixel_meter_dict = {}
     # Iterate through each pixel in the image.
     for (ix, iy) in np.ndindex((H, W)):
-        # Only consider pixels that are valid (not ignored)
-        if valid_idx_map[ix, iy]:
-            # Create a unique key for the combination of label, neighbors, and confidence_bin
-            true_label = y_true[ix, iy]
-            pred_label = y_hard[ix, iy]
-            num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
-            prob_bin = bin_ownership_map[ix, iy]
-            # Define this dictionary prefix corresponding to a 'kind' of pixel.
-            prefix = (true_label, pred_label, num_matching_neighbors, prob_bin)
-            # Add bin specific keys to the dictionary if they don't exist.
-            acc_key = prefix + ("accuracy",)
-            conf_key = prefix + ("confidence",)
-            # If this key doesn't exist in the dictionary, add it
-            if conf_key not in pixel_meter_dict:
-                for meter_key in [acc_key, conf_key]:
-                    pixel_meter_dict[meter_key] = StatsMeter()
-            # Add the keys for the image level tracker.
-            if conf_key not in image_pixel_meter_dict:
-                for meter_key in [acc_key, conf_key]:
-                    image_pixel_meter_dict[meter_key] = StatsMeter()
-            # (acc , conf)
-            acc = acc_map[ix, iy]
-            conf = prob_map[ix, iy]
-            # Add to the local image meter dict.
-            image_pixel_meter_dict[acc_key].add(acc)
-            image_pixel_meter_dict[conf_key].add(conf)
-            # Finally, add the points to the meters.
-            pixel_meter_dict[acc_key].add(acc) 
-            pixel_meter_dict[conf_key].add(conf)
+        # Create a unique key for the combination of label, neighbors, and confidence_bin
+        true_label = y_true[ix, iy]
+        pred_label = y_hard[ix, iy]
+        num_matching_neighbors = pred_matching_neighbors_map[ix, iy]
+        prob_bin = bin_ownership_map[ix, iy]
+        # Define this dictionary prefix corresponding to a 'kind' of pixel.
+        prefix = (true_label, pred_label, num_matching_neighbors, prob_bin)
+        # Add bin specific keys to the dictionary if they don't exist.
+        acc_key = prefix + ("accuracy",)
+        conf_key = prefix + ("confidence",)
+        # If this key doesn't exist in the dictionary, add it
+        if conf_key not in pixel_meter_dict:
+            for meter_key in [acc_key, conf_key]:
+                pixel_meter_dict[meter_key] = StatsMeter()
+        # Add the keys for the image level tracker.
+        if conf_key not in image_pixel_meter_dict:
+            for meter_key in [acc_key, conf_key]:
+                image_pixel_meter_dict[meter_key] = StatsMeter()
+        # (acc , conf)
+        acc = acc_map[ix, iy]
+        conf = prob_map[ix, iy]
+        # Add to the local image meter dict.
+        image_pixel_meter_dict[acc_key].add(acc)
+        image_pixel_meter_dict[conf_key].add(conf)
+        # Finally, add the points to the meters.
+        pixel_meter_dict[acc_key].add(acc) 
+        pixel_meter_dict[conf_key].add(conf)
     # Return the image pixel meter dict.
     return image_pixel_meter_dict
 
