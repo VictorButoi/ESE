@@ -18,10 +18,9 @@ from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import fix_seed, eval_config
 # local imports
-from .utils import (
+from .inference_utils import (
     get_image_aux_info, 
     dataloader_from_exp,
-    show_inference_examples,
     save_inference_metadata,
     preload_calibrator_classes,
     load_inference_exp_from_cfg
@@ -31,6 +30,7 @@ from ..metrics.utils import (
     find_bins, 
     count_matching_neighbors,
 )
+from ..experiment.utils import show_inference_examples
 
 
 def list2tuple(val):
