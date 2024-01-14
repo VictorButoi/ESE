@@ -66,6 +66,8 @@ def ece_loss(
             neighborhood_width=neighborhood_width,
             ignore_index=ignore_index
         )
+        print("Global amounts: ", cal_info["bin_amounts"])
+        print("Global scores: ", cal_info["bin_cal_errors"])
     else: 
         cal_info = bin_stats(
             y_pred=y_pred,
@@ -79,6 +81,9 @@ def ece_loss(
             from_logits=from_logits,
             ignore_index=ignore_index
         )
+        print("Local amounts: ", cal_info["bin_amounts"])
+        print("Local scores: ", cal_info["bin_cal_errors"])
+    print()
 
     # Finally, get the calibration score.
     cal_info['cal_error'] = reduce_bin_errors(

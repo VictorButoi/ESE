@@ -229,7 +229,6 @@ def get_cal_stats(
             # Run the forward loop
             forward_loop_func(
                 exp=inference_exp, 
-                batch_idx=batch_idx,
                 batch=batch, 
                 inference_cfg=cfg_dict, 
                 image_level_records=image_level_records,
@@ -252,7 +251,6 @@ def get_cal_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
     exp: Any,
-    batch_idx: int,
     batch: Any,
     inference_cfg: dict,
     image_level_records: Optional[list] = None,
@@ -291,7 +289,6 @@ def volume_forward_loop(
         }
         # Get the calibration item info.  
         get_calibration_item_info(
-            data_idx=(batch_idx*num_slices) + slice_idx,
             output_dict=output_dict,
             inference_cfg=inference_cfg,
             image_level_records=image_level_records,
@@ -302,7 +299,6 @@ def volume_forward_loop(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_forward_loop(
     exp: Any,
-    batch_idx: int,
     batch: Any,
     inference_cfg: dict,
     image_level_records: Optional[list],
@@ -335,7 +331,6 @@ def image_forward_loop(
     }
     # Get the calibration item info.  
     get_calibration_item_info(
-        data_idx=batch_idx,
         output_dict=output_dict,
         inference_cfg=inference_cfg,
         image_level_records=image_level_records,
@@ -344,7 +339,6 @@ def image_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
-    data_idx: int,
     output_dict: dict,
     inference_cfg: dict,
     image_level_records: Optional[list] = None,
@@ -383,6 +377,7 @@ def get_calibration_item_info(
     ##################################################################
     if check_image_stats and check_pixel_stats: 
         global_cal_sanity_check(
+            data_id=output_dict["data_id"],
             inference_cfg=inference_cfg, 
             image_cal_metrics_dict=image_cal_metrics_dict, 
             image_pixel_meter_dict=image_pixel_meter_dict
@@ -467,9 +462,10 @@ def update_pixel_meters(
     H, W = output_dict["y_hard"].shape[-2:]
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    prob_map = output_dict["y_pred"]
-    if prob_map.shape[1] > 1:
-        prob_map = torch.max(prob_map, dim=1, keepdim=True)[0]
+    y_pred = output_dict["y_pred"]
+    print(y_pred.shape)
+    if y_pred.shape[1] > 1:
+        y_pred = torch.max(y_pred, dim=1, keepdim=True)[0]
 
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
@@ -480,7 +476,7 @@ def update_pixel_meters(
 
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
-        confidences=prob_map, 
+        confidences=y_pred, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
         ).squeeze().cpu().numpy()
@@ -498,9 +494,9 @@ def update_pixel_meters(
         ).squeeze().cpu().numpy()
 
     # CPU-ize prob_map, y_hard, and y_true
-    prob_map = prob_map.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
-    y_true = output_dict["y_true"].cpu().squeeze().numpy()
+    y_pred = y_pred.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
+    y_true = output_dict["y_true"].cpu().squeeze().numpy()
 
     # Calculate the accuracy map.
     acc_map = (y_hard == y_true).astype(np.float64)
@@ -530,18 +526,19 @@ def update_pixel_meters(
                 image_pixel_meter_dict[meter_key] = StatsMeter()
         # (acc , conf)
         acc = acc_map[ix, iy]
-        conf = prob_map[ix, iy]
-        # Add to the local image meter dict.
-        image_pixel_meter_dict[acc_key].add(acc)
-        image_pixel_meter_dict[conf_key].add(conf)
+        conf = y_pred[ix, iy]
         # Finally, add the points to the meters.
         pixel_meter_dict[acc_key].add(acc) 
         pixel_meter_dict[conf_key].add(conf)
+        # Add to the local image meter dict.
+        image_pixel_meter_dict[acc_key].add(acc)
+        image_pixel_meter_dict[conf_key].add(conf)
     # Return the image pixel meter dict.
     return image_pixel_meter_dict
 
 
 def global_cal_sanity_check(
+        data_id: str,
         inference_cfg: dict, 
         image_cal_metrics_dict: dict, 
         image_pixel_meter_dict: dict
@@ -556,7 +553,8 @@ def global_cal_sanity_check(
         image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 5)
         meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 5)
         if image_cal_score != meter_cal_score:
-            print(f"WARNING: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
+            print(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
             print(f"Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
             print()
+            raise ValueError
 

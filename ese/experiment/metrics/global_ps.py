@@ -116,9 +116,9 @@ def global_bin_stats(
     # Get the regions of the prediction corresponding to each bin of confidence.
     for prob_bin in accumulated_meters_dict.keys():
         # Choose what key to use.
-        bin_conf = accumulated_meters_dict[prob_bin][conf_key].mean
-        bin_acc = accumulated_meters_dict[prob_bin][acc_key].mean
-        num_samples = accumulated_meters_dict[prob_bin][acc_key].n
+        bin_conf = torch.tensor(accumulated_meters_dict[prob_bin][conf_key].mean, dtype=torch.float64)
+        bin_acc = torch.tensor(accumulated_meters_dict[prob_bin][acc_key].mean, dtype=torch.float64)
+        num_samples = torch.tensor(accumulated_meters_dict[prob_bin][acc_key].n, dtype=torch.float64)
         # Calculate the average calibration error for the regions in the bin.
         bin_idx = unique_bins.index(prob_bin)
         cal_info["bin_confs"][bin_idx] = bin_conf
@@ -126,9 +126,9 @@ def global_bin_stats(
         cal_info["bin_amounts"][bin_idx] = num_samples
         # Choose whether or not to square for the cal error.
         if square_diff:
-            cal_info["bin_cal_errors"][bin_idx] = np.power(bin_conf - bin_acc, 2)
+            cal_info["bin_cal_errors"][bin_idx] = (bin_conf - bin_acc).square()
         else:
-            cal_info["bin_cal_errors"][bin_idx] = np.abs(bin_conf - bin_acc)
+            cal_info["bin_cal_errors"][bin_idx] = (bin_conf - bin_acc).abs()
     # Return the calibration information.
     return cal_info
 
@@ -170,9 +170,9 @@ def global_label_bin_stats(
     for label in accumulated_meters_dict.keys():
         for prob_bin in accumulated_meters_dict[label].keys():
             # Choose what key to use.
-            bin_conf = accumulated_meters_dict[label][prob_bin][conf_key].mean
-            bin_acc = accumulated_meters_dict[label][prob_bin][acc_key].mean
-            num_samples = accumulated_meters_dict[label][prob_bin][acc_key].n
+            bin_conf = torch.tensor(accumulated_meters_dict[label][prob_bin][conf_key].mean, dtype=torch.float64)
+            bin_acc = torch.tensor(accumulated_meters_dict[label][prob_bin][acc_key].mean, dtype=torch.float64)
+            num_samples = torch.tensor(accumulated_meters_dict[label][prob_bin][acc_key].n, dtype=torch.float64)
             # Calculate the average calibration error for the regions in the bin.
             lab_idx = unique_labels.index(label)
             bin_idx = unique_bins.index(prob_bin)
@@ -181,9 +181,8 @@ def global_label_bin_stats(
             cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
             # Choose whether or not to square for the cal error.
             if square_diff:
-                cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
-            else:
-                cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+                cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).square()
+                cal_info["bin_cal_errors"][lab_idx, bin_idx] = (bin_conf - bin_acc).abs()
     # Return the calibration information.
     return cal_info
 
@@ -221,9 +220,9 @@ def global_neighbors_bin_stats(
     for neighbor_class in accumulated_meters_dict.keys():
         for prob_bin in accumulated_meters_dict[neighbor_class].keys():
             # Choose what key to use.
-            bin_conf = accumulated_meters_dict[neighbor_class][prob_bin][conf_key].mean
-            bin_acc = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].mean
-            num_samples = accumulated_meters_dict[neighbor_class][prob_bin][acc_key].n
+            bin_conf = torch.tensor(accumulated_meters_dict[neighbor_class][prob_bin][conf_key].mean, dtype=torch.float64)
+            bin_acc = torch.tensor(accumulated_meters_dict[neighbor_class][prob_bin][acc_key].mean, dtype=torch.float64) 
+            num_samples = torch.tensor(accumulated_meters_dict[neighbor_class][prob_bin][acc_key].n, dtype=torch.float64)
             # Calculate the average calibration error for the regions in the bin.
             nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
             bin_idx = unique_prob_bins.index(prob_bin)
@@ -232,9 +231,9 @@ def global_neighbors_bin_stats(
             cal_info["bin_amounts"][nn_idx, bin_idx] = num_samples
             # Choose whether or not to square for the cal error.
             if square_diff:
-                cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
+                cal_info["bin_cal_errors"][nn_idx, bin_idx] = (bin_conf - bin_acc).square()
             else:
-                cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+                cal_info["bin_cal_errors"][nn_idx, bin_idx] = (bin_conf - bin_acc).abs()
     # Return the calibration information.
     return cal_info
 
@@ -278,9 +277,9 @@ def global_label_neighbors_bin_stats(
         for neighbor_class in accumulated_meters_dict[label].keys():
             for prob_bin in accumulated_meters_dict[label][neighbor_class].keys():
                 # Choose what key to use.
-                bin_conf = accumulated_meters_dict[label][neighbor_class][prob_bin][conf_key].mean
-                bin_acc = accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].mean
-                num_samples = accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].n
+                bin_conf = torch.tensor(accumulated_meters_dict[label][neighbor_class][prob_bin][conf_key].mean, dtype=torch.float64)
+                bin_acc = torch.tensor(accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].mean, dtype=torch.float64)
+                num_samples = torch.tensor(accumulated_meters_dict[label][neighbor_class][prob_bin][acc_key].n, dtype=torch.float64) 
                 # Calculate the average calibration error for the regions in the bin.
                 lab_idx = unique_labels.index(label)
                 nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
@@ -290,8 +289,8 @@ def global_label_neighbors_bin_stats(
                 cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
                 # Choose whether or not to square for the cal error.
                 if square_diff:
-                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = (bin_conf - bin_acc).square()
                 else:
-                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = (bin_conf - bin_acc).abs()
     # Return the calibration information.
     return cal_info
