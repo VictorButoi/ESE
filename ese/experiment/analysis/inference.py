@@ -73,7 +73,8 @@ def load_cal_inference_stats(
                 # Remove some columns we don't care about.
                 for drop_key in [
                     "qual_metrics", 
-                    "cal_metrics", 
+                    "image_cal_metrics", 
+                    "global_cal_metrics", 
                     "calibration.bin_weightings", 
                     "calibration.conf_interval",
                     "model.filters"
@@ -129,10 +130,10 @@ def load_cal_inference_stats(
                 # Add this log to the dataframe.
                 inference_df = pd.concat([inference_df, log_image_df])
     # Get the number of rows in image_info_df for each log set.
-    num_rows_per_log_set = inference_df.groupby("log_set").size()
+    num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
     # Make sure there is only one unique value in the above.
     assert len(num_rows_per_log_set.unique()) == 1, \
-        "The number of rows in the image_info_df is not the same for all log sets."
+        f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
     # Finally, return the dictionary of inference info.
     return inference_df
 
@@ -235,6 +236,7 @@ def get_cal_stats(
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
+            # if batch["data_id"][0] == "103":
             # Run the forward loop
             forward_loop_func(
                 exp=inference_exp, 
@@ -271,6 +273,7 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
+        # if slice_idx == 26:
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Get the prediction with no gradient accumulation.
         slice_batch = {
@@ -546,8 +549,8 @@ def global_cal_sanity_check(
         if metric_base in inference_cfg["global_cal_metrics"]:
             global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
             # Get the calibration error in two views. 
-            image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 6)
-            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 6)
+            image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
+            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
             if image_cal_score != meter_cal_score:
                 raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
                 f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
