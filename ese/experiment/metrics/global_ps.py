@@ -87,10 +87,10 @@ def accumulate_pixel_preds(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_bin_stats(
     pixel_meters_dict: dict,
-    square_diff: bool = False,
+    neighborhood_width: int,
+    square_diff: bool,
     weighted: bool = False,
     edge_only: bool = False,
-    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
@@ -137,10 +137,10 @@ def global_bin_stats(
 def global_label_bin_stats(
     pixel_meters_dict: dict,
     top_label: bool,
-    square_diff: bool = False,
+    square_diff: bool,
+    neighborhood_width: int,
     weighted: bool = False,
     edge_only: bool = False,
-    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
@@ -191,9 +191,9 @@ def global_label_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_neighbors_bin_stats(
     pixel_meters_dict: dict,
-    square_diff: bool = False,
+    neighborhood_width: int,
+    square_diff: bool,
     weighted: bool = False,
-    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
@@ -242,10 +242,10 @@ def global_neighbors_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_label_neighbors_bin_stats(
     pixel_meters_dict: dict,
+    neighborhood_width: int,
     top_label: bool,
-    square_diff: bool = False,
+    square_diff: bool,
     weighted: bool = False,
-    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
