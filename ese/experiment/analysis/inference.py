@@ -234,7 +234,6 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
-            # if batch["data_id"][0] == '135':
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Run the forward loop
             forward_loop_func(
@@ -273,13 +272,10 @@ def volume_forward_loop(
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
-        # Extract the slices from the volumes.
-        image_slice = image_vol_cuda[:, slice_idx:slice_idx+1, ...]
-        label_slice = image_vol_cpu[:, slice_idx:slice_idx+1, ...]
         # Get the prediction with no gradient accumulation.
         slice_batch = {
-            "img": image_slice,
-            "label": label_slice,
+            "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
+            "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
             "data_id": batch["data_id"],
         } 
         image_forward_loop(
