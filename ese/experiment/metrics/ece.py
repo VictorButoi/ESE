@@ -55,8 +55,6 @@ def image_ece_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    print("Local bin scores:", cal_info["bin_cal_errors"])
-    print("Local bin amounts:", cal_info["bin_amounts"])
     # Return the calibration information
     return ece_reduction(**metric_dict)
 
@@ -82,8 +80,6 @@ def ece_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    print("Global bin scores:", cal_info["bin_cal_errors"])
-    print("Global bin amounts:", cal_info["bin_amounts"])
     # Return the calibration information
     return ece_reduction(**metric_dict)
 

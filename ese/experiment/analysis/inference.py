@@ -394,6 +394,7 @@ def get_image_stats(
         "y_pred": output_dict["y_pred"],
         "y_true": output_dict["y_true"],
         "stats_info_dict": get_image_aux_info(
+            y_pred=output_dict["y_pred"],
             y_hard=output_dict["y_hard"],
             y_true=output_dict["y_true"],
             cal_cfg=inference_cfg["calibration"]

@@ -90,22 +90,24 @@ def bin_stats_init(
     y_hard = y_pred.argmax(dim=1) # B x H x W
     y_max_prob_map = y_pred.max(dim=1).values # B x H x W
 
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-    )
-
     # Figure out where each pixel belongs (in confidence)
     if "bin_ownership_map" in stats_info_dict:
         bin_ownership_map = stats_info_dict["bin_ownership_map"]
     else:
+        # Create the confidence bins.    
+        conf_bins, conf_bin_widths = get_bins(
+            num_bins=num_bins, 
+            start=conf_interval[0], 
+            end=conf_interval[1]
+        )
         bin_ownership_map = find_bins(
             confidences=y_max_prob_map, 
             bin_starts=conf_bins,
             bin_widths=conf_bin_widths
-        )
+        ).unsqueeze(0) # B x H x W
+        assert bin_ownership_map.shape == y_hard.shape,\
+            f"bin_ownership_map and y_hard must have the same shape. Got {bin_ownership_map.shape} and {y_hard.shape}."
+        
 
     # Get the pixelwise accuracy.
     if "accuracy_map" in stats_info_dict:

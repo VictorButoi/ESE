@@ -16,7 +16,11 @@ from ..models.ensemble import get_combine_fn
 from ..callbacks.visualize import ShowPredictionsCallback
 from ..experiment.utils import load_experiment, process_pred_map
 from ..experiment import EnsembleInferenceExperiment
-from ..metrics.utils import count_matching_neighbors 
+from ..metrics.utils import (
+    count_matching_neighbors,
+    get_bins,
+    find_bins
+)
 
 
 def preload_calibration_metrics(
@@ -179,6 +183,7 @@ def binarize(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_image_aux_info(
+    y_pred: torch.Tensor,
     y_hard: torch.Tensor,
     y_true: torch.Tensor,
     cal_cfg: dict,
@@ -199,13 +204,31 @@ def get_image_aux_info(
         lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=cal_cfg["neighborhood_width"]
     )
+
     true_matching_neighbors_map = count_matching_neighbors(
         lab_map=y_true.squeeze(1), # Remove the channel dimension. 
         neighborhood_width=cal_cfg["neighborhood_width"]
+    ) 
+
+    # Calculate the probability bin positions per pixel.
+    y_max_prob_map = y_pred.max(dim=1).values # B x H x W
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=cal_cfg["num_bins"], 
+        start=cal_cfg["conf_interval"][0], 
+        end=cal_cfg["conf_interval"][1]
     )
+    # Get the bin indices for each pixel.
+    bin_ownership_map = find_bins(
+        confidences=y_max_prob_map, 
+        bin_starts=conf_bins,
+        bin_widths=conf_bin_widths
+    ).unsqueeze(0) # B x H x W
+
     return {
         "accuracy_map": accuracy_map,
         "pred_labels": pred_labels,
+        "bin_ownership_map": bin_ownership_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
     }
