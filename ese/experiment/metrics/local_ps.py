@@ -6,6 +6,7 @@ from pydantic import validate_arguments
 # local imports 
 from .utils import (
     get_bins,
+    find_bins,
     get_conf_region, 
     count_matching_neighbors
 )
@@ -96,6 +97,16 @@ def bin_stats_init(
         end=conf_interval[1]
     )
 
+    # Figure out where each pixel belongs (in confidence)
+    if "bin_ownership_map" in stats_info_dict:
+        bin_ownership_map = stats_info_dict["bin_ownership_map"]
+    else:
+        bin_ownership_map = find_bins(
+            confidences=y_max_prob_map, 
+            bin_starts=conf_bins,
+            bin_widths=conf_bin_widths
+        )
+
     # Get the pixelwise accuracy.
     if "accuracy_map" in stats_info_dict:
         accuracy_map = stats_info_dict["accuracy_map"]
@@ -128,8 +139,7 @@ def bin_stats_init(
         "y_hard": y_hard.to(torch.float64),
         "y_true": y_true.to(torch.float64),
         "pixelwise_accuracy": accuracy_map.to(torch.float64),
-        "conf_bins": conf_bins,
-        "conf_bin_widths": conf_bin_widths,
+        "bin_ownership_map": bin_ownership_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
         "pix_weights": None 
@@ -167,13 +177,11 @@ def bin_stats(
         "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
     }
     # Get the regions of the prediction corresponding to each bin of confidence.
-    for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
+    for bin_idx in range(num_bins):
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
-            prob_map=obj_dict["y_max_prob_map"],
             bin_idx=bin_idx, 
-            conf_bin=conf_bin, 
-            conf_bin_widths=obj_dict["conf_bin_widths"], 
+            bin_ownership_map=obj_dict["bin_ownership_map"],
             lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Use ground truth to get the region.
             edge_only=edge_only,
@@ -239,13 +247,11 @@ def label_bin_stats(
         "bin_cal_errors": torch.zeros((num_labels, num_bins), dtype=torch.float64)
     }
     for lab_idx, lab in enumerate(lab_info["unique_labels"]):
-        for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
+        for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
-                prob_map=obj_dict["y_max_prob_map"],
                 bin_idx=bin_idx, 
-                conf_bin=conf_bin, 
-                conf_bin_widths=obj_dict["conf_bin_widths"], 
+                bin_ownership_map=obj_dict["bin_ownership_map"],
                 label=lab,
                 lab_map=lab_info["lab_map"],
                 num_neighbors_map=obj_dict["true_matching_neighbors_map"],
@@ -303,13 +309,11 @@ def neighbors_bin_stats(
         "bin_amounts": torch.zeros((num_neighbors, num_bins), dtype=torch.float64)
     }
     for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-        for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
+        for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
-                prob_map=obj_dict["y_max_prob_map"],
                 bin_idx=bin_idx, 
-                conf_bin=conf_bin, 
-                conf_bin_widths=obj_dict["conf_bin_widths"], 
+                bin_ownership_map=obj_dict["bin_ownership_map"],
                 lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 num_neighbors=p_nn,
                 num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
@@ -377,13 +381,11 @@ def label_neighbors_bin_stats(
     }
     for lab_idx, lab in enumerate(lab_info["unique_labels"]):
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-            for bin_idx, conf_bin in enumerate(obj_dict["conf_bins"]):
+            for bin_idx in range(num_bins):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
-                    prob_map=obj_dict["y_max_prob_map"],
                     bin_idx=bin_idx, 
-                    conf_bin=conf_bin, 
-                    conf_bin_widths=obj_dict["conf_bin_widths"], 
+                    bin_ownership_map=obj_dict["bin_ownership_map"],
                     label=lab,
                     lab_map=lab_info["lab_map"],
                     num_neighbors=p_nn,

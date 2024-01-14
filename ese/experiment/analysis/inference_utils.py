@@ -20,14 +20,14 @@ from ..metrics.utils import count_matching_neighbors
 
 
 def preload_calibration_metrics(
-        base_calibration_cfg: dict, 
-        cal_metrics_dict: dict
+    base_cal_cfg: dict, 
+    cal_metrics_dict: dict
 ):
     cal_metrics = {}
     for c_met_cfg in cal_metrics_dict:
         c_metric_name = list(c_met_cfg.keys())[0]
         calibration_metric_options = c_met_cfg[c_metric_name]
-        cal_base_cfg_copy = base_calibration_cfg.copy()
+        cal_base_cfg_copy = base_cal_cfg.copy()
         # Update with the inference set of calibration options.
         cal_base_cfg_copy.update(calibration_metric_options)
         # Add the calibration metric to the dictionary.

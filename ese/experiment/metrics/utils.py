@@ -88,28 +88,17 @@ def split_tensor(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
-    prob_map: Tensor,
     bin_idx: int, 
-    conf_bin: Tensor, 
-    conf_bin_widths: Tensor, 
+    bin_ownership_map: Tensor,
     edge_only: bool = False,
     label: Optional[int] = None,
-    lab_map: Optional[Tensor] = None,
-    num_neighbors_map: Optional[Tensor] = None,
     num_neighbors: Optional[int] = None,
     ignore_index: Optional[int] = None,
+    lab_map: Optional[Tensor] = None,
+    num_neighbors_map: Optional[Tensor] = None,
     ):
-    # Get the region of image corresponding to the confidence
-    if conf_bin_widths[bin_idx] == 0:
-        bin_conf_region = (prob_map == conf_bin) 
-    else:
-        upper_condition = prob_map <= (conf_bin + conf_bin_widths[bin_idx])
-        if bin_idx == 0:
-            lower_condition = prob_map >= conf_bin
-        else:
-            lower_condition = prob_map > conf_bin
-        bin_conf_region = torch.logical_and(lower_condition, upper_condition)
-
+    # We want to only pick things in the bin indicated.
+    bin_conf_region = (bin_ownership_map == bin_idx)
     # If we want to only pick things which match the label.
     if label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, (lab_map==label))
