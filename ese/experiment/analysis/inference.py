@@ -234,6 +234,7 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
+            # if batch["data_id"][0] == '135':
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Run the forward loop
             forward_loop_func(
@@ -267,39 +268,24 @@ def volume_forward_loop(
 ):
     # Get the batch info
     image_vol, label_vol  = batch["img"], batch["label"]
-    # Get your image label pair and define some regions.
-    img_vol_cuda , label_vol_cuda = to_device((image_vol, label_vol), exp.device)
     # Go through each slice and predict the metrics.
-    num_slices = img_vol_cuda.shape[1]
+    num_slices = image_vol.shape[1]
     for slice_idx in range(num_slices):
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Extract the slices from the volumes.
-        image_cuda = img_vol_cuda[:, slice_idx:slice_idx+1, ...]
-        label_map_cuda = label_vol_cuda[:, slice_idx:slice_idx+1, ...]
+        image_slice = image_vol[:, slice_idx:slice_idx+1, ...]
+        label_slice = label_vol[:, slice_idx:slice_idx+1, ...]
         # Get the prediction with no gradient accumulation.
-        predict_args = {'multi_class': True}
-        ensemble_show_preds = (inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"])
-        if ensemble_show_preds:
-            predict_args["combine_fn"] = "identity"
-        # Do a forward pass.
-        with torch.no_grad():
-            exp_output =  exp.predict(image_cuda, **predict_args)
-        # Ensembling the preds and we want to show them we need to change the shape a bit.
-        if ensemble_show_preds: 
-            exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
-        # Wrap the outputs into a dictionary.
-        output_dict = {
-            "x": image_cuda,
-            "y_true": label_map_cuda.long(),
-            "y_pred": exp_output["y_pred"],
-            "y_hard": exp_output["y_hard"],
-            "data_id": batch["data_id"][0], # Works because batchsize = 1
-            "slice_idx": slice_idx 
-        }
-        # Get the calibration item info.  
-        get_calibration_item_info(
-            output_dict=output_dict,
+        slice_batch = {
+            "img": image_slice,
+            "label": label_slice,
+            "data_id": batch["data_id"],
+        } 
+        image_forward_loop(
+            exp=exp,
+            batch=slice_batch,
             inference_cfg=inference_cfg,
+            slice_idx=slice_idx,
             image_level_records=image_level_records,
             pixel_meter_dict=pixel_meter_dict
         )
@@ -310,7 +296,8 @@ def image_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
-    image_level_records: Optional[list],
+    slice_idx: Optional[int] = None,
+    image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
@@ -328,15 +315,14 @@ def image_forward_loop(
     # Ensembling the preds and we want to show them we need to change the shape a bit.
     if ensemble_show_preds: 
         exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
-        exp_output["y_hard"] = einops.rearrange(exp_output["y_hard"], "1 C E H W -> E C H W")
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image_cuda,
+        "y_true": label_map_cuda.long(),
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
-        "y_true": label_map_cuda.long(),
-        "data_id": batch["data_id"][0],
-        "slice_idx": None
+        "data_id": batch["data_id"][0], # Works because batchsize = 1
+        "slice_idx": slice_idx 
     }
     # Get the calibration item info.  
     get_calibration_item_info(
@@ -387,6 +373,7 @@ def get_calibration_item_info(
     if check_image_stats and check_pixel_stats: 
         global_cal_sanity_check(
             data_id=output_dict["data_id"],
+            slice_idx=output_dict["slice_idx"],
             inference_cfg=inference_cfg, 
             image_cal_metrics_dict=image_cal_metrics_dict, 
             image_pixel_meter_dict=image_pixel_meter_dict
@@ -547,6 +534,7 @@ def update_pixel_meters(
 
 def global_cal_sanity_check(
         data_id: str,
+        slice_idx: Any,
         inference_cfg: dict, 
         image_cal_metrics_dict: dict, 
         image_pixel_meter_dict: dict
@@ -564,6 +552,6 @@ def global_cal_sanity_check(
             image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
             meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
             if image_cal_score != meter_cal_score:
-                raise ValueError(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
+                raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
                 f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
 
