@@ -256,7 +256,7 @@ def find_bins(
     Given an array of confidence values, bin start positions, and individual bin widths, 
     find the bin index for each confidence.
     Args:
-    - confidences (numpy.ndarray): A numpy array of confidence values.
+    - confidences (Tensor): A torch tensor of confidence values.
     - bin_starts (Tensor): A 1D tensor representing the start position of each confidence bin.
     - bin_widths (Tensor): A 1D tensor representing the width of each confidence bin.
     Returns:

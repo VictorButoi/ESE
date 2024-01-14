@@ -6,7 +6,6 @@ import einops
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from itertools import product
 from pydantic import validate_arguments
 from typing import Any, Optional
 # torch imports
@@ -22,7 +21,7 @@ from .inference_utils import (
     get_image_aux_info, 
     dataloader_from_exp,
     save_inference_metadata,
-    preload_calibrator_classes,
+    preload_calibration_metrics,
     load_inference_exp_from_cfg
 )
 from ..metrics.utils import (
@@ -197,7 +196,7 @@ def get_cal_stats(
     # INITIALIZE CALIBRATION METRICS #
     ##################################
     if 'cal_metrics' in cfg_dict.keys():
-        cal_metrics = preload_calibrator_classes(
+        cal_metrics = preload_calibration_metrics(
             cfg_dict["calibration"],
             cal_metrics_dict=cfg_dict["cal_metrics"]
         )

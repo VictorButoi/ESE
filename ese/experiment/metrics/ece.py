@@ -68,6 +68,7 @@ def ece_loss(
         )
         print("Global amounts: ", cal_info["bin_amounts"])
         print("Global scores: ", cal_info["bin_cal_errors"])
+        print("Global conf_intervals: ", conf_interval)
     else: 
         cal_info = bin_stats(
             y_pred=y_pred,
@@ -83,6 +84,7 @@ def ece_loss(
         )
         print("Local amounts: ", cal_info["bin_amounts"])
         print("Local scores: ", cal_info["bin_cal_errors"])
+        print("Local conf_intervals: ", conf_interval)
     print()
 
     # Finally, get the calibration score.

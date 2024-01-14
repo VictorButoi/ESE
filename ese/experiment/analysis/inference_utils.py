@@ -19,7 +19,7 @@ from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import count_matching_neighbors 
 
 
-def preload_calibrator_classes(
+def preload_calibration_metrics(
         base_calibration_cfg: dict, 
         cal_metrics_dict: dict
 ):
@@ -27,13 +27,13 @@ def preload_calibrator_classes(
     for c_met_cfg in cal_metrics_dict:
         c_metric_name = list(c_met_cfg.keys())[0]
         calibration_metric_options = c_met_cfg[c_metric_name]
-        calibrator_config = base_calibration_cfg.copy()
+        cal_base_cfg_copy = base_calibration_cfg.copy()
         # Update with the inference set of calibration options.
-        calibrator_config.update(calibration_metric_options)
+        cal_base_cfg_copy.update(calibration_metric_options)
         # Add the calibration metric to the dictionary.
         cal_metrics[c_metric_name] = {
             "name": c_metric_name,
-            "_fn": eval_config(c_met_cfg[c_metric_name])
+            "_fn": eval_config(cal_base_cfg_copy)
         }
     return cal_metrics
 
