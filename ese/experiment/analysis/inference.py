@@ -267,14 +267,15 @@ def volume_forward_loop(
     pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
-    image_vol, label_vol  = batch["img"], batch["label"]
+    image_vol_cpu, label_vol_cpu  = batch["img"], batch["label"]
+    image_vol_cuda, label_vol_cuda = to_device((image_vol_cpu, label_vol_cpu), exp.device)
     # Go through each slice and predict the metrics.
-    num_slices = image_vol.shape[1]
+    num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Extract the slices from the volumes.
-        image_slice = image_vol[:, slice_idx:slice_idx+1, ...]
-        label_slice = label_vol[:, slice_idx:slice_idx+1, ...]
+        image_slice = image_vol_cuda[:, slice_idx:slice_idx+1, ...]
+        label_slice = image_vol_cpu[:, slice_idx:slice_idx+1, ...]
         # Get the prediction with no gradient accumulation.
         slice_batch = {
             "img": image_slice,
@@ -303,7 +304,8 @@ def image_forward_loop(
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
     # Get your image label pair and define some regions.
-    image_cuda, label_map_cuda = to_device((image, label_map), exp.device)
+    if image.device != exp.device:
+        image, label_map = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
     predict_args = {'multi_class': True}
     ensemble_show_preds = (inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"])
@@ -311,14 +313,14 @@ def image_forward_loop(
         predict_args["combine_fn"] = "identity"
     # Do a forward pass.
     with torch.no_grad():
-        exp_output =  exp.predict(image_cuda, **predict_args)
+        exp_output =  exp.predict(image, **predict_args)
     # Ensembling the preds and we want to show them we need to change the shape a bit.
     if ensemble_show_preds: 
         exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
     # Wrap the outputs into a dictionary.
     output_dict = {
-        "x": image_cuda,
-        "y_true": label_map_cuda.long(),
+        "x": image,
+        "y_true": label_map.long(),
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
         "data_id": batch["data_id"][0], # Works because batchsize = 1
