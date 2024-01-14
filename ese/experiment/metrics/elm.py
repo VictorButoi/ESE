@@ -35,9 +35,6 @@ def image_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
-    """
     cal_info = neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -49,8 +46,11 @@ def image_elm_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -61,17 +61,17 @@ def elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the TENCE: Top-Label Expected Neighborhood-conditioned Calibration Error.
-    """
     cal_info = global_neighbors_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
         square_diff=square_diff,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -87,9 +87,6 @@ def image_tl_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -102,8 +99,11 @@ def image_tl_elm_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return tl_elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return tl_elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -114,9 +114,6 @@ def tl_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     # Verify input.
     cal_info = global_label_neighbors_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
@@ -125,8 +122,11 @@ def tl_elm_loss(
         square_diff=square_diff,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return tl_elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return tl_elm_reduction(**metric_dict)
         
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -142,9 +142,6 @@ def image_cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     cal_info = label_neighbors_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -157,8 +154,11 @@ def image_cw_elm_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return cw_elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return cw_elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -169,9 +169,6 @@ def cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     cal_info = global_label_neighbors_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
@@ -179,8 +176,11 @@ def cw_elm_loss(
         square_diff=square_diff,
         ignore_index=ignore_index
     )
-    kwargs['cal_info'] = cal_info
-    return cw_elm_reduction(**kwargs)
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    return cw_elm_reduction(**metric_dict)
 
 
 #############################################################################

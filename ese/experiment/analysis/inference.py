@@ -195,13 +195,22 @@ def get_cal_stats(
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
-    if 'cal_metrics' in cfg_dict.keys():
-        cal_metrics = preload_calibration_metrics(
+    # Image level metrics.
+    if 'image_cal_metrics' in cfg_dict.keys():
+        image_cal_metrics = preload_calibration_metrics(
             cfg_dict["calibration"],
-            cal_metrics_dict=cfg_dict["cal_metrics"]
+            cal_metrics_dict=cfg_dict["image_cal_metrics"]
         )
     else:
-        cal_metrics = {}
+        image_cal_metrics = {}
+    # Global dataset level metrics. (Used for validation)
+    if 'global_cal_metrics' in cfg_dict.keys():
+        global_cal_metrics = preload_calibration_metrics(
+            cfg_dict["calibration"],
+            cal_metrics_dict=cfg_dict["global_cal_metrics"]
+        )
+    else:
+        global_cal_metrics = {}
     #############################
     # Setup trackers for both or either of image level statistics and pixel level statistics.
     if cfg_dict["log"]["log_image_stats"]:
@@ -214,7 +223,8 @@ def get_cal_stats(
         pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 
-    cfg_dict["cal_metrics"] = cal_metrics 
+    cfg_dict["image_cal_metrics"] = image_cal_metrics 
+    cfg_dict["global_cal_metrics"] = global_cal_metrics
     # Setup the log directories.
     image_level_dir = task_root / "image_stats.pkl"
     pixel_level_dir = task_root / "pixel_stats.pkl"
@@ -418,7 +428,7 @@ def get_image_stats(
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
     # Go through each calibration metric and calculate the score.
     cal_metric_errors_dict = {}
-    for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
+    for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
         # Get the calibration error. 
         cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config).item() 
     
@@ -462,7 +472,6 @@ def update_pixel_meters(
 
     # If the confidence map is mulitclass, then we need to do some extra work.
     y_pred = output_dict["y_pred"]
-    print(y_pred.shape)
     if y_pred.shape[1] > 1:
         y_pred = torch.max(y_pred, dim=1, keepdim=True)[0]
 
@@ -545,15 +554,18 @@ def global_cal_sanity_check(
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
     # image.
-    for cal_metric_name, cal_metric_dict in inference_cfg["cal_metrics"].items():
-        # Get the calibration error. 
-        # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
-        # we are causing issues between equivalence. TODO fix this.
-        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 5)
-        meter_cal_score = np.round(cal_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 5)
-        if image_cal_score != meter_cal_score:
-            print(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
-            print(f"Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
-            print()
-            raise ValueError
+    for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
+        metric_base = cal_metric_name.split("_")[-1]
+        if metric_base in inference_cfg["global_cal_metrics"]:
+            global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
+            # Get the calibration error. 
+            # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
+            # we are causing issues between equivalence. TODO fix this.
+            image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 5)
+            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 5)
+            if image_cal_score != meter_cal_score:
+                print(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
+                print(f"Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
+                print()
+                raise ValueError
 

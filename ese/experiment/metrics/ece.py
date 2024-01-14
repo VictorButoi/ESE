@@ -30,19 +30,14 @@ def image_ece_loss(
     y_true: Tensor,
     num_bins: int,
     conf_interval: List[float],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     stats_info_dict: dict = {},
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) of just the edges.
-    """
-    kwargs["y_pred"] = y_pred
-    kwargs["y_true"] = y_true
     # Get the cal info.
     cal_info = bin_stats(
         y_pred=y_pred,
@@ -56,23 +51,23 @@ def image_ece_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return ece_reduction(**kwargs)
+    return ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) of just the edges.
-    """
     # Get the statistics either from pixel meter dict.
     cal_info = global_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
@@ -81,9 +76,12 @@ def ece_loss(
         neighborhood_width=neighborhood_width,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return ece_reduction(**kwargs)
+    return ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -92,17 +90,14 @@ def image_tl_ece_loss(
     y_true: Tensor,
     num_bins: int,
     conf_interval: List[float],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     stats_info_dict: dict = {},
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) for a predicted label map.
-    """
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -116,23 +111,23 @@ def image_tl_ece_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return tl_ece_reduction(**kwargs)
+    return tl_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) for a predicted label map.
-    """
     # Get the statistics either from images or pixel meter dict.
     cal_info = global_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
@@ -142,9 +137,12 @@ def tl_ece_loss(
         edge_only=edge_only,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return tl_ece_reduction(**kwargs)
+    return tl_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -153,17 +151,14 @@ def image_cw_ece_loss(
     y_true: Tensor,
     num_bins: int,
     conf_interval: List[float],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
     stats_info_dict: dict = {},
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     cal_info = label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -177,23 +172,23 @@ def image_cw_ece_loss(
         from_logits=from_logits,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return cw_ece_reduction(**kwargs)
+    return cw_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
-    neighborhood_width: int = 3,
     edge_only: bool = False,
     square_diff: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the LoMS.
-    """
     # Get the statistics either from images or pixel meter dict.
     cal_info = global_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
@@ -203,9 +198,12 @@ def cw_ece_loss(
         edge_only=edge_only,
         ignore_index=ignore_index
     )
-    kwargs["cal_info"] = cal_info
+    metric_dict = {
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
     # Return the calibration information
-    return cw_ece_reduction(**kwargs)
+    return cw_ece_reduction(**metric_dict)
 
 
 # Edge only versions of the above functions.
@@ -217,9 +215,7 @@ def image_edge_ece_loss(
     y_true: Tensor,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) of just the edges.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
     kwargs["edge_only"] = True
@@ -232,9 +228,7 @@ def edge_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Expected Semantic Error (ECE) of just the edges.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True
     # Return the calibration information
@@ -247,9 +241,7 @@ def image_etl_ece_loss(
     y_true: Tensor = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Top-label Expected Semantic Error (TL-ECE) for a predicted label map.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
     kwargs["edge_only"] = True
@@ -262,9 +254,7 @@ def etl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Top-label Expected Semantic Error (TL-ECE) for a predicted label map.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True
     # Return the calibration information
@@ -277,9 +267,7 @@ def image_ecw_ece_loss(
     y_true: Tensor = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Class-wise Expected Semantic Error (CW-ECE) for a predicted label map.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
     kwargs["edge_only"] = True
@@ -292,9 +280,7 @@ def ecw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
     ) -> Union[dict, Tensor]:
-    """
-    Calculates the Class-wise Expected Semantic Error (CW-ECE) for a predicted label map.
-    """
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True
     # Return the calibration information
