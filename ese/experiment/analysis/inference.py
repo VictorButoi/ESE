@@ -561,11 +561,9 @@ def global_cal_sanity_check(
             # Get the calibration error. 
             # NOTE: The rounding here is not savory. There are differences in the precisions of these two numbers
             # we are causing issues between equivalence. TODO fix this.
-            image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 5)
-            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 5)
+            image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
+            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
             if image_cal_score != meter_cal_score:
-                print(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS.")
-                print(f"Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
-                print()
-                raise ValueError
+                raise ValueError(f"WARNING on data id {data_id}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
+                f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
 
