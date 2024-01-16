@@ -131,9 +131,19 @@ def load_cal_inference_stats(
                 inference_df = pd.concat([inference_df, log_image_df])
     # Get the number of rows in image_info_df for each log set.
     num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
+
     # Make sure there is only one unique value in the above.
     assert len(num_rows_per_log_set.unique()) == 1, \
         f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
+
+    # Remove any final columns we don't want
+    for drop_key in [
+        "conf_interval"
+    ]:
+        # If the key is in the dataframe, remove the column.
+        if drop_key in inference_df.columns:
+            inference_df = inference_df.drop(drop_key, axis=1)
+
     # Finally, return the dictionary of inference info.
     return inference_df
 
