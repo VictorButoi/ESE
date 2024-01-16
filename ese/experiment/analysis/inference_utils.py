@@ -223,7 +223,7 @@ def get_image_aux_info(
         confidences=y_max_prob_map, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
-    ).unsqueeze(0) # B x H x W
+    ) # B x H x W
 
     return {
         "accuracy_map": accuracy_map,

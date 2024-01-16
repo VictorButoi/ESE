@@ -71,7 +71,7 @@ def bin_stats_init(
     num_bins: int,
     conf_interval: Tuple[float, float],
     from_logits: bool = False,
-    neighborhood_width: int = 3,
+    neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {}
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
@@ -104,10 +104,9 @@ def bin_stats_init(
             confidences=y_max_prob_map, 
             bin_starts=conf_bins,
             bin_widths=conf_bin_widths
-        ).unsqueeze(0) # B x H x W
+        ) # B x H x W
         assert bin_ownership_map.shape == y_hard.shape,\
             f"bin_ownership_map and y_hard must have the same shape. Got {bin_ownership_map.shape} and {y_hard.shape}."
-        
 
     # Get the pixelwise accuracy.
     if "accuracy_map" in stats_info_dict:

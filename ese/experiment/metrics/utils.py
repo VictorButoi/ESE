@@ -245,7 +245,7 @@ def find_bins(
     Given an array of confidence values, bin start positions, and individual bin widths, 
     find the bin index for each confidence.
     Args:
-    - confidences (Tensor): A torch tensor of confidence values.
+    - confidences (Tensor): A batch torch tensor of confidence values.
     - bin_starts (Tensor): A 1D tensor representing the start position of each confidence bin.
     - bin_widths (Tensor): A 1D tensor representing the width of each confidence bin.
     Returns:
@@ -254,7 +254,7 @@ def find_bins(
     """
     confidences = confidences.squeeze()
     # Ensure that the bin_starts and bin_widths tensors have the same shape
-    assert len(confidences.shape) == 2, "Confidences can only currently be (H, W)."
+    assert len(confidences.shape) == 3, "Confidences must be (B, H, W)."
     assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
     # Expand dimensions for broadcasting
     expanded_confidences = confidences.unsqueeze(-1)
