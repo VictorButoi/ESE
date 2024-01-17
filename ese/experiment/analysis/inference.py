@@ -495,7 +495,7 @@ def update_pixel_meters(
     # If the confidence map is mulitclass, then we need to do some extra work.
     y_pred = output_dict["y_pred"]
     if y_pred.shape[1] > 1:
-        y_pred = torch.max(y_pred, dim=1, keepdim=True)[0]
+        y_pred = torch.max(y_pred, dim=1)[0]
 
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
