@@ -29,7 +29,8 @@ from ..metrics.utils import (
     find_bins, 
     count_matching_neighbors,
 )
-from ..experiment.utils import show_inference_examples
+from ..experiment.utils import show_inference_examples, process_pred_map
+from ..models.ensemble import get_combine_fn
 
 
 def list2tuple(val):
@@ -340,15 +341,12 @@ def image_forward_loop(
         image, label_map = to_device((image, label_map), exp.device)
     # Get the prediction with no gradient accumulation.
     predict_args = {'multi_class': True}
-    ensemble_show_preds = (inference_cfg["model"]["ensemble"] and inference_cfg["log"]["show_examples"])
-    if ensemble_show_preds:
+    do_ensemble = inference_cfg["model"]["ensemble"]
+    if do_ensemble:
         predict_args["combine_fn"] = "identity"
     # Do a forward pass.
     with torch.no_grad():
         exp_output =  exp.predict(image, **predict_args)
-    # Ensembling the preds and we want to show them we need to change the shape a bit.
-    if ensemble_show_preds: 
-        exp_output["y_pred"] = einops.rearrange(exp_output["y_pred"], "1 C E H W -> E C H W")
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image,
@@ -422,32 +420,72 @@ def get_image_stats(
 ):
     # Define the cal config.
     qual_input_config = {
-        "y_pred": output_dict["y_pred"],
-        "y_true": output_dict["y_true"],
+        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+        "y_true": output_dict["y_true"], # (B, C, H, W)
     }
     # Define the cal config.
     cal_input_config = {
-        "y_pred": output_dict["y_pred"],
-        "y_true": output_dict["y_true"],
-        "stats_info_dict": get_image_aux_info(
+        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+        "y_true": output_dict["y_true"], # (B, C, H, W)
+    }
+    # If not ensembling, we can cache information.
+    if not inference_cfg["model"]["ensemble"]:
+        cal_input_config["stats_info_dict"] = get_image_aux_info(
             y_pred=output_dict["y_pred"],
             y_hard=output_dict["y_hard"],
             y_true=output_dict["y_true"],
             cal_cfg=inference_cfg["calibration"]
         )
-    }
     # Go through each calibration metric and calculate the score.
     qual_metric_scores_dict = {}
     for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
-        # Get the calibration error. 
-        if qual_metric_dict['_type'] == 'calibration':
-            # Higher is better for scores.
-            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config).item() 
+        # If we are ensembling, then we need to go through eahc member of the ensemble and calculate individual metrics
+        # so we can get group averages.
+        if inference_cfg["model"]["ensemble"]:
+            # First gather the quality scores per ensemble member.
+            #######################################################
+            qual_ensemble_scores = []
+            for ens_mem_idx in range(output_dict["y_pred"].shape[2]):
+                ens_member_input_config = {
+                    "y_pred": output_dict["y_pred"][:, :, ens_mem_idx, ...], # (B, C, H, W)
+                    "y_true": output_dict["y_true"], # (B, C, H, W)
+                }
+                qual_ensemble_scores.append(qual_metric_dict['_fn'](**ens_member_input_config).item())
+            # Now get the average score.
+            qual_metric_scores_dict[f"GroupAvg_{qual_metric_name}"] = np.mean(qual_ensemble_scores)
+            #######################################################
+            # Next calculate the score for the whole ensemble.
+            #######################################################
+            # Combine the outputs of the models.
+            ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
+                output_dict["y_pred"], 
+                pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
+                )
+            # Get the hard prediction and probabilities, if we are doing identity,
+            # then we don't want to return probs.
+            ensemble_prob_map, ensemble_pred_map = process_pred_map(
+                ensemble_prob_map, 
+                multi_class=True, 
+                threshold=0.5,
+                from_logits=False, # Ensemble methods already return probs.
+                )
+            ensemble_input_config = {
+                "y_pred": ensemble_prob_map, # (B, C, H, W)
+                "y_true": ensemble_pred_map # (B, C, H, W)
+            }
+            # Now get the average score.
+            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config).item() 
         else:
-            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
-        # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"]["show_examples"]:
-            print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+            # Get the calibration error. 
+            if qual_metric_dict['_type'] == 'calibration':
+                # Higher is better for scores.
+                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config).item() 
+            else:
+                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
+            # If you're showing the predictions, also print the scores.
+            if inference_cfg["log"]["show_examples"]:
+                print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+
     # Go through each calibration metric and calculate the score.
     cal_metric_errors_dict = {}
     for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():

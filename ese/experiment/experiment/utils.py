@@ -4,6 +4,7 @@ import torch
 from ionpy.experiment.util import absolute_import
 # misc imports
 import json
+import einops
 from pathlib import Path
 from typing import Any, Optional
 from pydantic import validate_arguments
@@ -87,19 +88,27 @@ def show_inference_examples(
     output_dict: dict,
     inference_cfg: dict,
 ):
+    # If ensembling, we need to make the individual predictions the batch dimension first.
+    if inference_cfg["model"]["ensemble"]:
+        show_dict = {
+            "x": output_dict["x"],
+            "y_true": output_dict["y_true"],
+            "y_pred": einops.rearrange(output_dict["y_pred"], "1 C E H W -> E C H W"),
+        }
+    else:
+        show_dict = output_dict
+    # Show the individual predictions.
     ShowPredictionsCallback(
-        output_dict, 
+        show_dict, 
         softpred_dim=1,
         from_logits=inference_cfg["model"]["ensemble"] # If ensemble, need to do a softmax. over ensemble members.
         )
     # If we are showing examples with an ensemble, then we
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
-        # y_pred is the wrong shape, add back the channel dimension and shuffle the ensemble dimension.
-        ensemble_y_preds = output_dict["y_pred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
         # Combine the outputs of the models.
         ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
-            ensemble_y_preds, 
+            output_dict["y_pred"], 
             pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
             )
         # Get the hard prediction and probabilities, if we are doing identity,

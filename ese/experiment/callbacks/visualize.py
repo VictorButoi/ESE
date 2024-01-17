@@ -15,22 +15,22 @@ def ShowPredictionsCallback(
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
-    if batch["x"].shape[0] != batch["ypred"].shape[0]:
+    if batch["x"].shape[0] != batch["y_pred"].shape[0]:
         assert batch["x"].shape[0] == 1, "Batchsize of input image must be 1 if batchsize of prediction is not 1."
-        assert batch["ytrue"].shape[0] == 1, "Batchsize of input label must be 1 if batchsize of prediction is not 1."
-        bs = batch["ypred"].shape[0]
+        assert batch["y_true"].shape[0] == 1, "Batchsize of input label must be 1 if batchsize of prediction is not 1."
+        bs = batch["y_pred"].shape[0]
         x = batch["x"].repeat(bs, 1, 1, 1)
-        y = batch["ytrue"].repeat(bs, 1, 1, 1)
+        y = batch["y_true"].repeat(bs, 1, 1, 1)
     else:
         x = batch["x"]
-        y = batch["ytrue"]
+        y = batch["y_true"]
     
     # Transfer image and label to the cpu.
     x = x.detach().cpu().permute(0, 2, 3, 1).numpy() # Move channel dimension to last.
     y = y.detach().cpu().numpy() 
 
     # Get the predicted label
-    yhat = batch["ypred"].detach().cpu()
+    yhat = batch["y_pred"].detach().cpu()
     bs = x.shape[0]
     num_pred_classes = yhat.shape[1]
 
@@ -55,11 +55,11 @@ def ShowPredictionsCallback(
     if num_pred_classes > 1:
         if from_logits:
             yhat = torch.softmax(yhat, dim=1)
-        yhard = torch.argmax(yhat, dim=1).numpy()
+        y_hard = torch.argmax(yhat, dim=1).numpy()
     else:
         if from_logits:
             yhat = torch.sigmoid(yhat)
-        yhard = (yhat > threshold).numpy()
+        y_hard = (yhat > threshold).numpy()
     
     num_cols = 4 if (softpred_dim is not None) else 3
     f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(4 * size_per_iamge, bs*size_per_iamge))
@@ -67,7 +67,7 @@ def ShowPredictionsCallback(
     # Squeeze all tensors in prep.
     x = x.squeeze()
     y = y.squeeze()
-    yhard = yhard.squeeze()
+    y_hard = y_hard.squeeze()
     yhat = yhat.squeeze()
 
     # Go through each item in the batch.
@@ -82,7 +82,7 @@ def ShowPredictionsCallback(
             f.colorbar(im2, ax=axarr[1], orientation='vertical')
 
             axarr[2].set_title("Hard Prediction")
-            im3 = axarr[2].imshow(yhard, cmap=label_cm, interpolation='None')
+            im3 = axarr[2].imshow(y_hard, cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
             if softpred_dim is not None:
@@ -104,7 +104,7 @@ def ShowPredictionsCallback(
             f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
 
             axarr[b_idx, 2].set_title("Hard Prediction")
-            im3 = axarr[b_idx, 2].imshow(yhard[b_idx], cmap=label_cm, interpolation='None')
+            im3 = axarr[b_idx, 2].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
 
             if softpred_dim is not None:
