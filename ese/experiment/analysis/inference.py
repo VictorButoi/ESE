@@ -136,6 +136,10 @@ def load_cal_inference_stats(
     assert len(num_rows_per_log_set.unique()) == 1, \
         f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
 
+    #########################################
+    # POST-PROCESSING STEPS
+    #########################################
+
     # Remove any final columns we don't want
     for drop_key in [
         "conf_interval"
@@ -143,6 +147,15 @@ def load_cal_inference_stats(
         # If the key is in the dataframe, remove the column.
         if drop_key in inference_df.columns:
             inference_df = inference_df.drop(drop_key, axis=1)
+    
+    # Drop the rows corresponding to NaNs in metric_score
+    if results_cfg['log']['drop_nan_metric_rows']:
+        inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
+        inference_df = inference_df.fillna('None')
+
+    # Only choose rows with some minimal amount of foreground pixels.
+    if results_cfg['log']['min_fg_pixels'] > 0:
+        inference_df = inference_df[inference_df['num_lab_1_pixels'] >= results_cfg['log']['min_fg_pixels']].reset_index(drop=True)
 
     # Finally, return the dictionary of inference info.
     return inference_df
