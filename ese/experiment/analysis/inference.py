@@ -436,7 +436,9 @@ def get_image_stats(
             y_true=output_dict["y_true"],
             cal_cfg=inference_cfg["calibration"]
         )
-    # Go through each calibration metric and calculate the score.
+    #############################################################
+    # CALCULATE QUALITY METRICS
+    #############################################################
     qual_metric_scores_dict = {}
     for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
         # If we are ensembling, then we need to go through eahc member of the ensemble and calculate individual metrics
@@ -453,7 +455,6 @@ def get_image_stats(
                 qual_ensemble_scores.append(qual_metric_dict['_fn'](**ens_member_input_config).item())
             # Now get the average score.
             qual_metric_scores_dict[f"GroupAvg_{qual_metric_name}"] = np.mean(qual_ensemble_scores)
-            #######################################################
             # Next calculate the score for the whole ensemble.
             #######################################################
             # Combine the outputs of the models.
@@ -485,12 +486,50 @@ def get_image_stats(
             # If you're showing the predictions, also print the scores.
             if inference_cfg["log"]["show_examples"]:
                 print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
-
-    # Go through each calibration metric and calculate the score.
+    #############################################################
+    # CALCULATE CALIBRATION METRICS
+    #############################################################
     cal_metric_errors_dict = {}
     for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
-        # Get the calibration error. 
-        cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config).item() 
+        # If we are ensembling, then we need to go through eahc member of the ensemble and calculate individual metrics
+        # so we can get group averages.
+        if inference_cfg["model"]["ensemble"]:
+            # First gather the calibration scores per ensemble member.
+            #######################################################
+            cal_ensemble_scores = []
+            for ens_mem_idx in range(output_dict["y_pred"].shape[2]):
+                ens_member_input_config = {
+                    "y_pred": output_dict["y_pred"][:, :, ens_mem_idx, ...], # (B, C, H, W)
+                    "y_true": output_dict["y_true"], # (B, C, H, W)
+                }
+                cal_ensemble_scores.append(cal_metric_dict['_fn'](**ens_member_input_config).item())
+            # Now get the average score.
+            cal_metric_errors_dict[f"GroupAvg_{cal_metric_name}"] = np.mean(cal_ensemble_scores)
+            #######################################################
+            # Next calculate the score for the whole ensemble.
+            #######################################################
+            # Combine the outputs of the models.
+            ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
+                output_dict["y_pred"], 
+                pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
+                )
+            # Get the hard prediction and probabilities, if we are doing identity,
+            # then we don't want to return probs.
+            ensemble_prob_map, ensemble_pred_map = process_pred_map(
+                ensemble_prob_map, 
+                multi_class=True, 
+                threshold=0.5,
+                from_logits=False, # Ensemble methods already return probs.
+                )
+            ensemble_input_config = {
+                "y_pred": ensemble_prob_map, # (B, C, H, W)
+                "y_true": ensemble_pred_map # (B, C, H, W)
+            }
+            # Now get the average score.
+            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config).item() 
+        else:
+            # Get the calibration error. 
+            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config).item() 
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
@@ -527,6 +566,27 @@ def update_pixel_meters(
     output_dict: dict,
     inference_cfg: dict
 ):
+    # If this is an ensembled prediction, then first we need to reduce the ensemble
+    ####################################################################################
+    if inference_cfg["model"]["ensemble"]:
+        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
+            output_dict["y_pred"], 
+            pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
+            )
+        # Get the hard prediction and probabilities, if we are doing identity,
+        # then we don't want to return probs.
+        ensemble_prob_map, ensemble_pred_map = process_pred_map(
+            ensemble_prob_map, 
+            multi_class=True, 
+            threshold=0.5,
+            from_logits=False, # Ensemble methods already return probs.
+            )
+        # Place the ensemble predictions in the output dict.
+        output_dict["y_pred"] = ensemble_prob_map
+        output_dict["y_hard"] = ensemble_pred_map
+
+    # Now we calulate the pixel level tracking,
+    ###################################################################################
     # Setup variables.
     H, W = output_dict["y_hard"].shape[-2:]
 
