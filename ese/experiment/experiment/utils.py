@@ -96,10 +96,10 @@ def show_inference_examples(
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # y_pred is the wrong shape, add back the channel dimension and shuffle the ensemble dimension.
-        output_dict["y_pred"] = output_dict["y_pred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
+        ensemble_y_preds = output_dict["y_pred"].permute(1, 0, 2, 3).unsqueeze(0) # B, C, E, H, W
         # Combine the outputs of the models.
         ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
-            output_dict["y_pred"], 
+            ensemble_y_preds, 
             pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
             )
         # Get the hard prediction and probabilities, if we are doing identity,
@@ -111,11 +111,15 @@ def show_inference_examples(
             from_logits=False, # Ensemble methods already return probs.
             )
         # Place the ensemble predictions in the output dict.
-        output_dict["y_pred"] = ensemble_prob_map
-        output_dict["y_hard"] = ensemble_pred_map
+        ensembled_output_dict = {
+            "x": output_dict["x"],
+            "y_true": output_dict["y_true"],
+            "y_pred": ensemble_prob_map,
+            "y_hard": ensemble_pred_map
+        }
         # Finally, show the ensemble combination.
         ShowPredictionsCallback(
-            output_dict, 
+            ensembled_output_dict, 
             softpred_dim=1,
             from_logits=False
             )
