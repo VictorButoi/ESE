@@ -457,6 +457,11 @@ def get_image_stats(
                 "y_true": output_dict["y_true"]
             } for member_pred in ensemble_member_preds
         ]
+    # Dicts for storing ensemble scores.
+    grouped_scores_dict = {
+        "calibration": {},
+        "quality": {}
+    }
     #############################################################
     # CALCULATE QUALITY METRICS
     #############################################################
@@ -467,7 +472,7 @@ def get_image_stats(
         if inference_cfg["model"]["ensemble"]:
             # First gather the quality scores per ensemble member.
             #######################################################
-            qual_metric_scores_dict[f"GroupAvg_{qual_metric_name}"] = np.mean([
+            grouped_scores_dict['quality'][qual_metric_name] = np.mean([
                 qual_metric_dict['_fn'](**ens_mem_input_cfg).item()\
                     for ens_mem_input_cfg in ensemble_member_input_cfgs
                     ])
@@ -493,7 +498,7 @@ def get_image_stats(
         if inference_cfg["model"]["ensemble"]:
             # First gather the calibration scores per ensemble member.
             #######################################################
-            cal_metric_errors_dict[f"GroupAvg_{cal_metric_name}"] = np.mean([
+            grouped_scores_dict['calibration'][cal_metric_name] = np.mean([
                 cal_metric_dict['_fn'](**ens_mem_input_cfg).item()\
                     for ens_mem_input_cfg in ensemble_member_input_cfgs])
             # Now get the ensemble calibration error.
@@ -512,12 +517,19 @@ def get_image_stats(
     label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
     # Add our scores to the image level records.
-    for metric_score_dict in [cal_metric_errors_dict, qual_metric_scores_dict]:
+    metrics_collection ={
+        "quality": qual_metric_scores_dict,
+        "calibration": cal_metric_errors_dict
+    }
+    for dict_type, metric_score_dict in metrics_collection.items():
         for met_name in list(metric_score_dict.keys()):
             metrics_record = {
                 "image_metric": met_name,
                 "metric_score": metric_score_dict[met_name],
             }
+            if inference_cfg["model"]["ensemble"]:
+                metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
+                metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
             # Add the dataset info to the record
             record = {
                 "data_id": output_dict["data_id"],
