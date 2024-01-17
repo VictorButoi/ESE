@@ -152,8 +152,17 @@ def load_cal_inference_stats(
     
     # Drop the rows corresponding to NaNs in metric_score
     if results_cfg['log']['drop_nan_metric_rows']:
+        print("Dropping NaN metric rows. Started with {} rows.".format(len(inference_df)))
+        # Drop the rows where the metric score is NaN.
         inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
+        print("Dropping rows with NaN metric score. Dropped to {} rows.".format(len(inference_df)))
+        # Drop the rows where the groupavg_metric_score is Nan AND we ensemble
+        ensemble_and_nan_rows = (inference_df['groupavg_metric_score'].isna()) & (inference_df['model.ensemble'])
+        inference_df = inference_df[~ensemble_and_nan_rows].reset_index(drop=True)
+        print("Dropping rows with NaN groupavg_metric score. Dropped to {} rows.".format(len(inference_df)))
+        # Fill the rest of NaNs with None
         inference_df = inference_df.fillna('None')
+
 
     # Only choose rows with some minimal amount of foreground pixels.
     if results_cfg['log']['min_fg_pixels'] > 0:
