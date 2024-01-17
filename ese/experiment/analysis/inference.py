@@ -156,6 +156,16 @@ def load_cal_inference_stats(
     # Only choose rows with some minimal amount of foreground pixels.
     if results_cfg['log']['min_fg_pixels'] > 0:
         inference_df = inference_df[inference_df['num_lab_1_pixels'] >= results_cfg['log']['min_fg_pixels']].reset_index(drop=True)
+    
+    # Add new names for keys (helps with augment)
+    # model keys
+    inference_df["model_class"] = inference_df["model._class"]
+    inference_df["ensemble"] = inference_df["model.ensemble"]
+    inference_df["combine_fn"] = inference_df["model.ensemble_combine_fn"]
+    inference_df["pre_softmax"] = inference_df["model.ensemble_pre_softmax"]
+    inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
+    # experiment keys
+    inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
 
     # Finally, return the dictionary of inference info.
     return inference_df
