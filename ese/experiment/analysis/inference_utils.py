@@ -240,6 +240,7 @@ def reduce_ensemble_preds(
     inference_cfg: dict
 ) -> dict:
     # Combine the outputs of the models.
+    # NOTE: This will always do a softmax.
     ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
         output_dict["y_pred"], 
         pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
