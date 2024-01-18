@@ -285,6 +285,7 @@ def neighbors_bin_stats(
     num_bins: int,
     conf_interval: Tuple[float, float],
     neighborhood_width: int,
+    edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
     stats_info_dict: Optional[dict] = {},

@@ -72,8 +72,8 @@ def ece_loss(
     cal_info = global_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         square_diff=square_diff,
-        edge_only=edge_only,
         neighborhood_width=neighborhood_width,
+        edge_only=edge_only,
         ignore_index=ignore_index
     )
     metric_dict = {
