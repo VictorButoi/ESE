@@ -24,7 +24,7 @@ def build_ensemble_vs_individual_cmap(dice_image_df):
     }
 
 
-def add_corr_coefficients(g, df):
+def add_corr_coefficients(g, data, x, y, row, col):
     # Calculate and display correlation coefficient in each subplot title
     for ax in g.axes.flat:
         # Get the row and column indices of the current subplot
@@ -32,8 +32,8 @@ def add_corr_coefficients(g, df):
         row_method = g.row_names[row_index]
         col_calibrator = g.col_names[col_index]
         # Extract data for the current subplot
-        x_data = df[df['method_name'] == row_method]['delta_Image_ECE']
-        y_data = df[df['calibrator'] == col_calibrator]['delta_Dice']
+        x_data = data[data[row] == row_method][x]
+        y_data = data[data[col] == col_calibrator][y]
         # Calculate correlation coefficient
         correlation_coefficient = x_data.corr(y_data)
         # Check if correlation coefficient is NaN
