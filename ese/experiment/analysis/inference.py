@@ -131,24 +131,22 @@ def load_cal_inference_stats(
                         ).item() 
                 # Add this log to the dataframe.
                 inference_df = pd.concat([inference_df, log_image_df])
-    # Get the number of rows in image_info_df for each log set.
-    num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
-
-    # Make sure there is only one unique value in the above.
-    assert len(num_rows_per_log_set.unique()) == 1, \
-        f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
 
     #########################################
     # POST-PROCESSING STEPS
     #########################################
 
     # Remove any final columns we don't want
-    for drop_key in [
-        "conf_interval"
-    ]:
+    for drop_key in ["conf_interval"]:
         # If the key is in the dataframe, remove the column.
         if drop_key in inference_df.columns:
             inference_df = inference_df.drop(drop_key, axis=1)
+
+    # Get the number of rows in image_info_df for each log set.
+    num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
+    # Make sure there is only one unique value in the above.
+    assert len(num_rows_per_log_set.unique()) == 1, \
+        f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
     
     # Drop the rows corresponding to NaNs in metric_score
     if results_cfg['log']['drop_nan_metric_rows']:
@@ -156,12 +154,6 @@ def load_cal_inference_stats(
         # Drop the rows where the metric score is NaN.
         inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
         print("Dropping rows with NaN metric score. Dropped to {} rows.".format(len(inference_df)))
-        # Drop the rows where the groupavg_metric_score is Nan AND we ensemble
-        ensemble_and_nan_rows = (inference_df['groupavg_metric_score'].isna()) & (inference_df['model.ensemble'])
-        inference_df = inference_df[~ensemble_and_nan_rows].reset_index(drop=True)
-        print("Dropping rows with NaN groupavg_metric score. Dropped to {} rows.".format(len(inference_df)))
-        # Fill the rest of NaNs with None
-        inference_df = inference_df.fillna('None')
 
     # Only choose rows with some minimal amount of foreground pixels.
     if results_cfg['log']['min_fg_pixels'] > 0:
@@ -173,12 +165,13 @@ def load_cal_inference_stats(
     inference_df["ensemble"] = inference_df["model.ensemble"]
     inference_df["combine_fn"] = inference_df["model.ensemble_combine_fn"]
     inference_df["pre_softmax"] = inference_df["model.ensemble_pre_softmax"]
-    inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
     # experiment keys
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
+    # For models that don't have a pretrained class, set those pretrained classes to None
+    inference_df["model._pretrained_class"] = inference_df["model._pretrained_class"].fillna("None")
+    inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
     
     # Here are a few common columns that we will always want in the dataframe.    
-
     def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, pre_softmax, combine_fn):
         if ensemble:
             softmax_modifier = "logits" if pre_softmax else "probs"
@@ -188,7 +181,6 @@ def load_cal_inference_stats(
                 method_name_string = f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
                 method_name_string = f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
-
         return method_name_string
 
     def calibrator(model_class):
@@ -209,11 +201,26 @@ def load_cal_inference_stats(
         else:
             return 'quality'
 
+    def groupavg_image_metric(ensemble, groupavg_image_metric, image_metric):
+        if ensemble:
+            return groupavg_image_metric
+        else:
+            return f"GroupAvg_{image_metric}"
+
+    def groupavg_metric_score(ensemble, groupavg_metric_score, metric_score):
+        if ensemble:
+            return groupavg_metric_score
+        else:
+            return metric_score
+
+    # Add the new columns
     inference_df.augment(metric_type)
     inference_df.augment(method_name)
     inference_df.augment(calibrator)
     inference_df.augment(configuration)
     inference_df.augment(model_type)
+    inference_df.augment(groupavg_image_metric)
+    inference_df.augment(groupavg_metric_score)
 
     # Finally, return the dictionary of inference info.
     return inference_df
