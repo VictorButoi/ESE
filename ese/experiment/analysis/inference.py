@@ -177,6 +177,44 @@ def load_cal_inference_stats(
     inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
     # experiment keys
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
+    
+    # Here are a few common columns that we will always want in the dataframe.    
+
+    def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, pre_softmax, combine_fn):
+        if ensemble:
+            softmax_modifier = "logits" if pre_softmax else "probs"
+            method_name_string = f"Ensemble ({combine_fn}, {softmax_modifier})" 
+        else:
+            if pretrained_model_class == "None":
+                method_name_string = f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
+            else:
+                method_name_string = f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
+
+        return method_name_string
+
+    def calibrator(model_class):
+        if "UNet" in model_class:
+            return "Uncalibrated"
+        else:
+            return model_class.split('.')[-1]
+
+    def configuration(method_name, calibrator):
+        return f"{method_name}_{calibrator}"
+
+    def model_type(ensemble):
+        return 'group' if ensemble else 'individual'
+
+    def metric_type(image_metric):
+        if 'ECE' in image_metric or 'ELM' in image_metric:
+            return 'calibration'
+        else:
+            return 'quality'
+
+    inference_df.augment(metric_type)
+    inference_df.augment(method_name)
+    inference_df.augment(calibrator)
+    inference_df.augment(configuration)
+    inference_df.augment(model_type)
 
     # Finally, return the dictionary of inference info.
     return inference_df
