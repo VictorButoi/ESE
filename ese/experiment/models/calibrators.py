@@ -41,12 +41,14 @@ class Temperature_Scaling(nn.Module):
 class NECTAR_Scaling(nn.Module):
     def __init__(self, neighborhood_width, threshold=None, **kwargs):
         super(NECTAR_Scaling, self).__init__()
-        self.neighborhood_width = neighborhood_width
-        self.neighborhood_temps = nn.Parameter(torch.ones(neighborhood_width**2))
         self.threshold = threshold
+        self.neighborhood_width = neighborhood_width
+        # Define the parameters per neighborhood class
+        num_neighbor_classes = neighborhood_width**2
+        self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
 
     def weights_init(self):
-        self.neighborhood_temps.fill_(1)
+        self.neighborhood_temps.data.fill_(1)
 
     def forward(self, logits, **kwargs):
         # Softmax the logits to get probabilities
