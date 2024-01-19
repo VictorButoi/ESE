@@ -555,10 +555,9 @@ def get_image_stats(
             # First gather the calibration scores per ensemble member.
             #######################################################
             individual_cal_scores = []
-            # for ens_mem_input_cfg in ensemble_member_input_cfgs:
-            #     member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg).item()
-            #     individual_cal_scores.append(member_cal_score)
-            print("Warning disable individual ensemble preds.")
+            for ens_mem_input_cfg in ensemble_member_input_cfgs:
+                member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg).item()
+                individual_cal_scores.append(member_cal_score)
             # Now place it in the dictionary.
             grouped_scores_dict['calibration'][cal_metric_name] = np.mean(individual_cal_scores)
             # Now get the ensemble calibration error.

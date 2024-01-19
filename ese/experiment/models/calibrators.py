@@ -37,12 +37,13 @@ class Temperature_Scaling(nn.Module):
         return logits / self.temp 
 
 
-# Locally-Conditional Temperature Scaling
-class LCTS(nn.Module):
-    def __init__(self, neighborhood_width, **kwargs):
-        super(LCTS, self).__init__()
+# NEighborhood-Conditional TemperAtuRe Scaling
+class NECTAR_Scaling(nn.Module):
+    def __init__(self, neighborhood_width, threshold=None, **kwargs):
+        super(NECTAR_Scaling, self).__init__()
         self.neighborhood_width = neighborhood_width
         self.neighborhood_temps = nn.Parameter(torch.ones(neighborhood_width**2))
+        self.threshold = threshold
 
     def weights_init(self):
         self.neighborhood_temps.fill_(1)
@@ -51,7 +52,10 @@ class LCTS(nn.Module):
         # Softmax the logits to get probabilities
         probs = torch.softmax(logits, dim=1) # B C H W
         # Argnax over the channel dimension to get the current prediction
-        pred = torch.argmax(probs, dim=1) # B H W
+        if probs.shape[1] == 1:
+            pred = (probs > self.threshold).float().squeeze(1) # B H W
+        else:
+            pred = torch.argmax(probs, dim=1) # B H W
         # Get the per-pixel num neighborhood class
         pred_matching_neighbors_map = count_matching_neighbors(
             lab_map=pred, 
