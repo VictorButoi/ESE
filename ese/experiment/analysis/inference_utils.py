@@ -13,7 +13,6 @@ from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ..models.ensemble import get_combine_fn
-from ..callbacks.visualize import ShowPredictionsCallback
 from ..experiment.utils import load_experiment, process_pred_map
 from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import (

@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
 import math
+# local imports
+from ..metrics.utils import count_matching_neighbors
 
     
 def initialization(m):
@@ -24,19 +26,45 @@ def initialization(m):
         
 
 class Temperature_Scaling(nn.Module):
-    def __init__(self, num_classes=None, image_channels=None):
+    def __init__(self, **kwargs):
         super(Temperature_Scaling, self).__init__()
         self.temp = nn.Parameter(torch.ones(1))
 
     def weights_init(self):
         self.temp.data.fill_(1)
 
-    def forward(self, logits, image=None, label=None):
+    def forward(self, logits, **kwargs):
         return logits / self.temp 
 
 
+# Locally-Conditional Temperature Scaling
+class LCTS(nn.Module):
+    def __init__(self, neighborhood_width, **kwargs):
+        super(LCTS, self).__init__()
+        self.neighborhood_width = neighborhood_width
+        self.neighborhood_temps = nn.Parameter(torch.ones(neighborhood_width**2))
+
+    def weights_init(self):
+        self.neighborhood_temps.fill_(1)
+
+    def forward(self, logits, **kwargs):
+        # Softmax the logits to get probabilities
+        probs = torch.softmax(logits, dim=1) # B C H W
+        # Argnax over the channel dimension to get the current prediction
+        pred = torch.argmax(probs, dim=1) # B H W
+        # Get the per-pixel num neighborhood class
+        pred_matching_neighbors_map = count_matching_neighbors(
+            lab_map=pred, 
+            neighborhood_width=self.neighborhood_width
+        ).unsqueeze(1) # B C H W
+        # Place the temperatures in the correct positions
+        neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
+        # Finally, scale the logits by the temperatures
+        return logits / neighborhood_temp_map
+
+
 class Vector_Scaling(nn.Module):
-    def __init__(self, num_classes, image_channels=None):
+    def __init__(self, num_classes, **kwargs):
         super(Vector_Scaling, self).__init__()
         self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
         self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
@@ -45,12 +73,12 @@ class Vector_Scaling(nn.Module):
         self.vector_parameters.data.fill_(1)
         self.vector_offset.data.fill_(0)
 
-    def forward(self, logits, image=None, label=None):
+    def forward(self, logits, **kwargs):
         return (self.vector_parameters * logits) + self.vector_offset
-        
+
 
 class Dirichlet_Scaling(nn.Module):
-    def __init__(self, num_classes, image_channels=None, eps=1e-10):
+    def __init__(self, num_classes, eps=1e-19, **kwargs):
         super(Dirichlet_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.eps = eps
@@ -59,7 +87,7 @@ class Dirichlet_Scaling(nn.Module):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
         self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
 
-    def forward(self, logits, image=None, label=None):
+    def forward(self, logits, **kwargs):
         probs = torch.softmax(logits, dim=1)
         ln_probs = torch.log(probs + self.eps)
         # Move channel dim to the back (for broadcasting)
@@ -133,7 +161,7 @@ class LTS(nn.Module):
 
 
 class Selective_Scaling(nn.Module):
-    def __init__(self, num_classes, image_channels=None):
+    def __init__(self, num_classes, **kwargs):
         super(Selective_Scaling, self).__init__()
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.binary_linear = nn.Linear(num_classes, 2)
