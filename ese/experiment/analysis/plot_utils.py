@@ -44,3 +44,10 @@ def add_corr_coefficients(g, data, x, y, row, col):
         new_title = f'{existing_title}\nCorrelation: {correlation_coefficient:.2f}'
         # Set the updated title
         ax.set_title(new_title)
+
+
+def add_axis_lines(g, color, linewidth, zorder):
+    # Add x and y axis lines to each subplot using Matplotlib
+    for ax in g.axes.flat:
+        ax.axhline(0, color=color, linewidth=linewidth, zorder=zorder)  # Horizontal line
+        ax.axvline(0, color=color, linewidth=linewidth, zorder=zorder)  # Vertical line

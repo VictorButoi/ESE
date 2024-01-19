@@ -52,6 +52,8 @@ def image_elm_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
+    # print("Local Bin counts: ", cal_info["bin_amounts"])
+    # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
     return elm_reduction(**metric_dict)
 
 
@@ -75,6 +77,8 @@ def elm_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
+    # print("Global Bin counts: ", cal_info["bin_amounts"])
+    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     return elm_reduction(**metric_dict)
 
 
