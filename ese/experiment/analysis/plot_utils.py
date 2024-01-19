@@ -1,5 +1,6 @@
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt 
 
 
 def build_ensemble_vs_individual_cmap(dice_image_df):
@@ -51,3 +52,41 @@ def add_axis_lines(g, color, linewidth, zorder):
     for ax in g.axes.flat:
         ax.axhline(0, color=color, linewidth=linewidth, zorder=zorder)  # Horizontal line
         ax.axvline(0, color=color, linewidth=linewidth, zorder=zorder)  # Vertical line
+
+
+def plot_method_vs_calibrator_scatterplots(df, x, y, sharex=False, sharey=False, height=4):
+    # Plot the relationship between the two metrics
+    g = sns.relplot(
+        data=df,
+        x=x, 
+        y=y,
+        row='method_name',
+        col='calibrator',
+        hue='method_name',
+        style='calibrator',
+        kind='scatter',
+        height=height,
+        facet_kws={
+            "margin_titles":True,
+            "sharex":sharex,
+            "sharey":sharey
+            }
+        )
+    g.set_titles("")  # Set titles to empty string
+    # Show the plot
+    g.fig.subplots_adjust(hspace=0.2, wspace=0.2)
+    # Add correlation coefficients
+    add_corr_coefficients(
+        g, 
+        data=df, 
+        x=x, 
+        y=y,
+        row='method_name',
+        col='calibrator'
+    )
+    add_axis_lines(g, color='darkgrey', linewidth=1, zorder=1)
+    # Add a title to the entire figure, and make it slightly bigger than the default
+    g.fig.suptitle(f'Relationship Between {x} and {y}', size=20)
+    g.fig.subplots_adjust(top=0.9)
+    # Show the plot
+    plt.show()
