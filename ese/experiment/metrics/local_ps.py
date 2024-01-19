@@ -184,7 +184,8 @@ def bin_stats(
             bin_idx=bin_idx, 
             bin_ownership_map=obj_dict["bin_ownership_map"],
             lab_map=obj_dict["y_true"], # Use ground truth to get the region.
-            num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Use ground truth to get the region.
+            pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+            true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
             edge_only=edge_only,
             ignore_index=ignore_index # Ignore index will ignore ground truth pixels with this value.
             )
@@ -255,7 +256,8 @@ def label_bin_stats(
                 bin_ownership_map=obj_dict["bin_ownership_map"],
                 label=lab,
                 lab_map=lab_info["lab_map"],
-                num_neighbors_map=obj_dict["true_matching_neighbors_map"],
+                pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
                 ignore_index=ignore_index
                 )
@@ -318,7 +320,9 @@ def neighbors_bin_stats(
                 bin_ownership_map=obj_dict["bin_ownership_map"],
                 lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 num_neighbors=p_nn,
-                num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                edge_only=edge_only,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -349,6 +353,7 @@ def label_neighbors_bin_stats(
     conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
+    edge_only: bool = False,
     from_logits: bool = False,
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
@@ -391,7 +396,9 @@ def label_neighbors_bin_stats(
                     label=lab,
                     lab_map=lab_info["lab_map"],
                     num_neighbors=p_nn,
-                    num_neighbors_map=obj_dict["pred_matching_neighbors_map"],
+                    pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                    true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    edge_only=edge_only,
                     ignore_index=ignore_index
                     )
                 # If there are some pixels in this confidence bin.

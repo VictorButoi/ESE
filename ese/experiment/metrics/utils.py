@@ -95,7 +95,8 @@ def get_conf_region(
     num_neighbors: Optional[int] = None,
     ignore_index: Optional[int] = None,
     lab_map: Optional[Tensor] = None,
-    num_neighbors_map: Optional[Tensor] = None,
+    pred_num_neighbors_map: Optional[Tensor] = None,
+    true_num_neighbors_map: Optional[Tensor] = None,
     ):
     # We want to only pick things in the bin indicated.
     bin_conf_region = (bin_ownership_map == bin_idx)
@@ -108,12 +109,13 @@ def get_conf_region(
         bin_conf_region = torch.logical_and(bin_conf_region, (lab_map != ignore_index))
     # If we only want the pixels with this particular number of neighbords that match the label
     if num_neighbors is not None:
-        assert num_neighbors_map is not None, "If num_neighbors is not None, then must supply num neighbors map."
-        bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map==num_neighbors)
+        assert pred_num_neighbors_map is not None, "If num_neighbor amount is not None,\
+                                                        supply pred num neighbors map."
+        bin_conf_region = torch.logical_and(bin_conf_region, pred_num_neighbors_map==num_neighbors)
     # If we are doing edges only, then select those uses 
     if edge_only:
-        assert num_neighbors_map is not None, "If edge_only is True, then must supply num neighbors map."
-        bin_conf_region = torch.logical_and(bin_conf_region, num_neighbors_map < 8)
+        assert true_num_neighbors_map is not None, "If edge_only is True, then must supply the true num neighbors map."
+        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map < 8)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
