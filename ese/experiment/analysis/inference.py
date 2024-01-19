@@ -189,6 +189,9 @@ def load_cal_inference_stats(
         else:
             return model_class.split('.')[-1]
 
+    def joint_data_slice_id(data_id, slice_idx):
+        return f"{data_id}_{slice_idx}"
+
     def configuration(method_name, calibrator):
         return f"{method_name}_{calibrator}"
 
@@ -219,6 +222,7 @@ def load_cal_inference_stats(
     inference_df.augment(calibrator)
     inference_df.augment(configuration)
     inference_df.augment(model_type)
+    inference_df.augment(joint_data_slice_id)
     inference_df.augment(groupavg_image_metric)
     inference_df.augment(groupavg_metric_score)
 

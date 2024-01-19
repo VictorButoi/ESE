@@ -1,9 +1,7 @@
 # local imports
 from .utils import reorder_splits
-
 # ionpy imports
 from ionpy.util import StatsMeter
-
 # misc. imports
 import math
 import numpy as np
