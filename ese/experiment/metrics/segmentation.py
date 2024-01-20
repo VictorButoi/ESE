@@ -13,6 +13,78 @@ from ionpy.metrics.util import (
     InputMode,
     Reduction
 )
+from ionpy.loss.util import _loss_module_from_func
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def pixel_neighbor_uniform_w_cross_entropy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    ignore_index: Optional[int] = -100,
+    from_logits: bool = False,
+) -> Tensor:
+    assert len(y_pred.shape) > 2, "y_pred must have at least 3 dimensions."
+    batch_size, num_classes = y_pred.shape[:2]
+    y_true = y_true.long()
+
+    if mode == "auto":
+        if y_pred.shape == y_true.shape:
+            mode = "binary" if num_classes == 1 else "onehot"
+        else:
+            mode = "multiclass"
+
+    if mode == "binary":
+        assert y_pred.shape == y_true.shape
+        assert ignore_index is None
+        if from_logits:
+            loss = F.binary_cross_entropy_with_logits(
+                y_pred, 
+                y_true, 
+                reduction="none"
+                )
+        else:
+            loss = F.binary_cross_entropy(
+                y_pred, 
+                y_true, 
+                reduction="none"
+                )
+        loss = loss.squeeze(dim=1)
+    else:
+        # Squeeze the label, (no need for channel dimension).
+        if len(y_true.shape) == len(y_pred.shape):
+            y_true = y_true.squeeze(1)
+
+        if from_logits:
+            loss = F.cross_entropy(
+                y_pred,
+                y_true,
+                reduction="none",
+                ignore_index=ignore_index,
+            )
+        else:
+            loss = F.nll_loss(
+                y_pred,
+                y_true,
+                reduction="none",
+                ignore_index=ignore_index,
+            )
+
+    # Channels have been collapsed
+    spatial_dims = list(range(1, len(y_pred.shape) - 1))
+    if reduction == "mean":
+        loss = loss.mean(dim=spatial_dims)
+    if reduction == "sum":
+        loss = loss.sum(dim=spatial_dims)
+
+    if batch_reduction == "mean":
+        loss = loss.mean(dim=0)
+    if batch_reduction == "sum":
+        loss = loss.sum(dim=0)
+
+    return loss
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -140,3 +212,7 @@ def hd95(
         weights=weights,
         batch_reduction=batch_reduction,
     )
+
+# Define the classwise versions.
+
+PixelNUWCELoss = _loss_module_from_func("PixelNUWCELoss", pixel_neighbor_uniform_w_cross_entropy)
