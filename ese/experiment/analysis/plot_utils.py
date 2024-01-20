@@ -67,11 +67,11 @@ def plot_method_vs_calibrator_scatterplots(df, x, y, sharex=False, sharey=False,
         kind='scatter',
         height=height,
         facet_kws={
-            "margin_titles":True,
-            "sharex":sharex,
-            "sharey":sharey
-            }
-        )
+            "margin_titles": True,
+            "sharex": sharex,
+            "sharey": sharey
+        }
+    )
     g.set_titles("")  # Set titles to empty string
     # Show the plot
     g.fig.subplots_adjust(hspace=0.2, wspace=0.2)

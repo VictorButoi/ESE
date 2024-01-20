@@ -105,7 +105,7 @@ class Dirichlet_Scaling(nn.Module):
 
         
 class LTS(nn.Module):
-    def __init__(self, num_classes, image_channels, sigma=1e-8):
+    def __init__(self, num_classes, image_channels, sigma=1e-8, **kwargs):
         super(LTS, self).__init__()
         self.num_classes = num_classes
 
