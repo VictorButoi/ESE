@@ -22,8 +22,9 @@ from .inference_utils import (
     dataloader_from_exp,
     reduce_ensemble_preds,
     save_inference_metadata,
+    get_average_unet_baselines,
+    load_inference_exp_from_cfg,
     preload_calibration_metrics,
-    load_inference_exp_from_cfg
 )
 from ..metrics.utils import (
     get_bins, 
@@ -225,6 +226,13 @@ def load_cal_inference_stats(
     inference_df.augment(joint_data_slice_id)
     inference_df.augment(groupavg_image_metric)
     inference_df.augment(groupavg_metric_score)
+
+    # Load the average unet baseline results.
+    inference_df = pd.concat([inference_df, get_average_unet_baselines(inference_df, num_seeds=4)], axis=0, ignore_index=True)
+
+    # Print information about each log set.
+    print("Finished loading inference stats.")
+    print(f"Log amounts: {num_rows_per_log_set}")
 
     # Finally, return the dictionary of inference info.
     return inference_df

@@ -256,3 +256,60 @@ def reduce_ensemble_preds(
         "y_pred": ensemble_prob_map, # (B, C, H, W)
         "y_hard": ensemble_pred_map # (B, C, H, W)
     }
+
+
+def get_average_unet_baselines(
+    total_df: pd.DataFrame,
+    num_seeds: int
+) -> pd.DataFrame:
+    # Collect all the individual networks.
+    unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
+    # These are the keys we want to group by.
+    unet_group_keys = [
+        'data_id',
+        'slice_idx',
+        'num_lab_0_pixels',
+        'num_lab_1_pixels',
+        'num_bins',
+        'neighborhood_width',
+        'square_diff',
+        'image_metric',
+        'model._class',
+        'model.checkpoint',
+        'model._pretrained_class',
+        'groupavg_image_metric',
+        'model_class',
+        'pretrained_model_class',
+        'metric_type',
+        'model_type',
+        'calibrator'
+    ]
+    # Run a check, that when you group by these keys, you get a unique row.
+    # If not, you need to add more keys.
+    num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
+    # They should have exactly 4, for four seeds.
+    assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
+        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds}), Got: {num_rows_per_group}."
+    # Group everything we need. 
+    average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({
+        'metric_score': 'mean', 
+        'groupavg_metric_score': 'mean'
+        }).reset_index()
+    # Set some useful variables.
+    average_seed_unet['experiment.pretrained_seed'] = 'Average'
+    average_seed_unet['pretrained_seed'] = 'Average'
+    average_seed_unet['model_type'] = 'group' # Now this is a group of results
+
+    def method_name(pretrained_model_class, model_class):
+        if pretrained_model_class == "None":
+            return f"{model_class.split('.')[-1]} (seed=Average)"
+        else:
+            return f"{pretrained_model_class.split('.')[-1]} (seed=Average)"
+
+    def configuration(method_name, calibrator):
+        return f"{method_name}_{calibrator}"
+
+    average_seed_unet.augment(method_name)
+    average_seed_unet.augment(configuration)
+
+    return average_seed_unet
