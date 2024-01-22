@@ -90,3 +90,22 @@ def plot_method_vs_calibrator_scatterplots(df, x, y, sharex=False, sharey=False,
     g.fig.subplots_adjust(top=0.9)
     # Show the plot
     plt.show()
+
+
+def clump_df_datapoints(df: pd.DataFrame, num_bins: int, x: str, y: str, x_metric: str, y_metric: str) -> pd.DataFrame:
+    # Make a copy of the dataframe
+    df_copy = df.copy()
+    # Iterate through the combination of unique method names and calibrators and determine the bins for each.
+    for x_val, y_val in df_copy[[x, y]].drop_duplicates().values:
+        # Get the rows corresponding to the method and calibrator
+        rows = df_copy[
+            (df_copy[x] == x_val) & 
+            (df_copy[y] == y_val)
+        ]
+        # Use pandas qcut to create quantile-based bins and calculate average x and y values within each bin
+        df_copy.loc[rows.index, 'bin'] = pd.qcut(rows[x].rank(method='first'), q=num_bins, labels=False)
+    # Collapse the points in the bins.
+    return df_copy.groupby([x, y, 'bin']).agg({
+        x_metric: 'mean', 
+        y_metric: 'mean'
+        }).reset_index()
