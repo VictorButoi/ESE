@@ -221,7 +221,12 @@ def load_cal_inference_stats(
     inference_df.augment(groupavg_metric_score)
 
     # Load the average unet baseline results.
-    inference_df = pd.concat([inference_df, get_average_unet_baselines(inference_df, num_seeds=4)], axis=0, ignore_index=True)
+    unet_avg = get_average_unet_baselines(
+        inference_df, 
+        num_seeds=4, # Used as a sanity check.
+        group_metrics=list(cal_metrics.keys())
+        )
+    inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
     # Drop the rows corresponding to NaNs in metric_score
     if results_cfg['log']['drop_nan_metric_rows']:

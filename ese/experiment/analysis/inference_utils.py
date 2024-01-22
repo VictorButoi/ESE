@@ -3,7 +3,7 @@ import os
 import torch
 import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 # ionpy imports
@@ -260,7 +260,8 @@ def reduce_ensemble_preds(
 
 def get_average_unet_baselines(
     total_df: pd.DataFrame,
-    num_seeds: int
+    num_seeds: int,
+    group_metrics: Optional[List[str]] = None
 ) -> pd.DataFrame:
     # Collect all the individual networks.
     unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
@@ -294,10 +295,10 @@ def get_average_unet_baselines(
         f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})"\
              + f" with max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Got: {num_rows_per_group}."
     # Group everything we need. 
-    average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({
-        'metric_score': 'mean', 
-        'groupavg_metric_score': 'mean'
-        }).reset_index()
+    total_group_metrics = ['metric_score', 'groupavg_metric_score']
+    if group_metrics is not None:
+        total_group_metrics += group_metrics
+    average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({met_name: 'mean' for met_name in total_group_metrics}).reset_index()
     # Set some useful variables.
     average_seed_unet['experiment.pretrained_seed'] = 'Average'
     average_seed_unet['pretrained_seed'] = 'Average'
