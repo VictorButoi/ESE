@@ -88,22 +88,29 @@ class PostHocExperiment(TrainExperiment):
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )
-        ########################
-        # BUILD THE BASE MODEL #
-        ########################
-        self.base_model = self.pretrained_exp.model
-        self.base_model.eval()
-        ########################
-        # BUILD THE CALIBRATOR #
-        ########################
+        #########################################
+        #            Model Creation             #
+        #########################################
         model_config_dict = total_config['model']
         if '_pretrained_class' in model_config_dict:
             model_config_dict.pop('_pretrained_class')
         model_class = model_config_dict['_class']
-        # Load the model
-        self.model = eval_config(model_config_dict)
-        self.model.weights_init()
-        self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
+        # BUILD THE BASE MODEL #
+        ########################
+        if model_class == "Vanilla": # Vanlla continue training (with potentially different loss function).
+            self.base_model = torch.nn.Identity()
+            # Load the model, there is no learned calibrator.
+            self.model = self.pretrained_exp.model
+            self.properties["num_params"] = num_params(self.model)
+        else:
+            self.base_model = self.pretrained_exp.model
+            self.base_model.eval()
+            # BUILD THE CALIBRATOR #
+            ########################
+            # Load the model
+            self.model = eval_config(model_config_dict)
+            self.model.weights_init()
+            self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
         ########################################################################
