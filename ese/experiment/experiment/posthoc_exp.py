@@ -94,10 +94,9 @@ class PostHocExperiment(TrainExperiment):
         model_config_dict = total_config['model']
         if '_pretrained_class' in model_config_dict:
             model_config_dict.pop('_pretrained_class')
-        model_class = model_config_dict['_class']
-        # BUILD THE BASE MODEL #
-        ########################
-        if model_class == "Vanilla": # Vanlla continue training (with potentially different loss function).
+        self.model_class = model_config_dict['_class']
+        # Either keep training the network, or use a post-hoc calibrator.
+        if self.model_class == "Vanilla":
             self.base_model = torch.nn.Identity()
             # Load the model, there is no learned calibrator.
             self.model = self.pretrained_exp.model
@@ -116,8 +115,7 @@ class PostHocExperiment(TrainExperiment):
         ########################################################################
         old_exp_config = self.pretrained_exp.config.to_dict() 
         total_config['experiment'] = old_exp_config['experiment']
-        # total_config['model']['_class'] = 
-        model_config_dict['_class'] = model_class
+        model_config_dict['_class'] = self.model_class
         model_config_dict['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
@@ -135,7 +133,10 @@ class PostHocExperiment(TrainExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Calibrate the predictions.
-        yhat_cal = self.model(yhat, image=x)
+        if self.model_class == "Vanilla":
+            yhat_cal = self.model(yhat)
+        else:
+            yhat_cal = self.model(yhat, image=x)
         # Calculate the loss between the pred and original preds.
         loss = self.loss_func(yhat_cal, y)
         # If backward then backprop the gradients.
@@ -164,10 +165,13 @@ class PostHocExperiment(TrainExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Apply post-hoc calibration.
-        logit_map = self.model(yhat, image=x) 
+        if self.model_class == "Vanilla":
+            yhat_cal = self.model(yhat)
+        else:
+            yhat_cal = self.model(yhat, image=x)
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
-            logit_map, 
+            yhat_cal, 
             multi_class=multi_class, 
             threshold=threshold,
             return_logits=return_logits
