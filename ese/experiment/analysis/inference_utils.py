@@ -288,8 +288,11 @@ def get_average_unet_baselines(
     # If not, you need to add more keys.
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
     # They should have exactly 4, for four seeds.
+
+    # Get all of the rows that have exactly 3 rows per group.
     assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
-        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds}), Got: {num_rows_per_group}."
+        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})"\
+             + f" with max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Got: {num_rows_per_group}."
     # Group everything we need. 
     average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({
         'metric_score': 'mean', 

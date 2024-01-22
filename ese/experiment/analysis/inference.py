@@ -149,13 +149,6 @@ def load_cal_inference_stats(
     assert len(num_rows_per_log_set.unique()) == 1, \
         f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
     
-    # Drop the rows corresponding to NaNs in metric_score
-    if results_cfg['log']['drop_nan_metric_rows']:
-        print("Dropping NaN metric rows. Started with {} rows.".format(len(inference_df)))
-        # Drop the rows where the metric score is NaN.
-        inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
-        print("Dropping rows with NaN metric score. Dropped to {} rows.".format(len(inference_df)))
-
     # Only choose rows with some minimal amount of foreground pixels.
     if results_cfg['log']['min_fg_pixels'] > 0:
         inference_df = inference_df[inference_df['num_lab_1_pixels'] >= results_cfg['log']['min_fg_pixels']].reset_index(drop=True)
@@ -229,6 +222,13 @@ def load_cal_inference_stats(
 
     # Load the average unet baseline results.
     inference_df = pd.concat([inference_df, get_average_unet_baselines(inference_df, num_seeds=4)], axis=0, ignore_index=True)
+
+    # Drop the rows corresponding to NaNs in metric_score
+    if results_cfg['log']['drop_nan_metric_rows']:
+        print("Dropping NaN metric rows. Started with {} rows.".format(len(inference_df)))
+        # Drop the rows where the metric score is NaN.
+        inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
+        print("Dropping rows with NaN metric score. Dropped to {} rows.".format(len(inference_df)))
 
     # Print information about each log set.
     print("Finished loading inference stats.")
