@@ -40,19 +40,17 @@ class Temperature_Scaling(nn.Module):
 # NEighborhood-Conditional TemperAtuRe Scaling
 class NECTAR_Scaling(nn.Module):
     def __init__(
-            self, 
-            num_classes,
-            neighborhood_width, 
-            positive_constraint,
-            threshold=None, 
-            eps=1e-8,
-            **kwargs
-            ):
+        self, 
+        num_classes,
+        neighborhood_width, 
+        threshold=None, 
+        eps=1e-8,
+        **kwargs
+    ):
         super(NECTAR_Scaling, self).__init__()
         self.eps = eps
         self.threshold = threshold
         self.num_classes = num_classes
-        self.positive_constraint = positive_constraint
         self.neighborhood_width = neighborhood_width
         # Define the parameters per neighborhood class
         num_neighbor_classes = neighborhood_width**2
@@ -78,10 +76,34 @@ class NECTAR_Scaling(nn.Module):
         neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
         # Apply this to all classes.
         temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
+        # Add an epsilon to avoid dividing by zero
+        temps = temps + self.eps
+        # Finally, scale the logits by the temperatures
+        return logits / temps 
+
+
+class Constrained_NS(NECTAR_Scaling):
+
+    def forward(self, logits, **kwargs):
+        # Softmax the logits to get probabilities
+        probs = torch.softmax(logits, dim=1) # B C H W
+        # Argnax over the channel dimension to get the current prediction
+        if probs.shape[1] == 1:
+            pred = (probs > self.threshold).float().squeeze(1) # B H W
+        else:
+            pred = torch.argmax(probs, dim=1) # B H W
+        # Get the per-pixel num neighborhood class
+        pred_matching_neighbors_map = count_matching_neighbors(
+            lab_map=pred, 
+            neighborhood_width=self.neighborhood_width
+        ).unsqueeze(1) # B 1 H W
+        # Place the temperatures in the correct positions
+        neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
+        # Apply this to all classes.
+        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
         # If we are constrained to have a positive temperature, then we need to guide
         # the optimization to picking a parameterization that is positive.
-        if self.positive_constraint:
-            temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
+        temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
         # Finally, scale the logits by the temperatures
         return logits / temps 
 
