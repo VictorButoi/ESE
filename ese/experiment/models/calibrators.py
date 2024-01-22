@@ -39,9 +39,20 @@ class Temperature_Scaling(nn.Module):
 
 # NEighborhood-Conditional TemperAtuRe Scaling
 class NECTAR_Scaling(nn.Module):
-    def __init__(self, neighborhood_width, threshold=None, **kwargs):
+    def __init__(
+            self, 
+            num_classes,
+            neighborhood_width, 
+            positive_constraint,
+            threshold=None, 
+            eps=1e-8,
+            **kwargs
+            ):
         super(NECTAR_Scaling, self).__init__()
+        self.eps = eps
         self.threshold = threshold
+        self.num_classes = num_classes
+        self.positive_constraint = positive_constraint
         self.neighborhood_width = neighborhood_width
         # Define the parameters per neighborhood class
         num_neighbor_classes = neighborhood_width**2
@@ -62,11 +73,17 @@ class NECTAR_Scaling(nn.Module):
         pred_matching_neighbors_map = count_matching_neighbors(
             lab_map=pred, 
             neighborhood_width=self.neighborhood_width
-        ).unsqueeze(1) # B C H W
+        ).unsqueeze(1) # B 1 H W
         # Place the temperatures in the correct positions
         neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
+        # Apply this to all classes.
+        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
+        # If we are constrained to have a positive temperature, then we need to guide
+        # the optimization to picking a parameterization that is positive.
+        if self.positive_constraint:
+            temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
         # Finally, scale the logits by the temperatures
-        return logits / neighborhood_temp_map
+        return logits / temps 
 
 
 class Vector_Scaling(nn.Module):
@@ -105,7 +122,7 @@ class Dirichlet_Scaling(nn.Module):
 
         
 class LTS(nn.Module):
-    def __init__(self, num_classes, image_channels, sigma=1e-8, **kwargs):
+    def __init__(self, num_classes, image_channels, eps=1e-8, **kwargs):
         super(LTS, self).__init__()
         self.num_classes = num_classes
 
@@ -121,7 +138,7 @@ class LTS(nn.Module):
         self.temperature_level_2_conv_img = nn.Conv2d(image_channels, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
         self.temperature_level_2_param_img = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
 
-        self.sigma = sigma
+        self.eps = eps 
 
     def weights_init(self):
         torch.nn.init.zeros_(self.temperature_level_2_conv1.weight.data)
@@ -155,13 +172,17 @@ class LTS(nn.Module):
         temperature_param_1 = self.temperature_level_2_param1(logits)
         temperature_param_2 = self.temperature_level_2_param2(logits)
         temperature_param_3 = self.temperature_level_2_param3(logits)
+
         temp_level_11 = temperature_1 * torch.sigmoid(temperature_param_1) + temperature_2 * (1.0 - torch.sigmoid(temperature_param_1))
         temp_level_num_class = temperature_3 * torch.sigmoid(temperature_param_2) + temperature_4 * (1.0 - torch.sigmoid(temperature_param_2))
+
         temp_1 = temp_level_11 * torch.sigmoid(temperature_param_3) + temp_level_num_class * (1.0 - torch.sigmoid(temperature_param_3))
         temp_2 = self.temperature_level_2_conv_img(image) + torch.ones(1).cuda()
+
         temp_param = self.temperature_level_2_param_img(logits)
+
         temperature = temp_1 * torch.sigmoid(temp_param) + temp_2 * (1.0 - torch.sigmoid(temp_param))
-        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.sigma 
+        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.eps
         temperature = temperature.repeat(1, self.num_classes, 1, 1)
         return logits / temperature
 

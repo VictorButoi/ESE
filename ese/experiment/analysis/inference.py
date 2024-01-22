@@ -230,10 +230,10 @@ def load_cal_inference_stats(
 
     # Drop the rows corresponding to NaNs in metric_score
     if results_cfg['log']['drop_nan_metric_rows']:
-        print("Dropping NaN metric rows. Started with {} rows.".format(len(inference_df)))
         # Drop the rows where the metric score is NaN.
+        original_row_amount = len(inference_df)
         inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
-        print("Dropping rows with NaN metric score. Dropped to {} rows.".format(len(inference_df)))
+        print(f"Dropping rows with NaN metric score. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
 
     # Print information about each log set.
     print("Finished loading inference stats.")
