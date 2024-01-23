@@ -307,10 +307,12 @@ def get_average_unet_baselines(
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
 
     def method_name(pretrained_model_class, model_class):
-        if pretrained_model_class == "None":
-            return f"{model_class.split('.')[-1]} (seed=Average)"
+        if model_class == "Vanilla":
+            return "Average UNet"
+        elif pretrained_model_class == "None":
+            return f"Average {model_class.split('.')[-1]}"
         else:
-            return f"{pretrained_model_class.split('.')[-1]} (seed=Average)"
+            return f"Average {pretrained_model_class.split('.')[-1]}"
 
     def configuration(method_name, calibrator):
         return f"{method_name}_{calibrator}"

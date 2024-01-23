@@ -167,6 +167,10 @@ def load_cal_inference_stats(
     else:
         inference_df["model._pretrained_class"] = inference_df["model._pretrained_class"].fillna("None")
     inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
+    # Group avg metric might not be defined for individual networks.
+    if "groupavg_image_metric" not in inference_df.columns:
+        inference_df["groupavg_image_metric"] = "None"
+        inference_df["groupavg_metric_score"] = "None"
     
     # Here are a few common columns that we will always want in the dataframe.    
     def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, pre_softmax, combine_fn):
@@ -174,9 +178,9 @@ def load_cal_inference_stats(
             softmax_modifier = "logits" if pre_softmax else "probs"
             method_name_string = f"Ensemble ({combine_fn}, {softmax_modifier})" 
         else:
-            if pretrained_model_class == "None":
-                if model_class == "Identity":
-                    model_class = "UNet" # Ugly hack.
+            if model_class == "Vanilla":
+                method_name_string = f"UNet (seed={pretrained_seed})"
+            elif pretrained_model_class == "None":
                 method_name_string = f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
                 method_name_string = f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
