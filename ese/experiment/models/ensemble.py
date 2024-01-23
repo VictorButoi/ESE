@@ -59,10 +59,10 @@ def product_combine_fn(
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
     # We always need to softmax the logits before taking the product.
-    ensemble_probs = torch.softmax(ensemble_probs, dim=1)
+    ensemble_probs = torch.softmax(ensemble_logits, dim=1)
 
     # This is the geometric mean
-    scaled_ensemble_logits = torch.pow(ensemble_logits, 1/ensemble_logits.shape[2]) # B, C, E, H, W
-    ensemble_product_tensor = torch.prod(scaled_ensemble_logits, dim=2) # B, C, H, W
+    scaled_ensemble_probs = torch.pow(ensemble_probs, 1/ensemble_probs.shape[2]) # B, C, E, H, W
+    ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
 
     return ensemble_product_tensor
