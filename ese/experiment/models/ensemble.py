@@ -1,6 +1,6 @@
 # torch imports
 import torch
-from typing import Union
+from typing import Literal, Optional
 from pydantic import validate_arguments
 
 
@@ -25,26 +25,26 @@ def batch_ensemble_preds(model_outputs: dict):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def identity_combine_fn(
-    ensemble_logits, # Either a dict or a tensor.
-    pre_softmax: bool
-):
+    ensemble_logits, 
+    combine_quantity: Optional[str] = None
+    ):
     return batch_ensemble_preds(ensemble_logits)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
     ensemble_logits,
-    pre_softmax: bool
+    combine_quantity: Literal["probs", "logits"] 
 ):
     if isinstance(ensemble_logits, dict):
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
-    if pre_softmax:
+    if combine_quantity == "probs":
         ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
     ensemble_mean_tensor = torch.mean(ensemble_logits, dim=2) # B, C, H, W
 
-    if not pre_softmax:
+    if combine_quantity == "logits":
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
 
     return ensemble_mean_tensor
@@ -53,20 +53,16 @@ def mean_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def product_combine_fn(
     ensemble_logits,
-    pre_softmax: bool
+    combine_quantity: Literal["probs"] 
 ):
     if isinstance(ensemble_logits, dict):
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
-    # This decides if we product in the probability or logit space
-    if pre_softmax:
-        ensemble_logits = torch.softmax(ensemble_logits, dim=1)
+    # We always need to softmax the logits before taking the product.
+    ensemble_probs = torch.softmax(ensemble_probs, dim=1)
 
     # This is the geometric mean
     scaled_ensemble_logits = torch.pow(ensemble_logits, 1/ensemble_logits.shape[2]) # B, C, E, H, W
     ensemble_product_tensor = torch.prod(scaled_ensemble_logits, dim=2) # B, C, H, W
-
-    if not pre_softmax:
-        ensemble_product_tensor = torch.softmax(ensemble_product_tensor, dim=1)
 
     return ensemble_product_tensor

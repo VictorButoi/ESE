@@ -108,7 +108,7 @@ def load_inference_exp_from_cfg(
     # Get the configs of the experiment
     if model_cfg['ensemble']:
         assert is_exp_group, "Ensemble inference only works with experiment groups."
-        assert 'ensemble_combine_fn' in model_cfg.keys(), "Ensemble inference requires a combine function."
+        assert 'ensemble_cfg' in model_cfg.keys(), "Ensemble inference requires a combine function."
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:
@@ -240,9 +240,9 @@ def reduce_ensemble_preds(
 ) -> dict:
     # Combine the outputs of the models.
     # NOTE: This will always do a softmax.
-    ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
+    ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
         output_dict["y_pred"], 
-        pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
+        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1]
         )
     # Get the hard prediction and probabilities, if we are doing identity,
     # then we don't want to return probs.

@@ -12,7 +12,7 @@ from ionpy.experiment.util import absolute_import
 from ionpy.util.ioutil import autosave
 # misc imports
 import json
-from typing import Optional
+from typing import Optional, Literal
 from pathlib import Path
 
 
@@ -78,10 +78,12 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
         # Build the combine function.
-        if "ensemble_combine_fn" in model_cfg:
-            self.combine_fn = model_cfg["ensemble_combine_fn"]
+        if "ensemble_cfg" in model_cfg:
+            self.ensemble_combine_fn = model_cfg["ensemble_cfg"][0]
+            self.ensemble_combine_quantity = model_cfg["ensemble_cfg"][1]
         else:
-            self.combine_fn = None
+            self.ensemble_combine_fn = None
+            self.ensemble_combine_quantity = None
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.ens_exp_paths = []
         self.ens_exps = {}
@@ -134,7 +136,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
             x: torch.Tensor, 
             multi_class: bool, 
             threshold: float = 0.5, 
-            combine_fn: Optional[str] = None
+            combine_fn: Optional[str] = None,
+            combine_quantity: Optional[Literal["probs", "logits"]] = None
             ):
         # Get the label predictions for each model.
         ensemble_model_outputs = {}
@@ -143,16 +146,17 @@ class EnsembleInferenceExperiment(BaseExperiment):
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
                 x=x, multi_class=True, return_logits=True
             )['y_pred']
-        #Get the model cfg
-        model_cfg = self.config["model"].to_dict()
         # Combine the outputs of the models.
         if combine_fn is None:
-            assert self.combine_fn is not None, "No combine function provided."
-            combine_fn = self.combine_fn
+            assert self.ensemble_combine_fn is not None, "No combine function provided."
+            combine_fn = self.ensemble_combine_fn
+        if combine_quantity is None:
+            assert self.ensemble_combine_quantity is not None, "No pre_softmax value provided."
+            combine_quantity = self.ensemble_combine_quantity
         # Combine the outputs of the models.
         prob_map = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
-            pre_softmax=model_cfg["ensemble_pre_softmax"]
+            combine_quantity=combine_quantity
             )
         # Get the hard prediction and probabilities, if we are doing identity,
         # then we don't want to return probs.
