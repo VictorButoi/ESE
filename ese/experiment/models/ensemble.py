@@ -9,8 +9,8 @@ def get_combine_fn(combine_fn: str):
         return identity_combine_fn
     elif combine_fn == "mean":
         return mean_combine_fn
-    elif combine_fn == "max":
-        return max_combine_fn
+    elif combine_fn == "product":
+        return product_combine_fn
     else:
         raise ValueError(f"Unknown combine function '{combine_fn}'.")
 
@@ -50,19 +50,21 @@ def mean_combine_fn(
     return ensemble_mean_tensor
 
 
-def max_combine_fn(
-    ensemble_logits, # Either a dict or a tensor.
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def product_combine_fn(
+    ensemble_logits,
     pre_softmax: bool
 ):
     if isinstance(ensemble_logits, dict):
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
+    # This decides if we product in the probability or logit space
     if pre_softmax:
         ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
-    ensemble_max_tensor = torch.max(ensemble_logits, dim=2)[0] # B, C, H, W, max returns max vals and indices
+    ensemble_product_tensor = torch.prod(ensemble_logits, dim=2) # B, C, H, W
 
-    if not pre_softmax:
-        ensemble_max_tensor = torch.softmax(ensemble_max_tensor, dim=1)
+    # Note we ALWAYS softmax the product because we are have unnormalized probs.
+    ensemble_product_tensor = torch.softmax(ensemble_product_tensor, dim=1)
 
-    return ensemble_max_tensor
+    return ensemble_product_tensor
