@@ -285,6 +285,8 @@ def get_average_unet_baselines(
         'model_type',
         'calibrator'
     ]
+    # Only keep the keys that are actually in the columns of unet_info_df.
+    unet_group_keys = [key for key in unet_group_keys if key in unet_info_df.keys()]
     # Run a check, that when you group by these keys, you get a unique row.
     # If not, you need to add more keys.
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()

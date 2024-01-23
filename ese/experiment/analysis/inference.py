@@ -162,7 +162,10 @@ def load_cal_inference_stats(
     # experiment keys
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
     # For models that don't have a pretrained class, set those pretrained classes to None
-    inference_df["model._pretrained_class"] = inference_df["model._pretrained_class"].fillna("None")
+    if "model._pretrained_class" not in inference_df.columns:
+        inference_df["model._pretrained_class"] = "None"
+    else:
+        inference_df["model._pretrained_class"] = inference_df["model._pretrained_class"].fillna("None")
     inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
     
     # Here are a few common columns that we will always want in the dataframe.    
@@ -172,6 +175,8 @@ def load_cal_inference_stats(
             method_name_string = f"Ensemble ({combine_fn}, {softmax_modifier})" 
         else:
             if pretrained_model_class == "None":
+                if model_class == "Identity":
+                    model_class = "UNet" # Ugly hack.
                 method_name_string = f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
                 method_name_string = f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
