@@ -103,20 +103,23 @@ class EnsembleInferenceExperiment(BaseExperiment):
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
-                # Do some bookkeping about the kinds of models we are including in the ensemble.
-                main_model_name = parse_class_name(str(loaded_exp.model.__class__))
-                pretrained_model_name = parse_class_name(str(loaded_exp.base_model.__class__))
-                # If the pretrained model_name is identity, then we need to flip the names.
-                if pretrained_model_name.split('.')[-1] == "Identity":
-                    temp = main_model_name
-                    main_model_name = pretrained_model_name
-                    pretrained_model_name = temp 
+                # Figure out what the model and potentially the pretrained backbone are.
+                if hasattr(loaded_exp, "base_model"):
+                    # Do some bookkeping about the kinds of models we are including in the ensemble.
+                    main_model_name = parse_class_name(str(loaded_exp.model.__class__))
+                    pretrained_model_name = parse_class_name(str(loaded_exp.base_model.__class__))
+                    # If the pretrained model_name is identity, then we need to flip the names.
+                    if pretrained_model_name.split('.')[-1] == "Identity":
+                        temp = main_model_name
+                        main_model_name = pretrained_model_name
+                        pretrained_model_name = temp 
+                else:
+                    main_model_name = parse_class_name(str(loaded_exp.model.__class__))
+                    pretrained_model_name = None
                 # Add the model class to the config.
                 model_cfg["_class"] = main_model_name
-                if hasattr(loaded_exp, "base_model"):
-                    model_cfg["_pretrained_class"] = pretrained_model_name
-                else:
-                    model_cfg["_pretrained_class"] = None
+                model_cfg["_pretrained_class"] = pretrained_model_name
+        # Count the number of parameters.
         self.properties["num_params"] = self.num_params 
         # Create the new config.
         total_config["model"] = model_cfg
