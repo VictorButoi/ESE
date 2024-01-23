@@ -176,15 +176,14 @@ def load_cal_inference_stats(
     def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, pre_softmax, combine_fn):
         if ensemble:
             softmax_modifier = "logits" if pre_softmax else "probs"
-            method_name_string = f"Ensemble ({combine_fn}, {softmax_modifier})" 
+            return f"Ensemble ({combine_fn}, {softmax_modifier})" 
         else:
             if model_class == "Vanilla":
-                method_name_string = f"UNet (seed={pretrained_seed})"
+                return f"UNet (seed={pretrained_seed})"
             elif pretrained_model_class == "None":
-                method_name_string = f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
+                return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
-                method_name_string = f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
-        return method_name_string
+                return f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
 
     def calibrator(model_class):
         if "UNet" in model_class:
