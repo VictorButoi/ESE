@@ -186,10 +186,14 @@ def load_cal_inference_stats(
                 return f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
 
     def calibrator(model_class):
-        if "UNet" in model_class:
+        model_class_suffix = model_class.split('.')[-1]
+        # Determine the calibration name.
+        if model_class_suffix == "Identity":
+            return "Vanilla"
+        elif "UNet" in model_class:
             return "Uncalibrated"
         else:
-            return model_class.split('.')[-1]
+            return model_class_suffix
 
     def joint_data_slice_id(data_id, slice_idx):
         return f"{data_id}_{slice_idx}"
