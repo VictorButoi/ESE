@@ -17,6 +17,12 @@ from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import fix_seed, eval_config
 # local imports
+from ..experiment.utils import show_inference_examples
+from ..metrics.utils import (
+    get_bins, 
+    find_bins, 
+    count_matching_neighbors,
+)
 from .inference_utils import (
     get_image_aux_info, 
     dataloader_from_exp,
@@ -26,13 +32,6 @@ from .inference_utils import (
     load_inference_exp_from_cfg,
     preload_calibration_metrics,
 )
-from ..metrics.utils import (
-    get_bins, 
-    find_bins, 
-    count_matching_neighbors,
-)
-from ..experiment.utils import show_inference_examples, process_pred_map
-from ..models.ensemble import get_combine_fn
 
 
 def list2tuple(val):
@@ -188,10 +187,10 @@ def load_cal_inference_stats(
     def calibrator(model_class):
         model_class_suffix = model_class.split('.')[-1]
         # Determine the calibration name.
-        if model_class_suffix == "Identity":
-            return "Vanilla"
-        elif "UNet" in model_class:
+        if "UNet" in model_class:
             return "Uncalibrated"
+        elif model_class_suffix == "Identity":
+            return "Vanilla"
         else:
             return model_class_suffix
 

@@ -62,9 +62,11 @@ def product_combine_fn(
     if pre_softmax:
         ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
-    ensemble_product_tensor = torch.prod(ensemble_logits, dim=2) # B, C, H, W
+    # This is the geometric mean
+    scaled_ensemble_logits = torch.pow(ensemble_logits, 1/ensemble_logits.shape[2]) # B, C, E, H, W
+    ensemble_product_tensor = torch.prod(scaled_ensemble_logits, dim=2) # B, C, H, W
 
-    # Note we ALWAYS softmax the product because we are have unnormalized probs.
-    ensemble_product_tensor = torch.softmax(ensemble_product_tensor, dim=1)
+    if not pre_softmax:
+        ensemble_product_tensor = torch.softmax(ensemble_product_tensor, dim=1)
 
     return ensemble_product_tensor
