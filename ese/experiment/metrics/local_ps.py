@@ -23,13 +23,15 @@ def get_lab_info(
         lab_map = y_hard
     else:
         lab_map = y_true
+
     unique_labels = torch.unique(lab_map)
+
     if ignore_index is not None:
         unique_labels = unique_labels[unique_labels != ignore_index]
-    num_labels = len(unique_labels)
+
     return {
         "lab_map": lab_map, 
-        "num_labels": num_labels,
+        "num_labels": len(unique_labels),
         "unique_labels": unique_labels,
     }
 

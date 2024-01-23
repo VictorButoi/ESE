@@ -349,22 +349,22 @@ def get_cal_stats(
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
-            # if batch["data_id"][0] == "103":
-            # Run the forward loop
-            forward_loop_func(
-                exp=inference_exp, 
-                batch=batch, 
-                inference_cfg=cfg_dict, 
-                image_level_records=image_level_records,
-                pixel_meter_dict=pixel_meter_dict
-            )
-            # Save the records every so often, to get intermediate results. Note, because of data_ids
-            # this can contain fewer than 'log interval' many items.
-            if batch_idx % cfg['log']['log_interval'] == 0:
-                if image_level_records is not None:
-                    save_records(image_level_records, image_level_dir)
-                if pixel_meter_dict is not None:
-                    save_dict(pixel_meter_dict, pixel_level_dir)
+            if batch["data_id"][0] == "103":
+                # Run the forward loop
+                forward_loop_func(
+                    exp=inference_exp, 
+                    batch=batch, 
+                    inference_cfg=cfg_dict, 
+                    image_level_records=image_level_records,
+                    pixel_meter_dict=pixel_meter_dict
+                )
+                # Save the records every so often, to get intermediate results. Note, because of data_ids
+                # this can contain fewer than 'log interval' many items.
+                if batch_idx % cfg['log']['log_interval'] == 0:
+                    if image_level_records is not None:
+                        save_records(image_level_records, image_level_dir)
+                    if pixel_meter_dict is not None:
+                        save_dict(pixel_meter_dict, pixel_level_dir)
     # Save the records at the end too
     if image_level_records is not None:
         save_records(image_level_records, image_level_dir)
@@ -386,22 +386,22 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
-        # if slice_idx == 26:
-        print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
-        # Get the prediction with no gradient accumulation.
-        slice_batch = {
-            "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
-            "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
-            "data_id": batch["data_id"],
-        } 
-        image_forward_loop(
-            exp=exp,
-            batch=slice_batch,
-            inference_cfg=inference_cfg,
-            slice_idx=slice_idx,
-            image_level_records=image_level_records,
-            pixel_meter_dict=pixel_meter_dict
-        )
+        if slice_idx == 65:
+            print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
+            # Get the prediction with no gradient accumulation.
+            slice_batch = {
+                "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
+                "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
+                "data_id": batch["data_id"],
+            } 
+            image_forward_loop(
+                exp=exp,
+                batch=slice_batch,
+                inference_cfg=inference_cfg,
+                slice_idx=slice_idx,
+                image_level_records=image_level_records,
+                pixel_meter_dict=pixel_meter_dict
+            )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

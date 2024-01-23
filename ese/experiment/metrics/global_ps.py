@@ -139,6 +139,7 @@ def global_label_bin_stats(
     ignore_index: Optional[int] = None
     ) -> dict:
     label_key = "pred_label" if top_label else "true_label"
+    # Get the keys associatged with the label key.
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pixel_meters_dict,
         key_1=label_key,

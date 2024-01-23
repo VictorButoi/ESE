@@ -263,6 +263,8 @@ def find_bins(
     valid_bins = (expanded_confidences > bin_starts) & (expanded_confidences <= (bin_starts + bin_widths))
     # Get bin indices; if no valid bin is found for a confidence, the value will be -1
     bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)).cuda(), -torch.ones_like(bin_starts)).max(dim=-1).values
+    # Place all things in bin -1 in bin 0, this can happen when stuff is perfectly the boundary of bin_starts.
+    bin_indices[bin_indices == -1] = 0
     return bin_indices
 
 
