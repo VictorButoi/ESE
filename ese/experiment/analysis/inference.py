@@ -83,6 +83,12 @@ def load_cal_inference_stats(
                     ]:
                     if drop_key in flat_cfg:
                         flat_cfg.pop(drop_key)
+                # If the column 'model.ensemble_cfg' is in the columns,
+                # we need to make two new columns for the combine function and quantity.
+                if 'model.ensemble_cfg' in flat_cfg.keys():
+                    flat_cfg['model.ensemble_combine_fn'] = flat_cfg['model.ensemble_cfg'][0]
+                    flat_cfg['model.ensemble_combine_quantity'] = flat_cfg['model.ensemble_cfg'][1]
+                    flat_cfg.pop('model.ensemble_cfg')
                 # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 metadata_df = pd.concat([metadata_df, cfg_df])
@@ -157,7 +163,7 @@ def load_cal_inference_stats(
     inference_df["model_class"] = inference_df["model._class"]
     inference_df["ensemble"] = inference_df["model.ensemble"]
     inference_df["combine_fn"] = inference_df["model.ensemble_combine_fn"]
-    inference_df["pre_softmax"] = inference_df["model.ensemble_pre_softmax"]
+    inference_df["combine_quantity"] = inference_df["model.ensemble_combine_quantity"]
     # experiment keys
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
     # For models that don't have a pretrained class, set those pretrained classes to None
@@ -172,10 +178,9 @@ def load_cal_inference_stats(
         inference_df["groupavg_metric_score"] = "None"
     
     # Here are a few common columns that we will always want in the dataframe.    
-    def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, pre_softmax, combine_fn):
+    def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, combine_quantity, combine_fn):
         if ensemble:
-            softmax_modifier = "logits" if pre_softmax else "probs"
-            return f"Ensemble ({combine_fn}, {softmax_modifier})" 
+            return f"Ensemble ({combine_fn}, {combine_quantity})" 
         else:
             if model_class == "Vanilla":
                 return f"UNet (seed={pretrained_seed})"
