@@ -44,7 +44,8 @@ class NECTAR_Scaling(nn.Module):
         num_classes,
         neighborhood_width, 
         threshold=None, 
-        eps=1e-8,
+        eps=1e-12,
+        positive_constraint=True,
         **kwargs
     ):
         super(NECTAR_Scaling, self).__init__()
@@ -52,6 +53,7 @@ class NECTAR_Scaling(nn.Module):
         self.threshold = threshold
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
+        self.positive_constraint = positive_constraint
         # Define the parameters per neighborhood class
         num_neighbor_classes = neighborhood_width**2
         self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
@@ -76,34 +78,12 @@ class NECTAR_Scaling(nn.Module):
         neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
         # Apply this to all classes.
         temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
-        # Add an epsilon to avoid dividing by zero
-        temps = temps + self.eps
-        # Finally, scale the logits by the temperatures
-        return logits / temps 
-
-
-class Constrained_NS(NECTAR_Scaling):
-
-    def forward(self, logits, **kwargs):
-        # Softmax the logits to get probabilities
-        probs = torch.softmax(logits, dim=1) # B C H W
-        # Argnax over the channel dimension to get the current prediction
-        if probs.shape[1] == 1:
-            pred = (probs > self.threshold).float().squeeze(1) # B H W
-        else:
-            pred = torch.argmax(probs, dim=1) # B H W
-        # Get the per-pixel num neighborhood class
-        pred_matching_neighbors_map = count_matching_neighbors(
-            lab_map=pred, 
-            neighborhood_width=self.neighborhood_width
-        ).unsqueeze(1) # B 1 H W
-        # Place the temperatures in the correct positions
-        neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
-        # Apply this to all classes.
-        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
         # If we are constrained to have a positive temperature, then we need to guide
         # the optimization to picking a parameterization that is positive.
-        temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
+        if self.positive_constraint:
+            temps = F.relu(temps)
+        # Add an epsilon to avoid dividing by zero
+        temps = temps + self.eps
         # Finally, scale the logits by the temperatures
         return logits / temps 
 
@@ -249,3 +229,29 @@ class Selective_Scaling(nn.Module):
         return  tf_positive.permute(0,3,1,2)
         
         
+# OLD METHODS, KEEP IN FOR BACKWARDS COMPATIBILITY
+
+class Constrained_NS(NECTAR_Scaling):
+
+    def forward(self, logits, **kwargs):
+        # Softmax the logits to get probabilities
+        probs = torch.softmax(logits, dim=1) # B C H W
+        # Argnax over the channel dimension to get the current prediction
+        if probs.shape[1] == 1:
+            pred = (probs > self.threshold).float().squeeze(1) # B H W
+        else:
+            pred = torch.argmax(probs, dim=1) # B H W
+        # Get the per-pixel num neighborhood class
+        pred_matching_neighbors_map = count_matching_neighbors(
+            lab_map=pred, 
+            neighborhood_width=self.neighborhood_width
+        ).unsqueeze(1) # B 1 H W
+        # Place the temperatures in the correct positions
+        neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
+        # Apply this to all classes.
+        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
+        # If we are constrained to have a positive temperature, then we need to guide
+        # the optimization to picking a parameterization that is positive.
+        temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
+        # Finally, scale the logits by the temperatures
+        return logits / temps 
