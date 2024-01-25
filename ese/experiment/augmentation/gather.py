@@ -16,11 +16,11 @@ def build_aug(augmentation_dict):
     if aug_key == "ColorJitter":
         return A.ColorJitter(**augmentation_dict[aug_key])
     elif aug_key == "RandomResizedCrop":
-        return A.RandomResizedCrop(size=ast.literal_eval(aug_cfg["size"]))
-    elif aug_key == "RandomHorizontalFlip":
-        return A.RandomHorizontalFlip(**augmentation_dict[aug_key])
+        return A.RandomResizedCrop(**augmentation_dict[aug_key])
+    elif aug_key == "HorizontalFlip":
+        return A.HorizontalFlip(**augmentation_dict[aug_key])
     elif aug_key == "Resize":
-        return A.Resize(size=ast.literal_eval(aug_cfg["size"]))
+        return A.Resize(**augmentation_dict[aug_key])
     elif aug_key == "Normalize":
         mean = ast.literal_eval(aug_cfg["mean"])
         std = ast.literal_eval(aug_cfg["std"])

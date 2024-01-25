@@ -81,8 +81,8 @@ class WMH(ThunderDataset, DatapathMixin):
             raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
-        img = torch.from_numpy(img_vol[slice_indices, ...])
-        mask = torch.from_numpy(mask_vol[slice_indices, ...])
+        img = img_vol[slice_indices, ...]
+        mask = mask_vol[slice_indices, ...]
 
         # Get the class name
         if self.transforms:
@@ -90,8 +90,8 @@ class WMH(ThunderDataset, DatapathMixin):
 
         # Prepare the return dictionary.
         return_dict = {
-            "img": img.float(),
-            "label": mask.float(),
+            "img": torch.from_numpy(img).float(),
+            "label": torch.from_numpy(mask).float(),
         }
 
         if self.return_data_id:

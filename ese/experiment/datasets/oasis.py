@@ -98,21 +98,25 @@ class OASIS(ThunderDataset, DatapathMixin):
             raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
-        img = torch.from_numpy(img_vol[slice_indices, ...])
-        mask = torch.from_numpy(mask_vol[slice_indices, ...])
+        img = img_vol[slice_indices, ...]
+        mask = mask_vol[slice_indices, ...]
+
+        # Get the class name
+        if self.transforms:
+            img, mask = self.transforms(image=img, mask=mask)
+        
+        # Convert both img and mask to torch tensors
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
 
         # If we are remapping the labels, then we need to do that here.
         if self.label_map is not None:
             mask = self.label_map[mask]
         
-        # Get the class name
-        if self.transforms:
-            img, mask = self.transforms(image=img, mask=mask)
-
         # Prepare the return dictionary.
         return_dict = {
             "img": img.float(),
-            "label": mask.float(),
+            "label": mask.float()
         }
 
         if self.return_data_id:

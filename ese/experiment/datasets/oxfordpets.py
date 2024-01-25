@@ -56,22 +56,20 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         class_name = "_".join(example_name.split("_")[:-1])
         label = self.class_map[class_name]
         mask = (mask * label)[None]
+
         if self.transforms:
             img, mask = self.transforms(image=img, mask=mask)
-        # Convert to float32
-        img = img.astype(np.float32)
-        mask = mask.astype(np.float32)
-        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
-        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
 
-        # Convert to torch tensors
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
+        # Prepare the return dictionary.
+        return_dict = {
+            "img": torch.from_numpy(img).float(),
+            "label": torch.from_numpy(mask).float(),
+        }
 
         if self.return_data_id:
-            return img, mask, example_name 
-        else:
-            return img, mask
+            return_dict["data_id"] = example_name 
+
+        return return_dict
 
     @property
     def _folder_name(self):
