@@ -28,8 +28,8 @@ class OASIS(ThunderDataset, DatapathMixin):
     preload: bool = False
     return_data_id: bool = False
     iters_per_epoch: Optional[int] = None
-    transforms: Optional[List[Any]] = None
     target_labels: Optional[List[int]] = None
+    transforms: Optional[Any] = None
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)

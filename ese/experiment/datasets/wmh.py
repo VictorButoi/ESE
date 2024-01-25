@@ -27,7 +27,7 @@ class WMH(ThunderDataset, DatapathMixin):
     return_data_id: bool = False
     slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[int] = None
-    transforms: Optional[List[Any]] = None
+    transforms: Optional[Any] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()

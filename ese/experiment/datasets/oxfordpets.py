@@ -19,7 +19,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     preload: bool = False
     num_classes: Any = "all" 
     iters_per_epoch: Optional[int] = None
-    transforms: Optional[List[Any]] = None
+    transforms: Optional[Any] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
