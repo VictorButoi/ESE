@@ -22,8 +22,8 @@ class CityScapes(ThunderDataset, DatapathMixin):
     transforms: Optional[Any] = None
 
     def __post_init__(self):
-        init_attrs = self.__dict__.copy()
         super().__init__(self.path, preload=self.preload)
+        super().supress_readonly_warning()
         # Get the subjects from the splits
         samples = self._db["_splits"][self.split]
         sample_cities = self._db["_cities"]
@@ -58,9 +58,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
     def __getitem__(self, key):
         key = key % len(self.samples)
         example_name = self.samples[key]
-
-        # Get the class and associated label
-        img, mask = self._db[example_name]
+        img, mask = super().__getitem__(key)
 
         # If we are remapping the labels, then we need to do that here.
         if self.label_map is not None:
@@ -75,8 +73,8 @@ class CityScapes(ThunderDataset, DatapathMixin):
 
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img).float(),
-            "label": torch.from_numpy(mask).float(),
+            "img": torch.from_numpy(img),
+            "label": torch.from_numpy(mask),
         }
 
         if self.return_data_id:

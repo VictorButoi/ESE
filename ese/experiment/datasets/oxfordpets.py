@@ -24,6 +24,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
         super().__init__(self.path, preload=self.preload)
+        super().supress_readonly_warning()
         # Get the subjects from the splits
         samples = self._db["_splits"][self.split]
         classes = self._db["_classes"]
@@ -50,8 +51,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     def __getitem__(self, key):
         key = key % len(self.samples)
         example_name = self.samples[key]
-        # Get the class and associated label
-        img, mask = self._db[example_name]
+        img, mask = super().__getitem__(key)
         # Get the class name
         class_name = "_".join(example_name.split("_")[:-1])
         label = self.class_map[class_name]

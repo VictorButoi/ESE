@@ -33,6 +33,7 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     def __post_init__(self):
         super().__init__(self.path, preload=self.preload)
+        super().supress_readonly_warning()
         subjects = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
@@ -61,7 +62,7 @@ class OASIS(ThunderDataset, DatapathMixin):
     def __getitem__(self, key):
         key = key % len(self.samples)
         subj_name = self.subjects[key]
-        subj_dict = self._db[subj_name]
+        subj_dict = super().__getitem__(key)
 
         img_vol = subj_dict['image']
         mask_vol = subj_dict['mask']

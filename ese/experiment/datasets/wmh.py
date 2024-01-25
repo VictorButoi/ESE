@@ -32,7 +32,7 @@ class WMH(ThunderDataset, DatapathMixin):
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
         super().__init__(self.path, preload=self.preload)
-
+        super().supress_readonly_warning()
         # min_label_density
         subjects: List[str] = self._db["_splits"][self.split]
         self.samples = subjects
@@ -46,7 +46,7 @@ class WMH(ThunderDataset, DatapathMixin):
     def __getitem__(self, key):
         key = key % len(self.samples)
         subj_name = self.subjects[key]
-        subj_dict = self._db[subj_name]
+        subj_dict = super().__getitem__(key)
 
         # Get the image and mask
         img_vol = subj_dict['image']
