@@ -157,9 +157,6 @@ class CalibrationExperiment(TrainExperiment):
             'y_hard': pred_map 
         }
 
-    def run(self):
-        super().run()
-
     def vis_loss_curves(
         self,
         x='epoch',  

@@ -185,6 +185,3 @@ class PostHocExperiment(TrainExperiment):
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
         self.model = to_device(self.model, self.device, channels_last=False)
-
-    def run(self):
-        super().run()
