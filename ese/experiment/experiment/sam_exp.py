@@ -3,16 +3,16 @@
 from .utils import process_pred_map
 # torch imports
 # IonPy imports
-from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import eval_config
-from ionpy.nn.util import num_params
 from ionpy.util import Config
+from ionpy.nn.util import num_params
 from ionpy.util.torchutils import to_device
+from ionpy.experiment import TrainExperiment
 # misc imports
 import einops
+from segment_anything import sam_model_registry
+``
 
-
-class CalibrationExperiment(TrainExperiment):
+class SamExperiment(TrainExperiment):
 
     def build_model(self):
         # Move the information about channels to the model config.
@@ -30,7 +30,14 @@ class CalibrationExperiment(TrainExperiment):
             model_config["out_channels"] = out_channels 
         # Set important things about the model.
         self.config = Config(total_config)
-        self.model = eval_config(self.config["model"])
+        # Define where the pretrained weights are.
+        checkpoint_dir_dict = {
+            "vit_h": f"{model_config['weights_root']}/sam_vit_h_4b8939.pth",
+            "vit_l": f"{model_config['weights_root']}/sam_vit_l_0b3195.pth",
+            "vit_b": f"{model_config['weights_root']}/sam_vit_b_01ec64.pth"
+        }
+        sam_checkpoint = model_config['class']
+        self.model = sam_model_registry[sam_checkpoint](checkpoint=checkpoint_dir_dict[sam_checkpoint])
         self.properties["num_params"] = num_params(self.model)
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
