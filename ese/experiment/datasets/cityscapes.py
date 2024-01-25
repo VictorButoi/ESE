@@ -43,30 +43,43 @@ class CityScapes(ThunderDataset, DatapathMixin):
         self.return_data_id = False
         # Control how many samples are in each epoch.
         self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
-
+        # Get the class conversion dictionary (From Calibration in Semantic Segmentation are we on the right) 
+        class_conversion_dict = {
+            7:0, 8:1, 11:2, 12:3, 13:4, 17:5, 19:6, 20:7, 21:8, 22:9,
+            23: 10, 24:11, 25:12, 26:13, 27:14, 28:15, 31:16, 32:17, 33:18
+            }
+        self.label_map = torch.zeros(35, dtype=torch.int64) # 35 classes in total
+        for old_label, new_label in class_conversion_dict.items():
+            self.label_map[old_label] = new_label 
+            
     def __len__(self):
         return self.num_samples
 
     def __getitem__(self, key):
         key = key % len(self.samples)
         example_name = self.samples[key]
+
         # Get the class and associated label
         img, mask = self._db[example_name]
+
         # Get the class name
         if self.transforms:
             img, mask = self.transforms(img, mask)
-        # Convert to float32
-        img = img.astype(np.float32)
-        mask = mask.astype(np.float32)
 
-        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
-        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
+        # Data object ensures first axis is the slice axis.
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
 
+        # If we are remapping the labels, then we need to do that here.
+        if self.label_map is not None:
+            mask = self.label_map[mask]
+        
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img),
-            "label": torch.from_numpy(mask),
+            "img": img.float(),
+            "label": mask.float(),
         }
+
         if self.return_data_id:
             return_dict["data_id"] = example_name 
 
