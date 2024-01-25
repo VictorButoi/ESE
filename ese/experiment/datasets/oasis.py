@@ -60,8 +60,9 @@ class OASIS(ThunderDataset, DatapathMixin):
 
     def __getitem__(self, key):
         key = key % len(self.samples)
-        subj = self.subjects[key]
-        subj_dict = self._db[subj]
+        subj_name = self.subjects[key]
+        subj_dict = self._db[subj_name]
+
         img_vol = subj_dict['image']
         mask_vol = subj_dict['mask']
         lab_amounts_per_slice = subj_dict['lab_amounts_per_slice']
@@ -104,6 +105,10 @@ class OASIS(ThunderDataset, DatapathMixin):
         if self.label_map is not None:
             mask = self.label_map[mask]
         
+        # Get the class name
+        if self.transforms:
+            img, mask = self.transforms(image=img, mask=mask)
+
         # Prepare the return dictionary.
         return_dict = {
             "img": img.float(),
@@ -111,7 +116,7 @@ class OASIS(ThunderDataset, DatapathMixin):
         }
 
         if self.return_data_id:
-            return_dict["data_id"] = subj
+            return_dict["data_id"] = subj_name 
 
         return return_dict
 

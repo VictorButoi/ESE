@@ -57,7 +57,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         label = self.class_map[class_name]
         mask = (mask * label)[None]
         if self.transforms:
-            img, mask = self.transforms(img, mask)
+            img, mask = self.transforms(image=img, mask=mask)
         # Convert to float32
         img = img.astype(np.float32)
         mask = mask.astype(np.float32)

@@ -54,7 +54,7 @@ class ADE20K(ThunderDataset, DatapathMixin):
         img, mask = self._db[example_name]
         # Get the class name
         if self.transforms:
-            img, mask = self.transforms(img, mask)
+            img, mask = self.transforms(image=img, mask=mask)
         # Convert to float32
         img = img.astype(np.float32)
         mask = mask.astype(np.float32)

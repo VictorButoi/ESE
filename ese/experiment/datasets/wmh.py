@@ -45,8 +45,8 @@ class WMH(ThunderDataset, DatapathMixin):
 
     def __getitem__(self, key):
         key = key % len(self.samples)
-        subj = self.subjects[key]
-        subj_dict = self._db[subj]
+        subj_name = self.subjects[key]
+        subj_dict = self._db[subj_name]
 
         # Get the image and mask
         img_vol = subj_dict['image']
@@ -81,22 +81,21 @@ class WMH(ThunderDataset, DatapathMixin):
             raise NotImplementedError(f"Unknown slicing method {self.slicing}")
         
         # Data object ensures first axis is the slice axis.
-        img = img_vol[slice_indices, ...].astype(np.float32)
-        mask = mask_vol[slice_indices, ...].astype(np.float32)
+        img = torch.from_numpy(img_vol[slice_indices, ...])
+        mask = torch.from_numpy(mask_vol[slice_indices, ...])
 
-        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
-        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
-
+        # Get the class name
         if self.transforms:
-            img, mask = self.transforms(img, mask)
+            img, mask = self.transforms(image=img, mask=mask)
 
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img),
-            "label": torch.from_numpy(mask),
+            "img": img.float(),
+            "label": mask.float(),
         }
+
         if self.return_data_id:
-            return_dict["data_id"] = subj
+            return_dict["data_id"] = subj_name 
 
         return return_dict
 

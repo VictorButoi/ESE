@@ -62,11 +62,9 @@ class CityScapes(ThunderDataset, DatapathMixin):
         # Get the class and associated label
         img, mask = self._db[example_name]
 
-        # If the image is a numpy array, then convert it to a tensor.
-        if isinstance(img, np.ndarray):
-            img = torch.from_numpy(img)
-        if isinstance(mask, np.ndarray): 
-            mask = torch.from_numpy(mask)
+        # Convert imageto a tensor.
+        img = torch.from_numpy(img)
+        mask = torch.from_numpy(mask)
 
         # If we are remapping the labels, then we need to do that here.
         if self.label_map is not None:
@@ -74,7 +72,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
         
         # Get the class name
         if self.transforms:
-            img, mask = self.transforms(img, mask)
+            img, mask = self.transforms(image=img, mask=mask)
 
         # Prepare the return dictionary.
         return_dict = {
