@@ -48,7 +48,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
             7:0, 8:1, 11:2, 12:3, 13:4, 17:5, 19:6, 20:7, 21:8, 22:9,
             23: 10, 24:11, 25:12, 26:13, 27:14, 28:15, 31:16, 32:17, 33:18
             }
-        self.label_map = torch.zeros(35, dtype=torch.int64) # 35 classes in total
+        self.label_map = np.zeros(35, dtype=np.int64) # 35 classes in total
         for old_label, new_label in class_conversion_dict.items():
             self.label_map[old_label] = new_label 
             
@@ -62,22 +62,21 @@ class CityScapes(ThunderDataset, DatapathMixin):
         # Get the class and associated label
         img, mask = self._db[example_name]
 
-        # Apply the transforms to the numpy images.
-        if self.transforms:
-            img, mask = self.transforms(image=img, mask=mask)
-
-        # Convert imageto a tensor.
-        img = torch.from_numpy(img)
-        mask = torch.from_numpy(mask)
-
         # If we are remapping the labels, then we need to do that here.
         if self.label_map is not None:
             mask = self.label_map[mask]
 
+        # Apply the transforms to the numpy images.
+        if self.transforms:
+            img = img.transpose(1, 2, 0) # (C, H, W) -> (H, W, C)
+            transformed = self.transforms(image=img, mask=mask)
+            img = transformed['image'].transpose(2, 0, 1) # (H, W, C) -> (C, H, W)
+            mask = transformed['mask'] # (H, W)
+
         # Prepare the return dictionary.
         return_dict = {
-            "img": img.float(),
-            "label": mask.float(),
+            "img": torch.from_numpy(img).float(),
+            "label": torch.from_numpy(mask).float(),
         }
 
         if self.return_data_id:

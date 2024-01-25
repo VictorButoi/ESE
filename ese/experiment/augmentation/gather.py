@@ -15,8 +15,8 @@ def build_aug(augmentation_dict):
     # List of all possible augmentations
     if aug_key == "ColorJitter":
         return A.ColorJitter(**augmentation_dict[aug_key])
-    elif aug_key == "RandomResizedCrop":
-        return A.RandomResizedCrop(**augmentation_dict[aug_key])
+    elif aug_key == "RandomCrop":
+        return A.RandomCrop(**augmentation_dict[aug_key])
     elif aug_key == "HorizontalFlip":
         return A.HorizontalFlip(**augmentation_dict[aug_key])
     elif aug_key == "Resize":
