@@ -1,6 +1,6 @@
 # local imports
 from .utils import process_pred_map
-from ..augmentation import augmentations_from_config
+from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -23,24 +23,24 @@ import matplotlib.colors as mcolors
 
 class CalibrationExperiment(TrainExperiment):
 
-    def build_augmentations(self):
-        # Build the augmentations if they are there to be built.        
-        config_dict = self.config.to_dict()
-        if "augmentations" in config_dict and (config_dict["augmentations"] is not None):
-            self.aug_pipeline = augmentations_from_config(config_dict["augmentations"])
+    def build_data(self, load_data):
+        # Get the data and transforms we want to apply
+        total_config = self.config.to_dict()
+        data_cfg = total_config["data"]
+        # Get the dataset class and build the transforms
+        dataset_cls = absolute_import(data_cfg.pop("_class"))
+        # Build the augmentation pipeline.
+        if "augmentations" in total_config and (total_config["augmentations"] is not None):
+            train_transforms, val_transforms = augmentations_from_config(total_config["augmentations"])
             self.properties["aug_digest"] = json_digest(self.config["augmentations"])[
                 :8
             ]
-
-    def build_data(self, load_data):
-        # Get the data and transforms we want to apply
-        data_cfg = self.config["data"].to_dict()
-        # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(data_cfg.pop("_class"))
+        else:
+            train_transforms, val_transforms = None, None
         # Build the datasets, apply the transforms
         if load_data:
-            self.train_dataset = dataset_cls(split="train", **data_cfg)
-            self.val_dataset = dataset_cls(split="val", **data_cfg)
+            self.train_dataset = dataset_cls(split="train", transforms=train_transforms, **data_cfg)
+            self.val_dataset = dataset_cls(split="val", transforms=val_transforms, **data_cfg)
     
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
@@ -89,7 +89,7 @@ class CalibrationExperiment(TrainExperiment):
         else:
             self.loss_func = eval_config(self.config["loss_func"])
     
-    def run_step(self, batch_idx, batch, backward, augmentation, epoch=None, phase=None):
+    def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
         # Get the image and label.
@@ -101,11 +101,7 @@ class CalibrationExperiment(TrainExperiment):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-        # Add augmentation to image and label.
-        if augmentation:
-            with torch.no_grad():
-                x, y = self.aug_pipeline(x, y)
-            
+
         # torch.cuda.synchronize()
         # start = time.time()
         yhat = self.model(x)
