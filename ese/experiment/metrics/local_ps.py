@@ -71,8 +71,8 @@ def bin_stats_init(
     y_pred: Tensor,
     y_true: Tensor,
     num_bins: int,
-    conf_interval: Tuple[float, float],
     from_logits: bool = False,
+    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {}
 ):
@@ -154,10 +154,10 @@ def bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
     num_bins: int,
-    conf_interval: Tuple[float, float],
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
+    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
@@ -216,10 +216,10 @@ def label_bin_stats(
     y_true: Tensor,
     top_label: bool,
     num_bins: int,
-    conf_interval: Tuple[float, float],
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
+    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
@@ -287,11 +287,11 @@ def neighbors_bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
     num_bins: int,
-    conf_interval: Tuple[float, float],
     neighborhood_width: int,
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
+    conf_interval: Optional[Tuple[float, float]] = None,
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -352,11 +352,11 @@ def label_neighbors_bin_stats(
     y_true: Tensor,
     top_label: bool,
     num_bins: int,
-    conf_interval: Tuple[float, float],
     square_diff: bool,
     neighborhood_width: int,
     edge_only: bool = False,
     from_logits: bool = False,
+    conf_interval: Optional[Tuple[float, float]] = None,
     stats_info_dict: Optional[dict] = {},
     ignore_index: Optional[int] = None
     ) -> dict:
