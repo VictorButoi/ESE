@@ -100,6 +100,7 @@ class PostHocExperiment(TrainExperiment):
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )
+        pretrained_cfg = self.pretrained_exp.config.to_dict()
         #########################################
         #            Model Creation             #
         #########################################
@@ -116,6 +117,9 @@ class PostHocExperiment(TrainExperiment):
         else:
             self.base_model = self.pretrained_exp.model
             self.base_model.eval()
+            # Get the old in and out channels from the pretrained model.
+            model_config_dict["num_classes"] = pretrained_cfg['model']['out_channels']
+            model_config_dict["image_channels"] = pretrained_cfg['model']['in_channels']
             # BUILD THE CALIBRATOR #
             ########################
             # Load the model
