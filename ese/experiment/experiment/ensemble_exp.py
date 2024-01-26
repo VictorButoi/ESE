@@ -89,7 +89,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.ens_exp_paths = []
         self.ens_exps = {}
         self.num_params = 0
-        ensemble_results_df = pd.DataFrame()
         # Loop through each member of the ensemble.
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Get the experiment class
@@ -105,11 +104,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
             self.ens_exp_paths.append(exp_path)
             self.ens_exps[exp_path] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
-            # Add the results to the dataframe.
-            ensemble_results_df = ensemble_results_df.append(
-                loaded_exp.results_df, 
-                ignore_index=True
-            )
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
@@ -129,11 +123,18 @@ class EnsembleInferenceExperiment(BaseExperiment):
                 # Add the model class to the config.
                 model_cfg["_class"] = main_model_name
                 model_cfg["_pretrained_class"] = pretrained_model_name
+        ################################################
+        # Get the weights per ensemble member.
+        ################################################
+        ensemble_results_df = rs.load_metrics(dfc)
         # Get the weights per ensemble member.
         self.ens_mem_weights = get_ensemble_member_weights(
             ensemble_results_df,
             metric=model_cfg["ensemble_w_metric"]
         )
+        ####################################################
+        # Add other auxilliary information to the config.
+        ####################################################
         # Count the number of parameters.
         self.properties["num_params"] = self.num_params 
         # Create the new config.
@@ -156,6 +157,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
         ensemble_model_outputs = {}
         for exp_path in self.ens_exp_paths:
             # Multi-class needs to be true here so that we can combine the outputs.
+            print(exp_path)
+            raise ValueError("This is not working yet.")
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
                 x=x, multi_class=True, return_logits=True
             )['y_pred']

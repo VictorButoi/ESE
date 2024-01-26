@@ -81,5 +81,26 @@ def product_combine_fn(
     return ensemble_product_tensor
 
 
-def get_ensemble_member_weights():
-    pass
+def get_ensemble_member_weights(results_df, metric):
+    metric_components = metric.split("-")
+    assert len(metric_components) == 2, "Metric must be of the form 'split-metric'."
+    phase = metric_components[0]
+    metric_name = metric_components[1]
+    # Get the df corresponding to split.
+    split_df = results_df[results_df["phase"] == phase]
+    # Keep two columns, the path and the metric_name
+    score_df = split_df[["path", metric_name]] 
+    path_grouped_df = score_df.groupby("path")
+    # If we are dealing with a 'loss' then take the min, if a 'score' take the max, otherwise default to min (with a print).
+    if 'loss' in metric_name:
+        best_df = path_grouped_df.min()
+    elif 'score' in metric_name:
+        best_df = path_grouped_df.max()
+    else:
+        print(f"Unknown metric type for '{metric_name}'. Defaulting to min.")
+        best_df = path_grouped_df.min()
+    # Get the weights in a dictionary
+    weight_dict = best_df.to_dict()[metric_name]
+    total_weight = best_df.sum()[metric_name]
+    # Normalize the weights to sum to 1 and make the keys strings.
+    return {str(k): v / total_weight for k, v in weight_dict.items()}
