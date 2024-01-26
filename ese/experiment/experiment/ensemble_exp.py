@@ -1,6 +1,6 @@
 # local imports
 from .utils import process_pred_map, parse_class_name
-from ..models.ensemble import get_combine_fn
+from ..models.ensemble_utils import get_combine_fn, get_ensemble_member_weights
 # torch imports
 import torch
 # IonPy imports
@@ -12,8 +12,9 @@ from ionpy.experiment.util import absolute_import
 from ionpy.util.ioutil import autosave
 # misc imports
 import json
-from typing import Optional, Literal
+import pandas as pd
 from pathlib import Path
+from typing import Optional, Literal
 
 
 # Very similar to BaseExperiment, but with a few changes.
@@ -88,6 +89,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.ens_exp_paths = []
         self.ens_exps = {}
         self.num_params = 0
+        ensemble_results_df = pd.DataFrame()
+        # Loop through each member of the ensemble.
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Get the experiment class
             properties_dir = Path(exp_path) / "properties.json"
@@ -102,6 +105,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
             self.ens_exp_paths.append(exp_path)
             self.ens_exps[exp_path] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
+            # Add the results to the dataframe.
+            ensemble_results_df = ensemble_results_df.append(
+                loaded_exp.results_df, 
+                ignore_index=True
+            )
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
@@ -121,6 +129,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
                 # Add the model class to the config.
                 model_cfg["_class"] = main_model_name
                 model_cfg["_pretrained_class"] = pretrained_model_name
+        # Get the weights per ensemble member.
+        self.ens_mem_weights = get_ensemble_member_weights(
+            ensemble_results_df,
+            metric=model_cfg["ensemble_w_metric"]
+        )
         # Count the number of parameters.
         self.properties["num_params"] = self.num_params 
         # Create the new config.
@@ -156,7 +169,8 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Combine the outputs of the models.
         prob_map = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
-            combine_quantity=combine_quantity
+            combine_quantity=combine_quantity,
+            weights=self.ens_mem_weights
             )
         # Get the hard prediction and probabilities, if we are doing identity,
         # then we don't want to return probs.

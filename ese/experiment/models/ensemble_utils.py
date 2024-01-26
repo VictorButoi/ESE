@@ -1,5 +1,6 @@
 # torch imports
 import torch
+from torch import Tensor
 from typing import Literal, Optional
 from pydantic import validate_arguments
 
@@ -34,15 +35,22 @@ def identity_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
     ensemble_logits,
-    combine_quantity: Literal["probs", "logits"] 
+    combine_quantity: Literal["probs", "logits"],
+    weights: Tensor
 ):
+    # Make sure weights sum to ~1.
+    assert torch.allclose(torch.sum(weights), torch.tensor(1.0)), "Weights must approxmately sum to 1."
+
     if isinstance(ensemble_logits, dict):
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
     if combine_quantity == "probs":
         ensemble_logits = torch.softmax(ensemble_logits, dim=1)
 
-    ensemble_mean_tensor = torch.mean(ensemble_logits, dim=2) # B, C, H, W
+    # Multiply the logits by the weights.
+    weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
+    w_ensemble_logits = weights * ensemble_logits # B, C, E, H, W
+    ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
     if combine_quantity == "logits":
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
@@ -53,16 +61,25 @@ def mean_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def product_combine_fn(
     ensemble_logits,
-    combine_quantity: Literal["probs"] 
+    combine_quantity: Literal["probs"],
+    weights: Tensor
 ):
+    # Make sure weights sum to ~1.
+    assert torch.allclose(torch.sum(weights), torch.tensor(1.0)), "Weights must approxmately sum to 1."
+
     if isinstance(ensemble_logits, dict):
         ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
 
     # We always need to softmax the logits before taking the product.
     ensemble_probs = torch.softmax(ensemble_logits, dim=1)
 
-    # This is the geometric mean
-    scaled_ensemble_probs = torch.pow(ensemble_probs, 1/ensemble_probs.shape[2]) # B, C, E, H, W
+    # We want to calculate the weighted geometric mean of the probabilities.
+    weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
+    scaled_ensemble_probs = torch.pow(ensemble_probs, weights) # B, C, E, H, W
     ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
 
     return ensemble_product_tensor
+
+
+def get_ensemble_member_weights():
+    pass

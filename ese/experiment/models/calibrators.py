@@ -184,7 +184,7 @@ class LTS(nn.Module):
         temp_param = self.temperature_level_2_param_img(logits)
 
         temperature = temp_1 * torch.sigmoid(temp_param) + temp_2 * (1.0 - torch.sigmoid(temp_param))
-        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.eps
+        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.eps # + 1 is done because the temperature starts near 0.
         temperature = temperature.repeat(1, self.num_classes, 1, 1)
         return logits / temperature
 

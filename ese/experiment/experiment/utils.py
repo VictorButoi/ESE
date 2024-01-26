@@ -10,7 +10,7 @@ from typing import Any, Optional
 from pydantic import validate_arguments
 # local imports
 from ..callbacks.visualize import ShowPredictionsCallback
-from ..models.ensemble import get_combine_fn
+from ..models.ensemble_utils import get_combine_fn
 
 
 def parse_class_name(class_name):
