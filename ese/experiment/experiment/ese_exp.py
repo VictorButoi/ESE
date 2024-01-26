@@ -5,12 +5,12 @@ from ..augmentation.gather import augmentations_from_config
 import torch
 from torch.utils.data import DataLoader
 # IonPy imports
-from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import absolute_import, eval_config
-from ionpy.nn.util import num_params
 from ionpy.util import Config
+from ionpy.nn.util import num_params
 from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
+from ionpy.experiment import TrainExperiment
+from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
 import time
 import einops

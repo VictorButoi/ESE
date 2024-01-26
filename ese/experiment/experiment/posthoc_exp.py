@@ -1,19 +1,21 @@
-# misc imports
-import os
 # local imports
+from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name
 # torch imports
 import torch
 from torch.utils.data import DataLoader
 # IonPy imports
+from ionpy.util import Config
+from ionpy.nn.util import num_params
+from ionpy.util.ioutil import autosave
+from ionpy.util.hash import json_digest
+from ionpy.analysis import ResultsLoader
+from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import, eval_config
-from ionpy.nn.util import num_params
-from ionpy.util import Config
-from ionpy.util.ioutil import autosave
-from ionpy.util.torchutils import to_device
-from ionpy.analysis import ResultsLoader
+# misc imports
+import os
 
 
 class PostHocExperiment(TrainExperiment):
@@ -30,18 +32,28 @@ class PostHocExperiment(TrainExperiment):
         total_config["data"] = pretrained_data_cfg
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
-        
+        # Get the dataset class and build the transforms
+        dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
+        # Check if we want to cache the dataset on the GPU.
+        if "cuda" in pretrained_data_cfg:
+            assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
+            cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
+        else:
+            cache_dsets_on_gpu = False
+        # Optionally, load the data.
         if load_data:
-            # Get the dataset class and build the transforms
-            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
-            if "cuda" in pretrained_data_cfg:
-                assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
-                cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
+            # Build the augmentation pipeline.
+            if "augmentations" in total_config and (total_config["augmentations"] is not None):
+                val_transforms = augmentations_from_config(total_config["augmentations"]["train"])
+                cal_transforms = augmentations_from_config(total_config["augmentations"]["val"])
+                self.properties["aug_digest"] = json_digest(self.config["augmentations"].to_dict())[
+                    :8
+                ]
             else:
-                cache_dsets_on_gpu = False
+                val_transforms, cal_transforms = None, None
             # Build the datasets, apply the transforms
-            self.train_dataset = dataset_cls(split="val", **pretrained_data_cfg)
-            self.val_dataset = dataset_cls(split="cal", **pretrained_data_cfg)
+            self.train_dataset = dataset_cls(split="val", transforms=val_transforms, **pretrained_data_cfg)
+            self.val_dataset = dataset_cls(split="cal", transforms=cal_transforms, **pretrained_data_cfg)
             # Optionally cache the datasets on the GPU.
             if cache_dsets_on_gpu:
                 self.train_dataset = CUDACachedDataset(self.train_dataset)
@@ -56,7 +68,7 @@ class PostHocExperiment(TrainExperiment):
         # Optionally manually set the batch size.
         if batch_size is not None:
             dl_cfg["batch_size"] =  batch_size
-
+        
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
