@@ -76,6 +76,8 @@ def bin_stats_init(
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {}
 ):
+    if len(y_true.shape) == 3:
+        y_true = y_true.unsqueeze(1) # Unsqueezing the channel dimension.
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
         f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
     
@@ -87,10 +89,22 @@ def bin_stats_init(
     y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
     assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
         f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
+    
 
     # Get the hard predictions and the max confidences.
     y_hard = y_pred.argmax(dim=1) # B x H x W
     y_max_prob_map = y_pred.max(dim=1).values # B x H x W
+
+    # Define the confidence interval (if not provided).
+    if conf_interval is None:
+        C = y_pred.shape[1]
+        if C == 0:
+            lower_bound = 0
+        else:
+            lower_bound = 1 / C
+        upper_bound = 1
+        # Set the confidence interval.
+        conf_interval = (lower_bound, upper_bound)
 
     # Figure out where each pixel belongs (in confidence)
     if "bin_ownership_map" in stats_info_dict:
