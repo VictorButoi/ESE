@@ -2,7 +2,6 @@
 import os
 import yaml
 import pickle
-import einops
 import numpy as np
 import pandas as pd
 from pathlib import Path

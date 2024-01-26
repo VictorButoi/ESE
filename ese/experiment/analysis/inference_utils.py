@@ -13,6 +13,7 @@ from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ..models.ensemble_utils import get_combine_fn
+from ..augmentation.gather import augmentations_from_config
 from ..experiment.utils import load_experiment, process_pred_map
 from ..experiment import EnsembleInferenceExperiment
 from ..metrics.utils import (
@@ -71,7 +72,8 @@ def dataloader_from_exp(
     batch_size=1,
     num_workers=1
 ):
-    inference_data_cfg = inference_exp.config['data'].to_dict()
+    total_config = inference_exp.config.to_dict()
+    inference_data_cfg = total_config['data']
     if new_dset_options is not None:
         inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 
@@ -85,8 +87,11 @@ def dataloader_from_exp(
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
     inference_data_cfg["return_data_id"] = True
+    # Add augmentation if we are using it.
+    if "augmentations" in total_config and (total_config["augmentations"] is not None):
+        transforms = augmentations_from_config(total_config["augmentations"])
     # Load the dataset with modified arguments.
-    dataset_obj = absolute_import(dataset_cls)(**inference_data_cfg)
+    dataset_obj = absolute_import(dataset_cls)(transforms=transforms, **inference_data_cfg)
     inference_data_cfg["_class"] = dataset_cls        
     # Build the dataset and dataloader.
     dataloader = DataLoader(

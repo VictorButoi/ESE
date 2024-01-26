@@ -36,9 +36,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Update the old cfg with new cfg (if it exists).
         if "data" in self.config:
             self.pretrained_data_cfg.update(self.config["data"].to_dict())
+        # Set the data config as the pretrained data config.
         total_config["data"] = self.pretrained_data_cfg
         self.config = Config(total_config)
-
+        # Optionally, load the data.
         if load_data:
             data_cfg = self.config["data"].to_dict()
             # Get the dataset class and build the transforms
@@ -101,9 +102,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
             if model_cfg["checkpoint"] is not None:
                 loaded_exp.load(tag=model_cfg["checkpoint"])
             loaded_exp.model.eval()
-            self.ens_exp_paths.append(exp_path)
             self.ens_exps[exp_path] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
+            self.ens_exp_paths.append(exp_path)
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
@@ -146,13 +147,13 @@ class EnsembleInferenceExperiment(BaseExperiment):
             self.ens_exps[exp_path].to_device()
 
     def predict(
-            self, 
-            x: torch.Tensor, 
-            multi_class: bool, 
-            threshold: float = 0.5, 
-            combine_fn: Optional[str] = None,
-            combine_quantity: Optional[Literal["probs", "logits"]] = None
-            ):
+        self, 
+        x: torch.Tensor, 
+        multi_class: bool, 
+        threshold: float = 0.5, 
+        combine_fn: Optional[str] = None,
+        combine_quantity: Optional[Literal["probs", "logits"]] = None
+    ):
         # Get the label predictions for each model.
         ensemble_model_outputs = {}
         for exp_path in self.ens_exp_paths:
