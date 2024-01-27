@@ -74,7 +74,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
         # Prepare the return dictionary.
         return_dict = {
             "img": torch.from_numpy(img),
-            "label": torch.from_numpy(mask),
+            "label": torch.from_numpy(mask)[None], # Add a channel dimension 
         }
 
         if self.return_data_id:

@@ -283,10 +283,8 @@ def get_cal_stats(
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
-    if 'augmentations' in cfg_dict.keys():
-        aug_cfg_list = cfg_dict['augmentations']
-    else:
-        aug_cfg_list = None
+    # Get the inference augmentation options.
+    aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
     # Build the dataloaders.
     dataloader, modified_cfg = dataloader_from_exp( 
         inference_exp,
@@ -650,6 +648,8 @@ def update_pixel_meters(
     output_dict: dict,
     inference_cfg: dict
 ):
+    calibration_cfg = inference_cfg["calibration"]
+
     # If this is an ensembled prediction, then first we need to reduce the ensemble
     ####################################################################################
     if inference_cfg["model"]["ensemble"]:
@@ -669,18 +669,31 @@ def update_pixel_meters(
     # If the confidence map is mulitclass, then we need to do some extra work.
     y_pred = output_dict["y_pred"]
     if y_pred.shape[1] > 1:
-        y_pred = torch.max(y_pred, dim=1)[0]
+        y_max_probs = torch.max(y_pred, dim=1)[0]
+    else:
+        y_max_probs = y_pred.squeeze(1) # Remove the channel dimension.
+
+    # Define the confidence interval (if not provided).
+    if "conf_interval" not in calibration_cfg:
+        C = y_pred.shape[1]
+        if C == 0:
+            lower_bound = 0
+        else:
+            lower_bound = 1 / C
+        upper_bound = 1
+        # Set the confidence interval.
+        calibration_cfg["conf_interval"] = (lower_bound, upper_bound)
 
     # Define the confidence bins and bin widths.
     conf_bins, conf_bin_widths = get_bins(
-        num_bins=inference_cfg['calibration']['num_bins'], 
-        start=inference_cfg['calibration']['conf_interval'][0], 
-        end=inference_cfg['calibration']['conf_interval'][1]
+        num_bins=calibration_cfg['num_bins'], 
+        start=calibration_cfg['conf_interval'][0], 
+        end=calibration_cfg['conf_interval'][1]
     )
 
     # Figure out where each pixel belongs (in confidence)
     bin_ownership_map = find_bins(
-        confidences=y_pred, 
+        confidences=y_max_probs, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
     ).squeeze().cpu().numpy()
@@ -688,17 +701,17 @@ def update_pixel_meters(
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        neighborhood_width=calibration_cfg["neighborhood_width"],
     ).squeeze().cpu().numpy()
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
-        neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
+        neighborhood_width=calibration_cfg["neighborhood_width"],
     ).squeeze().cpu().numpy()
 
     # CPU-ize prob_map, y_hard, and y_true
-    y_pred = y_pred.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
+    y_max_probs = y_max_probs.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
     y_true = output_dict["y_true"].cpu().squeeze().numpy()
 
@@ -730,7 +743,7 @@ def update_pixel_meters(
                 image_pixel_meter_dict[meter_key] = StatsMeter()
         # (acc , conf)
         acc = acc_map[ix, iy]
-        conf = y_pred[ix, iy]
+        conf = y_max_probs[ix, iy]
         # Finally, add the points to the meters.
         pixel_meter_dict[acc_key].add(acc) 
         pixel_meter_dict[conf_key].add(conf)

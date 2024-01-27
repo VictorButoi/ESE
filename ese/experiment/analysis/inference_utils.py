@@ -88,10 +88,15 @@ def dataloader_from_exp(
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
     inference_data_cfg['return_data_id'] = True
-    # Add augmentation if we are using it.
-    inference_data_cfg['transforms'] = None if (aug_cfg_list is None) else augmentations_from_config(aug_cfg_list)
+    # If aug cfg list is not None, that means that we want to change the inference transforms.
+    if aug_cfg_list is not None:
+        inference_transforms = augmentations_from_config(aug_cfg_list)
+    else:
+        inference_transforms = None
     # Load the dataset with modified arguments.
-    dataset_obj = absolute_import(dataset_cls)(**inference_data_cfg)
+    dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **inference_data_cfg)
+    # Add the augmentation information.
+    inference_data_cfg['augmentations'] = aug_cfg_list
     inference_data_cfg['_class'] = dataset_cls        
     # Build the dataset and dataloader.
     dataloader = DataLoader(
@@ -216,6 +221,18 @@ def get_image_aux_info(
 
     # Calculate the probability bin positions per pixel.
     y_max_prob_map = y_pred.max(dim=1).values # B x H x W
+
+    # Define the confidence interval (if not provided).
+    if "conf_interval" not in cal_cfg:
+        C = y_pred.shape[1]
+        if C == 0:
+            lower_bound = 0
+        else:
+            lower_bound = 1 / C
+        upper_bound = 1
+        # Set the confidence interval.
+        cal_cfg["conf_interval"] = (lower_bound, upper_bound)
+
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=cal_cfg["num_bins"], 
