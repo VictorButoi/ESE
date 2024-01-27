@@ -13,7 +13,6 @@ from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import
 # misc imports
 import json
-import pandas as pd
 from pathlib import Path
 from typing import Optional, Literal
 

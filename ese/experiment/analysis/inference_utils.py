@@ -68,9 +68,10 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
     inference_exp, 
-    new_dset_options=None, 
-    batch_size=1,
-    num_workers=1
+    batch_size: int = 1,
+    num_workers: int = 1,
+    aug_cfg_list: Optional[List[dict]] = None,
+    new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
     total_config = inference_exp.config.to_dict()
     inference_data_cfg = total_config['data']
@@ -78,23 +79,20 @@ def dataloader_from_exp(
         inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 
     if "slicing" in inference_data_cfg.keys():
-        assert inference_data_cfg["slicing"] not in ["central", "dense", "uniform"], "Sampling methods not allowed for evaluation."
+        assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
-    dataset_cls = inference_data_cfg.pop("_class")
+    dataset_cls = inference_data_cfg.pop('_class')
     # Drop auxiliary information used for making the models.
-    for drop_key in ["in_channels", "out_channels", "iters_per_epoch", "input_type"]:
+    for drop_key in ['in_channels', 'out_channels', 'iters_per_epoch', 'input_type']:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
-    inference_data_cfg["return_data_id"] = True
+    inference_data_cfg['return_data_id'] = True
     # Add augmentation if we are using it.
-    if "augmentations" in total_config and (total_config["augmentations"] is not None):
-        transforms = augmentations_from_config(total_config["augmentations"])
-    else:
-        transforms = None
+    inference_data_cfg['transforms'] = None if (aug_cfg_list is None) else augmentations_from_config(aug_cfg_list)
     # Load the dataset with modified arguments.
-    dataset_obj = absolute_import(dataset_cls)(transforms=transforms, **inference_data_cfg)
-    inference_data_cfg["_class"] = dataset_cls        
+    dataset_obj = absolute_import(dataset_cls)(**inference_data_cfg)
+    inference_data_cfg['_class'] = dataset_cls        
     # Build the dataset and dataloader.
     dataloader = DataLoader(
         dataset_obj, 

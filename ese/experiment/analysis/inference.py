@@ -283,9 +283,15 @@ def get_cal_stats(
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
+    if 'augmentations' in cfg_dict.keys():
+        aug_cfg_list = cfg_dict['augmentations']
+    else:
+        aug_cfg_list = None
+    # Build the dataloaders.
     dataloader, modified_cfg = dataloader_from_exp( 
         inference_exp,
         new_dset_options=new_dset_options, 
+        aug_cfg_list=aug_cfg_list,
         batch_size=cfg_dict['dataloader']['batch_size'],
         num_workers=cfg_dict['dataloader']['num_workers']
         )
