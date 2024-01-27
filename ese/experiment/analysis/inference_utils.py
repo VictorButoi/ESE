@@ -90,6 +90,8 @@ def dataloader_from_exp(
     # Add augmentation if we are using it.
     if "augmentations" in total_config and (total_config["augmentations"] is not None):
         transforms = augmentations_from_config(total_config["augmentations"])
+    else:
+        transforms = None
     # Load the dataset with modified arguments.
     dataset_obj = absolute_import(dataset_cls)(transforms=transforms, **inference_data_cfg)
     inference_data_cfg["_class"] = dataset_cls        

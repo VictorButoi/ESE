@@ -27,7 +27,7 @@ def batch_ensemble_preds(model_outputs: dict):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def identity_combine_fn(
     ensemble_logits, 
-    combine_quantity: Optional[str] = None
+    **kwargs
     ):
     return batch_ensemble_preds(ensemble_logits)
 
@@ -61,8 +61,8 @@ def mean_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def product_combine_fn(
     ensemble_logits,
-    combine_quantity: Literal["probs"],
-    weights: Tensor
+    weights: Tensor,
+    **kwargs
 ):
     # Make sure weights sum to ~1.
     assert torch.allclose(torch.sum(weights), torch.tensor(1.0)), "Weights must approxmately sum to 1."

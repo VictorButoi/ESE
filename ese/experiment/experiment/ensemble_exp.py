@@ -5,11 +5,11 @@ from ..models.ensemble_utils import get_combine_fn, get_ensemble_member_weights
 import torch
 # IonPy imports
 from ionpy.util import Config
+from ionpy.util.ioutil import autosave
 from ionpy.analysis import ResultsLoader
 from ionpy.experiment import BaseExperiment
 from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import
-from ionpy.util.ioutil import autosave
 # misc imports
 import json
 import pandas as pd
@@ -97,14 +97,17 @@ class EnsembleInferenceExperiment(BaseExperiment):
             with open(properties_dir, 'r') as prop_file:
                 props = json.load(prop_file)
             exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
+
             # Load the experiment
             loaded_exp = exp_class(exp_path, load_data=False)
             if model_cfg["checkpoint"] is not None:
                 loaded_exp.load(tag=model_cfg["checkpoint"])
             loaded_exp.model.eval()
+
             self.ens_exps[exp_path] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
             self.ens_exp_paths.append(exp_path)
+
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
                 self.pretrained_data_cfg = loaded_exp.config["data"].to_dict()
@@ -127,12 +130,16 @@ class EnsembleInferenceExperiment(BaseExperiment):
         ################################################
         # Get the weights per ensemble member.
         ################################################
-        ensemble_results_df = rs.load_metrics(dfc)
         # Get the weights per ensemble member.
-        self.ens_mem_weights = get_ensemble_member_weights(
-            ensemble_results_df,
-            metric=model_cfg["ensemble_w_metric"]
-        )
+        if model_cfg["ensemble_w_metric"] == "None":
+            self.ens_mem_weights = {
+                exp_path: 1/len(self.ens_exp_paths) for exp_path in self.ens_exp_paths
+            }
+        else:
+            self.ens_mem_weights = get_ensemble_member_weights(
+                results_df=rs.load_metrics(dfc),
+                metric=model_cfg["ensemble_w_metric"]
+            )
         ####################################################
         # Add other auxilliary information to the config.
         ####################################################
@@ -151,6 +158,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         x: torch.Tensor, 
         multi_class: bool, 
         threshold: float = 0.5, 
+        weights: Optional[dict] = None,
         combine_fn: Optional[str] = None,
         combine_quantity: Optional[Literal["probs", "logits"]] = None
     ):
@@ -158,8 +166,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         ensemble_model_outputs = {}
         for exp_path in self.ens_exp_paths:
             # Multi-class needs to be true here so that we can combine the outputs.
-            print(exp_path)
-            raise ValueError("This is not working yet.")
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
                 x=x, multi_class=True, return_logits=True
             )['y_pred']
@@ -170,11 +176,14 @@ class EnsembleInferenceExperiment(BaseExperiment):
         if combine_quantity is None:
             assert self.ensemble_combine_quantity is not None, "No pre_softmax value provided."
             combine_quantity = self.ensemble_combine_quantity
+        if weights is None:
+            assert self.ens_mem_weights is not None, "No weights provided."   
+            weights = self.ens_mem_weights
         # Combine the outputs of the models.
         prob_map = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
             combine_quantity=combine_quantity,
-            weights=self.ens_mem_weights
+            weights=weights
             )
         # Get the hard prediction and probabilities, if we are doing identity,
         # then we don't want to return probs.

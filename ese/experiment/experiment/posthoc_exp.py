@@ -32,16 +32,11 @@ class PostHocExperiment(TrainExperiment):
         total_config["data"] = pretrained_data_cfg
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
-        # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
-        # Check if we want to cache the dataset on the GPU.
-        if "cuda" in pretrained_data_cfg:
-            assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
-            cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
-        else:
-            cache_dsets_on_gpu = False
         # Optionally, load the data.
         if load_data:
+            # Get the dataset class and build the transforms
+            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
+
             # Build the augmentation pipeline.
             if "augmentations" in total_config and (total_config["augmentations"] is not None):
                 val_transforms = augmentations_from_config(total_config["augmentations"]["train"])
@@ -54,6 +49,14 @@ class PostHocExperiment(TrainExperiment):
             # Build the datasets, apply the transforms
             self.train_dataset = dataset_cls(split="val", transforms=val_transforms, **pretrained_data_cfg)
             self.val_dataset = dataset_cls(split="cal", transforms=cal_transforms, **pretrained_data_cfg)
+
+            # Check if we want to cache the dataset on the GPU.
+            if "cuda" in pretrained_data_cfg:
+                assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
+                cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
+            else:
+                cache_dsets_on_gpu = False
+
             # Optionally cache the datasets on the GPU.
             if cache_dsets_on_gpu:
                 self.train_dataset = CUDACachedDataset(self.train_dataset)
