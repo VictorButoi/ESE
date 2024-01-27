@@ -440,8 +440,10 @@ def image_forward_loop(
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
         "data_id": batch["data_id"][0], # Works because batchsize = 1
-        "slice_idx": slice_idx 
+        "slice_idx": slice_idx
     }
+    if do_ensemble:
+        output_dict["ens_weights"] = exp.ens_mem_weights
     # Get the calibration item info.  
     get_calibration_item_info(
         output_dict=output_dict,
@@ -456,7 +458,7 @@ def get_calibration_item_info(
     inference_cfg: dict,
     image_level_records: Optional[list] = None,
     pixel_meter_dict: Optional[dict] = None
-    ):
+):
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################
@@ -527,7 +529,9 @@ def get_image_stats(
     if inference_cfg["model"]["ensemble"]:
         # Get the reduced predictions
         ensemble_input_config = {
-            'y_pred': reduce_ensemble_preds(output_dict, inference_cfg=inference_cfg)['y_pred'],
+            'y_pred': reduce_ensemble_preds(
+                output_dict, 
+                inference_cfg=inference_cfg)['y_pred'],
             'y_true': output_dict['y_true']
         }
         # Gather the individual predictions
@@ -644,7 +648,10 @@ def update_pixel_meters(
     ####################################################################################
     if inference_cfg["model"]["ensemble"]:
         output_dict = {
-            **reduce_ensemble_preds(output_dict, inference_cfg=inference_cfg),
+            **reduce_ensemble_preds(
+                output_dict, 
+                inference_cfg=inference_cfg
+            ),
             "y_true": output_dict["y_true"]
         }
 
@@ -670,19 +677,19 @@ def update_pixel_meters(
         confidences=y_pred, 
         bin_starts=conf_bins,
         bin_widths=conf_bin_widths
-        ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy()
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy()
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=inference_cfg["calibration"]["neighborhood_width"],
-        ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy()
 
     # CPU-ize prob_map, y_hard, and y_true
     y_pred = y_pred.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION

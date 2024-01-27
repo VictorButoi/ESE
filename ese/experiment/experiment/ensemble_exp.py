@@ -3,6 +3,7 @@ from .utils import process_pred_map, parse_class_name
 from ..models.ensemble_utils import get_combine_fn, get_ensemble_member_weights
 # torch imports
 import torch
+from torch import Tensor
 # IonPy imports
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
@@ -104,9 +105,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
                 loaded_exp.load(tag=model_cfg["checkpoint"])
             loaded_exp.model.eval()
 
-            self.ens_exps[exp_path] = loaded_exp
+            self.ens_exps[str(exp_path)] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
-            self.ens_exp_paths.append(exp_path)
+            self.ens_exp_paths.append(str(exp_path))
 
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
@@ -130,16 +131,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
         ################################################
         # Get the weights per ensemble member.
         ################################################
-        # Get the weights per ensemble member.
-        if model_cfg["ensemble_w_metric"] == "None":
-            self.ens_mem_weights = {
-                exp_path: 1/len(self.ens_exp_paths) for exp_path in self.ens_exp_paths
-            }
-        else:
-            self.ens_mem_weights = get_ensemble_member_weights(
-                results_df=rs.load_metrics(dfc),
-                metric=model_cfg["ensemble_w_metric"]
-            )
+        self.ens_mem_weights = get_ensemble_member_weights(
+            results_df=rs.load_metrics(dfc),
+            metric=model_cfg["ensemble_w_metric"]
+        )
         ####################################################
         # Add other auxilliary information to the config.
         ####################################################
@@ -152,13 +147,15 @@ class EnsembleInferenceExperiment(BaseExperiment):
     def to_device(self):
         for exp_path in self.ens_exp_paths:
             self.ens_exps[exp_path].to_device()
+        # Move the weights to the device.
+        self.ens_mem_weights = self.ens_mem_weights.to(self.device)
 
     def predict(
         self, 
         x: torch.Tensor, 
         multi_class: bool, 
         threshold: float = 0.5, 
-        weights: Optional[dict] = None,
+        weights: Optional[Tensor] = None,
         combine_fn: Optional[str] = None,
         combine_quantity: Optional[Literal["probs", "logits"]] = None
     ):
@@ -184,7 +181,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             ensemble_model_outputs, 
             combine_quantity=combine_quantity,
             weights=weights
-            )
+        )
         # Get the hard prediction and probabilities, if we are doing identity,
         # then we don't want to return probs.
         prob_map, pred_map = process_pred_map(

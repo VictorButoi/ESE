@@ -249,8 +249,9 @@ def reduce_ensemble_preds(
     # NOTE: This will always do a softmax.
     ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
         output_dict["y_pred"], 
-        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1]
-        )
+        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
+        weights=output_dict['ens_weights']
+    )
     # Get the hard prediction and probabilities, if we are doing identity,
     # then we don't want to return probs.
     ensemble_prob_map, ensemble_pred_map = process_pred_map(

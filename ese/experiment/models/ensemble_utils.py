@@ -1,5 +1,6 @@
 # torch imports
 import torch
+import pandas as pd
 from torch import Tensor
 from typing import Literal, Optional
 from pydantic import validate_arguments
@@ -17,32 +18,36 @@ def get_combine_fn(combine_fn: str):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def batch_ensemble_preds(model_outputs: dict):
-    preds = list(model_outputs.values())
-    pred_tensor = torch.stack(preds) # E, B, C, H, W
-    batchwise_ensemble_tensor = pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
-    return batchwise_ensemble_tensor
+def batch_ensemble_preds(
+    model_outputs: dict,
+):
+    sorted_paths = sorted(list(model_outputs.keys()))
+    preds = [model_outputs[model_path] for model_path in sorted_paths]
+    # Convert to tensors.
+    raw_pred_tensor = torch.stack(preds) # E, B, C, H, W
+    # Reshape to allow for broadcasting.
+    pred_tensor = raw_pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
+    # Return the reshaped tensors.
+    return pred_tensor
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def identity_combine_fn(
-    ensemble_logits, 
+    ensemble_logits: dict, 
     **kwargs
-    ):
+):
     return batch_ensemble_preds(ensemble_logits)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
     ensemble_logits,
+    weights: Tensor,
     combine_quantity: Literal["probs", "logits"],
-    weights: Tensor
+    **kwargs
 ):
-    # Make sure weights sum to ~1.
-    assert torch.allclose(torch.sum(weights), torch.tensor(1.0)), "Weights must approxmately sum to 1."
-
     if isinstance(ensemble_logits, dict):
-        ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
+        ensemble_logits = batch_ensemble_preds(ensemble_logits)
 
     if combine_quantity == "probs":
         ensemble_logits = torch.softmax(ensemble_logits, dim=1)
@@ -64,11 +69,8 @@ def product_combine_fn(
     weights: Tensor,
     **kwargs
 ):
-    # Make sure weights sum to ~1.
-    assert torch.allclose(torch.sum(weights), torch.tensor(1.0)), "Weights must approxmately sum to 1."
-
     if isinstance(ensemble_logits, dict):
-        ensemble_logits = batch_ensemble_preds(ensemble_logits) # B, C, E, H, W
+        ensemble_logits = batch_ensemble_preds(ensemble_logits)
 
     # We always need to softmax the logits before taking the product.
     ensemble_probs = torch.softmax(ensemble_logits, dim=1)
@@ -81,26 +83,40 @@ def product_combine_fn(
     return ensemble_product_tensor
 
 
-def get_ensemble_member_weights(results_df, metric):
-    metric_components = metric.split("-")
-    assert len(metric_components) == 2, "Metric must be of the form 'split-metric'."
-    phase = metric_components[0]
-    metric_name = metric_components[1]
-    # Get the df corresponding to split.
-    split_df = results_df[results_df["phase"] == phase]
-    # Keep two columns, the path and the metric_name
-    score_df = split_df[["path", metric_name]] 
-    path_grouped_df = score_df.groupby("path")
-    # If we are dealing with a 'loss' then take the min, if a 'score' take the max, otherwise default to min (with a print).
-    if 'loss' in metric_name:
-        best_df = path_grouped_df.min()
-    elif 'score' in metric_name:
-        best_df = path_grouped_df.max()
+def get_ensemble_member_weights(
+    results_df: pd.DataFrame, 
+    metric: str
+) -> Tensor:
+    if metric == "None":
+        # Get the sorted path keys.
+        exp_paths = results_df["path"].unique()
+        sorted_path_keys = sorted(exp_paths)
+        weights = Tensor([(1 / len(exp_paths)) for _ in sorted_path_keys])
     else:
-        print(f"Unknown metric type for '{metric_name}'. Defaulting to min.")
-        best_df = path_grouped_df.min()
-    # Get the weights in a dictionary
-    weight_dict = best_df.to_dict()[metric_name]
-    total_weight = best_df.sum()[metric_name]
-    # Normalize the weights to sum to 1 and make the keys strings.
-    return {str(k): v / total_weight for k, v in weight_dict.items()}
+        metric_components = metric.split("-")
+        assert len(metric_components) == 2, "Metric must be of the form 'split-metric'."
+        phase = metric_components[0]
+        metric_name = metric_components[1]
+        # Get the df corresponding to split.
+        split_df = results_df[results_df["phase"] == phase]
+        # Keep two columns, the path and the metric_name
+        score_df = split_df[["path", metric_name]] 
+        path_grouped_df = score_df.groupby("path")
+        # If we are dealing with a 'loss' then take the min, if a 'score' take the max, otherwise default to min (with a print).
+        if 'loss' in metric_name:
+            best_df = path_grouped_df.min()
+        elif 'score' in metric_name:
+            best_df = path_grouped_df.max()
+        else:
+            print(f"Unknown metric type for '{metric_name}'. Defaulting to min.")
+            best_df = path_grouped_df.min()
+        # Get the weights in a dictionary
+        weight_dict = best_df.to_dict()[metric_name]
+        total_weight = best_df.sum()[metric_name]
+        # Get the sorted path keys.
+        sorted_path_keys = sorted(list(weight_dict.keys()))
+        weights = Tensor([(weight_dict[path] / total_weight) for path in sorted_path_keys])
+    # Check that the weights sum to 1.
+    assert torch.isclose(weights.sum(), Tensor([1.0])), "Weights do not sum to 1."
+    # Return the weight dict.
+    return weights 
