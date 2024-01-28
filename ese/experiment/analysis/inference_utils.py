@@ -294,18 +294,19 @@ def get_average_unet_baselines(
         'slice_idx',
         'ensemble',
         'model_class',
+        'calibrator',
         '_pretrained_class',
         'image_metric',
         'groupavg_image_metric',
     ]
     # Only keep the keys that are actually in the columns of unet_info_df.
     unet_group_keys = [key for key in unet_group_keys if key in unet_info_df.keys()]
-    print(unet_group_keys)
+    # Assert that none of our grouping columns have NaNs in them.
+    for unet_key in unet_group_keys:
+        assert unet_info_df[unet_key].isna().sum() == 0, f"Found NaNs in {unet_key} column."
     # Run a check, that when you group by these keys, you get a unique row.
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
     # They should have exactly 4, for four seeds.
-
-    # Get all of the rows that have exactly 3 rows per group.
     assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
         f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})"\
              + f" with max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Got: {num_rows_per_group}."
@@ -319,13 +320,13 @@ def get_average_unet_baselines(
     average_seed_unet['pretrained_seed'] = 'Average'
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
 
-    def method_name(pretrained_model_class, model_class):
+    def method_name(_pretrained_class, model_class):
         if model_class == "Vanilla":
             return "Average UNet"
-        elif pretrained_model_class == "None":
+        elif _pretrained_class == "None":
             return f"Average {model_class.split('.')[-1]}"
         else:
-            return f"Average {pretrained_model_class.split('.')[-1]}"
+            return f"Average {_pretrained_class.split('.')[-1]}"
 
     def configuration(method_name, calibrator):
         return f"{method_name}_{calibrator}"

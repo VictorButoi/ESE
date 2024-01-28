@@ -173,6 +173,7 @@ def load_cal_inference_stats(
         inference_df = inference_df[inference_df['num_lab_1_pixels'] >= log_cfg['min_fg_pixels']].reset_index(drop=True)
     
     # Add new names for keys (helps with augment)
+    inference_df["slice_idx"] = inference_df["slice_idx"].fillna("None")
     inference_df["model_class"] = inference_df["model._class"]
     inference_df["ensemble"] = inference_df["model.ensemble"]
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
@@ -250,12 +251,13 @@ def load_cal_inference_stats(
     # Add the new columns
     inference_df.augment(groupavg_image_metric)
     inference_df.augment(groupavg_metric_score)
+    inference_df.augment(calibrator)
 
     # Load the average unet baseline results.
     unet_avg = get_average_unet_baselines(
         inference_df, 
         num_seeds=4, # Used as a sanity check.
-        group_metrics=list(cal_metrics.keys())
+        # group_metrics=list(cal_metrics.keys())
         )
     inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
@@ -265,7 +267,6 @@ def load_cal_inference_stats(
     inference_df.augment(joint_data_slice_id)
     # Get the identifiers for our df.
     inference_df.augment(method_name)
-    inference_df.augment(calibrator)
     inference_df.augment(configuration)
 
     # Drop the rows corresponding to NaNs in metric_score
