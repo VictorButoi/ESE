@@ -65,7 +65,6 @@ def run_ese_exp(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def submit_ese_exps(
-    exp_root : str,
     config_list: List[Config],
     track_wandb: bool = False,
     available_gpus: List[str] = ["0"],
@@ -90,7 +89,6 @@ def submit_ese_exps(
         modified_cfgs.append(Config(cfg))
     # Either run the experiment or the job function.
     run_cfg = {
-        "exp_root": exp_root,
         "config_list": modified_cfgs,
         "available_gpus": available_gpus
     }
