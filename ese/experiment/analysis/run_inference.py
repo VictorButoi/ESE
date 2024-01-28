@@ -406,10 +406,11 @@ def get_image_stats(
         "No metrics were specified in the config file."
     
     # Calculate the amount of present ground-truth there is in the image per label.
-    num_classes = output_dict["y_pred"].shape[1]
-    y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
-    label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
-    label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+    if inference_cfg["log"]["track_label_amounts"]:
+        num_classes = output_dict["y_pred"].shape[1]
+        y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
+        label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
+        label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
     # Add our scores to the image level records.
     metrics_collection ={
@@ -431,9 +432,11 @@ def get_image_stats(
                 "data_id": output_dict["data_id"],
                 "slice_idx": output_dict["slice_idx"],
                 **metrics_record, 
-                **label_amounts_dict,
                 **inference_cfg["calibration"]
-                }
+            }
+            if inference_cfg["log"]["track_label_amounts"]:
+                record = {**record, **label_amounts_dict}
+            # Add the record to the list.
             image_level_records.append(record)
     
     return cal_metric_errors_dict
