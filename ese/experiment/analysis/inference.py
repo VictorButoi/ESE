@@ -153,7 +153,6 @@ def load_cal_inference_stats(
                         ).item() 
                 # Add this log to the dataframe.
                 inference_df = pd.concat([inference_df, log_image_df])
-
     #########################################
     # POST-PROCESSING STEPS
     #########################################
@@ -170,39 +169,46 @@ def load_cal_inference_stats(
         f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
     
     # Only choose rows with some minimal amount of foreground pixels.
-    if results_cfg['log']['min_fg_pixels'] > 0:
-        inference_df = inference_df[inference_df['num_lab_1_pixels'] >= results_cfg['log']['min_fg_pixels']].reset_index(drop=True)
+    if 'min_fg_pixels' in log_cfg and log_cfg['min_fg_pixels'] > 0:
+        inference_df = inference_df[inference_df['num_lab_1_pixels'] >= log_cfg['min_fg_pixels']].reset_index(drop=True)
     
     # Add new names for keys (helps with augment)
-    # model keys
     inference_df["model_class"] = inference_df["model._class"]
     inference_df["ensemble"] = inference_df["model.ensemble"]
-    inference_df["combine_fn"] = inference_df["model.ensemble_combine_fn"]
-    inference_df["combine_quantity"] = inference_df["model.ensemble_combine_quantity"]
-    # experiment keys
     inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
-    # For models that don't have a pretrained class, set those pretrained classes to None
-    if "model._pretrained_class" not in inference_df.columns:
-        inference_df["model._pretrained_class"] = "None"
-    else:
-        inference_df["model._pretrained_class"] = inference_df["model._pretrained_class"].fillna("None")
-    inference_df["pretrained_model_class"] = inference_df["model._pretrained_class"]
-    # Group avg metric might not be defined for individual networks.
-    if "groupavg_image_metric" not in inference_df.columns:
-        inference_df["groupavg_image_metric"] = "None"
-        inference_df["groupavg_metric_score"] = "None"
-    
+
+    # Go through several optional keys, and add them if they don't exist
+    for optional_key in [
+        "model._pretrained_class",
+        "model.ensemble_combine_fn",
+        "model.ensemble_combine_quantity",
+        "groupavg_image_metric",
+        "groupavg_metric_score"
+    ]:
+        new_key = optional_key.split(".")[-1]
+        if optional_key in inference_df.columns:
+            inference_df[new_key] = inference_df[optional_key].fillna("None")
+        else:
+            inference_df[new_key] = "None"
+
     # Here are a few common columns that we will always want in the dataframe.    
-    def method_name(model_class, pretrained_model_class, pretrained_seed, ensemble, combine_quantity, combine_fn):
+    def method_name(
+        model_class, 
+        _pretrained_class, 
+        pretrained_seed, 
+        ensemble, 
+        ensemble_combine_quantity, 
+        ensemble_combine_fn
+    ):
         if ensemble:
-            return f"Ensemble ({combine_fn}, {combine_quantity})" 
+            return f"Ensemble ({ensemble_combine_fn}, {ensemble_combine_quantity})" 
         else:
             if model_class == "Vanilla":
                 return f"UNet (seed={pretrained_seed})"
-            elif pretrained_model_class == "None":
+            elif _pretrained_class == "None":
                 return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
-                return f"{pretrained_model_class.split('.')[-1]} (seed={pretrained_seed})"
+                return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
     def calibrator(model_class):
         model_class_suffix = model_class.split('.')[-1]
@@ -242,12 +248,6 @@ def load_cal_inference_stats(
             return metric_score
 
     # Add the new columns
-    inference_df.augment(metric_type)
-    inference_df.augment(method_name)
-    inference_df.augment(calibrator)
-    inference_df.augment(configuration)
-    inference_df.augment(model_type)
-    inference_df.augment(joint_data_slice_id)
     inference_df.augment(groupavg_image_metric)
     inference_df.augment(groupavg_metric_score)
 
@@ -259,8 +259,17 @@ def load_cal_inference_stats(
         )
     inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
+    # Add some qol columns for ease of use.
+    inference_df.augment(metric_type)
+    inference_df.augment(model_type)
+    inference_df.augment(joint_data_slice_id)
+    # Get the identifiers for our df.
+    inference_df.augment(method_name)
+    inference_df.augment(calibrator)
+    inference_df.augment(configuration)
+
     # Drop the rows corresponding to NaNs in metric_score
-    if results_cfg['log']['drop_nan_metric_rows']:
+    if log_cfg['drop_nan_metric_rows']:
         # Drop the rows where the metric score is NaN.
         original_row_amount = len(inference_df)
         inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)

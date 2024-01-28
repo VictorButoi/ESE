@@ -292,26 +292,16 @@ def get_average_unet_baselines(
     unet_group_keys = [
         'data_id',
         'slice_idx',
-        'num_lab_0_pixels',
-        'num_lab_1_pixels',
-        'num_bins',
-        'neighborhood_width',
-        'square_diff',
-        'image_metric',
-        'model._class',
-        'model.checkpoint',
-        'model._pretrained_class',
-        'groupavg_image_metric',
+        'ensemble',
         'model_class',
-        'pretrained_model_class',
-        'metric_type',
-        'model_type',
-        'calibrator'
+        '_pretrained_class',
+        'image_metric',
+        'groupavg_image_metric',
     ]
     # Only keep the keys that are actually in the columns of unet_info_df.
     unet_group_keys = [key for key in unet_group_keys if key in unet_info_df.keys()]
+    print(unet_group_keys)
     # Run a check, that when you group by these keys, you get a unique row.
-    # If not, you need to add more keys.
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
     # They should have exactly 4, for four seeds.
 
