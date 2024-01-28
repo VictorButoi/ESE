@@ -277,7 +277,7 @@ def load_cal_inference_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
     cfg: Config,
-    ) -> None:
+) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
 
@@ -403,8 +403,8 @@ def volume_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
-    image_level_records: Optional[list] = None,
-    pixel_meter_dict: Optional[dict] = None
+    image_level_records,
+    pixel_meter_dict
 ):
     # Get the batch info
     image_vol_cpu, label_vol_cpu  = batch["img"], batch["label"]
@@ -434,9 +434,9 @@ def image_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
+    image_level_records,
+    pixel_meter_dict,
     slice_idx: Optional[int] = None,
-    image_level_records: Optional[list] = None,
-    pixel_meter_dict: Optional[dict] = None
 ):
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
@@ -463,7 +463,6 @@ def image_forward_loop(
     if do_ensemble:
         output_dict["ens_weights"] = exp.ens_mem_weights
     
-    print(image_level_records)
     # Get the calibration item info.  
     get_calibration_item_info(
         output_dict=output_dict,
@@ -476,8 +475,8 @@ def image_forward_loop(
 def get_calibration_item_info(
     output_dict: dict,
     inference_cfg: dict,
-    image_level_records: Optional[list] = None,
-    pixel_meter_dict: Optional[dict] = None
+    image_level_records,
+    pixel_meter_dict
 ):
     ###########################
     # VISUALIZING IMAGE PREDS #
@@ -487,6 +486,7 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
+
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -497,16 +497,18 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=image_level_records
         ) 
+
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
     check_pixel_stats = (pixel_meter_dict is not None)
     if check_pixel_stats:
         image_pixel_meter_dict = update_pixel_meters(
-            pixel_meter_dict=pixel_meter_dict,
             output_dict=output_dict,
-            inference_cfg=inference_cfg
+            inference_cfg=inference_cfg,
+            pixel_meter_dict=pixel_meter_dict
         )
+    
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
@@ -524,7 +526,7 @@ def get_calibration_item_info(
 def get_image_stats(
     output_dict: dict,
     inference_cfg: dict,
-    image_level_records: list,
+    image_level_records
 ):
     # Define the cal config.
     qual_input_config = {
@@ -634,6 +636,7 @@ def get_image_stats(
         "quality": qual_metric_scores_dict,
         "calibration": cal_metric_errors_dict
     }
+
     for dict_type, metric_score_dict in metrics_collection.items():
         for met_name in list(metric_score_dict.keys()):
             metrics_record = {
@@ -658,9 +661,9 @@ def get_image_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_pixel_meters(
-    pixel_meter_dict: dict,
     output_dict: dict,
-    inference_cfg: dict
+    inference_cfg: dict,
+    pixel_meter_dict
 ):
     calibration_cfg = inference_cfg["calibration"]
 
@@ -769,12 +772,12 @@ def update_pixel_meters(
 
 
 def global_cal_sanity_check(
-        data_id: str,
-        slice_idx: Any,
-        inference_cfg: dict, 
-        image_cal_metrics_dict: dict, 
-        image_pixel_meter_dict: dict
-        ):
+    data_id: str,
+    slice_idx: Any,
+    inference_cfg: dict, 
+    image_cal_metrics_dict,
+    image_pixel_meter_dict
+):
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
     # image.
