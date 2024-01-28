@@ -57,11 +57,25 @@ def load_cal_inference_stats(
     results_cfg: dict
 ) -> dict:
     # Build a dictionary to store the inference info.
-    inference_df = pd.DataFrame([])
+    log_cfg = results_cfg["log"] 
+    log_root = log_cfg["root"] 
     metadata_df = pd.DataFrame([])
+    # Gather inference log paths.
+    all_inference_log_paths = []
+    if "inference_groups" in log_cfg:
+        for inf_group in log_cfg["inference_groups"]:
+            sub_exp_names = os.listdir(log_root + "/" + inf_group)
+            # Remove the 'debug' folder if it exists.
+            if "debug" in sub_exp_names:
+                sub_exp_names.remove("debug")
+            # Combine the inference group with the sub experiment names.
+            all_inference_log_paths += [inf_group + "/" + sub_exp for sub_exp in sub_exp_names]
+    if "inference_paths" in log_cfg:
+        for inf_path in log_cfg["inference_paths"]:
+            all_inference_log_paths.append(inf_path)
     # Loop through every configuration in the log directory.
-    for log_path in results_cfg["log"]["inference_paths"]:
-        log_dir = Path(os.path.join(results_cfg["log"]["root"], log_path))
+    for log_path in all_inference_log_paths:
+        log_dir = Path(os.path.join(log_root, log_path))
         for log_set in log_dir.iterdir():
             if log_set.name not in ["wandb", "submitit"]:
                 # Load the metadata file (json) and add it to the metadata dataframe.
@@ -73,6 +87,8 @@ def load_cal_inference_stats(
                 flat_cfg["log_set"] = log_set.name
                 # Remove some columns we don't care about.
                 for drop_key in [
+                    "augmentations",
+                    "dataset.augmentations",
                     "qual_metrics", 
                     "image_cal_metrics", 
                     "global_cal_metrics", 
@@ -84,7 +100,7 @@ def load_cal_inference_stats(
                         flat_cfg.pop(drop_key)
                 # If the column 'model.ensemble_cfg' is in the columns,
                 # we need to make two new columns for the combine function and quantity.
-                if 'model.ensemble_cfg' in flat_cfg.keys():
+                if 'model.ensemble_cfg' in flat_cfg.keys() and flat_cfg['model.ensemble_cfg'] is not None:
                     flat_cfg['model.ensemble_combine_fn'] = flat_cfg['model.ensemble_cfg'][0]
                     flat_cfg['model.ensemble_combine_quantity'] = flat_cfg['model.ensemble_cfg'][1]
                     flat_cfg.pop('model.ensemble_cfg')
@@ -92,7 +108,7 @@ def load_cal_inference_stats(
                 cfg_df = pd.DataFrame(flat_cfg, index=[0])
                 metadata_df = pd.concat([metadata_df, cfg_df])
     # Gather the columns that have unique values amongst the different configurations.
-    if results_cfg["log"]["remove_shared_columns"]:
+    if log_cfg["remove_shared_columns"]:
         meta_cols = []
         for col in metadata_df.columns:
             if len(metadata_df[col].unique()) > 1:
@@ -110,9 +126,10 @@ def load_cal_inference_stats(
     else:
         cal_metrics = {}
     #############################
+    inference_df = pd.DataFrame([])
     # Loop through every configuration in the log directory.
-    for log_path in results_cfg["log"]["inference_paths"]:
-        log_dir = Path(os.path.join(results_cfg["log"]["root"], log_path))
+    for log_path in all_inference_log_paths:
+        log_dir = Path(os.path.join(log_root, log_path))
         for log_set in log_dir.iterdir():
             if log_set.name not in ["wandb", "submitit"]:
                 # Get the metadata corresponding to this log set.
@@ -126,7 +143,7 @@ def load_cal_inference_stats(
                         f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
                     log_image_df[col] = metadata_log_df[col].values[0]
                 # Optionally load the pixel stats.
-                if results_cfg["log"]["load_pixel_meters"]:
+                if log_cfg["load_pixel_meters"]:
                     with open(log_set / "pixel_stats.pkl", 'rb') as f:
                         pixel_meter_dict = pickle.load(f)
                     # Loop through the calibration metrics and add them to the dataframe.
