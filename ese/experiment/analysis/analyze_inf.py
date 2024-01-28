@@ -116,9 +116,10 @@ def load_cal_inference_stats(
                         pixel_meter_dict = pickle.load(f)
                     # Loop through the calibration metrics and add them to the dataframe.
                     for cal_metric_name, cal_metric_dict in cal_metrics.items():
-                        log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
-                            pixel_meters_dict=pixel_meter_dict
-                        ).item() 
+                        if cal_metric_name not in log_image_df.columns:
+                            log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
+                                pixel_meters_dict=pixel_meter_dict
+                            ).item() 
                 # Add this log to the dataframe.
                 inference_df = pd.concat([inference_df, log_image_df])
     #########################################
@@ -232,8 +233,8 @@ def load_cal_inference_stats(
     unet_avg = get_average_unet_baselines(
         inference_df, 
         num_seeds=4, # Used as a sanity check.
-        # group_metrics=list(cal_metrics.keys())
-        )
+        group_metrics=list(cal_metrics.keys())
+    )
     inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
     # Drop the rows corresponding to NaNs in metric_score

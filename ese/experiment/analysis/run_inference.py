@@ -168,15 +168,14 @@ def get_cal_stats(
         save_dict(pixel_meter_dict, pixel_level_dir)
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
-
-        # # First load the saved image_level_records.
-        # log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-
-        # # Loop through the calibration metrics and add them to the dataframe.
-        # for cal_metric_name, cal_metric_dict in cal_metrics.items():
-        #     log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
-        #         pixel_meters_dict=pixel_meter_dict
-        #     ).item() 
+        log_image_df = pd.read_pickle(image_level_dir)
+        # Loop through the calibration metrics and add them to the dataframe.
+        for cal_metric_name, cal_metric_dict in cfg_dict["global_cal_metrics"].items():
+            log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
+                pixel_meters_dict=pixel_meter_dict
+            ).item() 
+        # Save the dataframe again.
+        log_image_df.to_pickle(image_level_dir)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -562,7 +561,7 @@ def global_cal_sanity_check(
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
     # image.
-    for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
+    for cal_metric_name  in inference_cfg["image_cal_metrics"].keys():
         metric_base = cal_metric_name.split("_")[-1]
         if metric_base in inference_cfg["global_cal_metrics"]:
             global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
