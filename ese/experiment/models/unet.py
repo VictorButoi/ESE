@@ -109,3 +109,7 @@ class UNet(nn.Module):
             x = self.out_fn(x)
 
         return x
+
+    @property
+    def device(self):
+        return next(self.parameters()).device

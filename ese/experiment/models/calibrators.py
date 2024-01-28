@@ -36,6 +36,9 @@ class Temperature_Scaling(nn.Module):
     def forward(self, logits, **kwargs):
         return logits / self.temp 
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 # NEighborhood-Conditional TemperAtuRe Scaling
 class NECTAR_Scaling(nn.Module):
@@ -87,6 +90,10 @@ class NECTAR_Scaling(nn.Module):
         # Finally, scale the logits by the temperatures
         return logits / temps 
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
 
 class Vector_Scaling(nn.Module):
     def __init__(self, num_classes, **kwargs):
@@ -100,6 +107,10 @@ class Vector_Scaling(nn.Module):
 
     def forward(self, logits, **kwargs):
         return (self.vector_parameters * logits) + self.vector_offset
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 
 class Dirichlet_Scaling(nn.Module):
@@ -121,6 +132,10 @@ class Dirichlet_Scaling(nn.Module):
         ds_probs = ds_probs.permute(0,3,1,2).contiguous()
         # Return scaled log probabilities
         return ds_probs
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
         
 class LTS(nn.Module):
@@ -188,6 +203,10 @@ class LTS(nn.Module):
         temperature = temperature.repeat(1, self.num_classes, 1, 1)
         return logits / temperature
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
 
 class Selective_Scaling(nn.Module):
     def __init__(self, num_classes, **kwargs):
@@ -227,6 +246,10 @@ class Selective_Scaling(nn.Module):
         tf_positive = self.binary_linear(out.permute(0,2,3,1))
         
         return  tf_positive.permute(0,3,1,2)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
         
         
 # OLD METHODS, KEEP IN FOR BACKWARDS COMPATIBILITY
@@ -255,3 +278,7 @@ class Constrained_NS(NECTAR_Scaling):
         temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
         # Finally, scale the logits by the temperatures
         return logits / temps 
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
