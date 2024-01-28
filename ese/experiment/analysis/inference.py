@@ -157,7 +157,6 @@ def load_cal_inference_stats(
     #########################################
     # POST-PROCESSING STEPS
     #########################################
-
     # Remove any final columns we don't want
     for drop_key in ["conf_interval"]:
         # If the key is in the dataframe, remove the column.
@@ -377,7 +376,6 @@ def get_cal_stats(
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
-            # if batch["data_id"][0] == "103":
             # Run the forward loop
             forward_loop_func(
                 exp=inference_exp, 
@@ -414,7 +412,6 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
-        # if slice_idx == 65:
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Get the prediction with no gradient accumulation.
         slice_batch = {
@@ -465,6 +462,8 @@ def image_forward_loop(
     }
     if do_ensemble:
         output_dict["ens_weights"] = exp.ens_mem_weights
+    
+    print(image_level_records)
     # Get the calibration item info.  
     get_calibration_item_info(
         output_dict=output_dict,
@@ -533,10 +532,7 @@ def get_image_stats(
         "y_true": output_dict["y_true"], # (B, C, H, W)
     }
     # Define the cal config.
-    cal_input_config = {
-        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
-        "y_true": output_dict["y_true"], # (B, C, H, W)
-    }
+    cal_input_config = qual_input_config.copy() 
     # If not ensembling, we can cache information.
     if not inference_cfg["model"]["ensemble"]:
         cal_input_config["stats_info_dict"] = get_image_aux_info(
@@ -601,6 +597,7 @@ def get_image_stats(
             # If you're showing the predictions, also print the scores.
             if inference_cfg["log"]["show_examples"]:
                 print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+
     #############################################################
     # CALCULATE CALIBRATION METRICS
     #############################################################
