@@ -75,8 +75,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
             if len(seed_values) < len(unique_runs):
                 raise ValueError("Duplicate seeds found in ensemble.")
             for column in dfc.columns:
-                if column not in ["seed", "path", "pretrained_dir"] and not dfc[column].nunique() == 1:
-                    raise ValueError(f"The only difference between the configs should be the seed, but found different values in column '{column}'.")
+                if column not in ["seed", "path", "pretrained_dir"] and\
+                    len(dfc[column].unique()) > 1:
+                    raise ValueError(f"The only difference between the configs should be the seed, "\
+                                      + f"but found different values in column '{column}'."\
+                                        + f"Unique values: {dfc[column].unique()}")
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
         # Build the combine function.
