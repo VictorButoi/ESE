@@ -292,11 +292,14 @@ def get_average_unet_baselines(
     unet_group_keys = [
         'data_id',
         'slice_idx',
+        'joint_data_slice_id',
         'ensemble',
         'model_class',
+        'model_type',
         'calibrator',
         '_pretrained_class',
         'image_metric',
+        'metric_type',
         'groupavg_image_metric',
     ]
     # Only keep the keys that are actually in the columns of unet_info_df.
