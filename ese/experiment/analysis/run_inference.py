@@ -1,5 +1,4 @@
 # Misc imports
-import yaml
 import pickle
 import numpy as np
 import pandas as pd
@@ -11,7 +10,6 @@ from torch.nn import functional as F
 # ionpy imports
 from ionpy.util import Config, StatsMeter
 from ionpy.util.torchutils import to_device
-from ionpy.experiment.util import fix_seed, eval_config
 # local imports
 from ..experiment.utils import show_inference_examples
 from ..metrics.utils import (
@@ -20,12 +18,9 @@ from ..metrics.utils import (
     count_matching_neighbors,
 )
 from .analysis_utils.inference_utils import (
+    cal_stats_init,
     get_image_aux_info, 
-    dataloader_from_exp,
-    reduce_ensemble_preds,
-    save_inference_metadata,
-    load_inference_exp_from_cfg,
-    preload_calibration_metrics,
+    reduce_ensemble_preds
 )
     
 
@@ -49,136 +44,60 @@ def get_cal_stats(
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
 
-    ###################
-    # BUILD THE MODEL #
-    ###################
-    inference_exp, save_root = load_inference_exp_from_cfg(
-        inference_cfg=cfg_dict
-        )
-    inference_exp.to_device()
-    # Ensure that inference seed is the same.
-    fix_seed(cfg_dict['experiment']['seed'])
+    # Initialize the calibration statistics.
+    cal_stats_components = cal_stats_init(cfg_dict)
 
-    #####################
-    # BUILD THE DATASET #
-    #####################
-    # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = cfg_dict['data']
-    input_type = new_dset_options.pop("input_type")
-    assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
-    assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
-    # Get the inference augmentation options.
-    aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
-    # Build the dataloaders.
-    dataloader, modified_cfg = dataloader_from_exp( 
-        inference_exp,
-        new_dset_options=new_dset_options, 
-        aug_cfg_list=aug_cfg_list,
-        batch_size=cfg_dict['dataloader']['batch_size'],
-        num_workers=cfg_dict['dataloader']['num_workers']
-        )
-    cfg_dict['dataset'] = modified_cfg 
+    # Setup the trackers
+    image_level_records = cal_stats_components["image_level_records"]
+    pixel_meter_dict = cal_stats_components["pixel_meter_dict"]
 
-    #####################
-    # SAVE THE METADATA #
-    #####################
-    task_root = save_inference_metadata(
-        cfg_dict=cfg_dict,
-        save_root=save_root
-    )
-    
-    print(f"Running:\n\n{str(yaml.safe_dump(Config(cfg_dict)._data, indent=0))}")
-    ##################################
-    # INITIALIZE THE QUALITY METRICS #
-    ##################################
-    qual_metrics = {}
-    if 'qual_metrics' in cfg_dict.keys():
-        for q_met_cfg in cfg_dict['qual_metrics']:
-            q_metric_name = list(q_met_cfg.keys())[0]
-            quality_metric_options = q_met_cfg[q_metric_name]
-            metric_type = quality_metric_options.pop("metric_type")
-            # Add the quality metric to the dictionary.
-            qual_metrics[q_metric_name] = {
-                "name": q_metric_name,
-                "_fn": eval_config(quality_metric_options),
-                "_type": metric_type
-            }
-    ##################################
-    # INITIALIZE CALIBRATION METRICS #
-    ##################################
-    # Image level metrics.
-    if 'image_cal_metrics' in cfg_dict.keys():
-        image_cal_metrics = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["calibration"],
-            cal_metrics_dict=cfg_dict["image_cal_metrics"]
-        )
-    else:
-        image_cal_metrics = {}
-    # Global dataset level metrics. (Used for validation)
-    if 'global_cal_metrics' in cfg_dict.keys():
-        global_cal_metrics = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["calibration"],
-            cal_metrics_dict=cfg_dict["global_cal_metrics"]
-        )
-    else:
-        global_cal_metrics = {}
-    #############################
-    # Setup trackers for both or either of image level statistics and pixel level statistics.
-    if cfg_dict["log"]["log_image_stats"]:
-        image_level_records = []
-    else:
-        image_level_records = None
-    if cfg_dict["log"]["log_pixel_stats"]:
-        pixel_meter_dict = {}
-    else:
-        pixel_meter_dict = None
-    # Place these dictionaries into the config dictionary.
-    cfg_dict["qual_metrics"] = qual_metrics 
-    cfg_dict["image_cal_metrics"] = image_cal_metrics 
-    cfg_dict["global_cal_metrics"] = global_cal_metrics
-    # Setup the log directories.
-    image_level_dir = task_root / "image_stats.pkl"
-    pixel_level_dir = task_root / "pixel_stats.pkl"
-    # Set the looping function based on the input type.
-    forward_loop_func = volume_forward_loop if (input_type == "volume") else image_forward_loop
+    # Setup the save directories.
+    image_stats_save_dir = cal_stats_components["image_level_dir"]
+    pixel_dicts_save_dir = cal_stats_components["pixel_level_dir"]
     
     # Loop through the data, gather your stats!
     with torch.no_grad():
-        for batch_idx, batch in enumerate(dataloader):
+        dataloader = cal_stats_components["dataloader"]
+        for batch_idx, batch in enumerate():
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
+            # Gather the forward item.
+            forward_item = {
+                "exp": cal_stats_components["inference_exp"],
+                "batch": batch,
+                "inference_cfg": cfg_dict,
+                "image_level_records": image_level_records,
+                "pixel_meter_dict": pixel_meter_dict
+            }
             # Run the forward loop
-            forward_loop_func(
-                exp=inference_exp, 
-                batch=batch, 
-                inference_cfg=cfg_dict, 
-                image_level_records=image_level_records,
-                pixel_meter_dict=pixel_meter_dict
-            )
+            if cal_stats_components["input_type"] == "volume":
+                volume_forward_loop(**forward_item)
+            else:
+                image_forward_loop(**forward_item)
             # Save the records every so often, to get intermediate results. Note, because of data_ids
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 if image_level_records is not None:
-                    save_records(image_level_records, image_level_dir)
+                    save_records(image_level_records, image_stats_save_dir)
                 if pixel_meter_dict is not None:
-                    save_dict(pixel_meter_dict, pixel_level_dir)
+                    save_dict(pixel_meter_dict, pixel_dicts_save_dir)
 
     # Save the records at the end too
     if image_level_records is not None:
-        save_records(image_level_records, image_level_dir)
+        save_records(image_level_records, image_stats_save_dir)
 
     # Save the pixel dict.
     if pixel_meter_dict is not None:
-        save_dict(pixel_meter_dict, pixel_level_dir)
+        save_dict(pixel_meter_dict, pixel_dicts_save_dir)
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
-        log_image_df = pd.read_pickle(image_level_dir)
+        log_image_df = pd.read_pickle(image_stats_save_dir)
         # Loop through the calibration metrics and add them to the dataframe.
         for cal_metric_name, cal_metric_dict in cfg_dict["global_cal_metrics"].items():
             log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
                 pixel_meters_dict=pixel_meter_dict
             ).item() 
         # Save the dataframe again.
-        log_image_df.to_pickle(image_level_dir)
+        log_image_df.to_pickle(image_stats_save_dir)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

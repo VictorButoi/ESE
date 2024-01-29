@@ -1,5 +1,6 @@
 #misc imports
 import os
+import yaml
 import torch
 import pandas as pd
 from pathlib import Path
@@ -8,9 +9,10 @@ from pydantic import validate_arguments
 from torch.utils.data import DataLoader
 # ionpy imports
 from ionpy.analysis import ResultsLoader
+from ionpy.util import Config
 from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
-from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
+from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
 # local imports
 from ...models.ensemble_utils import get_combine_fn
 from ...augmentation.gather import augmentations_from_config
@@ -338,3 +340,106 @@ def get_average_unet_baselines(
     average_seed_unet.augment(configuration)
 
     return average_seed_unet
+
+
+def cal_stats_init(cfg_dict):
+    ###################
+    # BUILD THE MODEL #
+    ###################
+    inference_exp, save_root = load_inference_exp_from_cfg(
+        inference_cfg=cfg_dict
+        )
+    inference_exp.to_device()
+    # Ensure that inference seed is the same.
+    fix_seed(cfg_dict['experiment']['seed'])
+
+    #####################
+    # BUILD THE DATASET #
+    #####################
+    # Rebuild the experiments dataset with the new cfg modifications.
+    new_dset_options = cfg_dict['data']
+    input_type = new_dset_options.pop("input_type")
+    assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
+    assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
+    # Get the inference augmentation options.
+    aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
+    # Build the dataloaders.
+    dataloader, modified_cfg = dataloader_from_exp( 
+        inference_exp,
+        new_dset_options=new_dset_options, 
+        aug_cfg_list=aug_cfg_list,
+        batch_size=cfg_dict['dataloader']['batch_size'],
+        num_workers=cfg_dict['dataloader']['num_workers']
+        )
+    cfg_dict['dataset'] = modified_cfg 
+
+    #####################
+    # SAVE THE METADATA #
+    #####################
+    task_root = save_inference_metadata(
+        cfg_dict=cfg_dict,
+        save_root=save_root
+    )
+    
+    print(f"Running:\n\n{str(yaml.safe_dump(Config(cfg_dict)._data, indent=0))}")
+    ##################################
+    # INITIALIZE THE QUALITY METRICS #
+    ##################################
+    qual_metrics = {}
+    if 'qual_metrics' in cfg_dict.keys():
+        for q_met_cfg in cfg_dict['qual_metrics']:
+            q_metric_name = list(q_met_cfg.keys())[0]
+            quality_metric_options = q_met_cfg[q_metric_name]
+            metric_type = quality_metric_options.pop("metric_type")
+            # Add the quality metric to the dictionary.
+            qual_metrics[q_metric_name] = {
+                "name": q_metric_name,
+                "_fn": eval_config(quality_metric_options),
+                "_type": metric_type
+            }
+    ##################################
+    # INITIALIZE CALIBRATION METRICS #
+    ##################################
+    # Image level metrics.
+    if 'image_cal_metrics' in cfg_dict.keys():
+        image_cal_metrics = preload_calibration_metrics(
+            base_cal_cfg=cfg_dict["calibration"],
+            cal_metrics_dict=cfg_dict["image_cal_metrics"]
+        )
+    else:
+        image_cal_metrics = {}
+    # Global dataset level metrics. (Used for validation)
+    if 'global_cal_metrics' in cfg_dict.keys():
+        global_cal_metrics = preload_calibration_metrics(
+            base_cal_cfg=cfg_dict["calibration"],
+            cal_metrics_dict=cfg_dict["global_cal_metrics"]
+        )
+    else:
+        global_cal_metrics = {}
+    #############################
+    # Setup trackers for both or either of image level statistics and pixel level statistics.
+    if cfg_dict["log"]["log_image_stats"]:
+        image_level_records = []
+    else:
+        image_level_records = None
+    if cfg_dict["log"]["log_pixel_stats"]:
+        pixel_meter_dict = {}
+    else:
+        pixel_meter_dict = None
+    # Place these dictionaries into the config dictionary.
+    cfg_dict["qual_metrics"] = qual_metrics 
+    cfg_dict["image_cal_metrics"] = image_cal_metrics 
+    cfg_dict["global_cal_metrics"] = global_cal_metrics
+    # Setup the log directories.
+    image_level_dir = task_root / "image_stats.pkl"
+    pixel_level_dir = task_root / "pixel_stats.pkl"
+    # Return a dictionary of the components needed for the calibration statistics.
+    return {
+        "inference_exp": inference_exp,
+        "input_type": input_type,
+        "dataloader": dataloader,
+        "image_level_records": image_level_records,
+        "pixel_meter_dict": pixel_meter_dict,
+        "image_level_dir": image_level_dir,
+        "pixel_level_dir": pixel_level_dir,
+    }
