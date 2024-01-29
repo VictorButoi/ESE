@@ -19,7 +19,7 @@ from ..metrics.utils import (
     find_bins, 
     count_matching_neighbors,
 )
-from .inference_utils import (
+from .analysis_utils.inference_utils import (
     get_image_aux_info, 
     dataloader_from_exp,
     reduce_ensemble_preds,

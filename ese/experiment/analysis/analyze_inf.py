@@ -10,7 +10,7 @@ from pydantic import validate_arguments
 # ionpy imports
 from ionpy.util.config import HDict, valmap
 # local imports
-from .inference_utils import (
+from .analysis_utils.inference_utils import (
     get_average_unet_baselines,
     preload_calibration_metrics,
 )
