@@ -1,0 +1,221 @@
+
+# Misc imports
+import pickle
+import pandas as pd
+from pydantic import validate_arguments
+from typing import Any, Optional
+# torch imports
+import torch
+from torch.nn import functional as F
+# ionpy imports
+from ionpy.util import Config
+from ionpy.util.torchutils import to_device
+# local imports
+from .analysis_utils.inference_utils import (
+    cal_stats_init,
+    reduce_ensemble_preds
+)
+    
+
+def save_records(records, log_dir):
+    # Save the items in a pickle file.  
+    df = pd.DataFrame(records)
+    # Save or overwrite the file.
+    df.to_pickle(log_dir)
+
+
+def save_dict(dict, log_dir):
+    # save the dictionary to a pickl file at logdir
+    with open(log_dir, 'wb') as f:
+        pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_ensemble_ub(
+    cfg: Config,
+) -> None:
+    # Get the config dictionary
+    cfg_dict = cfg.to_dict()
+
+    # Initialize the calibration statistics.
+    cal_stats_components = cal_stats_init(cfg_dict)
+    # Setup the trackers
+    image_level_records = cal_stats_components["image_level_records"]
+    # Setup the save directories.
+    image_stats_save_dir = cal_stats_components["image_level_dir"]
+    
+    # Loop through the data, gather your stats!
+    with torch.no_grad():
+        dataloader = cal_stats_components["dataloader"]
+        for batch_idx, batch in enumerate():
+            print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
+            # Gather the forward item.
+            forward_item = {
+                "exp": cal_stats_components["inference_exp"],
+                "batch": batch,
+                "inference_cfg": cfg_dict,
+                "image_level_records": image_level_records,
+            }
+            # Run the forward loop
+            if cal_stats_components["input_type"] == "volume":
+                volume_forward_loop(**forward_item)
+            else:
+                image_forward_loop(**forward_item)
+            # Save the records every so often, to get intermediate results. Note, because of data_ids
+            # this can contain fewer than 'log interval' many items.
+            if batch_idx % cfg['log']['log_interval'] == 0:
+                if image_level_records is not None:
+                    save_records(image_level_records, image_stats_save_dir)
+
+    # Save the records at the end too
+    if image_level_records is not None:
+        save_records(image_level_records, image_stats_save_dir)
+    
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def volume_forward_loop(
+    exp: Any,
+    batch: Any,
+    inference_cfg: dict,
+    image_level_records
+):
+    # Get the batch info
+    image_vol_cpu, label_vol_cpu  = batch["img"], batch["label"]
+    image_vol_cuda, label_vol_cuda = to_device((image_vol_cpu, label_vol_cpu), exp.device)
+    # Go through each slice and predict the metrics.
+    num_slices = image_vol_cuda.shape[1]
+    for slice_idx in range(num_slices):
+        print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
+        # Get the prediction with no gradient accumulation.
+        slice_batch = {
+            "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
+            "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
+            "data_id": batch["data_id"],
+        } 
+        image_forward_loop(
+            exp=exp,
+            batch=slice_batch,
+            inference_cfg=inference_cfg,
+            slice_idx=slice_idx,
+            image_level_records=image_level_records,
+        )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def image_forward_loop(
+    exp: Any,
+    batch: Any,
+    inference_cfg: dict,
+    image_level_records,
+    slice_idx: Optional[int] = None,
+):
+    # Get the batch info
+    image, label_map  = batch["img"], batch["label"]
+    # Get your image label pair and define some regions.
+    if image.device != exp.device:
+        image, label_map = to_device((image, label_map), exp.device)
+    # Get the prediction with no gradient accumulation.
+    predict_args = {'multi_class': True}
+    do_ensemble = inference_cfg["model"]["ensemble"]
+    if do_ensemble:
+        predict_args["combine_fn"] = "identity"
+    # Do a forward pass.
+    with torch.no_grad():
+        exp_output =  exp.predict(image, **predict_args)
+    # Wrap the outputs into a dictionary.
+    output_dict = {
+        "x": image,
+        "y_true": label_map.long(),
+        "y_pred": exp_output["y_pred"],
+        "y_hard": exp_output["y_hard"],
+        "data_id": batch["data_id"][0], # Works because batchsize = 1
+        "slice_idx": slice_idx
+    }
+    if do_ensemble:
+        output_dict["ens_weights"] = exp.ens_mem_weights
+    
+    # Get the calibration item info.  
+    get_upperbound_info(
+        output_dict=output_dict,
+        inference_cfg=inference_cfg,
+        image_level_records=image_level_records
+    )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_upperbound_info(
+    output_dict: dict,
+    inference_cfg: dict,
+    image_level_records
+):
+    # Get the image level statistics.
+    get_upper_bound_metric_stats(
+        output_dict=output_dict,
+        inference_cfg=inference_cfg,
+        image_level_records=image_level_records
+    ) 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_upper_bound_metric_stats(
+    output_dict: dict,
+    inference_cfg: dict,
+    image_level_records
+):
+    # Get the reduced predictions
+    ensemble_input_config = {
+        'y_pred': reduce_ensemble_preds(
+            output_dict, 
+            inference_cfg=inference_cfg)['y_pred'],
+        'y_true': output_dict['y_true']
+    }
+    # Gather the individual predictions
+    ensemble_member_preds = [
+        output_dict["y_pred"][:, :, ens_mem_idx, ...]\
+        for ens_mem_idx in range(output_dict["y_pred"].shape[2])
+        ]
+    # Construct the input cfgs used for calulating metrics.
+    ensemble_member_input_cfgs = [
+        {
+            "y_pred": member_pred, 
+            "y_true": output_dict["y_true"],
+            "from_logits": True # IMPORTANT, we haven't softmaxed yet.
+        } for member_pred in ensemble_member_preds
+    ]
+    #############################################################
+    # CALCULATE QUALITY METRICS
+    #############################################################
+    qual_metric_scores_dict = {}
+    for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
+        # First gather the quality scores per ensemble member.
+        #######################################################
+        individual_qual_scores = []
+        for ens_mem_input_cfg in ensemble_member_input_cfgs:
+            member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg).item()
+            individual_qual_scores.append(member_qual_score)
+        # Now get the ensemble quality score.
+        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config).item() 
+
+    # Calculate the amount of present ground-truth there is in the image per label.
+    if inference_cfg["log"]["track_label_amounts"]:
+        num_classes = output_dict["y_pred"].shape[1]
+        y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
+        label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
+        label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+    
+    for met_name in list(qual_metric_scores_dict.keys()):
+        metrics_record = {
+            "image_metric": met_name,
+            "metric_score": qual_metric_scores_dict[met_name],
+        }
+        # Add the dataset info to the record
+        record = {
+            "data_id": output_dict["data_id"],
+            "slice_idx": output_dict["slice_idx"],
+            **metrics_record, 
+            **inference_cfg["calibration"]
+        }
+        if inference_cfg["log"]["track_label_amounts"]:
+            record = {**record, **label_amounts_dict}
+        # Add the record to the list.
+        image_level_records.append(record)
