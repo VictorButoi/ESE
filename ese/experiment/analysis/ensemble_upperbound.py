@@ -1,7 +1,5 @@
 
 # Misc imports
-import pickle
-import pandas as pd
 from pydantic import validate_arguments
 from typing import Any, Optional
 # torch imports
@@ -11,24 +9,9 @@ from torch.nn import functional as F
 from ionpy.util import Config
 from ionpy.util.torchutils import to_device
 # local imports
-from .analysis_utils.inference_utils import (
-    cal_stats_init,
-    reduce_ensemble_preds
-)
+from .run_inference import save_records
+from .analysis_utils.inference_utils import cal_stats_init, reduce_ensemble_preds
     
-
-def save_records(records, log_dir):
-    # Save the items in a pickle file.  
-    df = pd.DataFrame(records)
-    # Save or overwrite the file.
-    df.to_pickle(log_dir)
-
-
-def save_dict(dict, log_dir):
-    # save the dictionary to a pickl file at logdir
-    with open(log_dir, 'wb') as f:
-        pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ensemble_ub(
@@ -37,17 +20,19 @@ def get_ensemble_ub(
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
 
+    do_ensemble = cfg_dict["model"]["ensemble"]
+    uncalibrated = not cfg_dict["model"]["calibrated"]
+    assert do_ensemble and uncalibrated, "This function is only for uncalibrated ensembles."
+
     # Initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
-    # Setup the trackers
     image_level_records = cal_stats_components["image_level_records"]
-    # Setup the save directories.
     image_stats_save_dir = cal_stats_components["image_level_dir"]
     
     # Loop through the data, gather your stats!
     with torch.no_grad():
         dataloader = cal_stats_components["dataloader"]
-        for batch_idx, batch in enumerate():
+        for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Gather the forward item.
             forward_item = {
@@ -114,14 +99,13 @@ def image_forward_loop(
     # Get your image label pair and define some regions.
     if image.device != exp.device:
         image, label_map = to_device((image, label_map), exp.device)
-    # Get the prediction with no gradient accumulation.
-    predict_args = {'multi_class': True}
-    do_ensemble = inference_cfg["model"]["ensemble"]
-    if do_ensemble:
-        predict_args["combine_fn"] = "identity"
     # Do a forward pass.
     with torch.no_grad():
-        exp_output =  exp.predict(image, **predict_args)
+        exp_output =  exp.predict(
+            image,
+            multi_class=True,
+            combine_fn="identity"
+        )
     # Wrap the outputs into a dictionary.
     output_dict = {
         "x": image,
@@ -129,11 +113,9 @@ def image_forward_loop(
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
         "data_id": batch["data_id"][0], # Works because batchsize = 1
-        "slice_idx": slice_idx
+        "slice_idx": slice_idx,
+        "ens_weights": exp.ens_mem_weights
     }
-    if do_ensemble:
-        output_dict["ens_weights"] = exp.ens_mem_weights
-    
     # Get the calibration item info.  
     get_upperbound_info(
         output_dict=output_dict,
@@ -162,39 +144,36 @@ def get_upper_bound_metric_stats(
     inference_cfg: dict,
     image_level_records
 ):
-    # Get the reduced predictions
-    ensemble_input_config = {
-        'y_pred': reduce_ensemble_preds(
-            output_dict, 
-            inference_cfg=inference_cfg)['y_pred'],
-        'y_true': output_dict['y_true']
-    }
     # Gather the individual predictions
-    ensemble_member_preds = [
-        output_dict["y_pred"][:, :, ens_mem_idx, ...]\
-        for ens_mem_idx in range(output_dict["y_pred"].shape[2])
-        ]
-    # Construct the input cfgs used for calulating metrics.
-    ensemble_member_input_cfgs = [
-        {
-            "y_pred": member_pred, 
-            "y_true": output_dict["y_true"],
-            "from_logits": True # IMPORTANT, we haven't softmaxed yet.
-        } for member_pred in ensemble_member_preds
-    ]
+    B, C, _, H, W = output_dict["y_pred"].shape
+    ensemble_probs = torch.softmax(output_dict["y_pred"], dim=1) # B x C x E x H x W
+    ensemble_hard_preds = torch.argmax(ensemble_probs, dim=1) # B x E x H x W
+    # Get correct per pixels per hard pred, this is a boolean tensor.
+    ensemble_correct_hard_preds = torch.cat([
+        (ensemble_hard_preds[:, ens_mem_idx:ens_mem_idx+1, ...] == output_dict["y_true"]).float()\
+        for ens_mem_idx in range(ensemble_hard_preds.shape[2]) # B x 1 x H x W
+    ], dim=1).unsqueeze(dim=1) # B x 1 x E x H x W
+    # Prepare the indexing tensors.
+    ensemble_at_least_one_correct = (torch.max(ensemble_correct_hard_preds, dim=2, keepdim=True).values).bool() # B x 1 x 1 x H x W
+    aoc_multichannel_index = ensemble_at_least_one_correct.squeeze(dim=2).repeat(1, C, 1, 1) # B x C x H x W
+    # Assmelbe the upper bound prediction.
+    ensemble_ub_pred = torch.zeros((B, C, H, W), device=output_dict["y_true"].device) # B x C x H x W
+    ensemble_ub_pred[aoc_multichannel_index] = (ensemble_correct_hard_preds * ensemble_probs).max(dim=2).values[aoc_multichannel_index] # B x 1 x H x W
+    ensemble_ub_pred[~aoc_multichannel_index] = (ensemble_probs.min(dim=2).values)[~aoc_multichannel_index] # B x 1 x H x W
+    # Here we need a check that if we sum across channels we get 1.
+    assert torch.allclose(ensemble_ub_pred.sum(dim=1), torch.ones((B, H, W), device=ensemble_ub_pred.device)),\
+        "The upper bound prediction does not sum to 1 across channels."
+
     #############################################################
     # CALCULATE QUALITY METRICS
     #############################################################
     qual_metric_scores_dict = {}
     for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
-        # First gather the quality scores per ensemble member.
-        #######################################################
-        individual_qual_scores = []
-        for ens_mem_input_cfg in ensemble_member_input_cfgs:
-            member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg).item()
-            individual_qual_scores.append(member_qual_score)
-        # Now get the ensemble quality score.
-        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config).item() 
+        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](
+            y_pred=ensemble_ub_pred,
+            y_true=output_dict["y_true"],
+            from_logits=False
+        ).item() 
 
     # Calculate the amount of present ground-truth there is in the image per label.
     if inference_cfg["log"]["track_label_amounts"]:
@@ -204,16 +183,12 @@ def get_upper_bound_metric_stats(
         label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
     for met_name in list(qual_metric_scores_dict.keys()):
-        metrics_record = {
-            "image_metric": met_name,
-            "metric_score": qual_metric_scores_dict[met_name],
-        }
         # Add the dataset info to the record
         record = {
+            "image_metric": met_name,
+            "metric_score": qual_metric_scores_dict[met_name],
             "data_id": output_dict["data_id"],
             "slice_idx": output_dict["slice_idx"],
-            **metrics_record, 
-            **inference_cfg["calibration"]
         }
         if inference_cfg["log"]["track_label_amounts"]:
             record = {**record, **label_amounts_dict}

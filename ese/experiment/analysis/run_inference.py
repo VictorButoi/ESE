@@ -58,7 +58,7 @@ def get_cal_stats(
     # Loop through the data, gather your stats!
     with torch.no_grad():
         dataloader = cal_stats_components["dataloader"]
-        for batch_idx, batch in enumerate():
+        for batch_idx, batch in enumerate(dataloader):
             print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
             # Gather the forward item.
             forward_item = {
