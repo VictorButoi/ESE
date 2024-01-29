@@ -1,4 +1,5 @@
 # Misc imports
+import yaml
 import pickle
 import numpy as np
 import pandas as pd
@@ -85,6 +86,8 @@ def get_cal_stats(
         cfg_dict=cfg_dict,
         save_root=save_root
     )
+    
+    print(f"Running:\n\n{str(yaml.safe_dump(Config(cfg_dict)._data, indent=0))}")
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################

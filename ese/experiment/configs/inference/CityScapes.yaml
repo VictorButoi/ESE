@@ -9,15 +9,13 @@ qual_metrics:
         _fn: ese.experiment.metrics.dice_score
         from_logits: True
         batch_reduction: 'mean' 
-        ignore_empty_labels: True # False for WMH only
-        ignore_index: 0 # Ignore background class when reporting.
+        ignore_empty_labels: True
         metric_type: quality
     - HD95:
         _fn: ese.experiment.metrics.hd95
         from_logits: True
         batch_reduction: 'mean' 
-        ignore_empty_labels: True # False for WMH only
-        ignore_index: 0 # Ignore background class when reporting.
+        ignore_empty_labels: True
         metric_type: quality
 
 augmentations:
