@@ -1,7 +1,8 @@
 
 # Misc imports
-from pydantic import validate_arguments
+import os
 from typing import Any, Optional
+from pydantic import validate_arguments
 # torch imports
 import torch
 from torch.nn import functional as F
@@ -10,7 +11,7 @@ from ionpy.util import Config
 from ionpy.util.torchutils import to_device
 # local imports
 from .run_inference import save_records
-from .analysis_utils.inference_utils import cal_stats_init, reduce_ensemble_preds
+from .analysis_utils.inference_utils import cal_stats_init
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -27,8 +28,13 @@ def get_ensemble_ub(
     # Initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
     image_level_records = cal_stats_components["image_level_records"]
-    image_stats_save_dir = cal_stats_components["image_level_dir"]
     
+    # Upper-bound dir
+    upper_bound_dir = cfg_dict["experiment"]["exp_root"] + "/ensemble_upperbounds"
+    if not os.path.exists(upper_bound_dir):
+        os.makedirs(upper_bound_dir)
+    ub_stats_file = upper_bound_dir + "/upperbound_stats.pkl"
+
     # Loop through the data, gather your stats!
     with torch.no_grad():
         dataloader = cal_stats_components["dataloader"]
@@ -50,11 +56,10 @@ def get_ensemble_ub(
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 if image_level_records is not None:
-                    save_records(image_level_records, image_stats_save_dir)
-
+                    save_records(image_level_records, ub_stats_file)
     # Save the records at the end too
     if image_level_records is not None:
-        save_records(image_level_records, image_stats_save_dir)
+        save_records(image_level_records, ub_stats_file)
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
