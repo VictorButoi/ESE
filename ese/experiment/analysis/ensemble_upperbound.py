@@ -145,21 +145,16 @@ def get_upper_bound_metric_stats(
     image_level_records
 ):
     # Gather the individual predictions
-    B, C, _, H, W = output_dict["y_pred"].shape
+    B, C, E, H, W = output_dict["y_pred"].shape
     ensemble_probs = torch.softmax(output_dict["y_pred"], dim=1) # B x C x E x H x W
     ensemble_hard_preds = torch.argmax(ensemble_probs, dim=1) # B x E x H x W
-    # Get correct per pixels per hard pred, this is a boolean tensor.
-    ensemble_correct_hard_preds = torch.cat([
-        (ensemble_hard_preds[:, ens_mem_idx:ens_mem_idx+1, ...] == output_dict["y_true"]).float()\
-        for ens_mem_idx in range(ensemble_hard_preds.shape[2]) # B x 1 x H x W
-    ], dim=1).unsqueeze(dim=1) # B x 1 x E x H x W
-    # Prepare the indexing tensors.
-    ensemble_at_least_one_correct = (torch.max(ensemble_correct_hard_preds, dim=2, keepdim=True).values).bool() # B x 1 x 1 x H x W
-    aoc_multichannel_index = ensemble_at_least_one_correct.squeeze(dim=2).repeat(1, C, 1, 1) # B x C x H x W
-    # Assmelbe the upper bound prediction.
-    ensemble_ub_pred = torch.zeros((B, C, H, W), device=output_dict["y_true"].device) # B x C x H x W
-    ensemble_ub_pred[aoc_multichannel_index] = (ensemble_correct_hard_preds * ensemble_probs).max(dim=2).values[aoc_multichannel_index] # B x 1 x H x W
-    ensemble_ub_pred[~aoc_multichannel_index] = (ensemble_probs.min(dim=2).values)[~aoc_multichannel_index] # B x 1 x H x W
+    # Get the upper bound prediction by going through and updating the prediction
+    # by the pixels each model got right.
+    ensemble_ub_pred = ensemble_probs[:, :, 0, ...] # B x C x H x W
+    for ens_idx in range(E):
+        correct_positions = (ensemble_hard_preds[:, ens_idx:ens_idx+1, ...] == output_dict["y_true"]) # B x 1 x H x W
+        correct_index = correct_positions.repeat(1, C, 1, 1) # B x C x H x W
+        ensemble_ub_pred[correct_index] = ensemble_probs[:, :, ens_idx, ...][correct_index]
     # Here we need a check that if we sum across channels we get 1.
     assert torch.allclose(ensemble_ub_pred.sum(dim=1), torch.ones((B, H, W), device=ensemble_ub_pred.device)),\
         "The upper bound prediction does not sum to 1 across channels."
