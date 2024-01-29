@@ -1,0 +1,26 @@
+log:
+  track_label_amounts: False
+
+data:
+  input_type: image 
+
+qual_metrics:
+    - Dice:
+        _fn: ese.experiment.metrics.dice_score
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: True # False for WMH only
+        ignore_index: 0 # Ignore background class when reporting.
+        metric_type: quality
+    - HD95:
+        _fn: ese.experiment.metrics.hd95
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: True # False for WMH only
+        ignore_index: 0 # Ignore background class when reporting.
+        metric_type: quality
+
+augmentations:
+    - Resize:
+        height: 256
+        width: 512
