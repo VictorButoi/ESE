@@ -28,13 +28,8 @@ def get_ensemble_ub(
     # Initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
     image_level_records = cal_stats_components["image_level_records"]
+    image_stats_save_dir = cal_stats_components["image_level_dir"]
     
-    # Upper-bound dir
-    upper_bound_dir = cfg_dict["experiment"]["exp_root"] + "/ensemble_upperbounds"
-    if not os.path.exists(upper_bound_dir):
-        os.makedirs(upper_bound_dir)
-    ub_stats_file = upper_bound_dir + "/upperbound_stats.pkl"
-
     # Loop through the data, gather your stats!
     with torch.no_grad():
         dataloader = cal_stats_components["dataloader"]
@@ -56,10 +51,10 @@ def get_ensemble_ub(
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 if image_level_records is not None:
-                    save_records(image_level_records, ub_stats_file)
+                    save_records(image_level_records, image_stats_save_dir)
     # Save the records at the end too
     if image_level_records is not None:
-        save_records(image_level_records, ub_stats_file)
+        save_records(image_level_records, image_stats_save_dir)
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

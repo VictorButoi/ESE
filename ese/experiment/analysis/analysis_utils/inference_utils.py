@@ -2,6 +2,7 @@
 import os
 import yaml
 import torch
+import pickle
 import pandas as pd
 from pathlib import Path
 from typing import Optional, List
@@ -23,6 +24,25 @@ from ...metrics.utils import (
     get_bins,
     find_bins
 )
+
+# Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
+def load_upperbound_df(log_cfg):
+    # Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
+    upperbound_dir = f"{log_cfg['root']}/{log_cfg['inference_group']}/ensemble_upper_bounds/"
+    # Get the runs in the upper bound dir
+    run_names = os.listdir(upperbound_dir)
+    for remove_dir_name in ["submitit", "debug"]:
+        if remove_dir_name in run_names:
+            run_names.remove(remove_dir_name)
+    assert len(run_names) == 1, f"Expected 1 run in upperbound dir, found: {len(run_names)}."
+    # Get the run name
+    upperbound_file = upperbound_dir + f"{run_names[0]}/image_stats.pkl"
+    # load the pickle
+    with open(upperbound_file, 'rb') as f:
+        upperbound_df = pickle.load(f)
+    # Fill the column corresponding to slice_idx with string 'None'
+    upperbound_df['slice_idx'] = upperbound_df['slice_idx'].fillna('None')
+    return upperbound_df
 
 
 def preload_calibration_metrics(

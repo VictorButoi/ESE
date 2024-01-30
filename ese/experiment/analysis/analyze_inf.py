@@ -49,14 +49,15 @@ def load_cal_inference_stats(
         metadata_df = pd.DataFrame([])
         # Gather inference log paths.
         all_inference_log_paths = []
-        if "inference_groups" in log_cfg:
-            for inf_group in log_cfg["inference_groups"]:
-                sub_exp_names = os.listdir(log_root + "/" + inf_group)
-                # Remove the 'debug' folder if it exists.
-                if "debug" in sub_exp_names:
-                    sub_exp_names.remove("debug")
-                # Combine the inference group with the sub experiment names.
-                all_inference_log_paths += [inf_group + "/" + sub_exp for sub_exp in sub_exp_names]
+        if "inference_group" in log_cfg:
+            sub_exp_names = os.listdir(log_root + "/" + log_cfg["inference_group"])
+            # Remove the 'debug' or upper bounds folders if they exists.
+            if "debug" in sub_exp_names:
+                sub_exp_names.remove("debug")
+            if "ensemble_upper_bounds" in sub_exp_names:
+                sub_exp_names.remove("ensemble_upper_bounds")
+            # Combine the inference group with the sub experiment names.
+            all_inference_log_paths += [log_cfg["inference_group"] + "/" + sub_exp for sub_exp in sub_exp_names]
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
                 all_inference_log_paths.append(inf_path)
