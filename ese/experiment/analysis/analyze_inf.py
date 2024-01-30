@@ -11,6 +11,7 @@ from pydantic import validate_arguments
 from ionpy.util.config import HDict, valmap
 # local imports
 from .analysis_utils.inference_utils import (
+    add_dice_loss_rows,
     get_average_unet_baselines,
     preload_calibration_metrics,
 )
@@ -272,6 +273,11 @@ def load_cal_inference_stats(
             original_row_amount = len(inference_df)
             inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
             print(f"Dropping rows with NaN metric score. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
+        
+        # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
+        # that is 1 - metric_score.
+        if log_cfg['add_dice_loss_rows']:
+            inference_df = add_dice_loss_rows(inference_df)
 
         # Print information about each log set.
         print("Finished loading inference stats.")

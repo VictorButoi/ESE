@@ -25,6 +25,26 @@ from ...metrics.utils import (
     find_bins
 )
 
+
+def add_dice_loss_rows(inference_df):
+    # Get the rows corresponding to the Dice metric.
+    dice_rows = inference_df[inference_df['image_metric'] == 'Dice']
+    # Make a copy of the rows.
+    dice_loss_rows = dice_rows.copy()
+    # Change the metric score to 1 - metric_score.
+    dice_loss_rows['metric_score'] = 1 - dice_loss_rows['metric_score']
+    # Change the image metric to Dice Loss.
+    dice_loss_rows['image_metric'] = 'Dice Loss'
+    # If groupavg metrics are present, then change those as well.
+    if 'groupavg_image_metric' in dice_loss_rows.keys():
+        # First replace Dice in the groupavg metric with 'Dice Loss'
+        dice_loss_rows['groupavg_image_metric'] = dice_loss_rows['groupavg_image_metric'].str.replace('Dice', 'Dice_Loss')
+        # Then flip the groupavg metric score.
+        dice_loss_rows['groupavg_metric_score'] = 1 - dice_loss_rows['groupavg_metric_score']
+    # Add the new rows to the inference df.
+    return pd.concat([inference_df, dice_loss_rows], axis=0, ignore_index=True)
+
+
 # Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
 def load_upperbound_df(log_cfg):
     # Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
@@ -52,6 +72,9 @@ def load_upperbound_df(log_cfg):
             # Make a new column that is the sum of all the num_lab columns.
             upperbound_df['num_fg_pixels'] = upperbound_df[num_lab_cols].sum(axis=1)
             upperbound_df = upperbound_df[upperbound_df['num_fg_pixels'] >= log_cfg["min_fg_pixels"]]
+        # Add the dice loss rows if we want to.
+        if log_cfg['add_dice_loss_rows']:
+            upperbound_df = add_dice_loss_rows(upperbound_df)
         # Return the upperbound df
         return upperbound_df
     except Exception as e:
