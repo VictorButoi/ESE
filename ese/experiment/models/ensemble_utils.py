@@ -13,6 +13,8 @@ def get_combine_fn(combine_fn: str):
         return mean_combine_fn
     elif combine_fn == "product":
         return product_combine_fn
+    elif combine_fn == "upperbound":
+        return upperbound_combine_fn
     else:
         raise ValueError(f"Unknown combine function '{combine_fn}'.")
 
@@ -81,6 +83,29 @@ def product_combine_fn(
     ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
 
     return ensemble_product_tensor
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def upperbound_combine_fn(
+    ensemble_logits,
+    y_true: Tensor,
+    **kwargs
+):
+    # Gather the individual predictions
+    B, C, E, H, W = ensemble_logits.shape
+    ensemble_probs = torch.softmax(ensemble_logits, dim=1) # B x C x E x H x W
+    ensemble_hard_preds = torch.argmax(ensemble_probs, dim=1) # B x E x H x W
+    # Get the upper bound prediction by going through and updating the prediction
+    # by the pixels each model got right.
+    ensemble_ub_pred = ensemble_probs[:, :, 0, ...] # B x C x H x W
+    for ens_idx in range(E):
+        correct_positions = (ensemble_hard_preds[:, ens_idx:ens_idx+1, ...] == y_true) # B x 1 x H x W
+        correct_index = correct_positions.repeat(1, C, 1, 1) # B x C x H x W
+        ensemble_ub_pred[correct_index] = ensemble_probs[:, :, ens_idx, ...][correct_index]
+    # Here we need a check that if we sum across channels we get 1.
+    assert torch.allclose(ensemble_ub_pred.sum(dim=1), torch.ones((B, H, W), device=ensemble_ub_pred.device)),\
+        "The upper bound prediction does not sum to 1 across channels."
+    return ensemble_ub_pred
 
 
 def get_ensemble_member_weights(
