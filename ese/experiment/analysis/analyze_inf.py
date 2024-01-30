@@ -158,8 +158,17 @@ def load_cal_inference_stats(
             f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
         
         # Only choose rows with some minimal amount of foreground pixels.
-        if 'min_fg_pixels' in log_cfg and log_cfg['min_fg_pixels'] > 0:
-            inference_df = inference_df[inference_df['num_lab_1_pixels'] >= log_cfg['min_fg_pixels']].reset_index(drop=True)
+        if "min_fg_pixels" in log_cfg:
+            # Get the names of all columns that have "num_lab" in them.
+            num_lab_cols = [col for col in inference_df.columns if "num_lab" in col]
+            # Remove num_lab_0_pixels because it is background
+            num_lab_cols.remove("num_lab_0_pixels")
+            # Make a new column that is the sum of all the num_lab columns.
+            inference_df['num_fg_pixels'] = inference_df[num_lab_cols].sum(axis=1)
+            inference_df = inference_df[inference_df['num_fg_pixels'] >= log_cfg["min_fg_pixels"]]
+        else:
+            assert "WMH" not in results_cfg['log']['inference_group'],\
+                "You must specify a min_fg_pixels value for WMH experiments." 
         
         # Add new names for keys (helps with augment)
         inference_df["slice_idx"] = inference_df["slice_idx"].fillna("None")
