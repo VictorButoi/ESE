@@ -6,11 +6,13 @@ from .metric_reductions import (
 )
 from .local_ps import (
     neighbors_bin_stats, 
-    label_neighbors_bin_stats
+    neighbors_top_label_bin_stats,
+    neighbors_joint_label_bin_stats
 )
 from .global_ps import (
     global_neighbors_bin_stats,
-    global_label_neighbors_bin_stats
+    global_top_label_neighbors_bin_stats,
+    global_joint_label_neighbors_bin_stats
 )
 # torch imports
 from torch import Tensor
@@ -95,7 +97,7 @@ def image_tl_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = label_neighbors_bin_stats(
+    cal_info = neighbors_top_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         top_label=True,
@@ -123,7 +125,7 @@ def tl_elm_loss(
     **kwargs
     ) -> Union[dict, Tensor]:
     # Verify input.
-    cal_info = global_label_neighbors_bin_stats(
+    cal_info = global_top_label_neighbors_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
         top_label=True,
@@ -150,7 +152,7 @@ def image_cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = label_neighbors_bin_stats(
+    cal_info = neighbors_joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         top_label=False,
@@ -177,7 +179,7 @@ def cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_label_neighbors_bin_stats(
+    cal_info = global_joint_label_neighbors_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
         top_label=False,

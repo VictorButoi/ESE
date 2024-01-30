@@ -258,15 +258,15 @@ def get_image_aux_info(
 ) -> dict:
     assert y_hard.dim() == 4, f"Expected 4D tensor for y_hard, found shape: {y_hard.shape}."
     assert y_true.dim() == 4, f"Expected 4D tensor for y_true, found shape: {y_true.shape}."
-    # Get the pixelwise accuracy.
-    accuracy_map = (y_hard == y_true).squeeze(1).float()
+    # Get the pixelwise frequency.
+    frequency_map = (y_hard == y_true).squeeze(1).float()
 
     # Keep track of different things for each bin.
     pred_labels = y_hard.unique().tolist()
     if "ignore_index" in cal_cfg and cal_cfg["ignore_index"] in pred_labels:
         pred_labels.remove(cal_cfg["ignore_index"])
 
-    # Get a map of which pixels match their neighbors and how often, and pixel-wise accuracy.
+    # Get a map of which pixels match their neighbors and how often.
     # For both our prediction and the true label map.
     pred_matching_neighbors_map = count_matching_neighbors(
         lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
@@ -306,7 +306,7 @@ def get_image_aux_info(
     ) # B x H x W
 
     return {
-        "accuracy_map": accuracy_map,
+        "frequency": frequency_map,
         "pred_labels": pred_labels,
         "bin_ownership_map": bin_ownership_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,

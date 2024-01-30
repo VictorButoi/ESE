@@ -91,6 +91,9 @@ def upperbound_combine_fn(
     y_true: Tensor,
     **kwargs
 ):
+    if isinstance(ensemble_logits, dict):
+        ensemble_logits = batch_ensemble_preds(ensemble_logits)
+
     # Gather the individual predictions
     B, C, E, H, W = ensemble_logits.shape
     ensemble_probs = torch.softmax(ensemble_logits, dim=1) # B x C x E x H x W

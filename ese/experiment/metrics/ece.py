@@ -7,12 +7,14 @@ from .metric_reductions import (
 )
 from .local_ps import (
     bin_stats, 
-    label_bin_stats
+    top_label_bin_stats,
+    joint_label_bin_stats
 )
 # - global statistics
 from .global_ps import (
     global_bin_stats, 
-    global_label_bin_stats
+    global_top_label_bin_stats,
+    global_joint_label_bin_stats
 )
 # torch imports
 from torch import Tensor
@@ -38,7 +40,6 @@ def image_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    # Get the cal info.
     cal_info = bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -68,7 +69,6 @@ def ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    # Get the statistics either from pixel meter dict.
     cal_info = global_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         square_diff=square_diff,
@@ -98,10 +98,9 @@ def image_tl_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = label_bin_stats(
+    cal_info = top_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
-        top_label=True,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -128,8 +127,7 @@ def tl_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    # Get the statistics either from images or pixel meter dict.
-    cal_info = global_label_bin_stats(
+    cal_info = global_top_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         top_label=True,
         square_diff=square_diff,
@@ -159,7 +157,7 @@ def image_cw_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = label_bin_stats(
+    cal_info = joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         top_label=False,
@@ -190,7 +188,7 @@ def cw_ece_loss(
     **kwargs
     ) -> Union[dict, Tensor]:
     # Get the statistics either from images or pixel meter dict.
-    cal_info = global_label_bin_stats(
+    cal_info = global_joint_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         top_label=False,
         square_diff=square_diff,
