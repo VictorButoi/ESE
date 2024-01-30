@@ -63,39 +63,44 @@ def load_cal_inference_stats(
             for inf_path in log_cfg["inference_paths"]:
                 all_inference_log_paths.append(inf_path)
         # Loop through every configuration in the log directory.
+        skip_log_sets = []
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             for log_set in log_dir.iterdir():
                 if log_set.name not in ["wandb", "submitit"]:
-                    # Load the metadata file (json) and add it to the metadata dataframe.
-                    config_dir = log_set / "config.yml"
-                    with open(config_dir, 'r') as stream:
-                        cfg_yaml = yaml.safe_load(stream)
-                    cfg = HDict(cfg_yaml)
-                    flat_cfg = valmap(list2tuple, cfg.flatten())
-                    flat_cfg["log_set"] = log_set.name
-                    # Remove some columns we don't care about.
-                    for drop_key in [
-                        "augmentations",
-                        "dataset.augmentations",
-                        "qual_metrics", 
-                        "image_cal_metrics", 
-                        "global_cal_metrics", 
-                        "calibration.bin_weightings", 
-                        "calibration.conf_interval",
-                        "model.filters"
-                        ]:
-                        if drop_key in flat_cfg:
-                            flat_cfg.pop(drop_key)
-                    # If the column 'model.ensemble_cfg' is in the columns,
-                    # we need to make two new columns for the combine function and quantity.
-                    if 'model.ensemble_cfg' in flat_cfg.keys() and flat_cfg['model.ensemble_cfg'] is not None:
-                        flat_cfg['model.ensemble_combine_fn'] = flat_cfg['model.ensemble_cfg'][0]
-                        flat_cfg['model.ensemble_combine_quantity'] = flat_cfg['model.ensemble_cfg'][1]
-                        flat_cfg.pop('model.ensemble_cfg')
-                    # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-                    cfg_df = pd.DataFrame(flat_cfg, index=[0])
-                    metadata_df = pd.concat([metadata_df, cfg_df])
+                    try:
+                        # Load the metadata file (json) and add it to the metadata dataframe.
+                        config_dir = log_set / "config.yml"
+                        with open(config_dir, 'r') as stream:
+                            cfg_yaml = yaml.safe_load(stream)
+                        cfg = HDict(cfg_yaml)
+                        flat_cfg = valmap(list2tuple, cfg.flatten())
+                        flat_cfg["log_set"] = log_set.name
+                        # Remove some columns we don't care about.
+                        for drop_key in [
+                            "augmentations",
+                            "dataset.augmentations",
+                            "qual_metrics", 
+                            "image_cal_metrics", 
+                            "global_cal_metrics", 
+                            "calibration.bin_weightings", 
+                            "calibration.conf_interval",
+                            "model.filters"
+                            ]:
+                            if drop_key in flat_cfg:
+                                flat_cfg.pop(drop_key)
+                        # If the column 'model.ensemble_cfg' is in the columns,
+                        # we need to make two new columns for the combine function and quantity.
+                        if 'model.ensemble_cfg' in flat_cfg.keys() and flat_cfg['model.ensemble_cfg'] is not None:
+                            flat_cfg['model.ensemble_combine_fn'] = flat_cfg['model.ensemble_cfg'][0]
+                            flat_cfg['model.ensemble_combine_quantity'] = flat_cfg['model.ensemble_cfg'][1]
+                            flat_cfg.pop('model.ensemble_cfg')
+                        # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
+                        cfg_df = pd.DataFrame(flat_cfg, index=[0])
+                        metadata_df = pd.concat([metadata_df, cfg_df])
+                    except Exception as e:
+                        print(f"Error loading config file for {log_set}. {e}. Skipping.")
+                        skip_log_sets.append(log_set.name)
         # Gather the columns that have unique values amongst the different configurations.
         if log_cfg["remove_shared_columns"]:
             meta_cols = []
@@ -120,29 +125,32 @@ def load_cal_inference_stats(
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             for log_set in log_dir.iterdir():
-                if log_set.name not in ["wandb", "submitit"]:
-                    # Get the metadata corresponding to this log set.
-                    metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
-                    # Optionally load the information from image-based metrics.
-                    log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-                    log_image_df["log_set"] = log_set.name
-                    # Add the columns from the metadata dataframe that have unique values.
-                    for col in meta_cols:
-                        assert len(metadata_log_df[col].unique()) == 1, \
-                            f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
-                        log_image_df[col] = metadata_log_df[col].values[0]
-                    # Optionally load the pixel stats.
-                    if log_cfg["load_pixel_meters"]:
-                        with open(log_set / "pixel_stats.pkl", 'rb') as f:
-                            pixel_meter_dict = pickle.load(f)
-                        # Loop through the calibration metrics and add them to the dataframe.
-                        for cal_metric_name, cal_metric_dict in cal_metrics.items():
-                            if cal_metric_name not in log_image_df.columns:
-                                log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
-                                    pixel_meters_dict=pixel_meter_dict
-                                ).item() 
-                    # Add this log to the dataframe.
-                    inference_df = pd.concat([inference_df, log_image_df])
+                if log_set.name not in skip_log_sets +["wandb", "submitit"]:
+                    try:
+                        # Get the metadata corresponding to this log set.
+                        metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
+                        # Optionally load the information from image-based metrics.
+                        log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
+                        log_image_df["log_set"] = log_set.name
+                        # Add the columns from the metadata dataframe that have unique values.
+                        for col in meta_cols:
+                            assert len(metadata_log_df[col].unique()) == 1, \
+                                f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
+                            log_image_df[col] = metadata_log_df[col].values[0]
+                        # Optionally load the pixel stats.
+                        if log_cfg["load_pixel_meters"]:
+                            with open(log_set / "pixel_stats.pkl", 'rb') as f:
+                                pixel_meter_dict = pickle.load(f)
+                            # Loop through the calibration metrics and add them to the dataframe.
+                            for cal_metric_name, cal_metric_dict in cal_metrics.items():
+                                if cal_metric_name not in log_image_df.columns:
+                                    log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
+                                        pixel_meters_dict=pixel_meter_dict
+                                    ).item() 
+                        # Add this log to the dataframe.
+                        inference_df = pd.concat([inference_df, log_image_df])
+                    except Exception as e:
+                        print(f"Error loading image stats file for {log_set}. {e}. Skipping.")
         #########################################
         # POST-PROCESSING STEPS
         #########################################
@@ -182,6 +190,7 @@ def load_cal_inference_stats(
             "model._pretrained_class",
             "model.ensemble_combine_fn",
             "model.ensemble_combine_quantity",
+            "model.ensemble_w_metric",
             "groupavg_image_metric",
             "groupavg_metric_score"
         ]:
@@ -260,12 +269,13 @@ def load_cal_inference_stats(
         inference_df.augment(configuration)
 
         # Load the average unet baseline results.
-        unet_avg = get_average_unet_baselines(
-            inference_df, 
-            num_seeds=4, # Used as a sanity check.
-            group_metrics=list(cal_metrics.keys())
-        )
-        inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
+        if log_cfg['add_baseline_rows']:
+            unet_avg = get_average_unet_baselines(
+                inference_df, 
+                num_seeds=4, # Used as a sanity check.
+                group_metrics=list(cal_metrics.keys())
+            )
+            inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
         # Drop the rows corresponding to NaNs in metric_score
         if log_cfg['drop_nan_metric_rows']:
