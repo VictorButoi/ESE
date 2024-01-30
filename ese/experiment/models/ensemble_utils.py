@@ -105,14 +105,20 @@ def get_ensemble_member_weights(
         # If we are dealing with a 'loss' then take the min, if a 'score' take the max, otherwise default to min (with a print).
         if 'loss' in metric_name:
             best_df = path_grouped_df.min()
+            metric_type = "min"
         elif 'score' in metric_name:
             best_df = path_grouped_df.max()
+            metric_type = "max"
         else:
             print(f"Unknown metric type for '{metric_name}'. Defaulting to min.")
             best_df = path_grouped_df.min()
+            metric_type = "min"
         # Get the weights in a dictionary
         weight_dict = best_df.to_dict()[metric_name]
-        total_weight = best_df.sum()[metric_name]
+        # If we are dealing with a 'min' metric_type we need to invert the weights.
+        if metric_type == "min":
+            weight_dict = {path: 1 / weight for path, weight in weight_dict.items()}
+        total_weight = sum(weight_dict.values()) 
         # Get the sorted path keys.
         sorted_path_keys = sorted(list(weight_dict.keys()))
         weights = Tensor([(weight_dict[path] / total_weight) for path in sorted_path_keys])
