@@ -234,7 +234,7 @@ def global_joint_label_bin_stats(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def global_neighbors_bin_stats(
+def global_neighbor_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
     square_diff: bool,
@@ -283,7 +283,7 @@ def global_neighbors_bin_stats(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def global_joint_label_neighbors_bin_stats(
+def global_joint_label_neighbor_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
     top_label: bool,

@@ -1,3 +1,11 @@
+# torch imports
+from torch import Tensor
+# misc imports
+from pydantic import validate_arguments
+from typing import Dict, Optional, Union, List
+# ionpy imports
+from ionpy.util.meter import Meter
+from ionpy.loss.util import _loss_module_from_func
 # local imports for:
 # - pixel statistics
 from .metric_reductions import (
@@ -16,14 +24,6 @@ from .global_ps import (
     global_top_label_bin_stats,
     global_joint_label_bin_stats
 )
-# torch imports
-from torch import Tensor
-# misc imports
-from pydantic import validate_arguments
-from typing import Dict, Optional, Union, List
-# ionpy imports
-from ionpy.util.meter import Meter
-from ionpy.loss.util import _loss_module_from_func
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -129,7 +129,6 @@ def tl_ece_loss(
     ) -> Union[dict, Tensor]:
     cal_info = global_top_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
-        top_label=True,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -160,7 +159,6 @@ def image_cw_ece_loss(
     cal_info = joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
-        top_label=False,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -190,7 +188,6 @@ def cw_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     cal_info = global_joint_label_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
-        top_label=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,

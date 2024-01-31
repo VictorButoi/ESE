@@ -4,12 +4,12 @@ from .metric_reductions import (
     cw_elm_reduction
 )
 from .local_ps import (
-    neighbors_bin_stats, 
-    neighbors_joint_label_bin_stats
+    neighbor_bin_stats, 
+    neighbor_joint_label_bin_stats
 )
 from .global_ps import (
-    global_neighbors_bin_stats,
-    global_joint_label_neighbors_bin_stats
+    global_neighbor_bin_stats,
+    global_joint_label_neighbor_bin_stats
 )
 # torch imports
 from torch import Tensor
@@ -35,7 +35,7 @@ def image_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = neighbors_bin_stats(
+    cal_info = neighbor_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_bins=num_bins,
@@ -65,7 +65,7 @@ def elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_neighbors_bin_stats(
+    cal_info = global_neighbor_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -94,10 +94,9 @@ def image_cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = neighbors_joint_label_bin_stats(
+    cal_info = neighbor_joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
-        top_label=False,
         num_bins=num_bins,
         conf_interval=conf_interval,
         square_diff=square_diff,
@@ -121,10 +120,9 @@ def cw_elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_joint_label_neighbors_bin_stats(
+    cal_info = global_joint_label_neighbor_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         neighborhood_width=neighborhood_width,
-        top_label=False,
         square_diff=square_diff,
         ignore_index=ignore_index
     )
@@ -164,22 +162,50 @@ def edge_elm_loss(
     return elm_loss(**kwargs)
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def image_ecw_elm_loss(
+    y_pred: Tensor = None, 
+    y_true: Tensor = None,
+    **kwargs
+    ) -> Union[dict, Tensor]:
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
+    kwargs["y_pred"] = y_pred
+    kwargs["y_true"] = y_true
+    kwargs["edge_only"] = True
+    # Return the calibration information
+    return image_cw_elm_loss(**kwargs)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def ecw_elm_loss(
+    pixel_meters_dict: Dict[tuple, Meter],
+    **kwargs
+    ) -> Union[dict, Tensor]:
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
+    kwargs["pixel_meters_dict"] = pixel_meters_dict 
+    kwargs["edge_only"] = True
+    # Return the calibration information
+    return cw_elm_loss(**kwargs)
+
+
 #############################################################################
 # Global metrics
 #############################################################################
 
 ELM = _loss_module_from_func("ELM", elm_loss)
-TL_ELM = _loss_module_from_func("TL_ELM", tl_elm_loss)
 CW_ELM = _loss_module_from_func("CW_ELM", cw_elm_loss)
 
+# Edge Metrics
 Edge_ELM = _loss_module_from_func("Edge_ELM", edge_elm_loss)
+ECW_ELM = _loss_module_from_func("ECW_ELM", ecw_elm_loss)
 
 #############################################################################
 # Image-based metrics
 #############################################################################
 
 Image_ELM = _loss_module_from_func("Image_ELM", image_elm_loss)
-Image_TL_ELM = _loss_module_from_func("Image_TL_ELM", image_tl_elm_loss)
 Image_CW_ELM = _loss_module_from_func("Image_CW_ELM", image_cw_elm_loss)
 
-Edge_Image_ELM = _loss_module_from_func("Image_Edge_ELM", image_edge_elm_loss)
+# Edge Metrics
+Image_Edge_ELM = _loss_module_from_func("Image_Edge_ELM", image_edge_elm_loss)
+Image_ECW_ELM = _loss_module_from_func("Image_ECW_ELM", image_ecw_elm_loss)
