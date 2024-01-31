@@ -125,7 +125,7 @@ def bin_stats_init(
         frequency_map = stats_info_dict["frequency_map"]
     else:
         if class_wise:
-            _, frequency_map = _inputs_as_onehot(y_pred, y_true, discretize=True)
+            _, frequency_map = _inputs_as_onehot(y_pred, y_true.long(), discretize=True)
             assert frequency_map.shape == y_pred.shape,\
                 f"class-wise frequency_map and y_pred must have the same shape. Got {frequency_map.shape} and {y_pred.shape}."
         else:
@@ -157,7 +157,7 @@ def bin_stats_init(
         "y_max_prob_map": y_max_prob_map.to(torch.float64),
         "y_hard": y_hard.to(torch.float64),
         "y_true": y_true.to(torch.float64),
-        "frequence_map": frequency_map.to(torch.float64),
+        "frequency_map": frequency_map.to(torch.float64),
         "bin_ownership_map": bin_ownership_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
