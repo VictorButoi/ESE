@@ -11,8 +11,6 @@ from .utils import (
     get_conf_region, 
     count_matching_neighbors
 )
-# ionpy imports
-from ionpy.metrics.util import _inputs_as_onehot
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -125,7 +123,8 @@ def bin_stats_init(
         frequency_map = stats_info_dict["frequency_map"]
     else:
         if class_wise:
-            _, frequency_map = _inputs_as_onehot(y_pred, y_true.long(), discretize=True)
+            C = y_pred.shape[1]
+            frequency_map = torch.nn.functional.one_hot(y_true.long(), C).permute(0, 3, 1, 2).float()
             assert frequency_map.shape == y_pred.shape,\
                 f"class-wise frequency_map and y_pred must have the same shape. Got {frequency_map.shape} and {y_pred.shape}."
         else:
@@ -323,7 +322,7 @@ def joint_label_bin_stats(
     )
     
     # Unlike true labels we need to get the true unique labels.
-    unique_true_labels = torch.unique(obj_dict["y_true"])
+    unique_true_labels = torch.unique(y_true)
 
     if ignore_index is not None:
         unique_true_labels = unique_true_labels[unique_true_labels != ignore_index]
@@ -331,26 +330,26 @@ def joint_label_bin_stats(
     num_true_labels = len(unique_true_labels)
     # Setup the cal info tracker.
     cal_info = {
-        "bin_confs": torch.zeros((unique_true_labels, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((unique_true_labels, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((unique_true_labels, num_bins), dtype=torch.float64),
-        "bin_cal_errors": torch.zeros((unique_true_labels, num_bins), dtype=torch.float64)
+        "bin_confs": torch.zeros((num_true_labels, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_true_labels, num_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_true_labels, num_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((num_true_labels, num_bins), dtype=torch.float64)
     }
-    for lab_idx, lab in enumerate(num_true_labels):
+    for lab_idx in range(num_true_labels):
+        lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
+        # Cycle through the probability bins.
         for bin_idx in range(num_bins):
-            lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
                 bin_ownership_map=lab_bin_ownership_map,
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
-                edge_only=edge_only,
-                ignore_index=ignore_index
+                edge_only=edge_only
             )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
-                lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
-                lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
                 # Calculate the average score for the regions in the bin.
                 bi = calc_bin_info(
                     prob_map=lab_prob_map,
@@ -406,12 +405,12 @@ def neighbor_bin_stats(
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
-                bin_ownership_map=obj_dict["bin_ownership_map"],
-                lab_map=obj_dict["y_true"], # Use ground truth to get the region.
+                edge_only=edge_only,
                 num_neighbors=p_nn,
+                lab_map=obj_dict["y_true"], # Use ground truth to get the region.
+                bin_ownership_map=obj_dict["bin_ownership_map"],
                 pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
-                edge_only=edge_only,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -459,7 +458,7 @@ def neighbor_joint_label_bin_stats(
     )
     # If top label, then everything is done based on
     # predicted values, not ground truth. 
-    unique_labels = torch.unique(obj_dict["y_hard"])
+    unique_labels = torch.unique(y_true)
 
     if ignore_index is not None:
         unique_labels = unique_labels[unique_labels != ignore_index]
@@ -475,28 +474,29 @@ def neighbor_joint_label_bin_stats(
         "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64)
     }
-    for lab_idx, lab in enumerate(unique_labels):
+    for lab_idx in range(num_labels):
+        lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
+        # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx in range(num_bins):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
-                    bin_ownership_map=obj_dict["bin_ownership_map"],
-                    label=lab,
-                    lab_map=obj_dict["y_hard"], # use pred to get the region.
                     num_neighbors=p_nn,
+                    edge_only=edge_only,
+                    bin_ownership_map=lab_bin_ownership_map,
                     pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
                     true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
-                    edge_only=edge_only,
-                    ignore_index=ignore_index
-                    )
+                )
                 # If there are some pixels in this confidence bin.
                 if bin_conf_region.sum() > 0:
                     # Calculate the average score for the regions in the bin.
                     bi = calc_bin_info(
-                        prob_map=obj_dict["y_max_prob_map"],
+                        prob_map=lab_prob_map,
                         bin_conf_region=bin_conf_region,
-                        frequency_map=obj_dict["frequency_map"],
+                        frequency_map=lab_frequency_map,
                         pix_weights=obj_dict["pix_weights"],
                         square_diff=square_diff
                     )

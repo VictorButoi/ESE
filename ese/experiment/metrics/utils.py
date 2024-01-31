@@ -93,10 +93,10 @@ def get_conf_region(
     edge_only: bool = False,
     label: Optional[int] = None,
     num_neighbors: Optional[int] = None,
-    ignore_index: Optional[int] = None,
     lab_map: Optional[Tensor] = None,
     pred_num_neighbors_map: Optional[Tensor] = None,
     true_num_neighbors_map: Optional[Tensor] = None,
+    ignore_index: Optional[int] = None,
     ):
     # We want to only pick things in the bin indicated.
     bin_conf_region = (bin_ownership_map == bin_idx)
