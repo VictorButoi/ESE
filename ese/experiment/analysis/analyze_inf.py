@@ -162,9 +162,14 @@ def load_cal_inference_stats(
 
         # Get the number of rows in image_info_df for each log set.
         num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
-        # Make sure there is only one unique value in the above.
-        assert len(num_rows_per_log_set.unique()) == 1, \
-            f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
+        
+        if log_cfg["equal_rows_per_cfg_assert"]:
+            # Make sure there is only one unique value in the above.
+            assert len(num_rows_per_log_set.unique()) == 1, \
+                f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
+        else:
+            if len(num_rows_per_log_set.unique()) != 1:
+                print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
         
         # Only choose rows with some minimal amount of foreground pixels.
         if "min_fg_pixels" in log_cfg:

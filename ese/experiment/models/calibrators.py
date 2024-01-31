@@ -125,11 +125,11 @@ class Dirichlet_Scaling(nn.Module):
 
     def forward(self, logits, **kwargs):
         probs = torch.softmax(logits, dim=1)
-        ln_probs = torch.log(probs + self.eps)
+        ln_probs = torch.log(probs + self.eps) # B x C x H x W
         # Move channel dim to the back (for broadcasting)
-        ln_probs = ln_probs.permute(0,2,3,1).contiguous()
+        ln_probs = ln_probs.permute(0,2,3,1).contiguous() # B x H x W x C
         ds_probs = self.dirichlet_linear(ln_probs)
-        ds_probs = ds_probs.permute(0,3,1,2).contiguous()
+        ds_probs = ds_probs.permute(0,3,1,2).contiguous() # B x C x H x W
         # Return scaled log probabilities
         return ds_probs
 
