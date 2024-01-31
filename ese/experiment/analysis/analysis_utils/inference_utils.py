@@ -481,8 +481,14 @@ def cal_stats_init(cfg_dict):
         image_level_records = None
     if cfg_dict["log"]["log_pixel_stats"]:
         # Keep track of labelwise pixel statistics.
+        if "num_classes" in cfg_dict["model"]:
+            num_labs = cfg_dict["model"]["num_classes"]
+        elif "out_channels" in cfg_dict["model"]:
+            num_labs = cfg_dict["model"]["out_channels"]
+        else:
+            raise ValueError("Could not find number of labels in model config.")
         pixel_meter_dict = {
-            lab: {} for lab in range(cfg_dict["model"]["out_channels"])
+            lab: {} for lab in range(num_labs)
         }
         # and top label statistics.
         pixel_meter_dict["top_label"] = {}

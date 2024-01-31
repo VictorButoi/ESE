@@ -421,7 +421,7 @@ def update_pixel_meters(
         confidences=toplabel_prob_map, 
         bin_starts=toplabel_conf_bins,
         bin_widths=toplabel_conf_bin_widths
-    ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy().reshape(-1)
 
     if track_cw_amounts:
         classwise_conf_bins, classwise_conf_bin_widths = get_bins(
@@ -445,20 +445,20 @@ def update_pixel_meters(
     pred_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy().reshape(-1)
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).squeeze().cpu().numpy()
+    ).squeeze().cpu().numpy().reshape(-1)
 
     # Calculate the accuracy map.
     # FREQUENCY 
     ############################################################################3
     toplabel_freq_map = (
         output_dict["y_hard"] == output_dict["y_true"]
-        ).float().squeeze().cpu().numpy()
+        ).float().squeeze().cpu().numpy().reshape(-1)
 
     if track_cw_amounts:
         long_label_map = output_dict["y_true"].squeeze(1).long() # Squeeze out the channel dimension and convert to long.
@@ -468,34 +468,24 @@ def update_pixel_meters(
     ############################################################################3
 
     # CPU-ize prob_map, y_hard, and y_true
-    toplabel_prob_map = toplabel_prob_map.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
-    y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
-    y_true = output_dict["y_true"].cpu().squeeze().numpy()
+    toplabel_prob_map = toplabel_prob_map.cpu().squeeze().numpy().astype(np.float64).reshape(-1) # REQUIRED FOR PRECISION
+    y_hard = output_dict["y_hard"].cpu().squeeze().numpy().reshape(-1)
+    y_true = output_dict["y_true"].cpu().squeeze().numpy().reshape(-1)
 
     # Make a version of pixel meter dict for this image
     tl_pixel_meter_dict = total_pixel_meter_dict['top_label']
-
     image_tl_meter_dict = {}
-    if track_cw_amounts:
-        image_cw_meter_dict = {
-            lab: {} for lab in range(C)
-        }
-
-    # Instead of going pixel by pixel in a tuple, flatten the arrays and go through them in a loop.
-    # This is much faster.
-    pred_num_neighb_map = pred_num_neighb_map.reshape(-1)
-    true_num_neighb_map = true_num_neighb_map.reshape(-1)
-    toplabel_bin_ownership_map = toplabel_bin_ownership_map.reshape(-1)
-    toplabel_freq_map = toplabel_freq_map.reshape(-1)
-    toplabel_prob_map = toplabel_prob_map.reshape(-1)
-    y_true = y_true.reshape(-1)
-    y_hard = y_hard.reshape(-1)
 
     # For the classwise maps, we need to flatten the LAST TWO dimensions
     if track_cw_amounts:
         y_pred = y_pred.reshape((C, -1))
         classwise_freq_map = classwise_freq_map.reshape((C, -1))
         classwise_bin_ownership_map = classwise_bin_ownership_map.reshape((C, -1))
+
+        if track_cw_amounts:
+            image_cw_meter_dict = {
+                lab: {} for lab in range(C)
+            }
 
     # # Iterate through each pixel in the image.
     for pix_idx in range(H * W):
