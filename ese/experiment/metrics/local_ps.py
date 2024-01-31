@@ -455,7 +455,7 @@ def neighbor_joint_label_bin_stats(
         neighborhood_width=neighborhood_width,
         stats_info_dict=stats_info_dict,
         from_logits=from_logits,
-        class_wise=False
+        class_wise=True
     )
     # If top label, then everything is done based on
     # predicted values, not ground truth. 
