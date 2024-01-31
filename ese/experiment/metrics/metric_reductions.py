@@ -137,42 +137,6 @@ def elm_reduction(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def tl_elm_reduction(
-    cal_info: dict,
-    return_dict: bool = False,
-) -> Union[dict, Tensor]:
-    # Finally, get the TL ELM score.
-    total_num_samples = cal_info['bin_amounts'].sum()
-    if total_num_samples == 0:
-        cal_info['cal_error'] = torch.tensor(0.0)
-    else:
-        L, NN, _ = cal_info["bin_cal_errors"].shape
-        ece_per_lab_nn = torch.zeros((L, NN))
-        # Iterate through each label and calculate the weighted ece.
-        for lab_idx in range(L):
-            for nn_idx in range(NN):
-                lab_nn_ece = reduce_bin_errors(
-                    error_per_bin=cal_info['bin_cal_errors'][lab_idx, nn_idx], 
-                    amounts_per_bin=cal_info['bin_amounts'][lab_idx, nn_idx], 
-                    )
-                # Calculate the empirical prob of the label.
-                lab_nn_prob = cal_info['bin_amounts'][lab_idx, nn_idx].sum() / total_num_samples
-                # Weight the ECE by the prob of the label.
-                ece_per_lab_nn[lab_idx, nn_idx] = lab_nn_prob * lab_nn_ece 
-        # Finally, get the calibration score.
-        cal_info['cal_error'] =  ece_per_lab_nn.sum()
-
-    # Return the calibration information.
-    assert 0.0 <= cal_info['cal_error'] <= 1.0,\
-        f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
-    # Return the calibration information.
-    if return_dict:
-        return cal_info
-    else:
-        return cal_info['cal_error']
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_reduction(
     cal_info: dict,
     return_dict: bool = False,

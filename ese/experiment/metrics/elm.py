@@ -1,17 +1,14 @@
 # get the processing function.
 from .metric_reductions import (
     elm_reduction,
-    tl_elm_reduction,
     cw_elm_reduction
 )
 from .local_ps import (
     neighbors_bin_stats, 
-    neighbors_top_label_bin_stats,
     neighbors_joint_label_bin_stats
 )
 from .global_ps import (
     global_neighbors_bin_stats,
-    global_top_label_neighbors_bin_stats,
     global_joint_label_neighbors_bin_stats
 )
 # torch imports
@@ -83,61 +80,6 @@ def elm_loss(
     # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     return elm_reduction(**metric_dict)
 
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def image_tl_elm_loss(
-    y_pred: Tensor,
-    y_true: Tensor,
-    num_bins: int,
-    neighborhood_width: int,
-    square_diff: bool = False,
-    from_logits: bool = False,
-    conf_interval: Optional[List[float]] = None,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None,
-    **kwargs
-    ) -> Union[dict, Tensor]:
-    cal_info = neighbors_top_label_bin_stats(
-        y_pred=y_pred,
-        y_true=y_true,
-        top_label=True,
-        num_bins=num_bins,
-        conf_interval=conf_interval,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
-    )
-    metric_dict = {
-        "cal_info": cal_info,
-        "return_dict": kwargs.get("return_dict", False) 
-    }
-    return tl_elm_reduction(**metric_dict)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def tl_elm_loss(
-    pixel_meters_dict: Dict[tuple, Meter],
-    neighborhood_width: int,
-    square_diff: bool = False,
-    ignore_index: Optional[int] = None,
-    **kwargs
-    ) -> Union[dict, Tensor]:
-    # Verify input.
-    cal_info = global_top_label_neighbors_bin_stats(
-        pixel_meters_dict=pixel_meters_dict,
-        neighborhood_width=neighborhood_width,
-        top_label=True,
-        square_diff=square_diff,
-        ignore_index=ignore_index
-    )
-    metric_dict = {
-        "cal_info": cal_info,
-        "return_dict": kwargs.get("return_dict", False) 
-    }
-    return tl_elm_reduction(**metric_dict)
-        
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_cw_elm_loss(
