@@ -493,8 +493,8 @@ def cal_stats_init(cfg_dict):
             pixel_meter_dict = {
                 lab: {} for lab in range(num_labs)
             }
-        # and top label statistics.
-        pixel_meter_dict["top_label"] = {}
+            # and top label statistics.
+            pixel_meter_dict["top_label"] = {}
     else:
         pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.

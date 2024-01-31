@@ -81,6 +81,7 @@ def get_cal_stats(
                     save_records(image_level_records, image_stats_save_dir)
                 if pixel_meter_dict is not None:
                     save_dict(pixel_meter_dict, pixel_dicts_save_dir)
+            break
 
     # Save the records at the end too
     if image_level_records is not None:
@@ -473,7 +474,10 @@ def update_pixel_meters(
     y_true = output_dict["y_true"].cpu().squeeze().numpy().reshape(-1)
 
     # Make a version of pixel meter dict for this image
-    tl_pixel_meter_dict = total_pixel_meter_dict['top_label']
+    if track_cw_amounts:
+        tl_pixel_meter_dict = total_pixel_meter_dict['top_label']
+    else:
+        tl_pixel_meter_dict = total_pixel_meter_dict
     image_tl_meter_dict = {}
 
     # For the classwise maps, we need to flatten the LAST TWO dimensions

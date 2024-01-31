@@ -25,13 +25,8 @@ def accumulate_pixel_preds(
     unique_key_1 = []
     unique_key_2 = []
     unique_key_3 = []
-    # Get the top-label dict if there are multiple things being stored in the pixel_meters_dict.
-    if "top_label" in pixel_meters_dict:
-        toplabel_pixel_md = pixel_meters_dict["top_label"]
-    else:
-        toplabel_pixel_md = pixel_meters_dict
     # Iterate through the meters.
-    for (true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure), value in toplabel_pixel_md.items():
+    for (true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure), value in pixel_meters_dict.items():
         if ignore_index is None or true_label != ignore_index:
             if (not edge_only) or (true_num_neighb < total_nearby_pixels):
                 item = {
