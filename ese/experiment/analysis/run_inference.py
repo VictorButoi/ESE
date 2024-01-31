@@ -2,8 +2,9 @@
 import pickle
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments
+import multiprocessing
 from typing import Any, Optional
+from pydantic import validate_arguments
 # torch imports
 import torch
 from torch.nn import functional as F
@@ -208,7 +209,7 @@ def get_calibration_item_info(
         image_pixel_meter_dict = update_pixel_meters(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            pixel_meter_dict=pixel_meter_dict
+            total_pixel_meter_dict=pixel_meter_dict
         )
     
     ##################################################################
@@ -368,7 +369,7 @@ def get_image_stats(
 def update_pixel_meters(
     output_dict: dict,
     inference_cfg: dict,
-    pixel_meter_dict
+    total_pixel_meter_dict
 ):
     calibration_cfg = inference_cfg["calibration"]
 
@@ -396,8 +397,8 @@ def update_pixel_meters(
         y_max_probs = y_pred.squeeze(1) # Remove the channel dimension.
 
     # Define the confidence interval (if not provided).
+    C = y_pred.shape[1]
     if "conf_interval" not in calibration_cfg:
-        C = y_pred.shape[1]
         if C == 0:
             lower_bound = 0
         else:
@@ -406,19 +407,37 @@ def update_pixel_meters(
         # Set the confidence interval.
         calibration_cfg["conf_interval"] = (lower_bound, upper_bound)
 
+    # Figure out where each pixel belongs (in confidence)
+    # BIN CONFIDENCE 
+    ############################################################################3
     # Define the confidence bins and bin widths.
-    conf_bins, conf_bin_widths = get_bins(
+    toplabel_conf_bins, toplabel_conf_bin_widths = get_bins(
         num_bins=calibration_cfg['num_bins'], 
         start=calibration_cfg['conf_interval'][0], 
         end=calibration_cfg['conf_interval'][1]
     )
-
-    # Figure out where each pixel belongs (in confidence)
-    bin_ownership_map = find_bins(
+    toplabel_bin_ownership_map = find_bins(
         confidences=y_max_probs, 
-        bin_starts=conf_bins,
-        bin_widths=conf_bin_widths
+        bin_starts=toplabel_conf_bins,
+        bin_widths=toplabel_conf_bin_widths
     ).squeeze().cpu().numpy()
+
+    classwise_conf_bins, classwise_conf_bin_widths = get_bins(
+        num_bins=calibration_cfg['num_bins'], 
+        start=0.0,
+        end=1.0
+    )
+    classwise_bin_ownership_map = torch.stack([
+        find_bins(
+            confidences=y_pred[:, l_idx, ...], 
+            bin_starts=classwise_conf_bins,
+            bin_widths=classwise_conf_bin_widths
+        ) # B x H x W
+        for l_idx in range(y_pred.shape[1])], dim=0
+    ) # C x B x H x W
+    # Reshape to look like the y_pred.
+    classwise_bin_ownership_map = classwise_bin_ownership_map.permute(1, 0, 2, 3) # B x C x H x W
+    ############################################################################3
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = count_matching_neighbors(
@@ -432,48 +451,124 @@ def update_pixel_meters(
         neighborhood_width=calibration_cfg["neighborhood_width"],
     ).squeeze().cpu().numpy()
 
+    # Calculate the accuracy map.
+    # FREQUENCY 
+    ############################################################################3
+    toplabel_freq_map = (
+        output_dict["y_hard"] == output_dict["y_true"]
+        ).float().squeeze().cpu().numpy()
+
+    long_label_map = output_dict["y_true"].squeeze(1).long() # Squeeze out the channel dimension and convert to long.
+    classwise_freq_map = torch.nn.functional.one_hot(
+        long_label_map, C
+        ).permute(0, 3, 1, 2).float().squeeze().cpu().numpy()
+    ############################################################################3
+
     # CPU-ize prob_map, y_hard, and y_true
     y_max_probs = y_max_probs.cpu().squeeze().numpy().astype(np.float64) # REQUIRED FOR PRECISION
     y_hard = output_dict["y_hard"].cpu().squeeze().numpy()
     y_true = output_dict["y_true"].cpu().squeeze().numpy()
 
-    # Calculate the accuracy map.
-    acc_map = (y_hard == y_true).astype(np.float64)
-
     # Make a version of pixel meter dict for this image
-    image_pixel_meter_dict = {}
-    # Iterate through each pixel in the image.
-    for (ix, iy) in np.ndindex((H, W)):
+    tl_pixel_meter_dict = total_pixel_meter_dict['top_label']
+
+    image_tl_meter_dict = {}
+    image_cw_meter_dict = {
+        lab: {} for lab in range(C)
+    }
+
+    # Instead of going pixel by pixel in a tuple, flatten the arrays and go through them in a loop.
+    # This is much faster.
+    pred_num_neighb_map = pred_num_neighb_map.reshape(-1)
+    true_num_neighb_map = true_num_neighb_map.reshape(-1)
+    toplabel_bin_ownership_map = toplabel_bin_ownership_map.reshape(-1)
+    toplabel_freq_map = toplabel_freq_map.reshape(-1)
+    y_true = y_true.reshape(-1)
+    y_hard = y_hard.reshape(-1)
+
+    # For the classwise maps, we need to flatten the LAST TWO dimensions
+    y_pred = y_pred.reshape((C, -1))
+    classwise_freq_map = classwise_freq_map.reshape((C, -1))
+    classwise_bin_ownership_map = classwise_bin_ownership_map.reshape((C, -1))
+
+    # # Iterate through each pixel in the image.
+    for pix_idx in range(H * W):
+        pred_num_neighb = pred_num_neighb_map[pix_idx]
+        true_num_neighb = true_num_neighb_map[pix_idx]
+
+        # GATHER TOP LABEL STATISTICS FIRST
+        ##################################################################################
         # Create a unique key for the combination of label, neighbors, and confidence_bin
-        true_label = y_true[ix, iy]
-        pred_label = y_hard[ix, iy]
-        pred_num_neighb = pred_num_neighb_map[ix, iy]
-        true_num_neighb = true_num_neighb_map[ix, iy]
-        prob_bin = bin_ownership_map[ix, iy]
+        toplabel_true_label = y_true[pix_idx]
+        toplabel_pred_label = y_hard[pix_idx]
+        
+        toplabel_prob_bin = toplabel_bin_ownership_map[pix_idx]
         # Define this dictionary prefix corresponding to a 'kind' of pixel.
-        prefix = (true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin)
+        prefix = (toplabel_true_label, toplabel_pred_label, true_num_neighb, pred_num_neighb, toplabel_prob_bin)
+
         # Add bin specific keys to the dictionary if they don't exist.
         acc_key = prefix + ("accuracy",)
         conf_key = prefix + ("confidence",)
+
         # If this key doesn't exist in the dictionary, add it
-        if conf_key not in pixel_meter_dict:
+        if conf_key not in tl_pixel_meter_dict:
             for meter_key in [acc_key, conf_key]:
-                pixel_meter_dict[meter_key] = StatsMeter()
+                tl_pixel_meter_dict[meter_key] = StatsMeter()
+
         # Add the keys for the image level tracker.
-        if conf_key not in image_pixel_meter_dict:
+        if conf_key not in image_tl_meter_dict:
             for meter_key in [acc_key, conf_key]:
-                image_pixel_meter_dict[meter_key] = StatsMeter()
+                image_tl_meter_dict[meter_key] = StatsMeter()
         # (acc , conf)
-        acc = acc_map[ix, iy]
-        conf = y_max_probs[ix, iy]
+        tl_freq = toplabel_freq_map[pix_idx]
+        tl_conf = y_max_probs[pix_idx]
+
         # Finally, add the points to the meters.
-        pixel_meter_dict[acc_key].add(acc) 
-        pixel_meter_dict[conf_key].add(conf)
+        tl_pixel_meter_dict[acc_key].add(tl_freq) 
+        tl_pixel_meter_dict[conf_key].add(tl_conf)
         # Add to the local image meter dict.
-        image_pixel_meter_dict[acc_key].add(acc)
-        image_pixel_meter_dict[conf_key].add(conf)
+        image_tl_meter_dict[acc_key].add(tl_freq)
+        image_tl_meter_dict[conf_key].add(tl_conf)
+
+        # Now gather classwise statistics.
+        ###################################################################################
+        for lab_idx in range(C):
+            # Define the pixel meter dict we are adding to
+            label_pixel_meter_dict = total_pixel_meter_dict[lab_idx]
+            label_image_meter_dict = image_cw_meter_dict[lab_idx]
+
+            # Create a unique key for the combination of label, neighbors, and confidence_bin
+            lab_prob_bin = classwise_bin_ownership_map[lab_idx, pix_idx]
+
+            # Define this dictionary prefix corresponding to a 'kind' of pixel.
+            cw_prefix = (true_num_neighb, pred_num_neighb, lab_prob_bin)
+            # Add bin specific keys to the dictionary if they don't exist.
+            cw_freq_key = cw_prefix + ("accuracy",)
+            cw_conf_key = cw_prefix + ("confidence",)
+            # If this key doesn't exist in the dictionary, add it
+            if cw_conf_key not in label_pixel_meter_dict:
+                for meter_key in [cw_freq_key, cw_conf_key]:
+                    label_pixel_meter_dict[meter_key] = StatsMeter()
+
+            # Add the keys for the image level tracker.
+            if cw_conf_key not in label_image_meter_dict:
+                for meter_key in [cw_freq_key, cw_conf_key]:
+                    label_image_meter_dict[meter_key] = StatsMeter()
+
+            # (acc , conf)
+            lab_freq = classwise_freq_map[lab_idx, pix_idx]
+            lab_conf = y_pred[lab_idx, pix_idx]
+
+            # Finally, add the points to the meters.
+            label_pixel_meter_dict[cw_freq_key].add(lab_freq) 
+            label_pixel_meter_dict[cw_conf_key].add(lab_conf)
+
+            # Add to the local image meter dict.
+            label_image_meter_dict[cw_freq_key].add(lab_freq)
+            label_image_meter_dict[cw_conf_key].add(lab_conf)
+
     # Return the image pixel meter dict.
-    return image_pixel_meter_dict
+    return image_tl_meter_dict, image_cw_meter_dict
 
 
 def global_cal_sanity_check(

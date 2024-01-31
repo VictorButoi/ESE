@@ -132,7 +132,6 @@ def global_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_top_label_bin_stats(
     pixel_meters_dict: dict,
-    top_label: bool,
     square_diff: bool,
     neighborhood_width: int,
     edge_only: bool = False,
@@ -184,7 +183,6 @@ def global_top_label_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_joint_label_bin_stats(
     pixel_meters_dict: dict,
-    top_label: bool,
     square_diff: bool,
     neighborhood_width: int,
     edge_only: bool = False,
@@ -286,7 +284,6 @@ def global_neighbor_bin_stats(
 def global_joint_label_neighbor_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
-    top_label: bool,
     square_diff: bool,
     edge_only: bool = False,
     ignore_index: Optional[int] = None

@@ -480,7 +480,12 @@ def cal_stats_init(cfg_dict):
     else:
         image_level_records = None
     if cfg_dict["log"]["log_pixel_stats"]:
-        pixel_meter_dict = {}
+        # Keep track of labelwise pixel statistics.
+        pixel_meter_dict = {
+            lab: {} for lab in range(cfg_dict["model"]["out_channels"])
+        }
+        # and top label statistics.
+        pixel_meter_dict["top_label"] = {}
     else:
         pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.
