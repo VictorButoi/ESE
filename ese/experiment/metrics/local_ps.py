@@ -201,9 +201,10 @@ def bin_stats(
         bin_conf_region = get_conf_region(
             bin_idx=bin_idx, 
             bin_ownership_map=obj_dict["bin_ownership_map"],
-            lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+            true_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             edge_only=edge_only,
+            neighborhood_width=neighborhood_width,
             ignore_index=ignore_index, # Ignore index will ignore ground truth pixels with this value.
             )
         # If there are some pixels in this confidence bin.
@@ -270,10 +271,11 @@ def top_label_bin_stats(
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
                 bin_ownership_map=obj_dict["bin_ownership_map"],
-                label=lab,
-                lab_map=obj_dict["y_hard"], # Use ground truth to get the region.
+                pred_label=lab,
+                pred_lab_map=obj_dict["y_hard"], # Use ground truth to get the region.
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
+                neighborhood_width=neighborhood_width,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -346,7 +348,8 @@ def joint_label_bin_stats(
                 bin_idx=bin_idx, 
                 bin_ownership_map=lab_bin_ownership_map,
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
-                edge_only=edge_only
+                edge_only=edge_only,
+                neighborhood_width=neighborhood_width,
             )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
@@ -405,12 +408,13 @@ def neighbor_bin_stats(
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
-                edge_only=edge_only,
-                num_neighbors=p_nn,
-                lab_map=obj_dict["y_true"], # Use ground truth to get the region.
+                true_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 bin_ownership_map=obj_dict["bin_ownership_map"],
                 pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                pred_nn=p_nn,
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                edge_only=edge_only,
+                neighborhood_width=neighborhood_width,
                 ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
@@ -485,10 +489,11 @@ def neighbor_joint_label_bin_stats(
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     num_neighbors=p_nn,
-                    edge_only=edge_only,
                     bin_ownership_map=lab_bin_ownership_map,
                     pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
                     true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    neighborhood_width=neighborhood_width,
+                    edge_only=edge_only
                 )
                 # If there are some pixels in this confidence bin.
                 if bin_conf_region.sum() > 0:

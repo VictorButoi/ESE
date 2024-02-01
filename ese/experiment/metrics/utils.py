@@ -90,32 +90,39 @@ def split_tensor(
 def get_conf_region(
     bin_idx: int, 
     bin_ownership_map: Tensor,
-    edge_only: bool = False,
-    label: Optional[int] = None,
-    num_neighbors: Optional[int] = None,
-    lab_map: Optional[Tensor] = None,
-    pred_num_neighbors_map: Optional[Tensor] = None,
+    true_label: Optional[int] = None,
+    true_lab_map: Optional[Tensor] = None,
+    pred_label: Optional[int] = None,
+    pred_lab_map: Optional[Tensor] = None,
+    true_nn: Optional[int] = None,
     true_num_neighbors_map: Optional[Tensor] = None,
+    pred_nn: Optional[int] = None,
+    pred_num_neighbors_map: Optional[Tensor] = None,
+    edge_only: bool = False,
+    neighborhood_width: Optional[int] = 3,
     ignore_index: Optional[int] = None,
     ):
     # We want to only pick things in the bin indicated.
     bin_conf_region = (bin_ownership_map == bin_idx)
-    # If we want to only pick things which match the label.
-    if label is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (lab_map==label))
+    # If we want to only pick things which match the ground truth label.
+    if true_label is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, (true_lab_map==true_label))
+    # If we want to only pick things which match the pred label.
+    if pred_label is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, (pred_lab_map==pred_label))
     # If we want to ignore a particular label, then we set it to 0.
     if ignore_index is not None:
-        assert lab_map is not None, "If ignore_index is not None, then must supply label map."
-        bin_conf_region = torch.logical_and(bin_conf_region, (lab_map != ignore_index))
+        bin_conf_region = torch.logical_and(bin_conf_region, (true_lab_map != ignore_index))
     # If we only want the pixels with this particular number of neighbords that match the label
-    if num_neighbors is not None:
-        assert pred_num_neighbors_map is not None, "If num_neighbor amount is not None,\
-                                                        supply pred num neighbors map."
-        bin_conf_region = torch.logical_and(bin_conf_region, pred_num_neighbors_map==num_neighbors)
+    if true_nn is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map==true_nn)
+    # If we only want the pixels with this particular number of neighbords that match the label
+    if pred_nn is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, pred_num_neighbors_map==pred_nn)
     # If we are doing edges only, then select those uses 
     if edge_only:
-        assert true_num_neighbors_map is not None, "If edge_only is True, then must supply the true num neighbors map."
-        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map < 8)
+        n_neighbor_classes = (neighborhood_width**2 - 1)
+        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map < n_neighbor_classes)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
@@ -233,15 +240,19 @@ def get_bins(
         # Get the confidence bins
         bin_width = conf_bins[1] - conf_bins[0]
         conf_bin_widths = torch.ones(num_bins) * bin_width
-    
-    return conf_bins.to(device), conf_bin_widths.to(device)
+
+    if device is not None:
+        return conf_bins.to(device), conf_bin_widths.to(device)
+    else:
+        return conf_bins, conf_bin_widths
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def find_bins(
     confidences: Tensor, 
     bin_starts: Tensor, 
-    bin_widths: Tensor
+    bin_widths: Tensor,
+    device: Optional[torch.device] = "cuda"
     ):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
@@ -262,7 +273,10 @@ def find_bins(
     # Compare confidences against all bin ranges using broadcasting
     valid_bins = (expanded_confidences > bin_starts) & (expanded_confidences <= (bin_starts + bin_widths))
     # Get bin indices; if no valid bin is found for a confidence, the value will be -1
-    bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)).cuda(), -torch.ones_like(bin_starts)).max(dim=-1).values
+    if device is not None:
+        bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)).to(device), -torch.ones_like(bin_starts)).max(dim=-1).values
+    else:
+        bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
     # Place all things in bin -1 in bin 0, this can happen when stuff is perfectly the boundary of bin_starts.
     bin_indices[bin_indices == -1] = 0
     return bin_indices
