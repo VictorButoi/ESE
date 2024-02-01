@@ -12,7 +12,7 @@ image_cal_metrics:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
         cal_type: 'classwise'
 
-    - Image_ECW_ECE:
+    - Image_ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
 
@@ -29,7 +29,7 @@ image_cal_metrics:
         _fn: ese.experiment.metrics.elm.image_cw_elm_loss
         cal_type: 'classwise'
 
-    - Image_ECW_ELM:
+    - Image_ECW-ELM:
         _fn: ese.experiment.metrics.elm.image_ecw_elm_loss
         cal_type: 'classwise'
 
@@ -90,7 +90,7 @@ global_cal_metrics:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
         cal_type: 'classwise'
 
-    - ECW_ECE:
+    - ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
         cal_type: 'classwise'
 
@@ -107,7 +107,7 @@ global_cal_metrics:
         _fn: ese.experiment.metrics.elm.cw_elm_loss
         cal_type: 'classwise'
 
-    - ECW_ELM:
+    - ECW-ELM:
         _fn: ese.experiment.metrics.elm.ecw_elm_loss
         cal_type: 'classwise'
 
