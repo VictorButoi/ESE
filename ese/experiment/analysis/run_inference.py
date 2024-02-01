@@ -81,7 +81,6 @@ def get_cal_stats(
                     save_records(image_level_records, image_stats_save_dir)
                 if pixel_meter_dict is not None:
                     save_dict(pixel_meter_dict, pixel_dicts_save_dir)
-            break
 
     # Save the records at the end too
     if image_level_records is not None:
