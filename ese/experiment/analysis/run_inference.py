@@ -189,7 +189,7 @@ def get_calibration_item_info(
     # PIXEL LEVEL TRACKING #
     ########################
     if "pixel_meter_dict" in trackers:
-        image_pixel_meter_dict = update_toplabel_pixel_meters(
+        image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
             pixel_level_records=trackers["pixel_meter_dict"]
@@ -214,7 +214,8 @@ def get_calibration_item_info(
             slice_idx=output_dict["slice_idx"],
             inference_cfg=inference_cfg, 
             image_cal_metrics_dict=image_cal_metrics_dict, 
-            image_pixel_meter_dict=image_pixel_meter_dict
+            image_tl_pixel_meter_dict=image_tl_pixel_meter_dict,
+            image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
 
 
@@ -223,7 +224,8 @@ def global_cal_sanity_check(
     slice_idx: Any,
     inference_cfg: dict, 
     image_cal_metrics_dict,
-    image_pixel_meter_dict
+    image_tl_pixel_meter_dict,
+    image_cw_pixel_meter_dict
 ):
     # Iterate through all the calibration metrics and check that the pixel level calibration score
     # is the same as the image level calibration score (only true when we are working with a single
@@ -234,6 +236,12 @@ def global_cal_sanity_check(
             global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
             # Get the calibration error in two views. 
             image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
+            # Choose which pixel meter dict to use.
+            if "CW" in cal_metric_name:
+                image_pixel_meter_dict = image_cw_pixel_meter_dict
+            else:
+                image_pixel_meter_dict = image_tl_pixel_meter_dict
+            # Recalculate the calibration score using the pixel meter dict.
             meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
             if image_cal_score != meter_cal_score:
                 raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\

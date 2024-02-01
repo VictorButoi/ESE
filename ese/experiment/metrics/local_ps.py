@@ -488,10 +488,10 @@ def neighbor_joint_label_bin_stats(
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
-                    num_neighbors=p_nn,
                     bin_ownership_map=lab_bin_ownership_map,
-                    pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
                     true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    pred_nn=p_nn,
+                    pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
                     neighborhood_width=neighborhood_width,
                     edge_only=edge_only
                 )
