@@ -66,18 +66,18 @@ def get_cal_stats(
             # this can contain fewer than 'log interval' many items.
             if batch_idx % cfg['log']['log_interval'] == 0:
                 if "image_level_records" in trackers:
-                    save_records(trackers["image_level_records"], output_root + "/image_stats.pkl")
+                    save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
                 if "cw_pixel_meter_dict" in trackers:
-                    save_dict(trackers["cw_pixel_meter_dict"], output_root + "/cw_pixel_meter_dict.pkl")
+                    save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
                 if "pixel_meter_dict" in trackers:
-                    save_dict(trackers["pixel_meter_dict"], output_root + "/pixel_meter_dict.pkl")
+                    save_dict(trackers["pixel_meter_dict"], output_root / "pixel_meter_dict.pkl")
     # Save the records at the end too
     if "image_level_records" in trackers:
-        save_records(trackers["image_level_records"], output_root + "/image_stats.pkl")
+        save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
     if "cw_pixel_meter_dict" in trackers:
-        save_dict(trackers["cw_pixel_meter_dict"], output_root + "/cw_pixel_meter_dict.pkl")
+        save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
     if "pixel_meter_dict" in trackers:
-        save_dict(trackers["pixel_meter_dict"], output_root + "/pixel_meter_dict.pkl")
+        save_dict(trackers["pixel_meter_dict"], output_root / "pixel_meter_dict.pkl")
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
         image_stats_dir = output_root + "/image_stats.pkl"
@@ -208,7 +208,9 @@ def get_calibration_item_info(
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
-    if "image_level_records" in trackers and "pixel_level_records" in trackers: 
+    if "image_level_records" in trackers and\
+        "pixel_meter_dict" in trackers and\
+         "cw_pixel_meter_dict" in trackers: 
         global_cal_sanity_check(
             data_id=output_dict["data_id"],
             slice_idx=output_dict["slice_idx"],
@@ -238,11 +240,11 @@ def global_cal_sanity_check(
             image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
             # Choose which pixel meter dict to use.
             if "CW" in cal_metric_name:
-                image_pixel_meter_dict = image_cw_pixel_meter_dict
+                # Recalculate the calibration score using the pixel meter dict.
+                meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_cw_pixel_meter_dict).item(), 3)
             else:
-                image_pixel_meter_dict = image_tl_pixel_meter_dict
-            # Recalculate the calibration score using the pixel meter dict.
-            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_pixel_meter_dict).item(), 3)
+                # Recalculate the calibration score using the pixel meter dict.
+                meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_tl_pixel_meter_dict).item(), 3)
             if image_cal_score != meter_cal_score:
                 raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
                 f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
