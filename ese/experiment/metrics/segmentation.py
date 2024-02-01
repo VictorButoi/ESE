@@ -14,6 +14,8 @@ from ionpy.metrics.util import (
     Reduction
 )
 from ionpy.loss.util import _loss_module_from_func
+# local imports
+from .utils import count_matching_neighbors
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -213,6 +215,81 @@ def hd95(
         batch_reduction=batch_reduction,
     )
 
-# Define the classwise versions.
 
-PixelNUWCELoss = _loss_module_from_func("PixelNUWCELoss", pixel_neighbor_uniform_w_cross_entropy)
+def boundary_iou(
+    y_pred: Tensor,
+    y_true: Tensor,
+    boundary_width: int = 1,
+    mode: InputMode = "auto",
+    smooth: float = 1e-7,
+    eps: float = 1e-7,
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, List]] = None,
+    ignore_empty_labels: bool = True,
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None,
+) -> Tensor:
+
+    if from_logits:
+        y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
+
+    B, C, _, _ = y_pred.shape
+    if C == 1:
+        y_hard = (y_pred > 0.5).squeeze(1).float() # B x H x W
+    else:
+        y_hard = y_pred.argmax(dim=1).float() # B x H x W
+    
+    n_width = 2*boundary_width + 1 # The width of the neighborhood.
+    pred_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_hard, 
+        neighborhood_width=n_width
+    ) # B x H x W
+    true_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_true, 
+        neighborhood_width=n_width
+    ) # B x H x W
+    # Get the non-center pixels.
+    center_pix_amount = (boundary_width ** 2 - 1) # The center pixel is not counted.
+    boundary_pred = (pred_matching_neighbors_map < center_pix_amount).float() # B x H x W
+    boundary_true = (true_matching_neighbors_map < center_pix_amount).float() # B x H x W
+
+    # Reshape the neighborhood maps to match what y_pred and y_true look like.
+    boundary_pred = boundary_pred.reshape(B, -1).unsqueeze(1).repeat(1, C, 1) # B x C x (H x W)
+    boundary_true = boundary_true.reshape(B, -1).unsqueeze(1).repeat(1, C, 1) # B x C x (H x W)
+
+    # Get the one hot tensors. 
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred,
+        y_true,
+        mode=mode,
+        from_logits=False,
+        discretize=True,
+    ) 
+
+    # Mask y_pred and y_true by the boundary regions.
+    y_pred = y_pred * boundary_pred
+    y_true = y_true * boundary_true
+    
+    intersection = torch.logical_and(y_pred == 1.0, y_true == 1.0).sum(dim=-1)
+    true_amounts = (y_true == 1.0).sum(dim=-1)
+    pred_amounts = (y_pred == 1.0).sum(dim=-1)
+    cardinalities = true_amounts + pred_amounts
+    union = cardinalities - intersection
+
+    score = (intersection + smooth) / (union + smooth).clamp_min(eps)
+
+    if ignore_empty_labels:
+        existing_label = (true_amounts > 0).float()
+        if weights is None:
+            weights = existing_label
+        else:
+            weights = weights * existing_label
+
+    return _metric_reduction(
+        score,
+        reduction=reduction,
+        weights=weights,
+        ignore_index=ignore_index,
+        batch_reduction=batch_reduction,
+    )

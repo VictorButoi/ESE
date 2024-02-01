@@ -273,8 +273,14 @@ def count_matching_neighbors(
     lab_map: Union[Tensor, np.ndarray],
     neighborhood_width: int = 3,
 ):
+    if len(lab_map.shape) == 4:
+        lab_map = lab_map.squeeze(1) # Attempt to squeeze out the channel dimension.
     assert len(lab_map.shape) == 3,\
         f"Label map shape should be: (B, H, W), got shape: {lab_map.shape}."
+    assert neighborhood_width % 2 == 1,\
+        "Neighborhood width should be an odd number."
+    assert neighborhood_width >= 3,\
+        "Neighborhood width should be at least 3."
     # Optionally take in numpy array, convert to torch tensor
     if isinstance(lab_map, np.ndarray):
         lab_map = torch.from_numpy(lab_map)
@@ -291,8 +297,10 @@ def count_matching_neighbors(
         mask = (lab_map == label).float()
         # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
         mask_unsqueezed = mask.unsqueeze(1)
+        # Calculate the mask padding depending on the neighborhood width
+        mask_padding = (neighborhood_width - 1) // 2
         # Apply padding
-        padded_mask = F.pad(mask_unsqueezed, pad=(1, 1, 1, 1), mode='constant')
+        padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
         # Convolve the mask with the kernel to get the neighbor count using 2D convolution
         neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
         # Squeeze the result back to the original shape (B x H x W)

@@ -20,3 +20,11 @@ qual_metrics:
         ignore_empty_labels: False
         ignore_index: 0
         metric_type: quality
+    - BoundaryIOU:
+        _fn: ese.experiment.metrics.boundary_iou
+        boundary_width: 4
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False 
+        ignore_index: 0
+        metric_type: quality
