@@ -1,5 +1,6 @@
 #misc imports
 import os
+import ast
 import yaml
 import torch
 import pickle
@@ -153,19 +154,25 @@ def dataloader_from_exp(
         inference_transforms = augmentations_from_config(aug_cfg_list)
     else:
         inference_transforms = None
-    # Load the dataset with modified arguments.
-    dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **inference_data_cfg)
-    # Add the augmentation information.
-    inference_data_cfg['augmentations'] = aug_cfg_list
-    inference_data_cfg['_class'] = dataset_cls        
-    # Build the dataset and dataloader.
-    dataloader = DataLoader(
-        dataset_obj, 
-        batch_size=batch_size, 
-        num_workers=num_workers,
-        shuffle=False
-    )
-    return dataloader, inference_data_cfg
+
+    dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
+    dataloaders = {}
+    for split in dset_splits:
+        split_data_cfg = inference_data_cfg.copy()
+        split_data_cfg['split'] = split
+        # Load the dataset with modified arguments.
+        split_dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **split_data_cfg)
+        # Add the augmentation information.
+        inference_data_cfg['augmentations'] = aug_cfg_list
+        inference_data_cfg['_class'] = dataset_cls        
+        # Build the dataset and dataloader.
+        dataloaders[split] = DataLoader(
+            split_dataset_obj, 
+            batch_size=batch_size, 
+            num_workers=num_workers,
+            shuffle=False
+        )
+    return dataloaders, inference_data_cfg
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -422,7 +429,7 @@ def cal_stats_init(cfg_dict):
     # Get the inference augmentation options.
     aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
     # Build the dataloaders.
-    dataloader, modified_cfg = dataloader_from_exp( 
+    dataloaders, modified_cfg = dataloader_from_exp( 
         inference_exp,
         new_dset_options=new_dset_options, 
         aug_cfg_list=aug_cfg_list,
@@ -483,6 +490,9 @@ def cal_stats_init(cfg_dict):
     if cfg_dict['log']["log_pixel_stats"]:
         trackers["pixel_meter_dict"] = {}
         trackers["cw_pixel_meter_dict"] = {}
+        for data_split in cfg_dict['data']['splits']:
+            trackers["pixel_meter_dict"][data_split] = {}
+            trackers["cw_pixel_meter_dict"][data_split] = {}
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 
     cfg_dict["image_cal_metrics"] = image_cal_metrics 
@@ -491,7 +501,7 @@ def cal_stats_init(cfg_dict):
     return {
         "inference_exp": inference_exp,
         "input_type": input_type,
-        "dataloader": dataloader,
+        "dataloaders": dataloaders,
         "trackers": trackers,
         "output_root": task_root
     }

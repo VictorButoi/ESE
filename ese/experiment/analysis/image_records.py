@@ -138,6 +138,7 @@ def get_image_stats(
             # Add the dataset info to the record
             record = {
                 "data_id": output_dict["data_id"],
+                "split": output_dict["split"],
                 "slice_idx": output_dict["slice_idx"],
                 **metrics_record, 
                 **inference_cfg["calibration"]
