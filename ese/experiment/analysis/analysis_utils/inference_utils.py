@@ -95,8 +95,9 @@ def preload_calibration_metrics(
         cal_base_cfg_copy.update(calibration_metric_options)
         # Add the calibration metric to the dictionary.
         cal_metrics[c_metric_name] = {
+            "_fn": eval_config(cal_base_cfg_copy),
             "name": c_metric_name,
-            "_fn": eval_config(cal_base_cfg_copy)
+            "cal_type": c_met_cfg[c_metric_name]["cal_type"]
         }
     return cal_metrics
 

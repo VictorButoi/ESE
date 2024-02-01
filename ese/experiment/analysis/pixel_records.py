@@ -227,8 +227,6 @@ def update_cw_pixel_meters(
             lab_bin_conf_region = get_conf_region(
                 bin_idx=bin_idx, 
                 bin_ownership_map=classwise_bin_ownership_map[:, lab_idx, ...],
-                true_label=lab_idx,
-                true_lab_map=y_true, # Use ground truth to get the region.
                 true_num_neighbors_map=true_num_neighb_map, # Note this is off ACTUAL neighbors.
                 true_nn=true_num_neighb,
                 pred_num_neighbors_map=pred_num_neighb_map,
@@ -236,8 +234,8 @@ def update_cw_pixel_meters(
             )
             if lab_bin_conf_region.sum() > 0:
                 # Add bin specific keys to the dictionary if they don't exist.
-                acc_key =(lab_idx,) + bin_combo + ("accuracy",)
-                conf_key =(lab_idx,) + bin_combo + ("confidence",)
+                acc_key = (lab_idx,) + bin_combo + ("accuracy",)
+                conf_key = (lab_idx,) + bin_combo + ("confidence",)
 
                 # If this key doesn't exist in the dictionary, add it
                 if conf_key not in pixel_level_records:
@@ -250,8 +248,8 @@ def update_cw_pixel_meters(
                         image_cw_meter_dict[meter_key] = StatsMeter()
 
                 # (acc , conf)
-                cw_freq = classwise_freq_map[:, lab_idx:lab_idx+1, ...][lab_bin_conf_region]
-                cw_conf = classwise_conf_map[:, lab_idx:lab_idx+1, ...][lab_bin_conf_region]
+                cw_freq = classwise_freq_map[:, lab_idx, ...][lab_bin_conf_region]
+                cw_conf = classwise_conf_map[:, lab_idx, ...][lab_bin_conf_region]
                 # Finally, add the points to the meters.
                 pixel_level_records[acc_key].addN(cw_freq, batch=True) 
                 pixel_level_records[conf_key].addN(cw_conf, batch=True)

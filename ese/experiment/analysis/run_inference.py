@@ -239,12 +239,14 @@ def global_cal_sanity_check(
             # Get the calibration error in two views. 
             image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
             # Choose which pixel meter dict to use.
-            if "CW" in cal_metric_name:
+            if global_metric_dict['cal_type'] == 'classwise':
                 # Recalculate the calibration score using the pixel meter dict.
                 meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_cw_pixel_meter_dict).item(), 3)
-            else:
+            elif global_metric_dict['cal_type'] == 'toplabel':
                 # Recalculate the calibration score using the pixel meter dict.
                 meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_tl_pixel_meter_dict).item(), 3)
+            else:
+                raise ValueError(f"Calibration type {global_metric_dict['cal_type']} not recognized.")
             if image_cal_score != meter_cal_score:
                 raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
                 f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
