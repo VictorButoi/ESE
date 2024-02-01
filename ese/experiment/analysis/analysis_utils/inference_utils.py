@@ -474,27 +474,14 @@ def cal_stats_init(cfg_dict):
     else:
         global_cal_metrics = {}
     #############################
-    # Setup trackers for both or either of image level statistics and pixel level statistics.
+    # Setup trackers for both or either of image level statistics
     if cfg_dict['log']["log_image_stats"]:
         image_level_records = []
     else:
         image_level_records = None
+    # or pixel level statistics.
     if cfg_dict['log']["log_pixel_stats"]:
         pixel_meter_dict = {}
-        # If we are doing class-wise, we need to keep track of the number of classes.
-        if cfg_dict['log']['track_classwise_ps']:
-            # Keep track of labelwise pixel statistics.
-            if "num_classes" in cfg_dict["model"]:
-                num_labs = cfg_dict["model"]["num_classes"]
-            elif "out_channels" in cfg_dict["model"]:
-                num_labs = cfg_dict["model"]["out_channels"]
-            else:
-                raise ValueError("Could not find number of labels in model config.")
-            pixel_meter_dict = {
-                lab: {} for lab in range(num_labs)
-            }
-            # and top label statistics.
-            pixel_meter_dict["top_label"] = {}
     else:
         pixel_meter_dict = None
     # Place these dictionaries into the config dictionary.

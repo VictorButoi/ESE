@@ -487,11 +487,11 @@ def update_pixel_meters(
             tl_freq = toplabel_freq_map[bin_conf_region].numpy()
             tl_conf = toplabel_prob_map[bin_conf_region].numpy()
             # Finally, add the points to the meters.
-            total_pixel_meter_dict[acc_key].addN(tl_freq) 
-            total_pixel_meter_dict[conf_key].addN(tl_conf)
+            total_pixel_meter_dict[acc_key].addN(tl_freq, batch=True) 
+            total_pixel_meter_dict[conf_key].addN(tl_conf, batch=True)
             # Add to the local image meter dict.
-            image_tl_meter_dict[acc_key].addN(tl_freq)
-            image_tl_meter_dict[conf_key].addN(tl_conf)
+            image_tl_meter_dict[acc_key].addN(tl_freq, batch=True)
+            image_tl_meter_dict[conf_key].addN(tl_conf, batch=True)
         
     return image_tl_meter_dict
 
