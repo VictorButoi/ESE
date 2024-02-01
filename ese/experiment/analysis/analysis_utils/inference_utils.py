@@ -162,9 +162,6 @@ def dataloader_from_exp(
         split_data_cfg['split'] = split
         # Load the dataset with modified arguments.
         split_dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **split_data_cfg)
-        # Add the augmentation information.
-        inference_data_cfg['augmentations'] = aug_cfg_list
-        inference_data_cfg['_class'] = dataset_cls        
         # Build the dataset and dataloader.
         dataloaders[split] = DataLoader(
             split_dataset_obj, 
@@ -172,6 +169,10 @@ def dataloader_from_exp(
             num_workers=num_workers,
             shuffle=False
         )
+    # Add the augmentation information.
+    inference_data_cfg['augmentations'] = aug_cfg_list
+    inference_data_cfg['_class'] = dataset_cls        
+    # Return the dataloaders and the modified data cfg.
     return dataloaders, inference_data_cfg
 
 
@@ -490,7 +491,8 @@ def cal_stats_init(cfg_dict):
     if cfg_dict['log']["log_pixel_stats"]:
         trackers["pixel_meter_dict"] = {}
         trackers["cw_pixel_meter_dict"] = {}
-        for data_split in cfg_dict['data']['splits']:
+        # Add trackers per split
+        for data_split in dataloaders:
             trackers["pixel_meter_dict"][data_split] = {}
             trackers["cw_pixel_meter_dict"][data_split] = {}
     # Place these dictionaries into the config dictionary.
