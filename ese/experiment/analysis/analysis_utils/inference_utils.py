@@ -474,30 +474,23 @@ def cal_stats_init(cfg_dict):
     else:
         global_cal_metrics = {}
     #############################
+    trackers = {}
     # Setup trackers for both or either of image level statistics
     if cfg_dict['log']["log_image_stats"]:
-        image_level_records = []
-    else:
-        image_level_records = None
+        trackers["image_level_records"] = []
     # or pixel level statistics.
     if cfg_dict['log']["log_pixel_stats"]:
-        pixel_meter_dict = {}
-    else:
-        pixel_meter_dict = None
+        trackers["pixel_meter_dict"] = {}
+        trackers["cw_pixel_meter_dict"] = {}
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 
     cfg_dict["image_cal_metrics"] = image_cal_metrics 
     cfg_dict["global_cal_metrics"] = global_cal_metrics
-    # Setup the log directories.
-    image_level_dir = task_root / "image_stats.pkl"
-    pixel_level_dir = task_root / "pixel_stats.pkl"
     # Return a dictionary of the components needed for the calibration statistics.
     return {
         "inference_exp": inference_exp,
         "input_type": input_type,
         "dataloader": dataloader,
-        "image_level_records": image_level_records,
-        "pixel_meter_dict": pixel_meter_dict,
-        "image_level_dir": image_level_dir,
-        "pixel_level_dir": pixel_level_dir,
+        "trackers": trackers,
+        "output_root": task_root
     }
