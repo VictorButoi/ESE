@@ -99,7 +99,7 @@ def get_conf_region(
     pred_nn: Optional[int] = None,
     pred_num_neighbors_map: Optional[Tensor] = None,
     edge_only: bool = False,
-    neighborhood_width: Optional[int] = 3,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     ):
     # We want to only pick things in the bin indicated.
@@ -140,7 +140,7 @@ def get_conf_region_np(
     pred_nn: Optional[int] = None,
     pred_num_neighbors_map: Optional[np.ndarray] = None,
     edge_only: bool = False,
-    neighborhood_width: Optional[int] = 3,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     ):
     # We want to only pick things in the bin indicated.

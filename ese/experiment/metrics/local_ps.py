@@ -97,6 +97,8 @@ def bin_stats_init(
             end=conf_interval[1]
         )
         if class_wise:
+            assert conf_interval == (0, 1),\
+                f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
             bin_ownership_map = torch.stack([
                 find_bins(
                     confidences=y_pred[:, l_idx, ...], 
@@ -337,10 +339,10 @@ def joint_label_bin_stats(
         "bin_freqs": torch.zeros((num_true_labels, num_bins), dtype=torch.float64),
         "bin_cal_errors": torch.zeros((num_true_labels, num_bins), dtype=torch.float64)
     }
-    for lab_idx in range(num_true_labels):
-        lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
+    for l_idx, label in enumerate(unique_true_labels):
+        lab_prob_map = obj_dict["y_pred"][:, label, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, label, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, label, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
@@ -362,10 +364,10 @@ def joint_label_bin_stats(
                     square_diff=square_diff
                 )
                 # Calculate the average calibration error for the regions in the bin.
-                cal_info["bin_confs"][lab_idx, bin_idx] = bi["avg_conf"] 
-                cal_info["bin_freqs"][lab_idx, bin_idx] = bi["avg_freq"] 
-                cal_info["bin_amounts"][lab_idx, bin_idx] = bi["num_samples"] 
-                cal_info["bin_cal_errors"][lab_idx, bin_idx] = bi["cal_error"] 
+                cal_info["bin_confs"][l_idx, bin_idx] = bi["avg_conf"] 
+                cal_info["bin_freqs"][l_idx, bin_idx] = bi["avg_freq"] 
+                cal_info["bin_amounts"][l_idx, bin_idx] = bi["num_samples"] 
+                cal_info["bin_cal_errors"][l_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise calibration information.
     return cal_info
 
@@ -478,10 +480,10 @@ def neighbor_joint_label_bin_stats(
         "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
         "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64)
     }
-    for lab_idx in range(num_labels):
-        lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
+    for l_idx, label in enumerate(unique_labels):
+        lab_prob_map = obj_dict["y_pred"][:, label, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, label, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, label, ...]
         # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx in range(num_bins):
@@ -506,10 +508,10 @@ def neighbor_joint_label_bin_stats(
                         square_diff=square_diff
                     )
                     # Calculate the average calibration error for the regions in the bin.
-                    cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-                    cal_info["bin_freqs"][lab_idx, nn_idx, bin_idx] = bi["avg_freq"] 
-                    cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["num_samples"] 
-                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = bi["cal_error"] 
+                    cal_info["bin_confs"][l_idx, nn_idx, bin_idx] = bi["avg_conf"] 
+                    cal_info["bin_freqs"][l_idx, nn_idx, bin_idx] = bi["avg_freq"] 
+                    cal_info["bin_amounts"][l_idx, nn_idx, bin_idx] = bi["num_samples"] 
+                    cal_info["bin_cal_errors"][l_idx, nn_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info
 

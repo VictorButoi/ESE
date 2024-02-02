@@ -19,8 +19,6 @@ def accumulate_pixel_preds(
 ) -> dict:
     assert (not edge_only) or (edge_only and neighborhood_width is not None),\
         "If edge_only is True, neighborhood_width must be defined."
-    if neighborhood_width is not None:
-        total_nearby_pixels = (neighborhood_width**2 - 1)
     # Accumulate the dictionaries corresponding to a single bin.
     accumulated_meters_dict = {}
     unique_key_1 = []
@@ -34,6 +32,10 @@ def accumulate_pixel_preds(
             true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
         # Ignore the pixel if the true label is the ignore index.
         if ignore_index is None or true_label != ignore_index:
+            # Get the total number of pixel classes for this neighborhood size.
+            if neighborhood_width is not None:
+                total_nearby_pixels = (neighborhood_width**2 - 1)
+            # We track pixels if they are not edge pixels or if they are edge pixels and the edge_only flag is False.
             if (not edge_only) or (true_num_neighb < total_nearby_pixels):
                 item = {
                     "true_label": true_label,
