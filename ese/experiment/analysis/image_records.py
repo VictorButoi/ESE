@@ -69,12 +69,15 @@ def get_image_stats(
         if inference_cfg["model"]["ensemble"]:
             # First gather the quality scores per ensemble member.
             #######################################################
-            individual_qual_scores = []
-            for ens_mem_input_cfg in ensemble_member_input_cfgs:
-                member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg).item()
-                individual_qual_scores.append(member_qual_score)
-            # Now place it in the dictionary.
-            grouped_scores_dict['quality'][qual_metric_name] = np.mean(individual_qual_scores)
+            if inference_cfg["log"]["track_ensemble_member_scores"]:
+                individual_qual_scores = []
+                for ens_mem_input_cfg in ensemble_member_input_cfgs:
+                    member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg).item()
+                    individual_qual_scores.append(member_qual_score)
+                # Now place it in the dictionary.
+                grouped_scores_dict['quality'][qual_metric_name] = np.mean(individual_qual_scores)
+            else:
+                grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
             qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config).item() 
         else:
@@ -98,12 +101,15 @@ def get_image_stats(
         if inference_cfg["model"]["ensemble"]:
             # First gather the calibration scores per ensemble member.
             #######################################################
-            individual_cal_scores = []
-            for ens_mem_input_cfg in ensemble_member_input_cfgs:
-                member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg).item()
-                individual_cal_scores.append(member_cal_score)
-            # Now place it in the dictionary.
-            grouped_scores_dict['calibration'][cal_metric_name] = np.mean(individual_cal_scores)
+            if inference_cfg["log"]["track_ensemble_member_scores"]:
+                individual_cal_scores = []
+                for ens_mem_input_cfg in ensemble_member_input_cfgs:
+                    member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg).item()
+                    individual_cal_scores.append(member_cal_score)
+                # Now place it in the dictionary.
+                grouped_scores_dict['calibration'][cal_metric_name] = np.mean(individual_cal_scores)
+            else:
+                grouped_scores_dict['calibration'][cal_metric_name] = None
             # Now get the ensemble calibration error.
             cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config).item() 
         else:
