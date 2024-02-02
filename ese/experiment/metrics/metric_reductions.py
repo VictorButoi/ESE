@@ -11,6 +11,7 @@ from typing import Union
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_reduction(
     cal_info: dict,
+    metric_type: str,
     return_dict: bool = False,
     ) -> Union[dict, Tensor]:
     """
@@ -26,6 +27,7 @@ def ece_reduction(
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
+        cal_info['metric_type'] = metric_type
         return cal_info
     else:
         return cal_info['cal_error']
@@ -34,6 +36,7 @@ def ece_reduction(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_reduction(
     cal_info: dict,
+    metric_type: str,
     return_dict: bool = False,
     ) -> Union[dict, Tensor]:
     """
@@ -63,6 +66,7 @@ def tl_ece_reduction(
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
+        cal_info['metric_type'] = metric_type
         return cal_info
     else:
         return cal_info['cal_error']
@@ -71,6 +75,7 @@ def tl_ece_reduction(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_reduction(
     cal_info: dict,
+    metric_type: str,
     return_dict: bool = False,
     ) -> Union[dict, Tensor]:
     """
@@ -97,6 +102,7 @@ def cw_ece_reduction(
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
+        cal_info['metric_type'] = metric_type
         return cal_info
     else:
         return cal_info['cal_error']
@@ -105,6 +111,7 @@ def cw_ece_reduction(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_reduction(
     cal_info: dict,
+    metric_type: str,
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
     # Finally, get the ELM score.
@@ -125,12 +132,12 @@ def elm_reduction(
             ece_per_nn[nn_idx] = nn_prob * nn_ece 
         # Finally, get the calibration score.
         cal_info['cal_error'] = ece_per_nn.sum()
-
     # Return the calibration information.
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
+        cal_info['metric_type'] = metric_type
         return cal_info
     else:
         return cal_info['cal_error']
@@ -139,6 +146,7 @@ def elm_reduction(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_elm_reduction(
     cal_info: dict,
+    metric_type: str,
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
     total_num_samples = cal_info['bin_amounts'].sum()
@@ -171,7 +179,8 @@ def cw_elm_reduction(
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
-    if return_dict:
+    if return_dict: 
+        cal_info['metric_type'] = metric_type
         return cal_info
     else:
         return cal_info['cal_error']    

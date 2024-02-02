@@ -51,7 +51,7 @@ def get_cal_stats(
         for split in all_dataloaders:
             split_dataloader = all_dataloaders[split]
             for batch_idx, batch in enumerate(split_dataloader):
-                # if batch["data_id"][0] == "114":
+                # if batch["data_id"][0] == "147":
                 print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
                 batch["split"] = split
                 # Gather the forward item.
@@ -124,7 +124,7 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
-        # if slice_idx == 1:
+        # if slice_idx == 39:
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Get the prediction with no gradient accumulation.
         slice_batch = {
@@ -264,17 +264,17 @@ def global_cal_sanity_check(
         assert metric_base in inference_cfg["global_cal_metrics"], f"Metric base {metric_base} not found in global calibration metrics."
         global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
         # Get the calibration error in two views. 
-        image_cal_score = np.round(image_cal_metrics_dict[cal_metric_name], 3)
+        image_cal_score = image_cal_metrics_dict[cal_metric_name]
         # Choose which pixel meter dict to use.
         if global_metric_dict['cal_type'] == 'classwise':
             # Recalculate the calibration score using the pixel meter dict.
-            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_cw_pixel_meter_dict).item(), 3)
+            meter_cal_score = global_metric_dict['_fn'](pixel_meters_dict=image_cw_pixel_meter_dict)
         elif global_metric_dict['cal_type'] == 'toplabel':
             # Recalculate the calibration score using the pixel meter dict.
-            meter_cal_score = np.round(global_metric_dict['_fn'](pixel_meters_dict=image_tl_pixel_meter_dict).item(), 3)
+            meter_cal_score = global_metric_dict['_fn'](pixel_meters_dict=image_tl_pixel_meter_dict)
         else:
             raise ValueError(f"Calibration type {global_metric_dict['cal_type']} not recognized.")
-        if image_cal_score != meter_cal_score:
+        if torch.abs(image_cal_score - meter_cal_score) >= 1e-3: # Allow for some numerical error.
             raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
             f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
 

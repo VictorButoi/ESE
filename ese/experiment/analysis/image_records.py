@@ -1,7 +1,7 @@
 # Misc imports
-import numpy as np
 from pydantic import validate_arguments
 # torch imports
+import torch
 from torch.nn import functional as F
 # local imports
 from .analysis_utils.inference_utils import (
@@ -72,21 +72,21 @@ def get_image_stats(
             if inference_cfg["log"]["track_ensemble_member_scores"]:
                 individual_qual_scores = []
                 for ens_mem_input_cfg in ensemble_member_input_cfgs:
-                    member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg).item()
+                    member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_qual_scores.append(member_qual_score)
                 # Now place it in the dictionary.
-                grouped_scores_dict['quality'][qual_metric_name] = np.mean(individual_qual_scores)
+                grouped_scores_dict['quality'][qual_metric_name] = torch.mean(individual_qual_scores)
             else:
                 grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
-            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config).item() 
+            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config)
         else:
             # Get the calibration error. 
             if qual_metric_dict['_type'] == 'calibration':
                 # Higher is better for scores.
-                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config).item() 
+                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config)
             else:
-                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config).item()
+                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
             # If you're showing the predictions, also print the scores.
             if inference_cfg["log"]["show_examples"]:
                 print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
@@ -104,17 +104,17 @@ def get_image_stats(
             if inference_cfg["log"]["track_ensemble_member_scores"]:
                 individual_cal_scores = []
                 for ens_mem_input_cfg in ensemble_member_input_cfgs:
-                    member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg).item()
+                    member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_cal_scores.append(member_cal_score)
                 # Now place it in the dictionary.
-                grouped_scores_dict['calibration'][cal_metric_name] = np.mean(individual_cal_scores)
+                grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(individual_cal_scores)
             else:
                 grouped_scores_dict['calibration'][cal_metric_name] = None
             # Now get the ensemble calibration error.
-            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config).item() 
+            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config)
         else:
             # Get the calibration error. 
-            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config).item() 
+            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config)
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
@@ -136,7 +136,7 @@ def get_image_stats(
         for met_name in list(metric_score_dict.keys()):
             metrics_record = {
                 "image_metric": met_name,
-                "metric_score": metric_score_dict[met_name],
+                "metric_score": metric_score_dict[met_name].item(),
             }
             if inference_cfg["model"]["ensemble"]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"

@@ -48,11 +48,12 @@ def image_elm_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Local Bin counts: ", cal_info["bin_amounts"])
-    # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
+    # print("Local Bin counts:\n", cal_info["bin_amounts"])
+    # print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
     return elm_reduction(**metric_dict)
 
 
@@ -73,11 +74,12 @@ def elm_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "global",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Global Bin counts: ", cal_info["bin_amounts"])
-    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
+    # print("Global Bin counts:\n", cal_info["bin_amounts"])
+    # print("Global Bin cal errors:\n", cal_info["bin_cal_errors"])
     return elm_reduction(**metric_dict)
 
 
@@ -106,6 +108,7 @@ def image_cw_elm_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -127,6 +130,7 @@ def cw_elm_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "global",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }

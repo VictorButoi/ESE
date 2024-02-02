@@ -53,6 +53,7 @@ def image_ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -77,6 +78,7 @@ def ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "global",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -111,6 +113,7 @@ def image_tl_ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -135,6 +138,7 @@ def tl_ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "global",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -169,6 +173,7 @@ def image_cw_ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -196,6 +201,7 @@ def cw_ece_loss(
         ignore_index=ignore_index
     )
     metric_dict = {
+        "metric_type": "global",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
