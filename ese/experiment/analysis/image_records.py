@@ -75,7 +75,7 @@ def get_image_stats(
                     member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_qual_scores.append(member_qual_score)
                 # Now place it in the dictionary.
-                grouped_scores_dict['quality'][qual_metric_name] = torch.mean(individual_qual_scores)
+                grouped_scores_dict['quality'][qual_metric_name] = torch.mean(torch.Tensor(individual_qual_scores))
             else:
                 grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
@@ -107,7 +107,7 @@ def get_image_stats(
                     member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_cal_scores.append(member_cal_score)
                 # Now place it in the dictionary.
-                grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(individual_cal_scores)
+                grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(torch.Tensor(individual_cal_scores))
             else:
                 grouped_scores_dict['calibration'][cal_metric_name] = None
             # Now get the ensemble calibration error.
