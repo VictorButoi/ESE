@@ -158,24 +158,7 @@ class LTS(nn.Module):
         self.eps = eps 
 
     def weights_init(self):
-        torch.nn.init.zeros_(self.temperature_level_2_conv1.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv1.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv2.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv2.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv3.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv3.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv4.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv4.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param1.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param1.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param2.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param2.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param3.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param3.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv_img.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_conv_img.bias.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param_img.weight.data)
-        torch.nn.init.zeros_(self.temperature_level_2_param_img.bias.data)
+        pass
 
     def forward(self, logits, image, label=None):
         temperature_1 = self.temperature_level_2_conv1(logits)
@@ -246,38 +229,6 @@ class Selective_Scaling(nn.Module):
         tf_positive = self.binary_linear(out.permute(0,2,3,1))
         
         return  tf_positive.permute(0,3,1,2)
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-        
-        
-# OLD METHODS, KEEP IN FOR BACKWARDS COMPATIBILITY
-
-class Constrained_NS(NECTAR_Scaling):
-
-    def forward(self, logits, **kwargs):
-        # Softmax the logits to get probabilities
-        probs = torch.softmax(logits, dim=1) # B C H W
-        # Argnax over the channel dimension to get the current prediction
-        if probs.shape[1] == 1:
-            pred = (probs > self.threshold).float().squeeze(1) # B H W
-        else:
-            pred = torch.argmax(probs, dim=1) # B H W
-        # Get the per-pixel num neighborhood class
-        pred_matching_neighbors_map = count_matching_neighbors(
-            lab_map=pred, 
-            neighborhood_width=self.neighborhood_width
-        ).unsqueeze(1) # B 1 H W
-        # Place the temperatures in the correct positions
-        neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
-        # Apply this to all classes.
-        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
-        # If we are constrained to have a positive temperature, then we need to guide
-        # the optimization to picking a parameterization that is positive.
-        temps = F.relu(temps) + self.eps # NOTE: LTS adds a 1 before the relu, unsure if important.
-        # Finally, scale the logits by the temperatures
-        return logits / temps 
 
     @property
     def device(self):

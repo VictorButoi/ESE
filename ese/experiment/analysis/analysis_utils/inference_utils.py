@@ -360,6 +360,7 @@ def get_average_unet_baselines(
     unet_group_keys = [
         'data_id',
         'slice_idx',
+        'split',
         'joint_data_slice_id',
         'ensemble',
         'model_class',

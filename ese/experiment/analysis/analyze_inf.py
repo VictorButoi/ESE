@@ -293,7 +293,7 @@ def load_cal_inference_stats(
         # that is 1 - metric_score.
         if log_cfg['add_dice_loss_rows']:
             inference_df = add_dice_loss_rows(inference_df)
-
+        
         # Print information about each log set.
         print("Finished loading inference stats.")
         print(f"Log amounts: {num_rows_per_log_set}")
