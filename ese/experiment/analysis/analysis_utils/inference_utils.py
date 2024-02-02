@@ -489,11 +489,11 @@ def cal_stats_init(cfg_dict):
         trackers["image_level_records"] = []
     # or pixel level statistics.
     if cfg_dict['log']["log_pixel_stats"]:
-        trackers["pixel_meter_dict"] = {}
+        trackers["tl_pixel_meter_dict"] = {}
         trackers["cw_pixel_meter_dict"] = {}
         # Add trackers per split
         for data_split in dataloaders:
-            trackers["pixel_meter_dict"][data_split] = {}
+            trackers["tl_pixel_meter_dict"][data_split] = {}
             trackers["cw_pixel_meter_dict"][data_split] = {}
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 

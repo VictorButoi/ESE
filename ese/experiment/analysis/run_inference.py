@@ -73,24 +73,33 @@ def get_cal_stats(
                             save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
                         if "cw_pixel_meter_dict" in trackers:
                             save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
-                        if "pixel_meter_dict" in trackers:
-                            save_dict(trackers["pixel_meter_dict"], output_root / "pixel_meter_dict.pkl")
+                        if "tl_pixel_meter_dict" in trackers:
+                            save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
     # Save the records at the end too
     if "image_level_records" in trackers:
         save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
     if "cw_pixel_meter_dict" in trackers:
         save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
-    if "pixel_meter_dict" in trackers:
-        save_dict(trackers["pixel_meter_dict"], output_root / "pixel_meter_dict.pkl")
+    if "tl_pixel_meter_dict" in trackers:
+        save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
+    if cfg_dict["log"]["summary_compute_global_metrics"]:
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
         image_stats_dir = output_root / "image_stats.pkl"
         log_image_df = pd.read_pickle(image_stats_dir)
         # Loop through the calibration metrics and add them to the dataframe.
-        for cal_metric_name, cal_metric_dict in cfg_dict["global_cal_metrics"].items():
-            log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
-                pixel_meters_dict=trackers["pixel_meter_dict"]
-            ).item() 
+        for split in all_dataloaders.keys():
+            for cal_metric_name, cal_metric_dict in cfg_dict["global_cal_metrics"].items():
+                if cal_metric_dict['cal_type'] == 'classwise':
+                    log_image_df[f"{split}_{cal_metric_name}"] = cal_metric_dict['_fn'](
+                        pixel_meters_dict=trackers["cw_pixel_meter_dict"][split]
+                    ).item() 
+                elif cal_metric_dict['cal_type'] == 'toplabel':
+                    log_image_df[f"{split}_{cal_metric_name}"] = cal_metric_dict['_fn'](
+                        pixel_meters_dict=trackers["tl_pixel_meter_dict"][split]
+                    ).item() 
+                else:
+                    raise ValueError(f"Calibration type {cal_metric_dict['cal_type']} not recognized.")
         # Save the dataframe again.
         log_image_df.to_pickle(image_stats_dir)
 
@@ -198,11 +207,11 @@ def get_calibration_item_info(
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
-    if "pixel_meter_dict" in trackers:
+    if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            pixel_level_records=trackers["pixel_meter_dict"][split]
+            pixel_level_records=trackers["tl_pixel_meter_dict"][split]
         )
 
     ###########################
@@ -219,7 +228,7 @@ def get_calibration_item_info(
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
     if "image_level_records" in trackers and\
-        "pixel_meter_dict" in trackers and\
+        "tl_pixel_meter_dict" in trackers and\
          "cw_pixel_meter_dict" in trackers: 
         global_cal_sanity_check(
             data_id=output_dict["data_id"],
