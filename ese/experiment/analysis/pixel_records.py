@@ -10,7 +10,7 @@ from ionpy.util import StatsMeter
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
-    get_conf_region,
+    get_conf_region_np,
     count_matching_neighbors,
 )
 from .analysis_utils.inference_utils import reduce_ensemble_preds 
@@ -68,7 +68,7 @@ def update_toplabel_pixel_meters(
         confidences=toplabel_prob_map, 
         bin_starts=toplabel_conf_bins,
         bin_widths=toplabel_conf_bin_widths
-    ).cpu()
+    )
     ############################################################################3
     # These are conv ops so they are done on the GPU.
 
@@ -76,23 +76,26 @@ def update_toplabel_pixel_meters(
     pred_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).cpu()
+    )
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).cpu()
+    )
 
     # Calculate the accuracy map.
     # FREQUENCY 
     ############################################################################3
-    toplabel_freq_map = (y_hard == y_true).cpu()
-    toplabel_prob_map = toplabel_prob_map.unsqueeze(1).cpu()
-    # Place some other tensors on the CPU.
-    y_pred = y_pred.cpu()
-    y_true = y_true.cpu()
-    y_hard = y_hard.cpu()
+    toplabel_freq_map = (y_hard == y_true).cpu().numpy()
+    toplabel_prob_map = toplabel_prob_map.unsqueeze(1).cpu().numpy()
+
+    # Place all necessary tensors on the CPU as numpy arrays.
+    y_true = y_true.cpu().numpy()
+    y_hard = y_hard.cpu().numpy()
+    toplabel_bin_ownership_map = toplabel_bin_ownership_map.cpu().numpy()
+    true_num_neighb_map = true_num_neighb_map.cpu().numpy()
+    pred_num_neighb_map = pred_num_neighb_map.cpu().numpy()
 
     # Make a cross product of the unique iterators using itertools
     unique_combinations = list(itertools.product(
@@ -108,7 +111,7 @@ def update_toplabel_pixel_meters(
     for bin_combo in unique_combinations:
         true_lab, pred_lab, true_num_neighb, pred_num_neighb, bin_idx = bin_combo
         # Get the region of image corresponding to the confidence
-        bin_conf_region = get_conf_region(
+        bin_conf_region = get_conf_region_np(
             bin_idx=bin_idx, 
             bin_ownership_map=toplabel_bin_ownership_map,
             true_label=true_lab,
@@ -136,8 +139,8 @@ def update_toplabel_pixel_meters(
                     image_tl_meter_dict[meter_key] = StatsMeter()
 
             # (acc , conf)
-            tl_freq = toplabel_freq_map[bin_conf_region].numpy()
-            tl_conf = toplabel_prob_map[bin_conf_region].numpy()
+            tl_freq = toplabel_freq_map[bin_conf_region]
+            tl_conf = toplabel_prob_map[bin_conf_region]
             # Finally, add the points to the meters.
             pixel_level_records[acc_key].addN(tl_freq, batch=True) 
             pixel_level_records[conf_key].addN(tl_conf, batch=True)
@@ -188,7 +191,7 @@ def update_cw_pixel_meters(
         for l_idx in range(y_pred.shape[1])], dim=0
     ) # C x B x H x W
     # Reshape to look like the y_pred.
-    classwise_bin_ownership_map = classwise_bin_ownership_map.permute(1, 0, 2, 3) # B x C x H x W
+    classwise_bin_ownership_map = classwise_bin_ownership_map.permute(1, 0, 2, 3).numpy() # B x C x H x W
     ###########################################################################3
     # These are conv ops so they are done on the GPU.
 
@@ -211,7 +214,12 @@ def update_cw_pixel_meters(
     long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
     classwise_freq_map = torch.nn.functional.one_hot(
         long_label_map, C
-    ).permute(0, 3, 1, 2).float().cpu() # B x C x H x W
+    ).permute(0, 3, 1, 2).float().cpu().numpy() # B x C x H x W
+
+    # Place all necessary tensors on the CPU as numpy arrays.
+    y_pred = y_pred.cpu().numpy()
+    true_num_neighb_map = true_num_neighb_map.cpu().numpy()
+    pred_num_neighb_map = pred_num_neighb_map.cpu().numpy()
 
     # Make a cross product of the unique iterators using itertools
     unique_combinations = [list(itertools.product(
@@ -230,7 +238,7 @@ def update_cw_pixel_meters(
         for bin_combo in unique_combinations[lab_idx]:
             true_num_neighb, pred_num_neighb, bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
-            lab_bin_conf_region = get_conf_region(
+            lab_bin_conf_region = get_conf_region_np(
                 bin_idx=bin_idx, 
                 bin_ownership_map=lab_bin_ownership_map,
                 true_num_neighbors_map=true_num_neighb_map, # Note this is off ACTUAL neighbors.
@@ -254,8 +262,8 @@ def update_cw_pixel_meters(
                         image_cw_meter_dict[meter_key] = StatsMeter()
 
                 # (acc , conf)
-                cw_freq = lab_freq_map[lab_bin_conf_region].numpy()
-                cw_conf = lab_conf_map[lab_bin_conf_region].numpy()
+                cw_freq = lab_freq_map[lab_bin_conf_region]
+                cw_conf = lab_conf_map[lab_bin_conf_region]
                 # Finally, add the points to the meters.
                 pixel_level_records[acc_key].addN(cw_freq, batch=True) 
                 pixel_level_records[conf_key].addN(cw_conf, batch=True)

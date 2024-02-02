@@ -128,6 +128,47 @@ def get_conf_region(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_conf_region_np(
+    bin_idx: int, 
+    bin_ownership_map: np.ndarray,
+    true_label: Optional[int] = None,
+    true_lab_map: Optional[np.ndarray] = None,
+    pred_label: Optional[int] = None,
+    pred_lab_map: Optional[np.ndarray] = None,
+    true_nn: Optional[int] = None,
+    true_num_neighbors_map: Optional[np.ndarray] = None,
+    pred_nn: Optional[int] = None,
+    pred_num_neighbors_map: Optional[np.ndarray] = None,
+    edge_only: bool = False,
+    neighborhood_width: Optional[int] = 3,
+    ignore_index: Optional[int] = None,
+    ):
+    # We want to only pick things in the bin indicated.
+    bin_conf_region = (bin_ownership_map == bin_idx)
+    # If we want to only pick things which match the ground truth label.
+    if true_label is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, (true_lab_map==true_label))
+    # If we want to only pick things which match the pred label.
+    if pred_label is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, (pred_lab_map==pred_label))
+    # If we want to ignore a particular label, then we set it to 0.
+    if ignore_index is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, (true_lab_map != ignore_index))
+    # If we only want the pixels with this particular number of neighbords that match the label
+    if true_nn is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, true_num_neighbors_map==true_nn)
+    # If we only want the pixels with this particular number of neighbords that match the label
+    if pred_nn is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, pred_num_neighbors_map==pred_nn)
+    # If we are doing edges only, then select those uses 
+    if edge_only:
+        n_neighbor_classes = (neighborhood_width**2 - 1)
+        bin_conf_region = np.logical_and(bin_conf_region, true_num_neighbors_map < n_neighbor_classes)
+    # The final region is the intersection of the conditions.
+    return bin_conf_region
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def threshold_min_conf(
     y_pred: Tensor,
     y_hard: Tensor,
