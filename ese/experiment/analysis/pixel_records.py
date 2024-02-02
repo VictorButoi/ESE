@@ -196,16 +196,10 @@ def update_cw_pixel_meters(
     # These are conv ops so they are done on the GPU.
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
-    pred_num_neighb_map = count_matching_neighbors(
-        lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
-        neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).cpu()
-    
-    # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = count_matching_neighbors(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
-    ).cpu()
+    ).cpu().numpy()
 
     # Calculate the accuracy map.
     # FREQUENCY 
@@ -218,13 +212,10 @@ def update_cw_pixel_meters(
 
     # Place all necessary tensors on the CPU as numpy arrays.
     y_pred = y_pred.cpu().numpy()
-    true_num_neighb_map = true_num_neighb_map.cpu().numpy()
-    pred_num_neighb_map = pred_num_neighb_map.cpu().numpy()
 
     # Make a cross product of the unique iterators using itertools
     unique_combinations = [list(itertools.product(
         np.unique(true_num_neighb_map),
-        np.unique(pred_num_neighb_map),
         np.unique(classwise_bin_ownership_map[:, lab_idx, ...])
     )) for lab_idx in range(C)]
 
@@ -236,15 +227,13 @@ def update_cw_pixel_meters(
         lab_bin_ownership_map = classwise_bin_ownership_map[:, lab_idx, ...]
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_combinations[lab_idx]:
-            true_num_neighb, pred_num_neighb, bin_idx = bin_combo
+            true_num_neighb, bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
                 bin_idx=bin_idx, 
                 bin_ownership_map=lab_bin_ownership_map,
                 true_num_neighbors_map=true_num_neighb_map, # Note this is off ACTUAL neighbors.
-                true_nn=true_num_neighb,
-                pred_num_neighbors_map=pred_num_neighb_map,
-                pred_nn=pred_num_neighb
+                true_nn=true_num_neighb
             )
             if lab_bin_conf_region.sum() > 0:
                 # Add bin specific keys to the dictionary if they don't exist.

@@ -27,7 +27,7 @@ def accumulate_pixel_preds(
     # Iterate through the meters.
     for pix_dict_key, value in pixel_meters_dict.items():
         if class_wise:
-            true_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
+            true_label, true_num_neighb, prob_bin, measure = pix_dict_key
         else:
             true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
         # Ignore the pixel if the true label is the ignore index.
@@ -46,6 +46,7 @@ def accumulate_pixel_preds(
                 }
                 if not class_wise:
                     item["pred_label"] = pred_label
+                    item["pred_num_neighb"] = pred_num_neighb
                 # Keep track of unique values.
                 if item[key_1] not in unique_key_1:
                     unique_key_1.append(item[key_1])
@@ -287,60 +288,5 @@ def global_neighbor_bin_stats(
                 cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
             else:
                 cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
-    # Return the calibration information.
-    return cal_info
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def global_joint_label_neighbor_bin_stats(
-    pixel_meters_dict: dict,
-    neighborhood_width: int,
-    square_diff: bool,
-    edge_only: bool = False,
-    ignore_index: Optional[int] = None
-    ) -> dict:
-    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
-        class_wise=True,
-        pixel_meters_dict=pixel_meters_dict,
-        key_1="true_label",
-        key_2="pred_num_neighb",
-        key_3="prob_bin",
-        edge_only=edge_only,
-        neighborhood_width=neighborhood_width,
-        ignore_index=ignore_index
-        )
-    unique_labels = unique_values_dict["true_label"] 
-    unique_pred_neighbor_classes = unique_values_dict["pred_num_neighb"]
-    unique_prob_bins = unique_values_dict["prob_bin"]
-    # Get the num bins.
-    num_labels = len(unique_labels) 
-    num_pred_neighb_classes = len(unique_pred_neighbor_classes)
-    num_bins = len(unique_prob_bins)
-    # Keep track of different things for each bin.
-    cal_info = {
-        "bin_confs": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_labels, num_pred_neighb_classes, num_bins, dtype=torch.float64),
-    }
-    for label in accumulated_meters_dict.keys():
-        for neighbor_class in accumulated_meters_dict[label].keys():
-            for prob_bin in accumulated_meters_dict[label][neighbor_class].keys():
-                # Choose what key to use.
-                bin_conf = accumulated_meters_dict[label][neighbor_class][prob_bin]["confidence"].mean
-                bin_acc = accumulated_meters_dict[label][neighbor_class][prob_bin]["accuracy"].mean
-                num_samples = accumulated_meters_dict[label][neighbor_class][prob_bin]["accuracy"].n
-                # Calculate the average calibration error for the regions in the bin.
-                lab_idx = unique_labels.index(label)
-                nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
-                bin_idx = unique_prob_bins.index(prob_bin)
-                cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bin_conf
-                cal_info["bin_accs"][lab_idx, nn_idx, bin_idx] = bin_acc
-                cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
-                # Choose whether or not to square for the cal error.
-                if square_diff:
-                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_acc, 2)
-                else:
-                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_acc)
     # Return the calibration information.
     return cal_info
