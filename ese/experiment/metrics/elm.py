@@ -1,7 +1,7 @@
 # get the processing function.
 from .metric_reductions import (
     elm_reduction,
-    cw_elm_reduction
+    label_elm_reduction
 )
 from .local_ps import (
     neighbor_bin_stats, 
@@ -112,7 +112,9 @@ def image_cw_elm_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    return cw_elm_reduction(**metric_dict)
+    # print("Local Bin counts:\n", cal_info["bin_amounts"])
+    # print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
+    return label_elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -134,7 +136,7 @@ def cw_elm_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    return cw_elm_reduction(**metric_dict)
+    return label_elm_reduction(**metric_dict)
 
 
 # Edge only versions of the above functions.

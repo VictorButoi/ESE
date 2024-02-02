@@ -17,21 +17,21 @@ image_cal_metrics:
         cal_type: 'classwise'
 
     # ELM Metrics
-    - Image_ELM:
-        _fn: ese.experiment.metrics.elm.image_elm_loss
-        cal_type: 'toplabel'
+    # - Image_ELM:
+    #     _fn: ese.experiment.metrics.elm.image_elm_loss
+    #     cal_type: 'toplabel'
 
-    - Image_Edge-ELM:
-        _fn: ese.experiment.metrics.elm.image_edge_elm_loss
-        cal_type: 'toplabel'
+    # - Image_Edge-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_edge_elm_loss
+    #     cal_type: 'toplabel'
 
-    - Image_CW-ELM:
-        _fn: ese.experiment.metrics.elm.image_cw_elm_loss
-        cal_type: 'classwise'
+    # - Image_CW-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_cw_elm_loss
+    #     cal_type: 'classwise'
 
-    - Image_ECW-ELM:
-        _fn: ese.experiment.metrics.elm.image_ecw_elm_loss
-        cal_type: 'classwise'
+    # - Image_ECW-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_ecw_elm_loss
+    #     cal_type: 'classwise'
 
     # Foreground ECE Metrics
     - Image_Foreground-ECE:
@@ -55,25 +55,25 @@ image_cal_metrics:
         ignore_index: 0
 
     # Foreground ELM Metrics
-    - Image_Foreground-ELM:
-        _fn: ese.experiment.metrics.elm.image_elm_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
+    # - Image_Foreground-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_elm_loss
+    #     cal_type: 'toplabel'
+    #     ignore_index: 0
 
-    - Image_Foreground-Edge-ELM:
-        _fn: ese.experiment.metrics.elm.image_edge_elm_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
+    # - Image_Foreground-Edge-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_edge_elm_loss
+    #     cal_type: 'toplabel'
+    #     ignore_index: 0
 
-    - Image_Foreground-CW-ELM:
-        _fn: ese.experiment.metrics.elm.image_cw_elm_loss
-        cal_type: 'classwise'
-        ignore_index: 0
+    # - Image_Foreground-CW-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_cw_elm_loss
+    #     cal_type: 'classwise'
+    #     ignore_index: 0
 
-    - Image_Foreground-ECW-ELM:
-        _fn: ese.experiment.metrics.elm.image_ecw_elm_loss
-        cal_type: 'classwise'
-        ignore_index: 0
+    # - Image_Foreground-ECW-ELM:
+    #     _fn: ese.experiment.metrics.elm.image_ecw_elm_loss
+    #     cal_type: 'classwise'
+    #     ignore_index: 0
 
 # Define global metrics when you want to verify that these are the same as the image
 # based metrics, per image.
@@ -96,21 +96,21 @@ global_cal_metrics:
         cal_type: 'classwise'
 
     # ELM Metrics
-    - ELM:
-        _fn: ese.experiment.metrics.elm.elm_loss
-        cal_type: 'toplabel'
+    # - ELM:
+    #     _fn: ese.experiment.metrics.elm.elm_loss
+    #     cal_type: 'toplabel'
 
-    - Edge-ELM:
-        _fn: ese.experiment.metrics.elm.edge_elm_loss
-        cal_type: 'toplabel'
+    # - Edge-ELM:
+    #     _fn: ese.experiment.metrics.elm.edge_elm_loss
+    #     cal_type: 'toplabel'
 
-    - CW-ELM:
-        _fn: ese.experiment.metrics.elm.cw_elm_loss
-        cal_type: 'classwise'
+    # - CW-ELM:
+    #     _fn: ese.experiment.metrics.elm.cw_elm_loss
+    #     cal_type: 'classwise'
 
-    - ECW-ELM:
-        _fn: ese.experiment.metrics.elm.ecw_elm_loss
-        cal_type: 'classwise'
+    # - ECW-ELM:
+    #     _fn: ese.experiment.metrics.elm.ecw_elm_loss
+    #     cal_type: 'classwise'
 
     # Foreground ECE Metrics
     - Foreground-ECE:
@@ -134,22 +134,22 @@ global_cal_metrics:
         ignore_index: 0
 
     # Foreground ELM Metrics
-    - Foreground-ELM:
-        _fn: ese.experiment.metrics.elm.elm_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
+    # - Foreground-ELM:
+    #     _fn: ese.experiment.metrics.elm.elm_loss
+    #     cal_type: 'toplabel'
+    #     ignore_index: 0
 
-    - Foreground-Edge-ELM:
-        _fn: ese.experiment.metrics.elm.edge_elm_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
+    # - Foreground-Edge-ELM:
+    #     _fn: ese.experiment.metrics.elm.edge_elm_loss
+    #     cal_type: 'toplabel'
+    #     ignore_index: 0
 
-    - Foreground-CW-ELM:
-        _fn: ese.experiment.metrics.elm.cw_elm_loss
-        cal_type: 'classwise'
-        ignore_index: 0
+    # - Foreground-CW-ELM:
+    #     _fn: ese.experiment.metrics.elm.cw_elm_loss
+    #     cal_type: 'classwise'
+    #     ignore_index: 0
 
-    - Foreground-ECW-ELM:
-        _fn: ese.experiment.metrics.elm.ecw_elm_loss
-        cal_type: 'classwise'
-        ignore_index: 0
+    # - Foreground-ECW-ELM:
+    #     _fn: ese.experiment.metrics.elm.ecw_elm_loss
+    #     cal_type: 'classwise'
+    #     ignore_index: 0
