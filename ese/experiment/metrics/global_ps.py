@@ -39,7 +39,6 @@ def accumulate_pixel_preds(
             if (not edge_only) or (true_num_neighb < total_nearby_pixels):
                 item = {
                     "true_label": true_label,
-                    "pred_num_neighb": pred_num_neighb,
                     "true_num_neighb": true_num_neighb,
                     "prob_bin": prob_bin,
                     "measure": measure,

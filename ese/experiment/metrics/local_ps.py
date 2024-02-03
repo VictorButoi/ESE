@@ -141,13 +141,16 @@ def bin_stats_init(
                 lab_map=y_hard, 
                 neighborhood_width=neighborhood_width
             )
-        if "true_matching_neighbors_map" in stats_info_dict:
+        if "true_matching_neighbors_map" in stats_info_dict and not class_wise:
             true_matching_neighbors_map = stats_info_dict["true_matching_neighbors_map"]
         else:
             true_matching_neighbors_map = count_matching_neighbors(
                 lab_map=y_true, 
                 neighborhood_width=neighborhood_width
-            )
+            ) # B x H x W
+            if class_wise:
+                expanded_matching_neighbors_map = true_matching_neighbors_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+                true_matching_neighbors_map = frequency_map * expanded_matching_neighbors_map
     else:
         pred_matching_neighbors_map = None
         true_matching_neighbors_map = None 
@@ -344,13 +347,14 @@ def joint_label_bin_stats(
             lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
             lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
             lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
+            lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][:, lab_idx, ...]
             # Cycle through the probability bins.
             for bin_idx in range(num_bins):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     bin_ownership_map=lab_bin_ownership_map,
-                    true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
                     edge_only=edge_only,
                     neighborhood_width=neighborhood_width,
                 )
