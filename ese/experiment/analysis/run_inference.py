@@ -52,30 +52,30 @@ def get_cal_stats(
             split_dataloader = all_dataloaders[split]
             for batch_idx, batch in enumerate(split_dataloader):
                 # if batch["data_id"][0] == "147":
-                if batch["data_id"][0] == "munster_000143_000019":
-                    print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
-                    batch["split"] = split
-                    # Gather the forward item.
-                    forward_item = {
-                        "exp": cal_stats_components["inference_exp"],
-                        "batch": batch,
-                        "inference_cfg": cfg_dict,
-                        "trackers": trackers
-                    }
-                    # Run the forward loop
-                    if cal_stats_components["input_type"] == "volume":
-                        volume_forward_loop(**forward_item)
-                    else:
-                        image_forward_loop(**forward_item)
-                    # Save the records every so often, to get intermediate results. Note, because of data_ids
-                    # this can contain fewer than 'log interval' many items.
-                    if batch_idx % cfg['log']['log_interval'] == 0:
-                        if "image_level_records" in trackers:
-                            save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
-                        if "cw_pixel_meter_dict" in trackers:
-                            save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
-                        if "tl_pixel_meter_dict" in trackers:
-                            save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
+                # if batch["data_id"][0] == "munster_000143_000019":
+                print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
+                batch["split"] = split
+                # Gather the forward item.
+                forward_item = {
+                    "exp": cal_stats_components["inference_exp"],
+                    "batch": batch,
+                    "inference_cfg": cfg_dict,
+                    "trackers": trackers
+                }
+                # Run the forward loop
+                if cal_stats_components["input_type"] == "volume":
+                    volume_forward_loop(**forward_item)
+                else:
+                    image_forward_loop(**forward_item)
+                # Save the records every so often, to get intermediate results. Note, because of data_ids
+                # this can contain fewer than 'log interval' many items.
+                if batch_idx % cfg['log']['log_interval'] == 0:
+                    if "image_level_records" in trackers:
+                        save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
+                    if "cw_pixel_meter_dict" in trackers:
+                        save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
+                    if "tl_pixel_meter_dict" in trackers:
+                        save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
     # Save the records at the end too
     if "image_level_records" in trackers:
         save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
@@ -192,7 +192,6 @@ def get_calibration_item_info(
 ):
     # Get the calibration item info.
     split = output_dict["split"]
-
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################
@@ -201,7 +200,6 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
-
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -211,7 +209,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=trackers["image_level_records"]
         ) 
-
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
@@ -221,7 +218,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             pixel_level_records=trackers["tl_pixel_meter_dict"][split]
         )
-
     ###########################
     # CW PIXEL LEVEL TRACKING #
     ###########################
@@ -231,7 +227,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             pixel_level_records=trackers["cw_pixel_meter_dict"][split]
         )
-    
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
