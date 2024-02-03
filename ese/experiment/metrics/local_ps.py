@@ -329,50 +329,50 @@ def joint_label_bin_stats(
     )
     
     # Unlike true labels we need to get the true unique labels.
-    num_labels = y_pred.shape[1]
-
+    max_label = y_pred.shape[1]
+    label_set = torch.arange(max_label)
     if ignore_index is not None:
-        assert 0 <= ignore_index < num_labels, f"ignore_index must be in the range [0, {num_labels}). Got {ignore_index}."
-        num_labels = num_labels - 1
-
+        assert 0 <= ignore_index < max_label, f"ignore_index must be in the range [0, {max_label}). Got {ignore_index}."
+        label_set = label_set[label_set != ignore_index]
+    
     # Setup the cal info tracker.
+    n_labs = len(label_set)
     cal_info = {
-        "bin_confs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_cal_errors": torch.zeros((num_labels, num_bins), dtype=torch.float64)
+        "bin_confs": torch.zeros((n_labs, num_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((n_labs, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((n_labs, num_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((n_labs, num_bins), dtype=torch.float64)
     }
-    for lab_idx in range(num_labels):
-        if lab_idx != ignore_index:
-            lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
-            lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
-            lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
-            lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][:, lab_idx, ...]
-            # Cycle through the probability bins.
-            for bin_idx in range(num_bins):
-                # Get the region of image corresponding to the confidence
-                bin_conf_region = get_conf_region(
-                    bin_idx=bin_idx, 
-                    bin_ownership_map=lab_bin_ownership_map,
-                    true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
-                    edge_only=edge_only,
-                    neighborhood_width=neighborhood_width,
+    for l_idx, lab in enumerate(label_set):
+        lab_prob_map = obj_dict["y_pred"][:, lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
+        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][:, lab, ...]
+        # Cycle through the probability bins.
+        for bin_idx in range(num_bins):
+            # Get the region of image corresponding to the confidence
+            bin_conf_region = get_conf_region(
+                bin_idx=bin_idx, 
+                edge_only=edge_only,
+                neighborhood_width=neighborhood_width,
+                bin_ownership_map=lab_bin_ownership_map,
+                true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
+            )
+            # If there are some pixels in this confidence bin.
+            if bin_conf_region.sum() > 0:
+                # Calculate the average score for the regions in the bin.
+                bi = calc_bin_info(
+                    prob_map=lab_prob_map,
+                    bin_conf_region=bin_conf_region,
+                    frequency_map=lab_frequency_map,
+                    pix_weights=obj_dict["pix_weights"],
+                    square_diff=square_diff
                 )
-                # If there are some pixels in this confidence bin.
-                if bin_conf_region.sum() > 0:
-                    # Calculate the average score for the regions in the bin.
-                    bi = calc_bin_info(
-                        prob_map=lab_prob_map,
-                        bin_conf_region=bin_conf_region,
-                        frequency_map=lab_frequency_map,
-                        pix_weights=obj_dict["pix_weights"],
-                        square_diff=square_diff
-                    )
-                    # Calculate the average calibration error for the regions in the bin.
-                    cal_info["bin_confs"][lab_idx, bin_idx] = bi["avg_conf"] 
-                    cal_info["bin_freqs"][lab_idx, bin_idx] = bi["avg_freq"] 
-                    cal_info["bin_amounts"][lab_idx, bin_idx] = bi["num_samples"] 
-                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = bi["cal_error"] 
+                # Calculate the average calibration error for the regions in the bin.
+                cal_info["bin_confs"][l_idx, bin_idx] = bi["avg_conf"] 
+                cal_info["bin_freqs"][l_idx, bin_idx] = bi["avg_freq"] 
+                cal_info["bin_amounts"][l_idx, bin_idx] = bi["num_samples"] 
+                cal_info["bin_cal_errors"][l_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise calibration information.
     return cal_info
 
@@ -467,56 +467,57 @@ def neighbor_joint_label_bin_stats(
         from_logits=from_logits,
         class_wise=True
     )
+
     # Unlike true labels we need to get the true unique labels.
-    num_labels = y_pred.shape[1]
-
+    max_label = y_pred.shape[1]
+    label_set = torch.arange(max_label)
     if ignore_index is not None:
-        assert 0 <= ignore_index < num_labels, f"ignore_index must be in the range [0, {num_labels}). Got {ignore_index}."
-        num_labels = num_labels - 1
-
-    # Get the num of neighbor classes.
+        assert 0 <= ignore_index < max_label, f"ignore_index must be in the range [0, {max_label}). Got {ignore_index}."
+        label_set = label_set[label_set != ignore_index]
+    
+    # Setup the cal info tracker.
+    n_labs = len(label_set)
     unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
-        "bin_cal_errors": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_confs": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_labels, num_neighbors, num_bins), dtype=torch.float64)
+        "bin_cal_errors": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64)
     }
-    for lab_idx in range(num_labels):
-        if lab_idx != ignore_index:
-            lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
-            lab_frequency_map = obj_dict["frequency_map"][:, lab_idx, ...]
-            lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab_idx, ...]
-            # Cycle through the neighborhood classes.
-            for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-                for bin_idx in range(num_bins):
-                    # Get the region of image corresponding to the confidence
-                    bin_conf_region = get_conf_region(
-                        bin_idx=bin_idx, 
-                        bin_ownership_map=lab_bin_ownership_map,
-                        true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
-                        pred_nn=p_nn,
-                        pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
-                        neighborhood_width=neighborhood_width,
-                        edge_only=edge_only
+    for l_idx, lab in enumerate(label_set):
+        lab_prob_map = obj_dict["y_pred"][:, lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
+        # Cycle through the neighborhood classes.
+        for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
+            for bin_idx in range(num_bins):
+                # Get the region of image corresponding to the confidence
+                bin_conf_region = get_conf_region(
+                    bin_idx=bin_idx, 
+                    bin_ownership_map=lab_bin_ownership_map,
+                    true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    pred_nn=p_nn,
+                    pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                    neighborhood_width=neighborhood_width,
+                    edge_only=edge_only
+                )
+                # If there are some pixels in this confidence bin.
+                if bin_conf_region.sum() > 0:
+                    # Calculate the average score for the regions in the bin.
+                    bi = calc_bin_info(
+                        prob_map=lab_prob_map,
+                        bin_conf_region=bin_conf_region,
+                        frequency_map=lab_frequency_map,
+                        pix_weights=obj_dict["pix_weights"],
+                        square_diff=square_diff
                     )
-                    # If there are some pixels in this confidence bin.
-                    if bin_conf_region.sum() > 0:
-                        # Calculate the average score for the regions in the bin.
-                        bi = calc_bin_info(
-                            prob_map=lab_prob_map,
-                            bin_conf_region=bin_conf_region,
-                            frequency_map=lab_frequency_map,
-                            pix_weights=obj_dict["pix_weights"],
-                            square_diff=square_diff
-                        )
-                        # Calculate the average calibration error for the regions in the bin.
-                        cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-                        cal_info["bin_freqs"][lab_idx, nn_idx, bin_idx] = bi["avg_freq"] 
-                        cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["num_samples"] 
-                        cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = bi["cal_error"] 
+                    # Calculate the average calibration error for the regions in the bin.
+                    cal_info["bin_confs"][l_idx, nn_idx, bin_idx] = bi["avg_conf"] 
+                    cal_info["bin_freqs"][l_idx, nn_idx, bin_idx] = bi["avg_freq"] 
+                    cal_info["bin_amounts"][l_idx, nn_idx, bin_idx] = bi["num_samples"] 
+                    cal_info["bin_cal_errors"][l_idx, nn_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info
 
