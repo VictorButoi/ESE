@@ -376,7 +376,7 @@ def dataloader_from_exp(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def preload_calibration_metrics(
     base_cal_cfg: dict, 
-    cal_metrics_dict: dict
+    cal_metrics_dict: List[dict] 
 ):
     cal_metrics = {}
     for c_met_cfg in cal_metrics_dict:

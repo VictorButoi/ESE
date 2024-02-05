@@ -1,13 +1,11 @@
-# Misc imports
-from pydantic import validate_arguments
 # torch imports
 import torch
 from torch.nn import functional as F
+# Misc imports
+from pydantic import validate_arguments
 # local imports
-from .analysis_utils.inference_utils import (
-    get_image_aux_info, 
-    reduce_ensemble_preds
-)
+from ..experiment.utils import reduce_ensemble_preds
+from .analysis_utils.inference_utils import get_image_aux_info 
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

@@ -14,7 +14,7 @@ from ..metrics.utils import (
     get_conf_region_np,
     count_matching_neighbors,
 )
-from .analysis_utils.inference_utils import reduce_ensemble_preds 
+from ..experiment.utils import reduce_ensemble_preds
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
