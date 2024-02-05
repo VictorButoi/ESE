@@ -38,10 +38,8 @@ def get_cal_stats(
 ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
-
     # Initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
-
     # Setup the save dir.
     output_root = cal_stats_components["output_root"]
     trackers = cal_stats_components["trackers"]
@@ -76,9 +74,6 @@ def get_cal_stats(
                         save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
                     if "tl_pixel_meter_dict" in trackers:
                         save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
-                # Break for debugging
-                if batch_idx > 5:
-                    break
     # Save the records at the end too
     if "image_level_records" in trackers:
         save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
@@ -144,8 +139,6 @@ def volume_forward_loop(
             slice_idx=slice_idx,
             trackers=trackers,
         )
-        if slice_idx > 5:
-            break
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

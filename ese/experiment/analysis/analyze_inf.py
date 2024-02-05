@@ -159,7 +159,6 @@ def load_cal_inference_stats(
             # If the key is in the dataframe, remove the column.
             if drop_key in inference_df.columns:
                 inference_df = inference_df.drop(drop_key, axis=1)
-
         # Get the number of rows in image_info_df for each log set.
         num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
         
