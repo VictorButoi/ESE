@@ -16,9 +16,8 @@ from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
 # local imports
-from ...models.ensemble_utils import get_combine_fn
 from ...augmentation.gather import augmentations_from_config
-from ...experiment.utils import load_experiment, process_pred_map
+from ...experiment.utils import load_experiment
 from ...experiment import EnsembleInferenceExperiment
 from ...metrics.utils import (
     count_matching_neighbors,
@@ -83,36 +82,6 @@ def load_upperbound_df(log_cfg):
         return None
 
 
-def preload_calibration_metrics(
-    base_cal_cfg: dict, 
-    cal_metrics_dict: dict
-):
-    cal_metrics = {}
-    for c_met_cfg in cal_metrics_dict:
-        c_metric_name = list(c_met_cfg.keys())[0]
-        calibration_metric_options = c_met_cfg[c_metric_name]
-        cal_base_cfg_copy = base_cal_cfg.copy()
-        # Update with the inference set of calibration options.
-        cal_base_cfg_copy.update(calibration_metric_options)
-        # Add the calibration metric to the dictionary.
-        cal_metrics[c_metric_name] = {
-            "_fn": eval_config(cal_base_cfg_copy),
-            "name": c_metric_name,
-            "cal_type": c_met_cfg[c_metric_name]["cal_type"]
-        }
-    return cal_metrics
-
-
-def reorder_splits(df):
-    if 'split' in df.keys():
-        train_logs = df[df['split'] == 'train']
-        val_logs = df[df['split'] == 'val']
-        cal_logs = df[df['split'] == 'cal']
-        fixed_df = pd.concat([train_logs, val_logs, cal_logs])
-        return fixed_df
-    else:
-        return df
-
 # This function will take in a dictionary of pixel meters and a metadata dataframe
 # from which to select the log_set corresponding to particular attributes, then 
 # we index into the dictionary to get the corresponding pixel meters.
@@ -125,100 +94,6 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
     # Return the pixel dict
     return pixel_meter_logdict[log_set]
     
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def dataloader_from_exp(
-    inference_exp, 
-    batch_size: int = 1,
-    num_workers: int = 1,
-    aug_cfg_list: Optional[List[dict]] = None,
-    new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
-):
-    total_config = inference_exp.config.to_dict()
-    inference_data_cfg = total_config['data']
-    if new_dset_options is not None:
-        inference_data_cfg.update(new_dset_options)
-    # Make sure we aren't sampling for evaluation. 
-    if "slicing" in inference_data_cfg.keys():
-        assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
-    # Get the dataset class and build the transforms
-    dataset_cls = inference_data_cfg.pop('_class')
-    # Drop auxiliary information used for making the models.
-    for drop_key in ['in_channels', 'out_channels', 'iters_per_epoch', 'input_type']:
-        if drop_key in inference_data_cfg.keys():
-            inference_data_cfg.pop(drop_key)
-    # Ensure that we return the different data ids.
-    inference_data_cfg['return_data_id'] = True
-    # If aug cfg list is not None, that means that we want to change the inference transforms.
-    if aug_cfg_list is not None:
-        inference_transforms = augmentations_from_config(aug_cfg_list)
-    else:
-        inference_transforms = None
-
-    dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
-    dataloaders = {}
-    for split in dset_splits:
-        split_data_cfg = inference_data_cfg.copy()
-        split_data_cfg['split'] = split
-        # Load the dataset with modified arguments.
-        split_dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **split_data_cfg)
-        # Build the dataset and dataloader.
-        dataloaders[split] = DataLoader(
-            split_dataset_obj, 
-            batch_size=batch_size, 
-            num_workers=num_workers,
-            shuffle=False
-        )
-    # Add the augmentation information.
-    inference_data_cfg['augmentations'] = aug_cfg_list
-    inference_data_cfg['_class'] = dataset_cls        
-    # Return the dataloaders and the modified data cfg.
-    return dataloaders, inference_data_cfg
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def load_inference_exp_from_cfg(
-    inference_cfg: dict
-): 
-    model_cfg = inference_cfg['model']
-    pretrained_exp_root = model_cfg['pretrained_exp_root']
-    is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
-    # Get the configs of the experiment
-    if model_cfg['ensemble']:
-        assert is_exp_group, "Ensemble inference only works with experiment groups."
-        assert 'ensemble_cfg' in model_cfg.keys(), "Ensemble inference requires a combine function."
-        inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
-        save_root = Path(inference_exp.path)
-    else:
-        rs = ResultsLoader()
-        # If the experiment is a group, then load the configs and build the experiment.
-        if is_exp_group: 
-            dfc = rs.load_configs(
-                pretrained_exp_root,
-                properties=False,
-            )
-            inference_exp = load_experiment(
-                df=rs.load_metrics(dfc),
-                checkpoint=model_cfg['checkpoint'],
-                selection_metric=model_cfg['pretrained_select_metric'],
-                load_data=False
-            )
-        # Load the experiment directly if you give a sub-path.
-        else:
-            inference_exp = load_experiment(
-                path=pretrained_exp_root,
-                checkpoint=model_cfg['checkpoint'],
-                load_data=False
-            )
-        save_root = None
-    # Make a new value for the pretrained seed, so we can differentiate between
-    # members of ensemble
-    old_inference_cfg = inference_exp.config.to_dict()
-    inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
-    # Update the model cfg to include old model cfg.
-    inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
-    return inference_exp, save_root
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def save_inference_metadata(
@@ -241,113 +116,6 @@ def save_inference_metadata(
     autosave(cfg_dict, path / "config.yml")
     return path
     
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def binarize(
-    label_tensor: torch.Tensor, 
-    label: int,
-    discretize: bool
-    ):
-    assert label_tensor.dim() == 4, f"Expected 4D tensor, found: {label_tensor.dim()}."
-    if discretize:
-        binary_label_tensor = (label_tensor == label).type(label_tensor.dtype)
-    else:
-        label_channel = label_tensor[:, label:label+1, :, :]
-        background_channel = label_tensor.sum(dim=1, keepdim=True) - label_channel 
-        binary_label_tensor = torch.cat([background_channel, label_channel], dim=1)
-    return binary_label_tensor
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_image_aux_info(
-    y_pred: torch.Tensor,
-    y_hard: torch.Tensor,
-    y_true: torch.Tensor,
-    cal_cfg: dict,
-) -> dict:
-    assert y_hard.dim() == 4, f"Expected 4D tensor for y_hard, found shape: {y_hard.shape}."
-    assert y_true.dim() == 4, f"Expected 4D tensor for y_true, found shape: {y_true.shape}."
-    # Get the pixelwise frequency.
-    frequency_map = (y_hard == y_true).squeeze(1).float()
-
-    # Keep track of different things for each bin.
-    pred_labels = y_hard.unique().tolist()
-    if "ignore_index" in cal_cfg and cal_cfg["ignore_index"] in pred_labels:
-        pred_labels.remove(cal_cfg["ignore_index"])
-
-    # Get a map of which pixels match their neighbors and how often.
-    # For both our prediction and the true label map.
-    pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
-        neighborhood_width=cal_cfg["neighborhood_width"]
-    )
-
-    true_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_true.squeeze(1), # Remove the channel dimension. 
-        neighborhood_width=cal_cfg["neighborhood_width"]
-    ) 
-
-    # Calculate the probability bin positions per pixel.
-    y_max_prob_map = y_pred.max(dim=1).values # B x H x W
-
-    # Define the confidence interval (if not provided).
-    if "conf_interval" not in cal_cfg:
-        C = y_pred.shape[1]
-        if C == 0:
-            lower_bound = 0
-        else:
-            lower_bound = 1 / C
-        upper_bound = 1
-        # Set the confidence interval.
-        cal_cfg["conf_interval"] = (lower_bound, upper_bound)
-
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=cal_cfg["num_bins"], 
-        start=cal_cfg["conf_interval"][0], 
-        end=cal_cfg["conf_interval"][1]
-    )
-    # Get the bin indices for each pixel.
-    bin_ownership_map = find_bins(
-        confidences=y_max_prob_map, 
-        bin_starts=conf_bins,
-        bin_widths=conf_bin_widths
-    ) # B x H x W
-
-    return {
-        "frequency": frequency_map,
-        "pred_labels": pred_labels,
-        "bin_ownership_map": bin_ownership_map,
-        "pred_matching_neighbors_map": pred_matching_neighbors_map,
-        "true_matching_neighbors_map": true_matching_neighbors_map,
-    }
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def reduce_ensemble_preds(
-    output_dict: dict, 
-    inference_cfg: dict
-) -> dict:
-    # Combine the outputs of the models.
-    # NOTE: This will always do a softmax.
-    ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
-        output_dict["y_pred"], 
-        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
-        weights=output_dict['ens_weights']
-    )
-    # Get the hard prediction and probabilities, if we are doing identity,
-    # then we don't want to return probs.
-    ensemble_prob_map, ensemble_pred_map = process_pred_map(
-        ensemble_prob_map, 
-        multi_class=True, 
-        threshold=0.5,
-        from_logits=False, # Ensemble methods already return probs.
-        )
-    return {
-        "y_pred": ensemble_prob_map, # (B, C, H, W)
-        "y_hard": ensemble_pred_map # (B, C, H, W)
-    }
-
 
 def get_average_unet_baselines(
     total_df: pd.DataFrame,
@@ -507,4 +275,184 @@ def cal_stats_init(cfg_dict):
         "dataloaders": dataloaders,
         "trackers": trackers,
         "output_root": task_root
+    }
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def load_inference_exp_from_cfg(
+    inference_cfg: dict
+): 
+    model_cfg = inference_cfg['model']
+    pretrained_exp_root = model_cfg['pretrained_exp_root']
+    is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
+    # Get the configs of the experiment
+    if model_cfg['ensemble']:
+        assert is_exp_group, "Ensemble inference only works with experiment groups."
+        assert 'ensemble_cfg' in model_cfg.keys(), "Ensemble inference requires a combine function."
+        inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
+        save_root = Path(inference_exp.path)
+    else:
+        rs = ResultsLoader()
+        # If the experiment is a group, then load the configs and build the experiment.
+        if is_exp_group: 
+            dfc = rs.load_configs(
+                pretrained_exp_root,
+                properties=False,
+            )
+            inference_exp = load_experiment(
+                df=rs.load_metrics(dfc),
+                checkpoint=model_cfg['checkpoint'],
+                selection_metric=model_cfg['pretrained_select_metric'],
+                load_data=False
+            )
+        # Load the experiment directly if you give a sub-path.
+        else:
+            inference_exp = load_experiment(
+                path=pretrained_exp_root,
+                checkpoint=model_cfg['checkpoint'],
+                load_data=False
+            )
+        save_root = None
+    # Make a new value for the pretrained seed, so we can differentiate between
+    # members of ensemble
+    old_inference_cfg = inference_exp.config.to_dict()
+    inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
+    # Update the model cfg to include old model cfg.
+    inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
+    return inference_exp, save_root
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def dataloader_from_exp(
+    inference_exp, 
+    batch_size: int = 1,
+    num_workers: int = 1,
+    aug_cfg_list: Optional[List[dict]] = None,
+    new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
+):
+    total_config = inference_exp.config.to_dict()
+    inference_data_cfg = total_config['data']
+    if new_dset_options is not None:
+        inference_data_cfg.update(new_dset_options)
+    # Make sure we aren't sampling for evaluation. 
+    if "slicing" in inference_data_cfg.keys():
+        assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
+    # Get the dataset class and build the transforms
+    dataset_cls = inference_data_cfg.pop('_class')
+    # Drop auxiliary information used for making the models.
+    for drop_key in ['in_channels', 'out_channels', 'iters_per_epoch', 'input_type']:
+        if drop_key in inference_data_cfg.keys():
+            inference_data_cfg.pop(drop_key)
+    # Ensure that we return the different data ids.
+    inference_data_cfg['return_data_id'] = True
+    # If aug cfg list is not None, that means that we want to change the inference transforms.
+    if aug_cfg_list is not None:
+        inference_transforms = augmentations_from_config(aug_cfg_list)
+    else:
+        inference_transforms = None
+
+    dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
+    dataloaders = {}
+    for split in dset_splits:
+        split_data_cfg = inference_data_cfg.copy()
+        split_data_cfg['split'] = split
+        # Load the dataset with modified arguments.
+        split_dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **split_data_cfg)
+        # Build the dataset and dataloader.
+        dataloaders[split] = DataLoader(
+            split_dataset_obj, 
+            batch_size=batch_size, 
+            num_workers=num_workers,
+            shuffle=False
+        )
+    # Add the augmentation information.
+    inference_data_cfg['augmentations'] = aug_cfg_list
+    inference_data_cfg['_class'] = dataset_cls        
+    # Return the dataloaders and the modified data cfg.
+    return dataloaders, inference_data_cfg
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def preload_calibration_metrics(
+    base_cal_cfg: dict, 
+    cal_metrics_dict: dict
+):
+    cal_metrics = {}
+    for c_met_cfg in cal_metrics_dict:
+        c_metric_name = list(c_met_cfg.keys())[0]
+        calibration_metric_options = c_met_cfg[c_metric_name]
+        cal_base_cfg_copy = base_cal_cfg.copy()
+        # Update with the inference set of calibration options.
+        cal_base_cfg_copy.update(calibration_metric_options)
+        # Add the calibration metric to the dictionary.
+        cal_metrics[c_metric_name] = {
+            "_fn": eval_config(cal_base_cfg_copy),
+            "name": c_metric_name,
+            "cal_type": c_met_cfg[c_metric_name]["cal_type"]
+        }
+    return cal_metrics
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_image_aux_info(
+    y_pred: torch.Tensor,
+    y_hard: torch.Tensor,
+    y_true: torch.Tensor,
+    cal_cfg: dict,
+) -> dict:
+    assert y_hard.dim() == 4, f"Expected 4D tensor for y_hard, found shape: {y_hard.shape}."
+    assert y_true.dim() == 4, f"Expected 4D tensor for y_true, found shape: {y_true.shape}."
+    # Get the pixelwise frequency.
+    frequency_map = (y_hard == y_true).squeeze(1).float()
+
+    # Keep track of different things for each bin.
+    pred_labels = y_hard.unique().tolist()
+    if "ignore_index" in cal_cfg and cal_cfg["ignore_index"] in pred_labels:
+        pred_labels.remove(cal_cfg["ignore_index"])
+
+    # Get a map of which pixels match their neighbors and how often.
+    # For both our prediction and the true label map.
+    pred_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_hard.squeeze(1), # Remove the channel dimension. 
+        neighborhood_width=cal_cfg["neighborhood_width"]
+    )
+
+    true_matching_neighbors_map = count_matching_neighbors(
+        lab_map=y_true.squeeze(1), # Remove the channel dimension. 
+        neighborhood_width=cal_cfg["neighborhood_width"]
+    ) 
+
+    # Calculate the probability bin positions per pixel.
+    y_max_prob_map = y_pred.max(dim=1).values # B x H x W
+
+    # Define the confidence interval (if not provided).
+    if "conf_interval" not in cal_cfg:
+        C = y_pred.shape[1]
+        if C == 0:
+            lower_bound = 0
+        else:
+            lower_bound = 1 / C
+        upper_bound = 1
+        # Set the confidence interval.
+        cal_cfg["conf_interval"] = (lower_bound, upper_bound)
+
+    # Create the confidence bins.    
+    conf_bins, conf_bin_widths = get_bins(
+        num_bins=cal_cfg["num_bins"], 
+        start=cal_cfg["conf_interval"][0], 
+        end=cal_cfg["conf_interval"][1]
+    )
+    # Get the bin indices for each pixel.
+    bin_ownership_map = find_bins(
+        confidences=y_max_prob_map, 
+        bin_starts=conf_bins,
+        bin_widths=conf_bin_widths
+    ) # B x H x W
+
+    return {
+        "frequency": frequency_map,
+        "pred_labels": pred_labels,
+        "bin_ownership_map": bin_ownership_map,
+        "pred_matching_neighbors_map": pred_matching_neighbors_map,
+        "true_matching_neighbors_map": true_matching_neighbors_map,
     }
