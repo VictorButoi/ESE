@@ -358,7 +358,10 @@ def dataloader_from_exp(
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
         # Load the dataset with modified arguments.
-        split_dataset_obj = absolute_import(dataset_cls)(transforms=inference_transforms, **split_data_cfg)
+        split_dataset_obj = absolute_import(dataset_cls)(
+            transforms=inference_transforms, 
+            **split_data_cfg
+        )
         # Build the dataset and dataloader.
         dataloaders[split] = DataLoader(
             split_dataset_obj, 
