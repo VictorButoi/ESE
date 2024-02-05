@@ -116,7 +116,7 @@ def load_cal_inference_stats(
         compute_cal_mets = results_cfg["log"].get("compute_cal_metrics", False)
         cal_metrics = preload_calibration_metrics(
             base_cal_cfg=results_cfg["calibration"],
-            cal_metrics_dict=cal_metric_dict
+            cal_metrics_dict=cal_metric_dict["global_cal_metrics"]
         )
         #############################
         inference_df = pd.DataFrame([])
