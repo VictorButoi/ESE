@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
 import math
+import pathlib
 # local imports
 from ..metrics.utils import count_matching_neighbors
 
@@ -25,6 +26,52 @@ def initialization(m):
         m.bias.data.zero_()
         
 
+class Histogram_Binning(nn.Module):
+    def __init__(
+            self, 
+            stats_file: pathlib.Path,
+            normalize: bool, 
+            **kwargs
+            ):
+        super(Temperature_Scaling, self).__init__()
+        self.calibration_set_info = None
+        # Get the per bin stats
+        self.frequencies_per_lab = None
+
+    def weights_init(self):
+        pass
+
+    def forward(self, logits, **kwargs):
+        pass
+
+    @property
+    def device(self):
+        return "cpu"
+
+
+class NECTAR_Binning(nn.Module):
+    def __init__(
+            self, 
+            stats_file: pathlib.Path,
+            normalize: bool, 
+            **kwargs
+            ):
+        super(Temperature_Scaling, self).__init__()
+        self.calibration_set_info = None
+        # Get the per bin stats
+        self.frequencies_per_lab = None
+
+    def weights_init(self):
+        pass
+
+    def forward(self, logits, **kwargs):
+        pass
+
+    @property
+    def device(self):
+        return "cpu"
+
+
 class Temperature_Scaling(nn.Module):
     def __init__(self, **kwargs):
         super(Temperature_Scaling, self).__init__()
@@ -39,6 +86,7 @@ class Temperature_Scaling(nn.Module):
     @property
     def device(self):
         return next(self.parameters()).device
+
 
 # NEighborhood-Conditional TemperAtuRe Scaling
 class NECTAR_Scaling(nn.Module):

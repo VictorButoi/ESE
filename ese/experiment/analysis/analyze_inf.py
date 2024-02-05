@@ -99,7 +99,7 @@ def load_cal_inference_stats(
                         cfg_df = pd.DataFrame(flat_cfg, index=[0])
                         metadata_df = pd.concat([metadata_df, cfg_df])
                     except Exception as e:
-                        print(f"Error loading config file for {log_set}. {e}. Skipping.")
+                        print(f"{e}. Skipping.")
                         skip_log_sets.append(log_set.name)
         # Gather the columns that have unique values amongst the different configurations.
         if log_cfg["remove_shared_columns"]:
