@@ -4,8 +4,6 @@ import pandas as pd
 from torch import Tensor
 from typing import Literal
 from pydantic import validate_arguments
-# local imports
-from ...experiment.utils import process_pred_map 
 
 
 def get_combine_fn(combine_fn: str):
@@ -157,29 +155,3 @@ def get_ensemble_member_weights(
     # Return the weight dict.
     return weights 
 
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def reduce_ensemble_preds(
-    output_dict: dict, 
-    inference_cfg: dict
-) -> dict:
-    # Combine the outputs of the models.
-    # NOTE: This will always do a softmax.
-    ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
-        output_dict["y_pred"], 
-        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
-        weights=output_dict['ens_weights']
-    )
-    # Get the hard prediction and probabilities, if we are doing identity,
-    # then we don't want to return probs.
-    ensemble_prob_map, ensemble_pred_map = process_pred_map(
-        ensemble_prob_map, 
-        multi_class=True, 
-        threshold=0.5,
-        from_logits=False, # Ensemble methods already return probs.
-        )
-    return {
-        "y_pred": ensemble_prob_map, # (B, C, H, W)
-        "y_hard": ensemble_pred_map # (B, C, H, W)
-    }

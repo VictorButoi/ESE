@@ -112,13 +112,12 @@ def load_cal_inference_stats(
         ##################################
         # INITIALIZE CALIBRATION METRICS #
         ##################################
-        if 'cal_metrics' in results_cfg.keys():
-            cal_metrics = preload_calibration_metrics(
-                base_cal_cfg=results_cfg["calibration"],
-                cal_metrics_dict=results_cfg["cal_metrics"]
-            )
-        else:
-            cal_metrics = {}
+        cal_metric_dict = yaml.safe_load(open(results_cfg["calibration"]["metric_cfg_file"], 'r'))
+        compute_cal_mets = results_cfg["log"].get("compute_cal_metrics", False)
+        cal_metrics = preload_calibration_metrics(
+            base_cal_cfg=results_cfg["calibration"],
+            cal_metrics_dict=cal_metric_dict
+        )
         #############################
         inference_df = pd.DataFrame([])
         # Loop through every configuration in the log directory.
@@ -143,7 +142,7 @@ def load_cal_inference_stats(
                                 pixel_meter_dict = pickle.load(f)
                             # Loop through the calibration metrics and add them to the dataframe.
                             for cal_metric_name, cal_metric_dict in cal_metrics.items():
-                                if cal_metric_name not in log_image_df.columns:
+                                if cal_metric_name not in log_image_df.columns and compute_cal_mets:
                                     log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
                                         pixel_meters_dict=pixel_meter_dict
                                     ).item() 
