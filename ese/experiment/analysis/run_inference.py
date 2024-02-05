@@ -76,6 +76,9 @@ def get_cal_stats(
                         save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
                     if "tl_pixel_meter_dict" in trackers:
                         save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
+                # Break for debugging
+                if batch_idx > 5:
+                    break
     # Save the records at the end too
     if "image_level_records" in trackers:
         save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
@@ -141,6 +144,8 @@ def volume_forward_loop(
             slice_idx=slice_idx,
             trackers=trackers,
         )
+        if slice_idx > 5:
+            break
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
