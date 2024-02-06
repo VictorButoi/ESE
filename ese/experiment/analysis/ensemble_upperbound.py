@@ -20,41 +20,43 @@ def get_ensemble_ub(
 ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
-
+    # Double check that the model is an ensemble and uncalibrated.
     do_ensemble = cfg_dict["model"]["ensemble"]
     uncalibrated = (cfg_dict["model"]["calibrator"] == "Uncalibrated")
     assert do_ensemble and uncalibrated, "This function is only for uncalibrated ensembles."
-
-    # Initialize the calibration statistics.
+    # initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
-    image_level_records = cal_stats_components["image_level_records"]
-    image_stats_save_dir = cal_stats_components["image_level_dir"]
-    
+    # setup the save dir.
+    image_stats_save_dir = cal_stats_components["output_root"]
+    image_level_records = cal_stats_components["trackers"]["image_level_records"]
+    all_dataloaders = cal_stats_components["dataloaders"]
     # Loop through the data, gather your stats!
     with torch.no_grad():
-        dataloader = cal_stats_components["dataloader"]
-        for batch_idx, batch in enumerate(dataloader):
-            print(f"Working on batch #{batch_idx} out of", len(dataloader), "({:.2f}%)".format(batch_idx / len(dataloader) * 100), end="\r")
-            # Gather the forward item.
-            forward_item = {
-                "exp": cal_stats_components["inference_exp"],
-                "batch": batch,
-                "inference_cfg": cfg_dict,
-                "image_level_records": image_level_records,
-            }
-            # Run the forward loop
-            if cal_stats_components["input_type"] == "volume":
-                volume_forward_loop(**forward_item)
-            else:
-                image_forward_loop(**forward_item)
-            # Save the records every so often, to get intermediate results. Note, because of data_ids
-            # this can contain fewer than 'log interval' many items.
-            if batch_idx % cfg['log']['log_interval'] == 0:
-                if image_level_records is not None:
-                    save_records(image_level_records, image_stats_save_dir)
+        for split in all_dataloaders:
+            split_dataloader = all_dataloaders[split]
+            for batch_idx, batch in enumerate(split_dataloader):
+                print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
+                batch["split"] = split
+                # Gather the forward item.
+                forward_item = {
+                    "exp": cal_stats_components["inference_exp"],
+                    "batch": batch,
+                    "inference_cfg": cfg_dict,
+                    "image_level_records": image_level_records,
+                }
+                # Run the forward loop
+                if cal_stats_components["input_type"] == "volume":
+                    volume_forward_loop(**forward_item)
+                else:
+                    image_forward_loop(**forward_item)
+                # Save the records every so often, to get intermediate results. Note, because of data_ids
+                # this can contain fewer than 'log interval' many items.
+                if batch_idx % cfg['log']['log_interval'] == 0:
+                    if image_level_records is not None:
+                        save_records(image_level_records, image_stats_save_dir / "image_stats.pkl")
     # Save the records at the end too
     if image_level_records is not None:
-        save_records(image_level_records, image_stats_save_dir)
+        save_records(image_level_records, image_stats_save_dir / "image_stats.pkl")
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

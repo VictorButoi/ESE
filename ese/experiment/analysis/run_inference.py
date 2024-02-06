@@ -38,9 +38,9 @@ def get_cal_stats(
 ) -> None:
     # Get the config dictionary
     cfg_dict = cfg.to_dict()
-    # Initialize the calibration statistics.
+    # initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
-    # Setup the save dir.
+    # setup the save dir.
     output_root = cal_stats_components["output_root"]
     trackers = cal_stats_components["trackers"]
     all_dataloaders = cal_stats_components["dataloaders"]
