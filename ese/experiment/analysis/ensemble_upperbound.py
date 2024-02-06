@@ -78,6 +78,7 @@ def volume_forward_loop(
             "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
             "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
             "data_id": batch["data_id"],
+            "split": batch["split"]
         } 
         image_forward_loop(
             exp=exp,
@@ -115,29 +116,16 @@ def image_forward_loop(
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
         "data_id": batch["data_id"][0], # Works because batchsize = 1
+        "split": batch["split"],
         "slice_idx": slice_idx,
         "ens_weights": exp.ens_mem_weights
     }
     # Get the calibration item info.  
-    get_upperbound_info(
-        output_dict=output_dict,
-        inference_cfg=inference_cfg,
-        image_level_records=image_level_records
-    )
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_upperbound_info(
-    output_dict: dict,
-    inference_cfg: dict,
-    image_level_records
-):
-    # Get the image level statistics.
     get_upper_bound_metric_stats(
         output_dict=output_dict,
         inference_cfg=inference_cfg,
         image_level_records=image_level_records
-    ) 
+    )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -182,9 +170,10 @@ def get_upper_bound_metric_stats(
     for met_name in list(qual_metric_scores_dict.keys()):
         # Add the dataset info to the record
         record = {
+            "data_id": output_dict["data_id"],
+            "split": output_dict["split"],
             "image_metric": met_name,
             "metric_score": qual_metric_scores_dict[met_name],
-            "data_id": output_dict["data_id"],
             "slice_idx": output_dict["slice_idx"],
         }
         if inference_cfg["log"]["track_label_amounts"]:

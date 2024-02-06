@@ -4,13 +4,23 @@ from scipy import stats
 import matplotlib.pyplot as plt 
 
 
-def plot_upperbound_line(plot_df, num_calibrators):
+def plot_upperbound_line(plot_df, num_calibrators, ax):
     # Put the upper bound line on the plot
     mean_upper_bound = plot_df.mean()
-    plt.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
+    # plt.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
     # Plot area around the upper bound corresponding to 95 percent confidence interval
     confidence_interval = stats.t.interval(0.95, len(plot_df)-1, loc=mean_upper_bound, scale=stats.sem(plot_df))
-    plt.fill_between(
+    # plt.fill_between(
+    #     x=[-1, num_calibrators],
+    #     y1=confidence_interval[0],
+    #     y2=confidence_interval[1],
+    #     color='magenta',
+    #     alpha=0.2
+    # )
+    #Plot the upper bound line on ax
+    ax.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
+    # Plot area around the upper bound corresponding to 95 percent confidence interval
+    ax.fill_between(
         x=[-1, num_calibrators],
         y1=confidence_interval[0],
         y2=confidence_interval[1],
@@ -102,7 +112,7 @@ def plot_method_vs_calibrator_scatterplots(df, x, y, sharex=False, sharey=False,
     )
     add_axis_lines(g, color='darkgrey', linewidth=1, zorder=1)
     # Add a title to the entire figure, and make it slightly bigger than the default
-    g.fig.suptitle(f'Relationship Between {x} and {y}', size=20)
+    g.fig.suptitle(f'{x} vs {y}', size=20)
     g.fig.subplots_adjust(top=0.9)
     # Show the plot
     plt.show()
