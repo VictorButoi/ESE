@@ -74,12 +74,13 @@ def reduce_ensemble_preds(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_experiment(
-    device="cuda",
-    checkpoint="max-val-dice_score",
-    load_data=True,
+    device: str = "cuda",
+    checkpoint: str = "max-val-dice_score",
+    load_data: bool = True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
     selection_metric: Optional[str] = None,
+    exp_class: Optional[str] = None
 ):
     if path is None:
         assert selection_metric is not None, "Must provide a selection metric if no path is provided."
@@ -91,14 +92,18 @@ def load_experiment(
     else:
         exp_path = path
 
-    # Get the experiment class
-    properties_dir = Path(exp_path) / "properties.json"
-    with open(properties_dir, 'r') as prop_file:
-        props = json.loads(prop_file.read())
-    exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
+    # Load the experiment
+    if exp_class is None:
+        # Get the experiment class
+        properties_dir = Path(exp_path) / "properties.json"
+        with open(properties_dir, 'r') as prop_file:
+            props = json.loads(prop_file.read())
+        exp_class = props["experiment"]["class"]
+    # Load the class
+    exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
+    loaded_exp = exp_class(exp_path, load_data=load_data)
 
     # Load the experiment
-    loaded_exp = exp_class(exp_path, load_data=load_data)
     if checkpoint is not None:
         loaded_exp.load(tag=checkpoint)
     

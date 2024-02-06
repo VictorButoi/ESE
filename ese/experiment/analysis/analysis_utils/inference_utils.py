@@ -300,19 +300,20 @@ def load_inference_exp_from_cfg(
                 pretrained_exp_root,
                 properties=False,
             )
-            inference_exp = load_experiment(
-                df=rs.load_metrics(dfc),
-                checkpoint=model_cfg['checkpoint'],
-                selection_metric=model_cfg['pretrained_select_metric'],
-                load_data=False
-            )
-        # Load the experiment directly if you give a sub-path.
+            inf_exp_args = {
+                "df": rs.load_metrics(dfc),
+                "selection_metric": model_cfg['pretrained_select_metric']
+            }
         else:
-            inference_exp = load_experiment(
-                path=pretrained_exp_root,
-                checkpoint=model_cfg['checkpoint'],
-                load_data=False
-            )
+            inf_exp_args = {
+                "path": pretrained_exp_root
+            }
+        # Load the experiment directly if you give a sub-path.
+        inference_exp = load_experiment(
+            checkpoint=model_cfg['checkpoint'],
+            load_data=False,
+            **inf_exp_args
+        )
         save_root = None
     # Make a new value for the pretrained seed, so we can differentiate between
     # members of ensemble

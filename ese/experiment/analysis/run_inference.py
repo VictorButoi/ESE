@@ -30,8 +30,6 @@ def save_dict(dict, log_dir):
     # save the dictionary to a pickl file at logdir
     with open(log_dir, 'wb') as f:
         pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
-    
-
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
