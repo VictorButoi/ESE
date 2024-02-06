@@ -22,7 +22,7 @@ def get_ensemble_ub(
     cfg_dict = cfg.to_dict()
 
     do_ensemble = cfg_dict["model"]["ensemble"]
-    uncalibrated = not cfg_dict["model"]["calibrated"]
+    uncalibrated = (cfg_dict["model"]["calibrator"] == "Uncalibrated")
     assert do_ensemble and uncalibrated, "This function is only for uncalibrated ensembles."
 
     # Initialize the calibration statistics.

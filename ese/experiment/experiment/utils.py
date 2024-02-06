@@ -46,7 +46,6 @@ def process_pred_map(
         return conf_map, pred_map
 
 
-
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_ensemble_preds(
     output_dict: dict, 
