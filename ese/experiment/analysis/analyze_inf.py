@@ -291,10 +291,6 @@ def load_cal_inference_stats(
         # that is 1 - metric_score.
         if log_cfg['add_dice_loss_rows']:
             inference_df = add_dice_loss_rows(inference_df)
-        
-        # Print information about each log set.
-        print("Finished loading inference stats.")
-        print(f"Log amounts: {num_rows_per_log_set}")
 
         # Save the inference info to a pickle file.
         with open(precomputed_results_path, 'wb') as f:
@@ -303,6 +299,12 @@ def load_cal_inference_stats(
         # load the inference info from the pickle file.
         with open(precomputed_results_path, 'rb') as f:
             inference_df = pickle.load(f)
+
+    # Get the number of rows in image_info_df for each log set.
+    final_num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
+    # Print information about each log set.
+    print("Finished loading inference stats.")
+    print(f"Log amounts: {final_num_rows_per_log_set}")
 
     # Finally, return the dictionary of inference info.
     return inference_df

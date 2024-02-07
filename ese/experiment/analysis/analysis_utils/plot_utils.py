@@ -5,19 +5,43 @@ import matplotlib.pyplot as plt
 
 
 def plot_upperbound_line(graph, plot_df, y, num_calibrators, col=None):
-    # Put the upper bound line on the plot
-    mean_upper_bound = plot_df.mean()
-    confidence_interval = stats.t.interval(0.95, len(plot_df)-1, loc=mean_upper_bound, scale=stats.sem(plot_df))
-    #Plot the upper bound line on ax
-    ax.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
-    # Plot area around the upper bound corresponding to 95 percent confidence interval
-    ax.fill_between(
-        x=[-1, num_calibrators],
-        y1=confidence_interval[0],
-        y2=confidence_interval[1],
-        color='magenta',
-        alpha=0.2
-    )
+    if col is None:
+        # Put the upper bound line on the plot
+        metric_col = plot_df[y]
+        mean_upper_bound = metric_col.mean()
+        confidence_interval = stats.t.interval(0.95, len(metric_col)-1, loc=mean_upper_bound, scale=stats.sem(metric_col))
+        #Plot the upper bound line on ax
+        plt.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
+        # Plot area around the upper bound corresponding to 95 percent confidence interval
+        plt.fill_between(
+            x=[-1, num_calibrators],
+            y1=confidence_interval[0],
+            y2=confidence_interval[1],
+            color='magenta',
+            alpha=0.2
+        )
+    else:
+        # Get the unique possible col values
+        col_values = plot_df[col].unique()
+        for ax in graph.axes.flat:
+            # Get the row and column indices of the current subplot
+            row_index, col_index = ax.get_subplotspec().rowspan.start, ax.get_subplotspec().colspan.start
+            col_val = col_values[col_index]
+            print(col_index, col_val)
+            # Extract data for the current subplot
+            metric_col = plot_df[plot_df[col] == col_val][y]
+            mean_upper_bound = metric_col.mean()
+            confidence_interval = stats.t.interval(0.95, len(metric_col)-1, loc=mean_upper_bound, scale=stats.sem(metric_col))
+            #Plot the upper bound line on ax
+            ax.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
+            # Plot area around the upper bound corresponding to 95 percent confidence interval
+            ax.fill_between(
+                x=[-1, num_calibrators],
+                y1=confidence_interval[0],
+                y2=confidence_interval[1],
+                color='magenta',
+                alpha=0.2
+            )
 
 
 def build_ensemble_vs_individual_cmap(dice_image_df):

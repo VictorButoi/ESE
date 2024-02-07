@@ -12,17 +12,17 @@ from ionpy.util.validation import validate_arguments_init
 
 @validate_arguments_init
 @dataclass
-class ADE20K(ThunderDataset, DatapathMixin):
+class ADE20k(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
     version: float = 0.1
     preload: bool = False
     cities: Any = "all" 
+    return_data_id: bool = False
     iters_per_epoch: Optional[int] = None
     transforms: Optional[Any] = None
 
     def __post_init__(self):
-        init_attrs = self.__dict__.copy()
         super().__init__(self.path, preload=self.preload)
         super().supress_readonly_warning()
         # Get the subjects from the splits
@@ -40,11 +40,18 @@ class ADE20K(ThunderDataset, DatapathMixin):
         else:
             self.samples = samples 
             self.sample_cities = sample_cities 
-        
-        self.return_data_id = False
+
         # Control how many samples are in each epoch.
         self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
-
+        # Get the class conversion dictionary (From Calibration in Semantic Segmentation are we on the right) 
+        class_conversion_dict = {
+            7:0, 8:1, 11:2, 12:3, 13:4, 17:5, 19:6, 20:7, 21:8, 22:9,
+            23: 10, 24:11, 25:12, 26:13, 27:14, 28:15, 31:16, 32:17, 33:18
+            }
+        self.label_map = np.zeros(35, dtype=np.int64) # 35 classes in total
+        for old_label, new_label in class_conversion_dict.items():
+            self.label_map[old_label] = new_label 
+            
     def __len__(self):
         return self.num_samples
 
@@ -52,21 +59,24 @@ class ADE20K(ThunderDataset, DatapathMixin):
         key = key % len(self.samples)
         example_name = self.samples[key]
         img, mask = super().__getitem__(key)
-        # Get the class name
-        if self.transforms:
-            img, mask = self.transforms(image=img, mask=mask)
-        # Convert to float32
-        img = img.astype(np.float32)
-        mask = mask.astype(np.float32)
 
-        assert img.dtype == np.float32, "Img must be float32 (so augmenetation doesn't break)!"
-        assert mask.dtype == np.float32, "Mask must be float32 (so augmentation doesn't break)!"
+        # If we are remapping the labels, then we need to do that here.
+        if self.label_map is not None:
+            mask = self.label_map[mask]
+
+        # Apply the transforms to the numpy images.
+        if self.transforms:
+            img = img.transpose(1, 2, 0) # (C, H, W) -> (H, W, C)
+            transformed = self.transforms(image=img, mask=mask)
+            img = transformed['image'].transpose(2, 0, 1) # (H, W, C) -> (C, H, W)
+            mask = transformed['mask'] # (H, W)
 
         # Prepare the return dictionary.
         return_dict = {
             "img": torch.from_numpy(img),
-            "label": torch.from_numpy(mask),
+            "label": torch.from_numpy(mask)[None], # Add a channel dimension 
         }
+
         if self.return_data_id:
             return_dict["data_id"] = example_name 
 
@@ -74,12 +84,12 @@ class ADE20K(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"ADE20K/thunder_ade20k/{self.version}"
+        return f"ADE20k/thunder_ade20k/{self.version}"
 
     @property
     def signature(self):
         return {
-            "dataset": "ADE20K",
+            "dataset": "ADE20k",
             "cities": self.cities,
             "split": self.split,
             "version": self.version
