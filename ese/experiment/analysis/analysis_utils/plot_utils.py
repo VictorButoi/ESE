@@ -4,19 +4,10 @@ from scipy import stats
 import matplotlib.pyplot as plt 
 
 
-def plot_upperbound_line(plot_df, num_calibrators, ax):
+def plot_upperbound_line(graph, plot_df, y, num_calibrators, col=None):
     # Put the upper bound line on the plot
     mean_upper_bound = plot_df.mean()
-    # plt.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
-    # Plot area around the upper bound corresponding to 95 percent confidence interval
     confidence_interval = stats.t.interval(0.95, len(plot_df)-1, loc=mean_upper_bound, scale=stats.sem(plot_df))
-    # plt.fill_between(
-    #     x=[-1, num_calibrators],
-    #     y1=confidence_interval[0],
-    #     y2=confidence_interval[1],
-    #     color='magenta',
-    #     alpha=0.2
-    # )
     #Plot the upper bound line on ax
     ax.axhline(y=mean_upper_bound, color='magenta', linestyle='--')
     # Plot area around the upper bound corresponding to 95 percent confidence interval

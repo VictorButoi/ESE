@@ -1,20 +1,20 @@
 # local imports
-from .utils import process_pred_map, parse_class_name
-from ..models.ensemble_utils import get_combine_fn, get_ensemble_member_weights
+from .utils import load_experiment, process_pred_map, parse_class_name
+from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
-from torch import Tensor
 # IonPy imports
 from ionpy.util import Config
+from ionpy.nn.util import num_params
 from ionpy.util.ioutil import autosave
+from ionpy.util.hash import json_digest
 from ionpy.analysis import ResultsLoader
+from ionpy.util.torchutils import to_device
 from ionpy.experiment import BaseExperiment
 from ionpy.datasets.cuda import CUDACachedDataset
-from ionpy.experiment.util import absolute_import
+from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
-import json
-from pathlib import Path
-from typing import Optional, Literal
+import os
 
 
 # Very similar to BaseExperiment, but with a few changes.
@@ -99,7 +99,6 @@ class BinningInferenceExperiment(BaseExperiment):
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )
-        pretrained_cfg = self.pretrained_exp.config.to_dict()
         #########################################
         #            Model Creation             #
         #########################################
@@ -108,23 +107,16 @@ class BinningInferenceExperiment(BaseExperiment):
             model_config_dict.pop('_pretrained_class')
         self.model_class = model_config_dict['_class']
         # Either keep training the network, or use a post-hoc calibrator.
-        if self.model_class == "Vanilla":
-            self.base_model = torch.nn.Identity()
-            # Load the model, there is no learned calibrator.
-            self.model = self.pretrained_exp.model
-            self.properties["num_params"] = num_params(self.model)
-        else:
-            self.base_model = self.pretrained_exp.model
-            self.base_model.eval()
-            # Get the old in and out channels from the pretrained model.
-            model_config_dict["num_classes"] = pretrained_cfg['model']['out_channels']
-            model_config_dict["image_channels"] = pretrained_cfg['model']['in_channels']
-            # BUILD THE CALIBRATOR #
-            ########################
-            # Load the model
-            self.model = eval_config(model_config_dict)
-            self.model.weights_init()
-            self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
+        self.base_model = self.pretrained_exp.model
+        self.base_model.eval()
+        self.properties["num_params"] = num_params(self.base_model)
+        ########################
+        # BUILD THE CALIBRATOR #
+        ########################
+        # Load the model
+        print(model_config_dict)
+        self.model = eval_config(model_config_dict)
+        self.model.weights_init()
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
         ########################################################################
@@ -138,6 +130,9 @@ class BinningInferenceExperiment(BaseExperiment):
     def build_loss(self):
         self.loss_func = eval_config(self.config["loss_func"])
 
+    def to_device(self):
+        self.base_model = to_device(self.base_model, self.device, channels_last=False)
+
     def predict(self, 
                 x, 
                 multi_class,
@@ -148,10 +143,7 @@ class BinningInferenceExperiment(BaseExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Apply post-hoc calibration.
-        if self.model_class == "Vanilla":
-            yhat_cal = self.model(yhat)
-        else:
-            yhat_cal = self.model(yhat, image=x)
+        yhat_cal = self.model(yhat, image=x)
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             yhat_cal, 
@@ -164,7 +156,3 @@ class BinningInferenceExperiment(BaseExperiment):
             'y_pred': prob_map, 
             'y_hard': pred_map 
         }
-
-    def to_device(self):
-        self.base_model = to_device(self.base_model, self.device, channels_last=False)
-        self.model = to_device(self.model, self.device, channels_last=False)
