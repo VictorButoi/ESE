@@ -112,9 +112,10 @@ class BinningInferenceExperiment(BaseExperiment):
                 cfg = Config.from_file(cfg_file)
                 # Check if the pretrained seed matches the old_model_seed.
                 if cfg["experiment"]["pretrained_seed"] == old_model_seed:
-                    if stats_dir is not None:
+                    if stats_file_dir is not None:
                         raise ValueError("Found more than one inference experiment with the same pretrained seed.")
-                    stats_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
+                    stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
+        print(stats_file_dir)
         # Load the model
         self.model = absolute_import(model_config_dict['calibrator_cls'])(
             stats_file=stats_file_dir,            

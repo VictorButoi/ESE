@@ -97,7 +97,7 @@ def accumulate_pixel_preds(
 def global_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
-    square_diff: bool,
+    square_diff: bool = False,
     edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -116,7 +116,7 @@ def global_bin_stats(
     cal_info = {
         "bin_confs": torch.zeros(num_bins, dtype=torch.float64),
         "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
     }
     # Get the regions of the prediction corresponding to each bin of confidence.
@@ -128,7 +128,7 @@ def global_bin_stats(
         # Calculate the average calibration error for the regions in the bin.
         bin_idx = unique_bins.index(prob_bin)
         cal_info["bin_confs"][bin_idx] = bin_conf
-        cal_info["bin_accs"][bin_idx] = bin_acc
+        cal_info["bin_freqs"][bin_idx] = bin_acc
         cal_info["bin_amounts"][bin_idx] = num_samples
         # Choose whether or not to square for the cal error.
         if square_diff:
@@ -142,11 +142,13 @@ def global_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_top_label_bin_stats(
     pixel_meters_dict: dict,
-    square_diff: bool,
-    neighborhood_width: int,
+    square_diff: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    if edge_only:
+        assert neighborhood_width is not None, "If edge_only is True, neighborhood_width must be defined."
     # Get the keys associatged with the label key.
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         class_wise=False,
@@ -166,7 +168,7 @@ def global_top_label_bin_stats(
     cal_info = {
         "bin_confs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
         "bin_amounts": torch.zeros(num_labels, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_labels, num_bins, dtype=torch.float64),
     }
     for label in accumulated_meters_dict.keys():
@@ -179,7 +181,7 @@ def global_top_label_bin_stats(
             lab_idx = unique_labels.index(label)
             bin_idx = unique_bins.index(prob_bin)
             cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
-            cal_info["bin_accs"][lab_idx, bin_idx] = bin_acc
+            cal_info["bin_freqs"][lab_idx, bin_idx] = bin_acc
             cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
             # Choose whether or not to square for the cal error.
             if square_diff:
@@ -193,11 +195,13 @@ def global_top_label_bin_stats(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_joint_label_bin_stats(
     pixel_meters_dict: dict,
-    square_diff: bool,
-    neighborhood_width: int,
+    square_diff: bool = False,
     edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None
     ) -> dict:
+    if edge_only:
+        assert neighborhood_width is not None, "If edge_only is True, neighborhood_width must be defined."
     # Get the keys associatged with the label key.
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         class_wise=True,
@@ -217,7 +221,7 @@ def global_joint_label_bin_stats(
     cal_info = {
         "bin_confs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
         "bin_amounts": torch.zeros(num_labels, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_labels, num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_labels, num_bins, dtype=torch.float64),
     }
     for label in accumulated_meters_dict.keys():
@@ -230,7 +234,7 @@ def global_joint_label_bin_stats(
             lab_idx = unique_labels.index(label)
             bin_idx = unique_bins.index(prob_bin)
             cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
-            cal_info["bin_accs"][lab_idx, bin_idx] = bin_acc
+            cal_info["bin_freqs"][lab_idx, bin_idx] = bin_acc
             cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
             # Choose whether or not to square for the cal error.
             if square_diff:
@@ -245,7 +249,7 @@ def global_joint_label_bin_stats(
 def global_neighbor_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
-    square_diff: bool,
+    square_diff: bool = False,
     edge_only: bool = False,
     ignore_index: Optional[int] = None
     ) -> dict:
@@ -267,7 +271,7 @@ def global_neighbor_bin_stats(
     cal_info = {
         "bin_confs": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
         "bin_amounts": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
-        "bin_accs": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_pred_neighb_classes, num_bins, dtype=torch.float64),
     }
     for neighbor_class in accumulated_meters_dict.keys():
@@ -280,7 +284,7 @@ def global_neighbor_bin_stats(
             nn_idx = unique_pred_neighbor_classes.index(neighbor_class)
             bin_idx = unique_prob_bins.index(prob_bin)
             cal_info["bin_confs"][nn_idx, bin_idx] = bin_conf
-            cal_info["bin_accs"][nn_idx, bin_idx] = bin_acc
+            cal_info["bin_freqs"][nn_idx, bin_idx] = bin_acc
             cal_info["bin_amounts"][nn_idx, bin_idx] = num_samples
             # Choose whether or not to square for the cal error.
             if square_diff:

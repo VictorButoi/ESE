@@ -4,9 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
 import math
-import pathlib
+import pickle
 # local imports
-from ..metrics.utils import count_matching_neighbors
+from ..metrics.global_ps import global_joint_label_bin_stats
+from ..metrics.utils import (
+    get_bins, 
+    find_bins, 
+    count_matching_neighbors
+)
 
     
 def initialization(m):
@@ -28,18 +33,45 @@ def initialization(m):
 
 class Histogram_Binning(nn.Module):
     def __init__(
-            self, 
-            stats_file: str,
-            normalize: bool, 
-            **kwargs
-            ):
-        super(Temperature_Scaling, self).__init__()
-        self.calibration_set_info = None
-        # Get the per bin stats
-        self.frequencies_per_lab = None
+        self, 
+        stats_file: str,
+        normalize: bool, 
+        **kwargs
+    ):
+        super(Histogram_Binning, self).__init__()
+        # Load the data from the .pkl file
+        with open(stats_file, "rb") as f:
+            pixel_meters_dict = pickle.load(f)
+        # Get the statistics either from images or pixel meter dict.
+        self.val_freqs = global_joint_label_bin_stats(
+            pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
+        )['bin_freqs'] # C x Bins
+        # Get the bins and bin widths
+        num_conf_bins = self.val_freqs.shape[1]
+        self.conf_bins, self.conf_bin_widths = get_bins(
+            num_bins=num_conf_bins, 
+            start=0.0,
+            end=1.0
+        )
+        self.normalize = normalize
 
     def forward(self, logits, **kwargs):
-        pass
+        probs = torch.softmax(logits, dim=1) # B x C x H x W
+        for lab_idx in range(probs.shape[1]):
+            prob_map = probs[:, lab_idx, :, :] # B x H x W
+            # Calculate the bin ownership map and transform the probs.
+            bin_ownership_map = find_bins(
+                confidences=prob_map, 
+                bin_starts=self.conf_bins,
+                bin_widths=self.conf_bin_widths
+            ).long() # B x H x W
+            calibrated_prob_map = self.val_freqs[lab_idx][bin_ownership_map] # B x H x W
+            # Inserted the calibrated prob map back into the original prob map.
+            prob_map[:, lab_idx, :, :] = calibrated_prob_map
+        # If we are normalizing then we need to make sure the probabilities sum to 1.
+        if self.normalize:
+            probs = probs / probs.sum(dim=1, keepdim=True)
+        return probs
 
     @property
     def device(self):
