@@ -79,33 +79,18 @@ class BinningInferenceExperiment(BaseExperiment):
         # BUILD THE MODEL #
         ###################
         # Get the configs of the experiment
-        load_exp_cfg = {
-            "device": "cuda",
-            "load_data": False, # Important, we might want to modify the data construction.
-        }
-        if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
-            self.pretrained_exp = load_experiment(
-                path=total_config['train']['pretrained_dir'],
-                **load_exp_cfg
-            )
-        else:
-            rs = ResultsLoader()
-            dfc = rs.load_configs(
-                total_config['train']['pretrained_dir'],
-                properties=False,
-            )
-            self.pretrained_exp = load_experiment(
-                df=rs.load_metrics(dfc),
-                selection_metric=total_config['train']['pretrained_select_metric'],
-                **load_exp_cfg
-            )
+        self.pretrained_exp = load_experiment(
+            path=total_config['model']['pretrained_exp_root'],
+            device="cuda",
+            load_data=False, # Important, we might want to modify the data construction.
+        )
         #########################################
         #            Model Creation             #
         #########################################
         model_config_dict = total_config['model']
         if '_pretrained_class' in model_config_dict:
             model_config_dict.pop('_pretrained_class')
-        self.model_class = model_config_dict['_class']
+        self.model_class = model_config_dict['calibrator_cls']
         # Either keep training the network, or use a post-hoc calibrator.
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
@@ -113,10 +98,28 @@ class BinningInferenceExperiment(BaseExperiment):
         ########################
         # BUILD THE CALIBRATOR #
         ########################
+        inf_exp_root = total_config['experiment']['exp_root']
+        inference_log_dir = f"{inf_exp_root}/{total_config['experiment']['dataset_name']}_Individual_Uncalibrated"
+        assert os.path.exists(inference_log_dir), f"Could not find the inference log directory at {inference_log_dir}."
+        # Get the old model seed, this will be used for matching with the inference experiment.
+        old_model_seed = self.pretrained_exp.config["experiment"]["seed"]
+        stats_file_dir = None
+        # Find the inference dir that had a pretrained seed that matches old_model_seed.
+        for inference_exp_dir in os.listdir(inference_log_dir):
+            if inference_exp_dir != "submitit":
+                cfg_file = f"{inference_log_dir}/{inference_exp_dir}/config.yml"
+                # Load the cfg file.
+                cfg = Config.from_file(cfg_file)
+                # Check if the pretrained seed matches the old_model_seed.
+                if cfg["experiment"]["pretrained_seed"] == old_model_seed:
+                    if stats_dir is not None:
+                        raise ValueError("Found more than one inference experiment with the same pretrained seed.")
+                    stats_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
         # Load the model
-        print(model_config_dict)
-        self.model = eval_config(model_config_dict)
-        self.model.weights_init()
+        self.model = absolute_import(model_config_dict['calibrator_cls'])(
+            stats_file=stats_file_dir,            
+            normalize=model_config_dict['normalize']
+        )
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
         ########################################################################

@@ -29,7 +29,7 @@ def initialization(m):
 class Histogram_Binning(nn.Module):
     def __init__(
             self, 
-            stats_file: pathlib.Path,
+            stats_file: str,
             normalize: bool, 
             **kwargs
             ):
@@ -37,9 +37,6 @@ class Histogram_Binning(nn.Module):
         self.calibration_set_info = None
         # Get the per bin stats
         self.frequencies_per_lab = None
-
-    def weights_init(self):
-        pass
 
     def forward(self, logits, **kwargs):
         pass
@@ -49,27 +46,27 @@ class Histogram_Binning(nn.Module):
         return "cpu"
 
 
-class NECTAR_Binning(nn.Module):
-    def __init__(
-            self, 
-            stats_file: pathlib.Path,
-            normalize: bool, 
-            **kwargs
-            ):
-        super(Temperature_Scaling, self).__init__()
-        self.calibration_set_info = None
-        # Get the per bin stats
-        self.frequencies_per_lab = None
+# class NECTAR_Binning(nn.Module):
+#     def __init__(
+#             self, 
+#             stats_file: pathlib.Path,
+#             normalize: bool, 
+#             **kwargs
+#             ):
+#         super(Temperature_Scaling, self).__init__()
+#         self.calibration_set_info = None
+#         # Get the per bin stats
+#         self.frequencies_per_lab = None
 
-    def weights_init(self):
-        pass
+#     def weights_init(self):
+#         pass
 
-    def forward(self, logits, **kwargs):
-        pass
+#     def forward(self, logits, **kwargs):
+#         pass
 
-    @property
-    def device(self):
-        return "cpu"
+#     @property
+#     def device(self):
+#         return "cpu"
 
 
 class Temperature_Scaling(nn.Module):

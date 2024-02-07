@@ -18,7 +18,7 @@ from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval
 # local imports
 from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment
-from ...experiment import EnsembleInferenceExperiment
+from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 from ...metrics.utils import (
     count_matching_neighbors,
     get_bins,
@@ -291,6 +291,9 @@ def load_inference_exp_from_cfg(
         assert is_exp_group, "Ensemble inference only works with experiment groups."
         assert 'ensemble_cfg' in model_cfg.keys(), "Ensemble inference requires a combine function."
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
+        save_root = Path(inference_exp.path)
+    elif "Binning" in model_cfg['calibrator']:
+        inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:
         rs = ResultsLoader()
