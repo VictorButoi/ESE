@@ -115,7 +115,6 @@ class BinningInferenceExperiment(BaseExperiment):
                     if stats_file_dir is not None:
                         raise ValueError("Found more than one inference experiment with the same pretrained seed.")
                     stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
-        print(stats_file_dir)
         # Load the model
         self.model = absolute_import(model_config_dict['calibrator_cls'])(
             stats_file=stats_file_dir,            
@@ -153,8 +152,9 @@ class BinningInferenceExperiment(BaseExperiment):
             yhat_cal, 
             multi_class=multi_class, 
             threshold=threshold,
-            return_logits=return_logits
-            )
+            return_logits=return_logits,
+            from_logits=False
+        )
         # Return the outputs
         return {
             'y_pred': prob_map, 

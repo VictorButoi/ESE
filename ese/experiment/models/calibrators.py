@@ -45,7 +45,7 @@ class Histogram_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         self.val_freqs = global_joint_label_bin_stats(
             pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
-        )['bin_freqs'] # C x Bins
+        )['bin_freqs'].cuda() # C x Bins
         # Get the bins and bin widths
         num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
@@ -67,7 +67,7 @@ class Histogram_Binning(nn.Module):
             ).long() # B x H x W
             calibrated_prob_map = self.val_freqs[lab_idx][bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
-            prob_map[:, lab_idx, :, :] = calibrated_prob_map
+            probs[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             probs = probs / probs.sum(dim=1, keepdim=True)
@@ -76,29 +76,6 @@ class Histogram_Binning(nn.Module):
     @property
     def device(self):
         return "cpu"
-
-
-# class NECTAR_Binning(nn.Module):
-#     def __init__(
-#             self, 
-#             stats_file: pathlib.Path,
-#             normalize: bool, 
-#             **kwargs
-#             ):
-#         super(Temperature_Scaling, self).__init__()
-#         self.calibration_set_info = None
-#         # Get the per bin stats
-#         self.frequencies_per_lab = None
-
-#     def weights_init(self):
-#         pass
-
-#     def forward(self, logits, **kwargs):
-#         pass
-
-#     @property
-#     def device(self):
-#         return "cpu"
 
 
 class Temperature_Scaling(nn.Module):

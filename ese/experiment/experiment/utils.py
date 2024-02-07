@@ -21,8 +21,8 @@ def parse_class_name(class_name):
 def process_pred_map(
     conf_map: torch.Tensor, 
     multi_class: bool, 
+    from_logits: bool,
     threshold: float = 0.5, 
-    from_logits: bool = True,
     return_logits: bool = False # in the case we just want to pass through.
     ):
     if return_logits:

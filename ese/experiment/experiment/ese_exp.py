@@ -149,6 +149,7 @@ class CalibrationExperiment(TrainExperiment):
             logit_map, 
             multi_class=multi_class, 
             threshold=threshold,
+            from_logits=True,
             return_logits=return_logits
             )
         # Return the outputs
