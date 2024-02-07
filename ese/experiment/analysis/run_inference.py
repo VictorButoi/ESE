@@ -11,7 +11,7 @@ from ionpy.util import Config
 from ionpy.util.torchutils import to_device
 # local imports
 from .analysis_utils.inference_utils import cal_stats_init 
-from ..experiment.utils import show_inference_examples
+from ..experiment.utils import show_inference_examples, reduce_ensemble_preds
 from .image_records import get_image_stats
 from .pixel_records import (
     update_toplabel_pixel_meters,
@@ -207,6 +207,24 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=trackers["image_level_records"]
         ) 
+    ###############################################################################################
+    # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
+    ###############################################################################################
+    if inference_cfg["model"]["ensemble"]:
+        # The only case we don't need to softmax is when we have a Binning calibrator
+        from_logits = not ("Binning" in inference_cfg["model"]["calibrator"])
+        # Get the reduced predictions
+        output_dict = {
+            **reduce_ensemble_preds(
+                output_dict, 
+                inference_cfg=inference_cfg,
+                from_logits=from_logits
+            ),
+            "y_true": output_dict["y_true"],
+            "data_id": output_dict["data_id"], # Works because batchsize = 1
+            "split": output_dict["split"], # "train", "val", "cal", "test
+            "slice_idx": output_dict["slice_idx"]
+        }
     ########################
     # PIXEL LEVEL TRACKING #
     ########################

@@ -49,14 +49,15 @@ def process_pred_map(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_ensemble_preds(
     output_dict: dict, 
-    inference_cfg: dict
+    inference_cfg: dict,
+    from_logits: bool
 ) -> dict:
     # Combine the outputs of the models.
-    # NOTE: This will always do a softmax.
     ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
         output_dict["y_pred"], 
         combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
-        weights=output_dict['ens_weights']
+        weights=output_dict['ens_weights'],
+        from_logits=from_logits
     )
     # Get the hard prediction and probabilities, if we are doing identity,
     # then we don't want to return probs.

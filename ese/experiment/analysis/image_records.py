@@ -32,11 +32,14 @@ def get_image_stats(
     # If we are ensembling, then we can precalulate the ensemble predictions.
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
+        # The only case we don't need to softmax is when we have a Binning calibrator
+        from_logits = not ("Binning" in inference_cfg["model"]["calibrator"])
         # Get the reduced predictions
         ensemble_input_config = {
             'y_pred': reduce_ensemble_preds(
                 output_dict, 
-                inference_cfg=inference_cfg)['y_pred'],
+                inference_cfg=inference_cfg,
+                from_logits=from_logits)['y_pred'],
             'y_true': output_dict['y_true']
         }
         # Gather the individual predictions

@@ -14,8 +14,7 @@ from ..metrics.utils import (
     get_conf_region_np,
     count_matching_neighbors,
 )
-from ..experiment.utils import reduce_ensemble_preds
-    
+
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_toplabel_pixel_meters(
@@ -23,17 +22,6 @@ def update_toplabel_pixel_meters(
     inference_cfg: dict,
     pixel_level_records 
 ):
-    # If this is an ensembled prediction, then first we need to reduce the ensemble
-    ####################################################################################
-    if inference_cfg["model"]["ensemble"]:
-        output_dict = {
-            **reduce_ensemble_preds(
-                output_dict, 
-                inference_cfg=inference_cfg
-            ),
-            "y_true": output_dict["y_true"]
-        }
-
     calibration_cfg = inference_cfg['calibration']
     y_pred = output_dict["y_pred"]
     y_hard = output_dict["y_hard"]
@@ -163,17 +151,6 @@ def update_cw_pixel_meters(
     inference_cfg: dict,
     pixel_level_records 
 ):
-    # If this is an ensembled prediction, then first we need to reduce the ensemble
-    ####################################################################################
-    if inference_cfg["model"]["ensemble"]:
-        output_dict = {
-            **reduce_ensemble_preds(
-                output_dict, 
-                inference_cfg=inference_cfg
-            ),
-            "y_true": output_dict["y_true"]
-        }
-
     calibration_cfg = inference_cfg['calibration']
     y_pred = output_dict["y_pred"].cpu()
     y_true = output_dict["y_true"]

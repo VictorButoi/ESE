@@ -43,23 +43,24 @@ def identity_combine_fn(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
-    ensemble_logits,
+    ensemble_preds,
     weights: Tensor,
     combine_quantity: Literal["probs", "logits"],
+    from_logits: bool,
     **kwargs
 ):
-    if isinstance(ensemble_logits, dict):
-        ensemble_logits = batch_ensemble_preds(ensemble_logits)
+    if isinstance(ensemble_preds, dict):
+        ensemble_preds = batch_ensemble_preds(ensemble_preds)
 
-    if combine_quantity == "probs":
-        ensemble_logits = torch.softmax(ensemble_logits, dim=1)
+    if combine_quantity == "probs" and from_logits:
+        ensemble_preds = torch.softmax(ensemble_preds, dim=1)
 
     # Multiply the logits by the weights.
     weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
-    w_ensemble_logits = weights * ensemble_logits # B, C, E, H, W
+    w_ensemble_logits = weights * ensemble_preds # B, C, E, H, W
     ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
-    if combine_quantity == "logits":
+    if combine_quantity == "logits" and from_logits:
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
 
     return ensemble_mean_tensor
@@ -67,19 +68,21 @@ def mean_combine_fn(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def product_combine_fn(
-    ensemble_logits,
+    ensemble_preds,
     weights: Tensor,
+    from_logits: bool,
     **kwargs
 ):
-    if isinstance(ensemble_logits, dict):
-        ensemble_logits = batch_ensemble_preds(ensemble_logits)
+    if isinstance(ensemble_preds, dict):
+        ensemble_preds = batch_ensemble_preds(ensemble_preds)
 
     # We always need to softmax the logits before taking the product.
-    ensemble_probs = torch.softmax(ensemble_logits, dim=1)
+    if from_logits:
+        ensemble_preds = torch.softmax(ensemble_preds, dim=1)
 
     # We want to calculate the weighted geometric mean of the probabilities.
     weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
-    scaled_ensemble_probs = torch.pow(ensemble_probs, weights) # B, C, E, H, W
+    scaled_ensemble_probs = torch.pow(ensemble_preds, weights) # B, C, E, H, W
     ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
 
     return ensemble_product_tensor
@@ -87,16 +90,18 @@ def product_combine_fn(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def upperbound_combine_fn(
-    ensemble_logits,
+    ensemble_preds,
     y_true: Tensor,
+    from_logits: bool,
     **kwargs
 ):
-    if isinstance(ensemble_logits, dict):
-        ensemble_logits = batch_ensemble_preds(ensemble_logits)
+    if isinstance(ensemble_preds, dict):
+        ensemble_preds = batch_ensemble_preds(ensemble_preds)
 
     # Gather the individual predictions
-    B, C, E, H, W = ensemble_logits.shape
-    ensemble_probs = torch.softmax(ensemble_logits, dim=1) # B x C x E x H x W
+    B, C, E, H, W = ensemble_preds.shape
+    if from_logits:
+        ensemble_probs = torch.softmax(ensemble_preds, dim=1) # B x C x E x H x W
     ensemble_hard_preds = torch.argmax(ensemble_probs, dim=1) # B x E x H x W
     # Get the upper bound prediction by going through and updating the prediction
     # by the pixels each model got right.
