@@ -2,7 +2,7 @@
 from torch import Tensor
 # misc imports
 from pydantic import validate_arguments
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional, Union, List, Literal
 # ionpy imports
 from ionpy.util.meter import Meter
 from ionpy.loss.util import _loss_module_from_func
@@ -10,7 +10,7 @@ from ionpy.loss.util import _loss_module_from_func
 # - pixel statistics
 from .metric_reductions import (
     ece_reduction,
-    label_ece_reduction
+    class_ece_reduction
 )
 from .local_ps import (
     bin_stats, 
@@ -117,7 +117,7 @@ def image_tl_ece_loss(
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
-    return label_ece_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -142,7 +142,7 @@ def tl_ece_loss(
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
-    return label_ece_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -150,6 +150,8 @@ def image_cw_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
     num_bins: int,
+    class_weighting: Literal["uniform", "proportional"],
+    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -174,17 +176,21 @@ def image_cw_ece_loss(
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
+        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Local Bin counts: ", cal_info["bin_amounts"])
     # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
-    return label_ece_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    class_weighting: Literal["uniform", "proportional"],
+    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
@@ -202,12 +208,14 @@ def cw_ece_loss(
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
+        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts: ", cal_info["bin_amounts"])
     # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
-    return label_ece_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 # Edge only versions of the above functions.
@@ -241,8 +249,8 @@ def edge_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_etl_ece_loss(
-    y_pred: Tensor = None, 
-    y_true: Tensor = None,
+    y_pred: Tensor,
+    y_true: Tensor,
     **kwargs
     ) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
@@ -267,8 +275,8 @@ def etl_ece_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_ecw_ece_loss(
-    y_pred: Tensor = None, 
-    y_true: Tensor = None,
+    y_pred: Tensor,
+    y_true: Tensor,
     **kwargs
     ) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."

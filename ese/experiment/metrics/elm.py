@@ -1,12 +1,12 @@
 # get the processing function.
 from .local_ps import neighbor_bin_stats 
-from .metric_reductions import elm_reduction 
+from .metric_reductions import class_ece_reduction 
 from .global_ps import global_neighbor_bin_stats 
 # torch imports
 from torch import Tensor
 # misc imports
 from pydantic import validate_arguments
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional, Union, List, Literal
 # ionpy imports
 from ionpy.util.meter import Meter
 from ionpy.loss.util import _loss_module_from_func
@@ -18,6 +18,8 @@ def image_elm_loss(
     y_true: Tensor,
     num_bins: int,
     neighborhood_width: int,
+    class_weighting: Literal["uniform", "proportional"],
+    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -41,17 +43,21 @@ def image_elm_loss(
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
+        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Local Bin counts:\n", cal_info["bin_amounts"])
     # print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
-    return elm_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     neighborhood_width: int,
+    class_weighting: Literal["uniform", "proportional"],
+    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     ignore_index: Optional[int] = None,
@@ -67,11 +73,13 @@ def elm_loss(
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
+        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts:\n", cal_info["bin_amounts"])
     # print("Global Bin cal errors:\n", cal_info["bin_cal_errors"])
-    return elm_reduction(**metric_dict)
+    return class_ece_reduction(**metric_dict)
 
 
 # Edge only versions of the above functions.
