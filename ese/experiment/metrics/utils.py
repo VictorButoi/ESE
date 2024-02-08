@@ -326,6 +326,7 @@ def find_bins(
 def count_matching_neighbors(
     lab_map: Union[Tensor, np.ndarray],
     neighborhood_width: int = 3,
+    ignore_index: Optional[int] = None
 ):
     if len(lab_map.shape) == 4:
         lab_map = lab_map.squeeze(1) # Attempt to squeeze out the channel dimension.
@@ -363,6 +364,8 @@ def count_matching_neighbors(
         count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
     # Subtract 1 because the center pixel is included in the 3x3 neighborhood count
     count_array -= 1
+    if ignore_index is not None:
+        count_array[lab_map == ignore_index] = -100 # Set the ignore index to -100 
     # Return the count_array
     if return_numpy:
         return count_array.numpy()
