@@ -84,6 +84,7 @@ def image_tl_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
     num_bins: int,
+    class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -107,6 +108,7 @@ def image_tl_ece_loss(
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
@@ -117,6 +119,7 @@ def image_tl_ece_loss(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
@@ -135,6 +138,7 @@ def tl_ece_loss(
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
+        "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
