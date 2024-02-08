@@ -116,7 +116,6 @@ class PostHocExperiment(TrainExperiment):
             self.base_model = torch.nn.Identity()
             # Load the model, there is no learned calibrator.
             self.model = self.pretrained_exp.model
-            self.properties["num_params"] = num_params(self.model)
         else:
             self.base_model = self.pretrained_exp.model
             self.base_model.eval()
@@ -128,7 +127,8 @@ class PostHocExperiment(TrainExperiment):
             # Load the model
             self.model = eval_config(model_config_dict)
             self.model.weights_init()
-            self.properties["num_params"] = num_params(self.model) + num_params(self.base_model)
+        # Get the tuned calibration parameters.
+        self.properties["num_params"] = num_params(self.model)
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
         ########################################################################

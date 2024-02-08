@@ -97,7 +97,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
         for exp_idx, exp_path in enumerate(dfc["path"].unique()):
             # Special case where we want to use the binning calibrator.
             if "Binning" in model_cfg["calibrator"]:  
-                raise ValueError
+                # Get the experiment class corresponding to the exp_path.
+                exp_class = absolute_import(model_cfg["calibrator_cls"])
+                # Load the experiment
+                loaded_exp = exp_class.from_config(model_cfg)
             # Otheriwse, get the experiment class corresponding to the exp_path.
             else:
                 properties_dir = Path(exp_path) / "properties.json"
@@ -106,9 +109,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
                 exp_class = absolute_import(f'ese.experiment.experiment.{props["experiment"]["class"]}')
                 # Load the experiment
                 loaded_exp = exp_class(exp_path, load_data=False)
-                if model_cfg["checkpoint"] is not None:
-                    loaded_exp.load(tag=model_cfg["checkpoint"])
                 loaded_exp.model.eval()
+            # Load the experiment weights.
+            if model_cfg["checkpoint"] is not None:
+                loaded_exp.load(tag=model_cfg["checkpoint"])
 
             self.ens_exps[str(exp_path)] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]

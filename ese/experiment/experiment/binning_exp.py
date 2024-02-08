@@ -29,19 +29,6 @@ class BinningInferenceExperiment(BaseExperiment):
         # Save the config because we've modified it.
         autosave(self.config.to_dict(), self.path / "config.yml") # Save the new config because we edited it.
     
-    def build_data(self):
-        # Move the information about channels to the model config.
-        # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
-        total_config = self.config.to_dict()
-        # Get the data and transforms we want to apply
-        pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
-        # Update the old cfg with new cfg (if it exists).
-        if "data" in self.config:
-            pretrained_data_cfg.update(self.config["data"].to_dict())
-        total_config["data"] = pretrained_data_cfg
-        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
-        self.config = Config(total_config)
-
     def build_model(self):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
@@ -59,13 +46,11 @@ class BinningInferenceExperiment(BaseExperiment):
         #            Model Creation             #
         #########################################
         model_config_dict = total_config['model']
-        if '_pretrained_class' in model_config_dict:
-            model_config_dict.pop('_pretrained_class')
-        self.model_class = model_config_dict['calibrator_cls']
         # Either keep training the network, or use a post-hoc calibrator.
+        self.model_class = model_config_dict['calibrator_cls']
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
-        self.properties["num_params"] = num_params(self.base_model)
+        self.properties["num_params"] = 0
         ########################
         # BUILD THE CALIBRATOR #
         ########################
@@ -87,7 +72,7 @@ class BinningInferenceExperiment(BaseExperiment):
                         raise ValueError("Found more than one inference experiment with the same pretrained seed.")
                     stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
         # Load the model
-        self.model = absolute_import(model_config_dict['calibrator_cls'])(
+        self.model = absolute_import(self.model_class)(
             stats_file=stats_file_dir,            
             normalize=model_config_dict['normalize']
         )
@@ -101,6 +86,19 @@ class BinningInferenceExperiment(BaseExperiment):
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
     
+    def build_data(self):
+        # Move the information about channels to the model config.
+        # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
+        total_config = self.config.to_dict()
+        # Get the data and transforms we want to apply
+        pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
+        # Update the old cfg with new cfg (if it exists).
+        if "data" in self.config:
+            pretrained_data_cfg.update(self.config["data"].to_dict())
+        total_config["data"] = pretrained_data_cfg
+        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
+        self.config = Config(total_config)
+
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
 
