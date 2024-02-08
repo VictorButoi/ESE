@@ -18,11 +18,7 @@ from .local_ps import (
     joint_label_bin_stats
 )
 # - global statistics
-from .global_ps import (
-    global_bin_stats, 
-    global_top_label_bin_stats,
-    global_joint_label_bin_stats
-)
+from .global_ps import global_binwise_stats  
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -48,12 +44,12 @@ def image_ece_loss(
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
         stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
+        from_logits=from_logits
     )
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -69,16 +65,18 @@ def ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_bin_stats(
+    cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        class_conditioned=False,
+        neighborhood_conditioned=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        edge_only=edge_only,
-        ignore_index=ignore_index
+        edge_only=edge_only
     )
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -108,12 +106,12 @@ def image_tl_ece_loss(
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
         stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
+        from_logits=from_logits
     )
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -129,16 +127,19 @@ def tl_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_top_label_bin_stats(
+    cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        class_wise=False,
+        class_conditioned=True,
+        neighborhood_conditioned=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        edge_only=edge_only,
-        ignore_index=ignore_index
+        edge_only=edge_only
     )
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -170,14 +171,14 @@ def image_cw_ece_loss(
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
         stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
+        from_logits=from_logits
     )
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Local Bin counts: ", cal_info["bin_amounts"])
@@ -198,18 +199,21 @@ def cw_ece_loss(
     **kwargs
     ) -> Union[dict, Tensor]:
     # Get the statistics either from images or pixel meter dict.
-    cal_info = global_joint_label_bin_stats(
+    cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        class_wise=True,
+        class_conditioned=True,
+        neighborhood_conditioned=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
-        edge_only=edge_only,
-        ignore_index=ignore_index
+        edge_only=edge_only
     )
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts: ", cal_info["bin_amounts"])

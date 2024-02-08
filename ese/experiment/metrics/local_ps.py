@@ -179,8 +179,7 @@ def bin_stats(
     square_diff: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
+    stats_info_dict: Optional[dict] = {}
     ) -> dict:
     # Init some things.
     obj_dict = bin_stats_init(
@@ -209,9 +208,8 @@ def bin_stats(
             true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
             true_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             edge_only=edge_only,
-            neighborhood_width=neighborhood_width,
-            ignore_index=ignore_index, # Ignore index will ignore ground truth pixels with this value.
-            )
+            neighborhood_width=neighborhood_width
+        )
         # If there are some pixels in this confidence bin.
         if bin_conf_region.sum() > 0:
             # Calculate the average score for the regions in the bin.
@@ -242,8 +240,7 @@ def top_label_bin_stats(
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
-    ) -> dict:
+) -> dict:
     # Init some things.
     obj_dict = bin_stats_init(
         y_pred=y_pred,
@@ -254,13 +251,10 @@ def top_label_bin_stats(
         stats_info_dict=stats_info_dict,
         from_logits=from_logits,
         class_wise=False
-        )
+    )
     # If top label, then everything is done based on
     # predicted values, not ground truth. 
     unique_labels = torch.unique(obj_dict["y_hard"])
-
-    if ignore_index is not None:
-        unique_labels = unique_labels[unique_labels != ignore_index]
 
     num_labels = len(unique_labels)
     # Setup the cal info tracker.
@@ -280,9 +274,8 @@ def top_label_bin_stats(
                 pred_lab_map=obj_dict["y_hard"], # Use ground truth to get the region.
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
-                neighborhood_width=neighborhood_width,
-                ignore_index=ignore_index
-                )
+                neighborhood_width=neighborhood_width
+            )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
                 # Calculate the average score for the regions in the bin.
@@ -313,8 +306,7 @@ def joint_label_bin_stats(
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
-    ) -> dict:
+) -> dict:
 
     # Init some things.
     obj_dict = bin_stats_init(
@@ -331,9 +323,6 @@ def joint_label_bin_stats(
     # Unlike true labels we need to get the true unique labels.
     max_label = y_pred.shape[1]
     label_set = torch.arange(max_label)
-    if ignore_index is not None:
-        assert 0 <= ignore_index < max_label, f"ignore_index must be in the range [0, {max_label}). Got {ignore_index}."
-        label_set = label_set[label_set != ignore_index]
     
     # Setup the cal info tracker.
     n_labs = len(label_set)
@@ -387,8 +376,7 @@ def neighbor_bin_stats(
     from_logits: bool = False,
     square_diff: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
-    stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
+    stats_info_dict: Optional[dict] = {}
     ) -> dict:
     # Init some things.
     obj_dict = bin_stats_init(
@@ -422,7 +410,6 @@ def neighbor_bin_stats(
                 true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
                 neighborhood_width=neighborhood_width,
-                ignore_index=ignore_index
                 )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
@@ -454,7 +441,6 @@ def neighbor_joint_label_bin_stats(
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None
     ) -> dict:
     # Init some things.
     obj_dict = bin_stats_init(
@@ -471,9 +457,6 @@ def neighbor_joint_label_bin_stats(
     # Unlike true labels we need to get the true unique labels.
     max_label = y_pred.shape[1]
     label_set = torch.arange(max_label)
-    if ignore_index is not None:
-        assert 0 <= ignore_index < max_label, f"ignore_index must be in the range [0, {max_label}). Got {ignore_index}."
-        label_set = label_set[label_set != ignore_index]
     
     # Setup the cal info tracker.
     n_labs = len(label_set)

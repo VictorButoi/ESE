@@ -7,90 +7,6 @@ from pydantic import validate_arguments
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def accumulate_pixel_preds(
-    class_wise: bool,
-    pixel_meters_dict: dict,
-    key_1: str,
-    key_2: Optional[str] = None,
-    key_3: Optional[str] = None,
-    edge_only: bool = False,
-    neighborhood_width: Optional[int] = None,
-) -> dict:
-    assert (not edge_only) or (edge_only and neighborhood_width is not None),\
-        "If edge_only is True, neighborhood_width must be defined."
-    # Accumulate the dictionaries corresponding to a single bin.
-    accumulated_meters_dict = {}
-    unique_key_1 = []
-    unique_key_2 = []
-    unique_key_3 = []
-    # Iterate through the meters.
-    for pix_dict_key, value in pixel_meters_dict.items():
-        if class_wise:
-            true_label, true_num_neighb, prob_bin, measure = pix_dict_key
-        else:
-            true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
-        # Get the total number of pixel classes for this neighborhood size.
-        if neighborhood_width is not None:
-            total_nearby_pixels = (neighborhood_width**2 - 1)
-        # We track pixels if they are not edge pixels or if they are edge pixels and the edge_only flag is False.
-        if (not edge_only) or (true_num_neighb < total_nearby_pixels):
-            item = {
-                "true_label": true_label,
-                "true_num_neighb": true_num_neighb,
-                "prob_bin": prob_bin,
-                "measure": measure,
-            }
-            if not class_wise:
-                item["pred_label"] = pred_label
-                item["pred_num_neighb"] = pred_num_neighb
-            # Keep track of unique values.
-            if item[key_1] not in unique_key_1:
-                unique_key_1.append(item[key_1])
-            if key_2 is not None:
-                if item[key_2] not in unique_key_2:
-                    unique_key_2.append(item[key_2])
-            if key_3 is not None:
-                if item[key_3] not in unique_key_3:
-                    unique_key_3.append(item[key_3])
-            # El Monstro
-            if item[key_1] not in accumulated_meters_dict:
-                accumulated_meters_dict[item[key_1]] = {}
-            level1_dict = accumulated_meters_dict[item[key_1]]
-            if key_2 is None:
-                if measure not in level1_dict:
-                    level1_dict[measure] = value
-                else:
-                    level1_dict[measure] += value
-            else:
-                if item[key_2] not in level1_dict:
-                    level1_dict[item[key_2]] = {}
-                level2_dict = level1_dict[item[key_2]]
-                if key_3 is None:                
-                    if measure not in level2_dict:
-                        level2_dict[measure] = value
-                    else:
-                        level2_dict[measure] += value
-                else:
-                    if item[key_3] not in level2_dict:
-                        level2_dict[item[key_3]] = {}
-                    level3_dict = level2_dict[item[key_3]]
-                    if measure not in level3_dict:
-                        level3_dict[measure] = value
-                    else:
-                        level3_dict[measure] += value
-    # Wrap the unique values into a dictionary.
-    unique_values_dict = {
-        key_1: sorted(unique_key_1)
-    }
-    if key_2 is not None:
-        unique_values_dict[key_2] = sorted(unique_key_2)
-    if key_3 is not None:
-        unique_values_dict[key_3] = sorted(unique_key_3)
-    # Return the accumulated values and the unique keys.
-    return accumulated_meters_dict, unique_values_dict
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_binwise_stats(
     pixel_meters_dict: dict,
     class_conditioned: bool,
@@ -329,3 +245,87 @@ def joint_class_neighbor_bin_stats(
                     cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_freq)
     # Return the calibration information.
     return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def accumulate_pixel_preds(
+    class_wise: bool,
+    pixel_meters_dict: dict,
+    key_1: str,
+    key_2: Optional[str] = None,
+    key_3: Optional[str] = None,
+    edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
+) -> dict:
+    assert (not edge_only) or (edge_only and neighborhood_width is not None),\
+        "If edge_only is True, neighborhood_width must be defined."
+    # Accumulate the dictionaries corresponding to a single bin.
+    accumulated_meters_dict = {}
+    unique_key_1 = []
+    unique_key_2 = []
+    unique_key_3 = []
+    # Iterate through the meters.
+    for pix_dict_key, value in pixel_meters_dict.items():
+        if class_wise:
+            true_label, true_num_neighb, prob_bin, measure = pix_dict_key
+        else:
+            true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
+        # Get the total number of pixel classes for this neighborhood size.
+        if neighborhood_width is not None:
+            total_nearby_pixels = (neighborhood_width**2 - 1)
+        # We track pixels if they are not edge pixels or if they are edge pixels and the edge_only flag is False.
+        if (not edge_only) or (true_num_neighb < total_nearby_pixels):
+            item = {
+                "true_label": true_label,
+                "true_num_neighb": true_num_neighb,
+                "prob_bin": prob_bin,
+                "measure": measure,
+            }
+            if not class_wise:
+                item["pred_label"] = pred_label
+                item["pred_num_neighb"] = pred_num_neighb
+            # Keep track of unique values.
+            if item[key_1] not in unique_key_1:
+                unique_key_1.append(item[key_1])
+            if key_2 is not None:
+                if item[key_2] not in unique_key_2:
+                    unique_key_2.append(item[key_2])
+            if key_3 is not None:
+                if item[key_3] not in unique_key_3:
+                    unique_key_3.append(item[key_3])
+            # El Monstro
+            if item[key_1] not in accumulated_meters_dict:
+                accumulated_meters_dict[item[key_1]] = {}
+            level1_dict = accumulated_meters_dict[item[key_1]]
+            if key_2 is None:
+                if measure not in level1_dict:
+                    level1_dict[measure] = value
+                else:
+                    level1_dict[measure] += value
+            else:
+                if item[key_2] not in level1_dict:
+                    level1_dict[item[key_2]] = {}
+                level2_dict = level1_dict[item[key_2]]
+                if key_3 is None:                
+                    if measure not in level2_dict:
+                        level2_dict[measure] = value
+                    else:
+                        level2_dict[measure] += value
+                else:
+                    if item[key_3] not in level2_dict:
+                        level2_dict[item[key_3]] = {}
+                    level3_dict = level2_dict[item[key_3]]
+                    if measure not in level3_dict:
+                        level3_dict[measure] = value
+                    else:
+                        level3_dict[measure] += value
+    # Wrap the unique values into a dictionary.
+    unique_values_dict = {
+        key_1: sorted(unique_key_1)
+    }
+    if key_2 is not None:
+        unique_values_dict[key_2] = sorted(unique_key_2)
+    if key_3 is not None:
+        unique_values_dict[key_3] = sorted(unique_key_3)
+    # Return the accumulated values and the unique keys.
+    return accumulated_meters_dict, unique_values_dict

@@ -4,8 +4,8 @@ from .utils import reduce_bin_errors
 import torch
 from torch import Tensor
 # misc imports
-from typing import Union, Literal
 from pydantic import validate_arguments
+from typing import Union, Literal, Optional
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -13,7 +13,7 @@ def ece_reduction(
     cal_info: dict,
     metric_type: str,
     return_dict: bool = False,
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -39,8 +39,9 @@ def class_ece_reduction(
     metric_type: str,
     class_weighting: Literal['uniform', 'propotional'],
     ignore_empty_classes: bool,
+    ignore_index: Optional[int] = None,
     return_dict: bool = False,
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     """
     Calculates the Expected Semantic Error (ECE) for a predicted label map.
     """
@@ -54,19 +55,21 @@ def class_ece_reduction(
         amounts_per_lab = torch.zeros(L)
         # Iterate through each label and calculate the weighted ece.
         for lab_idx in range(L):
-            lab_ece = reduce_bin_errors(
-                error_per_bin=cal_info['bin_cal_errors'][lab_idx], 
-                amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
-                )
-            lab_amount = cal_info['bin_amounts'][lab_idx].sum()
-            amounts_per_lab[lab_idx] = lab_amount
-            # If uniform then apply no weighting.
-            if class_weighting == 'uniform':
-                ece_per_lab[lab_idx] = lab_ece
-            else:
-                lab_prob = lab_amount / total_num_samples 
-                # Weight the ECE by the prob of the label.
-                ece_per_lab[lab_idx] = lab_prob * lab_ece
+            # If we are ignoring an index, skip it in calculations.
+            if ignore_index is not None and lab_idx != ignore_index:
+                lab_ece = reduce_bin_errors(
+                    error_per_bin=cal_info['bin_cal_errors'][lab_idx], 
+                    amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
+                    )
+                lab_amount = cal_info['bin_amounts'][lab_idx].sum()
+                amounts_per_lab[lab_idx] = lab_amount
+                # If uniform then apply no weighting.
+                if class_weighting == 'uniform':
+                    ece_per_lab[lab_idx] = lab_ece
+                else:
+                    lab_prob = lab_amount / total_num_samples 
+                    # Weight the ECE by the prob of the label.
+                    ece_per_lab[lab_idx] = lab_prob * lab_ece
         # Finally, get the calibration score.
         if class_weighting == 'uniform':
             if ignore_empty_classes:

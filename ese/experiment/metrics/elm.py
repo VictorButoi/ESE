@@ -1,7 +1,7 @@
 # get the processing function.
 from .local_ps import neighbor_bin_stats 
 from .metric_reductions import class_ece_reduction 
-from .global_ps import global_neighbor_bin_stats 
+from .global_ps import global_binwise_stats  
 # torch imports
 from torch import Tensor
 # misc imports
@@ -37,15 +37,15 @@ def image_elm_loss(
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
         stats_info_dict=stats_info_dict,
-        from_logits=from_logits,
-        ignore_index=ignore_index
+        from_logits=from_logits
     )
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
-        "return_dict": kwargs.get("return_dict", False) 
+        "ignore_index": ignore_index,
+        "return_dict": kwargs.get("return_dict", False)
     }
     # print("Local Bin counts:\n", cal_info["bin_amounts"])
     # print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
@@ -63,18 +63,21 @@ def elm_loss(
     ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_neighbor_bin_stats(
+    cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
-        neighborhood_width=neighborhood_width,
-        edge_only=edge_only,
+        class_wise=False,
+        class_conditioned=False,
+        neighborhood_conditioned=True,
         square_diff=square_diff,
-        ignore_index=ignore_index
+        neighborhood_width=neighborhood_width,
+        edge_only=edge_only
     )
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
+        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts:\n", cal_info["bin_amounts"])
