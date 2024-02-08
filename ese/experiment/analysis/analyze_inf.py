@@ -45,6 +45,7 @@ def load_cal_inference_stats(
     log_root = log_cfg["root"] 
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
+    skip_log_folders = ["wandb", "submitit", "binning_exp_logs"]
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):
         metadata_df = pd.DataFrame([])
@@ -67,7 +68,7 @@ def load_cal_inference_stats(
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             for log_set in log_dir.iterdir():
-                if log_set.name not in ["wandb", "submitit"]:
+                if log_set.name not in skip_log_folders:
                     try:
                         # Load the metadata file (json) and add it to the metadata dataframe.
                         config_dir = log_set / "config.yml"
@@ -124,7 +125,7 @@ def load_cal_inference_stats(
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             for log_set in log_dir.iterdir():
-                if log_set.name not in skip_log_sets +["wandb", "submitit"]:
+                if log_set.name not in skip_log_sets + skip_log_folders:
                     try:
                         # Get the metadata corresponding to this log set.
                         metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
@@ -187,6 +188,7 @@ def load_cal_inference_stats(
         inference_df["model_class"] = inference_df["model._class"]
         inference_df["ensemble"] = inference_df["model.ensemble"]
         inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
+        inference_df["normalize"] = inference_df["model.normalize"].fillna("None")
 
         # Go through several optional keys, and add them if they don't exist
         for optional_key in [
@@ -222,15 +224,19 @@ def load_cal_inference_stats(
                 else:
                     return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
-        def calibrator(model_class):
+        def calibrator(model_class, normalize):
             model_class_suffix = model_class.split('.')[-1]
             # Determine the calibration name.
             if "UNet" in model_class:
-                return "Uncalibrated"
+                cal_cls = "Uncalibrated"
             elif model_class_suffix == "Identity":
-                return "Vanilla"
+                cal_cls = "Vanilla"
             else:
-                return model_class_suffix
+                cal_cls = model_class_suffix
+            # Add the normalization to the calibrator name.
+            if "Binning" in model_class: 
+                cal_cls += f" (norm:{normalize})"
+            return cal_cls
 
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"

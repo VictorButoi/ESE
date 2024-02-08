@@ -129,6 +129,7 @@ def get_average_unet_baselines(
         'data_id',
         'slice_idx',
         'split',
+        'normalize',
         'joint_data_slice_id',
         'ensemble',
         'model_class',
