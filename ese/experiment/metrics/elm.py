@@ -1,6 +1,6 @@
 # get the processing function.
 from .local_ps import neighbor_bin_stats 
-from .metric_reductions import class_ece_reduction 
+from .metric_reductions import elm_reduction 
 from .global_ps import global_binwise_stats  
 # torch imports
 from torch import Tensor
@@ -25,7 +25,6 @@ def image_elm_loss(
     from_logits: bool = False,
     conf_interval: Optional[List[float]] = None,
     stats_info_dict: Optional[dict] = {},
-    ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
     cal_info = neighbor_bin_stats(
@@ -44,12 +43,11 @@ def image_elm_loss(
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
-        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False)
     }
-    print("Local Bin counts:\n", cal_info["bin_amounts"])
-    print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
-    return class_ece_reduction(**metric_dict)
+    # print("Local Bin counts:\n", cal_info["bin_amounts"])
+    # print("Local Bin cal errors:\n", cal_info["bin_cal_errors"])
+    return elm_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -60,7 +58,6 @@ def elm_loss(
     ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
-    ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
@@ -77,12 +74,11 @@ def elm_loss(
         "cal_info": cal_info,
         "class_weighting": class_weighting,
         "ignore_empty_classes": ignore_empty_classes,
-        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    print("Global Bin counts:\n", cal_info["bin_amounts"])
-    print("Global Bin cal errors:\n", cal_info["bin_cal_errors"])
-    return class_ece_reduction(**metric_dict)
+    # print("Global Bin counts:\n", cal_info["bin_amounts"])
+    # print("Global Bin cal errors:\n", cal_info["bin_cal_errors"])
+    return elm_reduction(**metric_dict)
 
 
 # Edge only versions of the above functions.
