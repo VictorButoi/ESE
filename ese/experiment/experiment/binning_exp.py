@@ -51,9 +51,9 @@ class BinningInferenceExperiment(BaseExperiment):
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         self.properties["num_params"] = 0
-        ########################
-        # BUILD THE CALIBRATOR #
-        ########################
+        ############################################################
+        # Get the inference exp to be used for histogram matching. #
+        ############################################################
         inf_exp_root = total_config['experiment']['exp_root']
         inference_log_dir = f"{inf_exp_root}/{total_config['experiment']['dataset_name']}_Individual_Uncalibrated"
         assert os.path.exists(inference_log_dir), f"Could not find the inference log directory at {inference_log_dir}."
@@ -83,8 +83,9 @@ class BinningInferenceExperiment(BaseExperiment):
         total_config['experiment'] = old_exp_config['experiment']
         model_config_dict['_class'] = self.model_class
         model_config_dict['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
-        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
+        # Save the config because we've modified it.
+        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
     
     def build_data(self):
         # Move the information about channels to the model config.
@@ -96,8 +97,9 @@ class BinningInferenceExperiment(BaseExperiment):
         if "data" in self.config:
             pretrained_data_cfg.update(self.config["data"].to_dict())
         total_config["data"] = pretrained_data_cfg
-        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
+        # Save the config because we've modified it.
+        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
 
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
