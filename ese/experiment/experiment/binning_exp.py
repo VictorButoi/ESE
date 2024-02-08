@@ -20,16 +20,16 @@ import os
 # Very similar to BaseExperiment, but with a few changes.
 class BinningInferenceExperiment(BaseExperiment):
 
-    def __init__(self, path, set_seed=True, load_data=False):
+    def __init__(self, path, set_seed=True):
         torch.backends.cudnn.benchmark = True
         super().__init__(path, set_seed)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.build_model()
-        self.build_data(load_data)
+        self.build_data()
         # Save the config because we've modified it.
         autosave(self.config.to_dict(), self.path / "config.yml") # Save the new config because we edited it.
     
-    def build_data(self, load_data):
+    def build_data(self):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
@@ -41,35 +41,6 @@ class BinningInferenceExperiment(BaseExperiment):
         total_config["data"] = pretrained_data_cfg
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
-        # Optionally, load the data.
-        if load_data:
-            # Get the dataset class and build the transforms
-            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
-
-            # Build the augmentation pipeline.
-            if "augmentations" in total_config and (total_config["augmentations"] is not None):
-                val_transforms = augmentations_from_config(total_config["augmentations"]["train"])
-                cal_transforms = augmentations_from_config(total_config["augmentations"]["val"])
-                self.properties["aug_digest"] = json_digest(self.config["augmentations"].to_dict())[
-                    :8
-                ]
-            else:
-                val_transforms, cal_transforms = None, None
-            # Build the datasets, apply the transforms
-            self.train_dataset = dataset_cls(split="val", transforms=val_transforms, **pretrained_data_cfg)
-            self.val_dataset = dataset_cls(split="cal", transforms=cal_transforms, **pretrained_data_cfg)
-
-            # Check if we want to cache the dataset on the GPU.
-            if "cuda" in pretrained_data_cfg:
-                assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
-                cache_dsets_on_gpu = pretrained_data_cfg.pop("cuda")
-            else:
-                cache_dsets_on_gpu = False
-
-            # Optionally cache the datasets on the GPU.
-            if cache_dsets_on_gpu:
-                self.train_dataset = CUDACachedDataset(self.train_dataset)
-                self.val_dataset = CUDACachedDataset(self.val_dataset)
 
     def build_model(self):
         # Move the information about channels to the model config.
@@ -130,17 +101,16 @@ class BinningInferenceExperiment(BaseExperiment):
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
     
-    def build_loss(self):
-        self.loss_func = eval_config(self.config["loss_func"])
-
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
 
-    def predict(self, 
-                x, 
-                multi_class,
-                threshold=0.5,
-                return_logits=False):
+    def predict(
+        self, 
+        x, 
+        multi_class,
+        threshold=0.5,
+        return_logits=False
+    ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Predict with the base model.
         with torch.no_grad():
