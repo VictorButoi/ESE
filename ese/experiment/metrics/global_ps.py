@@ -63,8 +63,8 @@ def prob_bin_stats(
         bin_meter = accumulated_meters_dict[prob_bin]
         # Choose what key to use.
         bin_conf = bin_meter["confidence"].mean
-        bin_freq = bin_meter["frequency"].mean
-        num_samples = bin_meter["frequency"].n
+        bin_freq = bin_meter["accuracy"].mean
+        num_samples = bin_meter["accuracy"].n
         # Calculate the average calibration error for the regions in the bin.
         bin_idx = unique_bins.index(prob_bin)
         cal_info["bin_confs"][bin_idx] = bin_conf
@@ -116,8 +116,8 @@ def class_wise_bin_stats(
             bin_meter = accumulated_meters_dict[label][prob_bin]
             # Choose what key to use.
             bin_conf = bin_meter["confidence"].mean
-            bin_freq = bin_meter["frequency"].mean
-            num_samples = bin_meter["frequency"].n
+            bin_freq = bin_meter["accuracy"].mean
+            num_samples = bin_meter["accuracy"].n
             # Calculate the average calibration error for the regions in the bin.
             lab_idx = unique_labels.index(label)
             bin_idx = unique_bins.index(prob_bin)
@@ -170,8 +170,8 @@ def neighbor_wise_bin_stats(
             bin_meter = accumulated_meters_dict[nn_class][prob_bin]
             # Choose what key to use.
             bin_conf = bin_meter["confidence"].mean
-            bin_freq = bin_meter["frequency"].mean
-            num_samples = bin_meter["frequency"].n
+            bin_freq = bin_meter["accuracy"].mean
+            num_samples = bin_meter["accuracy"].n
             # Calculate the average calibration error for the regions in the bin.
             nn_idx = unique_neighbor_classes.index(nn_class)
             bin_idx = unique_prob_bins.index(prob_bin)
@@ -228,8 +228,8 @@ def joint_class_neighbor_bin_stats(
                 bin_meter = accumulated_meters_dict[label][nn_class][prob_bin]
                 # Gather the statistics.
                 bin_conf = bin_meter["confidence"].mean
-                bin_freq = bin_meter["frequency"].mean
-                num_samples = bin_meter["frequency"].n
+                bin_freq = bin_meter["accuracy"].mean
+                num_samples = bin_meter["accuracy"].n
                 # Calculate the average calibration error for the regions in the bin.
                 lab_idx = unique_labels.index(label)
                 nn_idx = unique_num_neighb.index(nn_class)

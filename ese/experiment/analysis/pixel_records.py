@@ -74,7 +74,7 @@ def update_toplabel_pixel_meters(
         neighborhood_width=calibration_cfg["neighborhood_width"],
     )
 
-    # Calculate the accuracy map.
+    # Calculate the frequency map.
     # FREQUENCY 
     ############################################################################3
     toplabel_freq_map = (y_hard == y_true).squeeze(1).cpu().numpy() # Remove the channel dimension. B x H x W

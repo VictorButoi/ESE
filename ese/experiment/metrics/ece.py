@@ -32,7 +32,6 @@ def image_ece_loss(
     stats_info_dict: dict = {},
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
-    ignore_index: Optional[int] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
     cal_info = bin_stats(
@@ -49,7 +48,6 @@ def image_ece_loss(
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
-        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -62,9 +60,8 @@ def ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
-    ignore_index: Optional[int] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
         class_conditioned=False,
@@ -76,7 +73,6 @@ def ece_loss(
     metric_dict = {
         "metric_type": "global",
         "cal_info": cal_info,
-        "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # Return the calibration information
@@ -96,7 +92,7 @@ def image_tl_ece_loss(
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = top_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -126,7 +122,7 @@ def tl_ece_loss(
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
         class_wise=False,
@@ -161,7 +157,7 @@ def image_cw_ece_loss(
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -197,7 +193,7 @@ def cw_ece_loss(
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     # Get the statistics either from images or pixel meter dict.
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
@@ -230,7 +226,7 @@ def image_edge_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
@@ -243,7 +239,7 @@ def image_edge_ece_loss(
 def edge_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True
@@ -256,7 +252,7 @@ def image_etl_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
@@ -269,7 +265,7 @@ def image_etl_ece_loss(
 def etl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True
@@ -282,7 +278,7 @@ def image_ecw_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
@@ -295,7 +291,7 @@ def image_ecw_ece_loss(
 def ecw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True

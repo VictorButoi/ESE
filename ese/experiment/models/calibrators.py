@@ -45,6 +45,8 @@ class Histogram_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         self.val_freqs = global_binwise_stats(
             pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
+            class_conditioned=True,
+            neighborhood_conditioned=False,
             class_wise=True
         )['bin_freqs'].cuda() # C x Bins
         # Get the bins and bin widths
@@ -92,9 +94,10 @@ class NECTAR_Binning(nn.Module):
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         self.val_freqs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
-            class_wise=True,
-            neighborhood_wise=True
+            pixel_meters_dict=pixel_meters_dict["val"],
+            class_conditioned=True,
+            neighborhood_conditioned=True, # <---- This is the only difference
+            class_wise=True
         )['bin_freqs'].cuda() # C x Bins
         # Get the bins and bin widths
         num_conf_bins = self.val_freqs.shape[1]

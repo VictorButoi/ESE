@@ -29,15 +29,6 @@ image_cal_metrics:
 
     # Foreground ECE Metrics
     #########################################################
-    - Image_Foreground-ECE:
-        _fn: ese.experiment.metrics.ece.image_ece_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
-
-    - Image_Foreground-Edge-ECE:
-        _fn: ese.experiment.metrics.ece.image_edge_ece_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
 
     - Image_Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
@@ -94,15 +85,6 @@ global_cal_metrics:
 
     # Foreground ECE Metrics
     #########################################################
-    - Foreground-ECE:
-        _fn: ese.experiment.metrics.ece.ece_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
-
-    - Foreground-Edge-ECE:
-        _fn: ese.experiment.metrics.ece.edge_ece_loss
-        cal_type: 'toplabel'
-        ignore_index: 0
 
     - Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
