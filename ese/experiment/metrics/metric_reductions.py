@@ -38,7 +38,6 @@ def class_ece_reduction(
     cal_info: dict,
     metric_type: str,
     class_weighting: Literal['uniform', 'propotional'],
-    ignore_empty_classes: bool,
     ignore_index: Optional[int] = None,
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
@@ -70,10 +69,7 @@ def class_ece_reduction(
             amounts_per_lab[lab_idx] = lab_amount
             # If uniform then apply no weighting.
             if class_weighting == 'uniform':
-                if ignore_empty_classes:
-                    lab_prob = (lab_amount > 0).float()
-                else:
-                    lab_prob = 1.0
+                lab_prob = 1.0
             else:
                 lab_prob = lab_amount 
             # Weight the ECE by the prob of the label.
@@ -83,13 +79,7 @@ def class_ece_reduction(
     prob_per_lab = weights_per_lab / weights_per_lab.sum()
     ece_per_lab = score_per_lab * prob_per_lab
     # Finally, get the calibration score.
-    if ignore_empty_classes:
-        if amounts_per_lab.sum() > 0:
-            cal_info['cal_error'] = ece_per_lab[amounts_per_lab > 0].sum()
-        else:
-            cal_info['cal_error'] = torch.tensor(0.0) # If no samples, then ECE is 0.
-    else:
-        cal_info['cal_error'] = ece_per_lab.sum()
+    cal_info['cal_error'] = ece_per_lab.sum()
     # Return the calibration information.
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -106,7 +96,6 @@ def elm_reduction(
     cal_info: dict,
     metric_type: str,
     class_weighting: Literal['uniform', 'propotional'],
-    ignore_empty_classes: bool,
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
     """
@@ -136,10 +125,7 @@ def elm_reduction(
         amounts_per_nn[nn_idx] = nn_amount
         # If uniform then apply no weighting.
         if class_weighting == 'uniform':
-            if ignore_empty_classes:
-                nn_prob = (nn_amount > 0).float()
-            else:
-                nn_prob = 1.0
+            nn_prob = 1.0
         else:
             nn_prob = nn_amount
         # Weight the ECE by the prob of the neighborhood class.
@@ -149,13 +135,7 @@ def elm_reduction(
     prob_per_nn = weights_per_nn / weights_per_nn.sum()
     ece_per_nn = score_per_nn * prob_per_nn
     # Finally, get the calibration score.
-    if ignore_empty_classes:
-        if amounts_per_nn.sum() > 0:
-            cal_info['cal_error'] = ece_per_nn[amounts_per_nn > 0].sum()
-        else:
-            cal_info['cal_error'] = torch.tensor(0.0) # If no samples, then ECE is 0.
-    else:
-        cal_info['cal_error'] = ece_per_nn.sum()
+    cal_info['cal_error'] = ece_per_nn.sum()
     # Return the calibration information.
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."

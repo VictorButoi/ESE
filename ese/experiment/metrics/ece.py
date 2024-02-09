@@ -152,7 +152,6 @@ def image_cw_ece_loss(
     y_true: Tensor,
     num_bins: int,
     class_weighting: Literal["uniform", "proportional"],
-    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -177,12 +176,12 @@ def image_cw_ece_loss(
         "metric_type": "local",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
-        "ignore_empty_classes": ignore_empty_classes,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Local Bin counts: ", cal_info["bin_amounts"])
-    # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
+    print("Local Bin counts: ", cal_info["bin_amounts"])
+    print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
+    print("Local Bin Shape: ", cal_info["bin_amounts"].shape)
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
@@ -191,7 +190,6 @@ def image_cw_ece_loss(
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     class_weighting: Literal["uniform", "proportional"],
-    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
@@ -212,12 +210,12 @@ def cw_ece_loss(
         "metric_type": "global",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
-        "ignore_empty_classes": ignore_empty_classes,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Global Bin counts: ", cal_info["bin_amounts"])
-    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
+    print("Global Bin counts: ", cal_info["bin_amounts"])
+    print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
+    print("Global Bin Shape: ", cal_info["bin_amounts"].shape)
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
