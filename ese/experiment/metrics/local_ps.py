@@ -74,25 +74,25 @@ def bin_stats_init(
     # Define the confidence interval (if not provided).
     if conf_interval is None:
         if class_wise:
-            conf_interval = (0, 1)
+            conf_interval = (0.0, 1.0)
         else:
             C = y_pred.shape[1]
             if C == 0:
-                lower_bound = 0
+                lower_bound = 0.0
             else:
                 lower_bound = 1 / C
-            upper_bound = 1
+            upper_bound = 1.0
             # Set the confidence interval.
             conf_interval = (lower_bound, upper_bound)
-
     # Create the confidence bins.    
     conf_bins, conf_bin_widths = get_bins(
         num_bins=num_bins, 
         start=conf_interval[0], 
         end=conf_interval[1]
     )
+
     if class_wise:
-        assert conf_interval == (0, 1),\
+        assert conf_interval == (0.0, 1.0),\
             f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
         bin_ownership_map = torch.stack([
             find_bins(
@@ -102,25 +102,17 @@ def bin_stats_init(
             ) # B x H x W
             for l_idx in range(y_pred.shape[1])], dim=0
         ) # C x B x H x W
-        # Reshape to look like the y_pred.
-        bin_ownership_map = bin_ownership_map.permute(1, 0, 2, 3) # B x C x H x W
-        assert bin_ownership_map.shape == y_pred.shape,\
-            f"class-wise bin_ownership_map and y_pred must have the same shape. Got {bin_ownership_map.shape} and {y_pred.shape}."
     else:
         bin_ownership_map = find_bins(
             confidences=y_max_prob_map, 
             bin_starts=conf_bins,
             bin_widths=conf_bin_widths
         ) # B x H x W
-        assert bin_ownership_map.shape == y_hard.shape,\
-            f"bin_ownership_map and y_hard must have the same shape. Got {bin_ownership_map.shape} and {y_hard.shape}."
 
     # Get the pixelwise frequency.
     if class_wise:
         C = y_pred.shape[1]
-        frequency_map = torch.nn.functional.one_hot(y_true.long(), C).permute(0, 3, 1, 2).float()
-        assert frequency_map.shape == y_pred.shape,\
-            f"class-wise frequency_map and y_pred must have the same shape. Got {frequency_map.shape} and {y_pred.shape}."
+        frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
     else:
         frequency_map = (y_hard == y_true).float()
     
@@ -145,7 +137,7 @@ def bin_stats_init(
             pred_matching_neighbors_map = count_matching_neighbors(
                 lab_map=y_hard, 
                 neighborhood_width=neighborhood_width
-            )
+            ) # B x H x W
             # True map
             true_matching_neighbors_map = count_matching_neighbors(
                 lab_map=y_true, 
@@ -328,9 +320,9 @@ def joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
-        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][:, lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
+        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][lab, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
@@ -461,8 +453,10 @@ def neighbor_joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
+        lab_pred_matching_neighbors_map = obj_dict["pred_matching_neighbors_map"][lab, ...]
+        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][lab, ...]
         # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx in range(num_bins):
@@ -470,9 +464,9 @@ def neighbor_joint_label_bin_stats(
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     bin_ownership_map=lab_bin_ownership_map,
-                    true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                    true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
                     pred_nn=p_nn,
-                    pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                    pred_num_neighbors_map=lab_pred_matching_neighbors_map, # Note this is off PREDICTED neighbors.
                     neighborhood_width=neighborhood_width,
                     edge_only=edge_only
                 )
