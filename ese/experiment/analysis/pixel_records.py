@@ -182,14 +182,12 @@ def update_cw_pixel_meters(
         count_matching_neighbors(
             lab_map=(output_dict["y_true"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
-            ignore_index=0
     ) for lab_idx in range(C)]) # C x B x H x W
 
     pred_num_neighb_map = torch.stack([
         count_matching_neighbors(
             lab_map=(output_dict["y_hard"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
-            ignore_index=0
     ) for lab_idx in range(C)]) # C x B x H x W
 
     long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
@@ -225,38 +223,37 @@ def update_cw_pixel_meters(
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
             true_nn, pred_nn, bin_idx = bin_combo
-            if pred_nn != -100:
-                # Get the region of image corresponding to the confidence
-                lab_bin_conf_region = get_conf_region_np(
-                    bin_idx=bin_idx, 
-                    bin_ownership_map=lab_bin_ownership_map,
-                    true_num_neighbors_map=lab_true_nn_map, # Note this is off ACTUAL neighbors.
-                    true_nn=true_nn,
-                    pred_num_neighbors_map=lab_pred_nn_map,
-                    pred_nn=pred_nn
-                )
-                if lab_bin_conf_region.sum() > 0:
-                    # Add bin specific keys to the dictionary if they don't exist.
-                    freq_key = (lab_idx,) + bin_combo + ("accuracy",)
-                    conf_key = (lab_idx,) + bin_combo + ("confidence",)
+            # Get the region of image corresponding to the confidence
+            lab_bin_conf_region = get_conf_region_np(
+                bin_idx=bin_idx, 
+                bin_ownership_map=lab_bin_ownership_map,
+                true_num_neighbors_map=lab_true_nn_map, # Note this is off ACTUAL neighbors.
+                true_nn=true_nn,
+                pred_num_neighbors_map=lab_pred_nn_map,
+                pred_nn=pred_nn
+            )
+            if lab_bin_conf_region.sum() > 0:
+                # Add bin specific keys to the dictionary if they don't exist.
+                freq_key = (lab_idx,) + bin_combo + ("accuracy",)
+                conf_key = (lab_idx,) + bin_combo + ("confidence",)
 
-                    # If this key doesn't exist in the dictionary, add it
-                    if conf_key not in pixel_level_records:
-                        for meter_key in [freq_key, conf_key]:
-                            pixel_level_records[meter_key] = StatsMeter()
+                # If this key doesn't exist in the dictionary, add it
+                if conf_key not in pixel_level_records:
+                    for meter_key in [freq_key, conf_key]:
+                        pixel_level_records[meter_key] = StatsMeter()
 
-                    # Add the keys for the image level tracker.
-                    if conf_key not in image_cw_meter_dict:
-                        for meter_key in [freq_key, conf_key]:
-                            image_cw_meter_dict[meter_key] = StatsMeter()
+                # Add the keys for the image level tracker.
+                if conf_key not in image_cw_meter_dict:
+                    for meter_key in [freq_key, conf_key]:
+                        image_cw_meter_dict[meter_key] = StatsMeter()
 
-                    # (acc , conf)
-                    cw_freq = lab_freq_map[lab_bin_conf_region]
-                    cw_conf = lab_conf_map[lab_bin_conf_region]
-                    # Finally, add the points to the meters.
-                    pixel_level_records[freq_key].addN(cw_freq, batch=True) 
-                    pixel_level_records[conf_key].addN(cw_conf, batch=True)
-                    # Add to the local image meter dict.
-                    image_cw_meter_dict[freq_key].addN(cw_freq, batch=True)
-                    image_cw_meter_dict[conf_key].addN(cw_conf, batch=True)
+                # (acc , conf)
+                cw_freq = lab_freq_map[lab_bin_conf_region]
+                cw_conf = lab_conf_map[lab_bin_conf_region]
+                # Finally, add the points to the meters.
+                pixel_level_records[freq_key].addN(cw_freq, batch=True) 
+                pixel_level_records[conf_key].addN(cw_conf, batch=True)
+                # Add to the local image meter dict.
+                image_cw_meter_dict[freq_key].addN(cw_freq, batch=True)
+                image_cw_meter_dict[conf_key].addN(cw_conf, batch=True)
     return image_cw_meter_dict

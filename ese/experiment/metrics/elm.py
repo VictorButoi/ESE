@@ -19,7 +19,6 @@ def image_elm_loss(
     num_bins: int,
     neighborhood_width: int,
     class_weighting: Literal["uniform", "proportional"],
-    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -42,7 +41,6 @@ def image_elm_loss(
         "metric_type": "local",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
-        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False)
     }
     # print("Local Bin counts:\n", cal_info["bin_amounts"])
@@ -55,7 +53,6 @@ def elm_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     neighborhood_width: int,
     class_weighting: Literal["uniform", "proportional"],
-    ignore_empty_classes: bool,
     edge_only: bool = False,
     square_diff: bool = False,
     **kwargs
@@ -73,7 +70,6 @@ def elm_loss(
         "metric_type": "global",
         "cal_info": cal_info,
         "class_weighting": class_weighting,
-        "ignore_empty_classes": ignore_empty_classes,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts:\n", cal_info["bin_amounts"])
