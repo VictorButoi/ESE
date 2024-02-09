@@ -113,6 +113,8 @@ def bin_stats_init(
     if class_wise:
         C = y_pred.shape[1]
         frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
+        # Reshape it from B x H x W x C to C x B x H x W
+        frequency_map = frequency_map.permute(3, 0, 1, 2)
     else:
         frequency_map = (y_hard == y_true).float()
     

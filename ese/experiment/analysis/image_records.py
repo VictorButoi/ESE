@@ -5,7 +5,6 @@ from torch.nn import functional as F
 from pydantic import validate_arguments
 # local imports
 from ..experiment.utils import reduce_ensemble_preds
-from .analysis_utils.inference_utils import get_image_aux_info 
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
