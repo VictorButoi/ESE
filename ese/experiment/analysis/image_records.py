@@ -21,14 +21,6 @@ def get_image_stats(
     }
     # Define the cal config.
     cal_input_config = qual_input_config.copy() 
-    # If not ensembling, we can cache information.
-    if not inference_cfg["model"]["ensemble"]:
-        cal_input_config["stats_info_dict"] = get_image_aux_info(
-            y_pred=output_dict["y_pred"],
-            y_hard=output_dict["y_hard"],
-            y_true=output_dict["y_true"],
-            cal_cfg=inference_cfg["calibration"]
-        )
     # If we are ensembling, then we can precalulate the ensemble predictions.
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:

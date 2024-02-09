@@ -29,7 +29,6 @@ def image_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    stats_info_dict: dict = {},
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     **kwargs
@@ -42,7 +41,6 @@ def image_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        stats_info_dict=stats_info_dict,
         from_logits=from_logits
     )
     metric_dict = {
@@ -88,7 +86,6 @@ def image_tl_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    stats_info_dict: dict = {},
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
@@ -102,7 +99,6 @@ def image_tl_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        stats_info_dict=stats_info_dict,
         from_logits=from_logits
     )
     metric_dict = {
@@ -155,7 +151,6 @@ def image_cw_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    stats_info_dict: dict = {},
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
@@ -169,7 +164,6 @@ def image_cw_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        stats_info_dict=stats_info_dict,
         from_logits=from_logits
     )
     metric_dict = {
@@ -179,9 +173,8 @@ def image_cw_ece_loss(
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Local Bin counts: ", cal_info["bin_amounts"])
-    # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
-    # print("Local Bin Shape: ", cal_info["bin_amounts"].shape)
+    print("Local Bin counts: ", cal_info["bin_amounts"])
+    print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
@@ -213,9 +206,8 @@ def cw_ece_loss(
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Global Bin counts: ", cal_info["bin_amounts"])
-    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
-    # print("Global Bin Shape: ", cal_info["bin_amounts"].shape)
+    print("Global Bin counts: ", cal_info["bin_amounts"])
+    print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
