@@ -70,7 +70,7 @@ def class_ece_reduction(
             amounts_per_lab[lab_idx] = lab_amount
             # If uniform then apply no weighting.
             if class_weighting == 'uniform':
-                lab_prob = 1.0
+                lab_prob = 1.0 if lab_amount > 0 else 0.0
             else:
                 lab_prob = lab_amount 
             # Weight the ECE by the prob of the label.
@@ -122,18 +122,21 @@ def elm_reduction(
         nn_ece = reduce_bin_errors(
             error_per_bin=cal_info['bin_cal_errors'][nn_idx], 
             amounts_per_bin=cal_info['bin_amounts'][nn_idx], 
-            )
+        )
         nn_amount = cal_info['bin_amounts'][nn_idx].sum()
         amounts_per_nn[nn_idx] = nn_amount
         # If uniform then apply no weighting.
         if class_weighting == 'uniform':
-            nn_prob = 1.0
+            nn_prob = 1.0 if nn_amount > 0 else 0.0
         else:
             nn_prob = nn_amount
         # Weight the ECE by the prob of the neighborhood class.
         score_per_nn[nn_idx] = nn_ece
         weights_per_nn[nn_idx] = nn_prob
     # Calculate the wECE per bin by probs.
+    # print("Cal type:", metric_type)
+    # print("Weights per NN:\n", weights_per_nn)
+    # print("Amounts per NN:\n", amounts_per_nn)
     prob_per_nn = weights_per_nn / weights_per_nn.sum()
     ece_per_nn = score_per_nn * prob_per_nn
     # Finally, get the calibration score.

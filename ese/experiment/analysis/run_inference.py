@@ -123,7 +123,7 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
-        # if slice_idx == 0:
+        # if slice_idx == 6:
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Get the prediction with no gradient accumulation.
         slice_batch = {

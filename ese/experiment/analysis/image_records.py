@@ -98,6 +98,7 @@ def get_image_stats(
                 for ens_mem_input_cfg in ensemble_member_input_cfgs:
                     member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_cal_scores.append(member_cal_score)
+                # print("Ignoring Ensemble member preds~!")
                 # Now place it in the dictionary.
                 grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(torch.Tensor(individual_cal_scores))
             else:

@@ -12,10 +12,22 @@ image_cal_metrics:
     - Image_CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
 
     - Image_ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
+
+    - Image_Uniform-CW-ECE:
+        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
+
+    - Image_Uniform-ECW-ECE:
+        _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
 
     # ELM Metrics
     #########################################################
@@ -33,11 +45,25 @@ image_cal_metrics:
     - Image_Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
         ignore_index: 0
 
     - Image_Foreground-ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
+        ignore_index: 0
+
+    - Image_Uniform-Foreground-CW-ECE:
+        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
+        ignore_index: 0
+
+    - Image_Uniform-Foreground-ECW-ECE:
+        _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
         ignore_index: 0
 
 # Define global metrics when you want to verify that these are the same as the image
@@ -55,10 +81,22 @@ global_cal_metrics:
 
     - CW-ECE:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
+        class_weighting: 'propotional'
         cal_type: 'classwise'
 
     - ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
+        class_weighting: 'propotional'
+        cal_type: 'classwise'
+
+    - Uniform-CW-ECE:
+        _fn: ese.experiment.metrics.ece.cw_ece_loss
+        class_weighting: 'uniform'
+        cal_type: 'classwise'
+
+    - Uniform-ECW-ECE:
+        _fn: ese.experiment.metrics.ece.ecw_ece_loss
+        class_weighting: 'uniform'
         cal_type: 'classwise'
 
     # ELM Metrics
@@ -77,9 +115,23 @@ global_cal_metrics:
     - Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
         ignore_index: 0
 
     - Foreground-ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
         cal_type: 'classwise'
+        class_weighting: 'propotional'
+        ignore_index: 0
+
+    - Uniform-Foreground-CW-ECE:
+        _fn: ese.experiment.metrics.ece.cw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
+        ignore_index: 0
+
+    - Uniform-Foreground-ECW-ECE:
+        _fn: ese.experiment.metrics.ece.ecw_ece_loss
+        cal_type: 'classwise'
+        class_weighting: 'uniform'
         ignore_index: 0
