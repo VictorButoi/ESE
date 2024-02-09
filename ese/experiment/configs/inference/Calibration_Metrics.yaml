@@ -12,12 +12,12 @@ image_cal_metrics:
     - Image_CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
 
     - Image_ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
 
     - Image_Uniform-CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
@@ -34,10 +34,22 @@ image_cal_metrics:
     - Image_ELM:
         _fn: ese.experiment.metrics.elm.image_elm_loss
         cal_type: 'toplabel'
+        class_weighting: 'proportional'
 
     - Image_Edge-ELM:
         _fn: ese.experiment.metrics.elm.image_edge_elm_loss
         cal_type: 'toplabel'
+        class_weighting: 'proportional'
+
+    - Image_Uniform-ELM:
+        _fn: ese.experiment.metrics.elm.image_elm_loss
+        cal_type: 'toplabel'
+        class_weighting: 'uniform'
+
+    - Image_Uniform-Edge-ELM:
+        _fn: ese.experiment.metrics.elm.image_edge_elm_loss
+        cal_type: 'toplabel'
+        class_weighting: 'uniform'
 
     # Foreground CW ECE Metrics
     #########################################################
@@ -45,13 +57,13 @@ image_cal_metrics:
     - Image_Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.image_cw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         ignore_index: 0
 
     - Image_Foreground-ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         ignore_index: 0
 
     - Image_Uniform-Foreground-CW-ECE:
@@ -81,12 +93,12 @@ global_cal_metrics:
 
     - CW-ECE:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         cal_type: 'classwise'
 
     - ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         cal_type: 'classwise'
 
     - Uniform-CW-ECE:
@@ -104,10 +116,22 @@ global_cal_metrics:
     - ELM:
         _fn: ese.experiment.metrics.elm.elm_loss
         cal_type: 'toplabel'
+        class_weighting: 'proportional'
 
     - Edge-ELM:
         _fn: ese.experiment.metrics.elm.edge_elm_loss
         cal_type: 'toplabel'
+        class_weighting: 'proportional'
+
+    - Uniform-ELM:
+        _fn: ese.experiment.metrics.elm.elm_loss
+        cal_type: 'toplabel'
+        class_weighting: 'uniform'
+
+    - Uniform-Edge-ELM:
+        _fn: ese.experiment.metrics.elm.edge_elm_loss
+        cal_type: 'toplabel'
+        class_weighting: 'uniform'
 
     # Foreground CW ECE Metrics
     #########################################################
@@ -115,13 +139,13 @@ global_cal_metrics:
     - Foreground-CW-ECE:
         _fn: ese.experiment.metrics.ece.cw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         ignore_index: 0
 
     - Foreground-ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
         cal_type: 'classwise'
-        class_weighting: 'propotional'
+        class_weighting: 'proportional'
         ignore_index: 0
 
     - Uniform-Foreground-CW-ECE:

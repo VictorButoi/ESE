@@ -38,7 +38,7 @@ def ece_reduction(
 def class_ece_reduction(
     cal_info: dict,
     metric_type: str,
-    class_weighting: Literal['uniform', 'propotional'],
+    class_weighting: Literal['uniform', 'proportional'],
     ignore_index: Optional[int] = None,
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
@@ -97,7 +97,7 @@ def class_ece_reduction(
 def elm_reduction(
     cal_info: dict,
     metric_type: str,
-    class_weighting: Literal['uniform', 'propotional'],
+    class_weighting: Literal['uniform', 'proportional'],
     return_dict: bool = False,
 ) -> Union[dict, Tensor]:
     """
