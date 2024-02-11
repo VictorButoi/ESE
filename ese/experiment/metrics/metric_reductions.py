@@ -82,9 +82,8 @@ def class_ece_reduction(
     # Finally, get the calibration score.
     cal_info['cal_error'] = ece_per_lab.sum()
     # If cal_error is not nan, then it should be in [0, 1].
-    if prob_per_lab.sum() > 0:
-        assert 0.0 <= cal_info['cal_error'] <= 1.0,\
-            f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
+    assert 0.0 <= cal_info['cal_error'] <= 1.0,\
+        f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
         cal_info['metric_type'] = metric_type
@@ -142,9 +141,8 @@ def elm_reduction(
     # Finally, get the calibration score.
     cal_info['cal_error'] = ece_per_nn.sum()
     # Return the calibration information.
-    if prob_per_nn.sum() > 0:
-        assert 0.0 <= cal_info['cal_error'] <= 1.0,\
-            f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
+    assert 0.0 <= cal_info['cal_error'] <= 1.0,\
+        f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
     # Return the calibration information.
     if return_dict:
         cal_info['metric_type'] = metric_type
