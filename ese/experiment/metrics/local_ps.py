@@ -127,12 +127,14 @@ def bin_stats_init(
                 count_matching_neighbors(
                     lab_map=(y_hard == lab_idx).long(),
                     neighborhood_width=neighborhood_width,
+                    ignore_index=0 # Ignore the background class.
             ) for lab_idx in range(C)]) # C x B x H x W
             # True map
             true_matching_neighbors_map = torch.stack([
                 count_matching_neighbors(
                     lab_map=(y_true == lab_idx).long(),
-                    neighborhood_width=neighborhood_width
+                    neighborhood_width=neighborhood_width,
+                    ignore_index=0 # Ignore the background class.
             ) for lab_idx in range(C)]) # C x B x H x W
         else:
             # Pred map

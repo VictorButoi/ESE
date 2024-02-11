@@ -348,25 +348,22 @@ def count_matching_neighbors(
     # Define a 3x3 kernel of ones for the convolution
     kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=lab_map.device)
     for label in lab_map.unique():
-        # Create a binary mask for the current label
-        mask = (lab_map == label).float()
-        # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
-        mask_unsqueezed = mask.unsqueeze(1)
-        # Calculate the mask padding depending on the neighborhood width
-        mask_padding = (neighborhood_width - 1) // 2
-        # Apply padding
-        padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
-        # Convolve the mask with the kernel to get the neighbor count using 2D convolution
-        neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
-        # Squeeze the result back to the original shape (B x H x W)
-        neighbor_count_squeezed = neighbor_count.squeeze(1).long()
-        # Update the count_array where the y_true matches the current label
-        count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
-    # Subtract 1 because the center pixel is included in the 3x3 neighborhood count
-    count_array -= 1
-    if ignore_index is not None:
-        count_array[lab_map == ignore_index] = -100 # Set the ignore index to -100 
-    # Return the count_array
+        if ignore_index is None or label != ignore_index:
+            # Create a binary mask for the current label
+            mask = (lab_map == label).float()
+            # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
+            mask_unsqueezed = mask.unsqueeze(1)
+            # Calculate the mask padding depending on the neighborhood width
+            mask_padding = (neighborhood_width - 1) // 2
+            # Apply padding
+            padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
+            # Convolve the mask with the kernel to get the neighbor count using 2D convolution
+            neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
+            # Squeeze the result back to the original shape (B x H x W)
+            neighbor_count_squeezed = neighbor_count.squeeze(1).long() - 1
+            # Update the count_array where the y_true matches the current label
+            count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
+    # Return the count_arra
     if return_numpy:
         return count_array.numpy()
     else:

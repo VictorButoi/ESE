@@ -182,12 +182,14 @@ def update_cw_pixel_meters(
         count_matching_neighbors(
             lab_map=(output_dict["y_true"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
+            ignore_index=0 # Ignore the background class.
     ) for lab_idx in range(C)]) # C x B x H x W
 
     pred_num_neighb_map = torch.stack([
         count_matching_neighbors(
             lab_map=(output_dict["y_hard"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
+            ignore_index=0 # Ignore the background class.
     ) for lab_idx in range(C)]) # C x B x H x W
 
     long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
