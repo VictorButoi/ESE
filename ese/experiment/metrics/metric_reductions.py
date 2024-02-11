@@ -61,7 +61,7 @@ def class_ece_reduction(
     # Iterate through each label and calculate the weighted ece.
     for lab_idx in range(L):
         # If we are ignoring an index, skip it in calculations.
-        if ignore_index is not None and lab_idx != ignore_index:
+        if (ignore_index is None) or (lab_idx != ignore_index):
             lab_ece = reduce_bin_errors(
                 error_per_bin=cal_info['bin_cal_errors'][lab_idx], 
                 amounts_per_bin=cal_info['bin_amounts'][lab_idx], 
