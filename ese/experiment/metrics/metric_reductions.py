@@ -77,10 +77,14 @@ def class_ece_reduction(
             score_per_lab[lab_idx] = lab_ece
             weights_per_lab[lab_idx] = lab_prob
     # Calculate the wECE per bin by probs.
-    prob_per_lab = weights_per_lab / weights_per_lab.sum()
-    ece_per_lab = score_per_lab * prob_per_lab
-    # Finally, get the calibration score.
-    cal_info['cal_error'] = ece_per_lab.sum()
+    total_weight = weights_per_lab.sum()
+    if total_weight > 0:
+        prob_per_lab = weights_per_lab / total_weight
+        ece_per_lab = score_per_lab * prob_per_lab
+        # Finally, get the calibration score.
+        cal_info['cal_error'] = ece_per_lab.sum()
+    else:
+        cal_info['cal_error'] = torch.tensor(0.0)
     # If cal_error is not nan, then it should be in [0, 1].
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
@@ -133,13 +137,14 @@ def elm_reduction(
         score_per_nn[nn_idx] = nn_ece
         weights_per_nn[nn_idx] = nn_prob
     # Calculate the wECE per bin by probs.
-    # print("Cal type:", metric_type)
-    # print("Weights per NN:\n", weights_per_nn)
-    # print("Amounts per NN:\n", amounts_per_nn)
-    prob_per_nn = weights_per_nn / weights_per_nn.sum()
-    ece_per_nn = score_per_nn * prob_per_nn
-    # Finally, get the calibration score.
-    cal_info['cal_error'] = ece_per_nn.sum()
+    total_weight = weights_per_nn.sum()
+    if total_weight > 0:
+        prob_per_nn = weights_per_nn / total_weight
+        ece_per_nn = score_per_nn * prob_per_nn
+        # Finally, get the calibration score.
+        cal_info['cal_error'] = ece_per_nn.sum()
+    else:
+        cal_info['cal_error'] = torch.tensor(0.0)
     # Return the calibration information.
     assert 0.0 <= cal_info['cal_error'] <= 1.0,\
         f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
