@@ -13,14 +13,6 @@ def get_image_stats(
     inference_cfg: dict,
     image_level_records
 ):
-    # Define the cal config.
-    qual_input_config = {
-        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
-        "y_true": output_dict["y_true"], # (B, C, H, W)
-    }
-    # Define the cal config.
-    cal_input_config = qual_input_config.copy() 
-    # If we are ensembling, then we can precalulate the ensemble predictions.
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
         # The only case we don't need to softmax is when we have a Binning calibrator
@@ -46,6 +38,11 @@ def get_image_stats(
                 "from_logits": True # IMPORTANT, we haven't softmaxed yet.
             } for member_pred in ensemble_member_preds
         ]
+    # Define the input to our loss functions.
+    input_config = {
+        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+        "y_true": output_dict["y_true"], # (B, C, H, W)
+    }
     # Dicts for storing ensemble scores.
     grouped_scores_dict = {
         "calibration": {},
@@ -73,12 +70,7 @@ def get_image_stats(
             # Now get the ensemble quality score.
             qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config)
         else:
-            # Get the calibration error. 
-            if qual_metric_dict['_type'] == 'calibration':
-                # Higher is better for scores.
-                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**cal_input_config)
-            else:
-                qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
+            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**input_config)
             # If you're showing the predictions, also print the scores.
             if inference_cfg["log"]["show_examples"]:
                 print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
@@ -107,7 +99,7 @@ def get_image_stats(
             cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config)
         else:
             # Get the calibration error. 
-            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config)
+            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**input_config)
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."

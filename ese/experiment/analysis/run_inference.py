@@ -1,9 +1,3 @@
-# Misc imports
-import pickle
-import numpy as np
-import pandas as pd
-from typing import Any, Optional
-from pydantic import validate_arguments
 # torch imports
 import torch
 # ionpy imports
@@ -17,6 +11,13 @@ from .pixel_records import (
     update_toplabel_pixel_meters,
     update_cw_pixel_meters
 )
+# Misc imports
+import pickle
+import numpy as np
+import pandas as pd
+from typing import Any, Optional
+from pydantic import validate_arguments
+import matplotlib.pyplot as plt
     
 
 def save_records(records, log_dir):
@@ -41,8 +42,8 @@ def get_cal_stats(
     # initialize the calibration statistics.
     cal_stats_components = cal_stats_init(cfg_dict)
     # setup the save dir.
-    output_root = cal_stats_components["output_root"]
     trackers = cal_stats_components["trackers"]
+    output_root = cal_stats_components["output_root"]
     all_dataloaders = cal_stats_components["dataloaders"]
     # Loop through the data, gather your stats!
     with torch.no_grad():
@@ -63,8 +64,10 @@ def get_cal_stats(
                 # Run the forward loop
                 if cal_stats_components["input_type"] == "volume":
                     volume_forward_loop(**forward_item)
-                else:
+                elif cal_stats_components["input_type"] == "image":
                     image_forward_loop(**forward_item)
+                else:
+                    raise ValueError(f"Input type {cal_stats_components['input_type']} not recognized.")
                 # Save the records every so often, to get intermediate results. Note, because of data_ids
                 # this can contain fewer than 'log interval' many items.
                 if batch_idx % cfg['log']['log_interval'] == 0:
@@ -172,6 +175,17 @@ def image_forward_loop(
         "split": batch["split"], # "train", "val", "cal", "test
         "slice_idx": slice_idx
     }
+    # # Show the image ytrue ypred and yhard
+    # plt.imshow(output_dict["y_pred"].argmax(dim=1).cpu().numpy()[0])
+    # plt.title("y_pred")
+    # plt.show()
+    # plt.imshow(output_dict["y_true"].cpu().numpy().squeeze())
+    # plt.title("y_true")
+    # plt.show()
+    # plt.imshow(output_dict["y_hard"].cpu().numpy().squeeze())
+    # plt.title("y_hard")
+    # plt.show()
+
     if do_ensemble:
         output_dict["ens_weights"] = exp.ens_mem_weights
     
