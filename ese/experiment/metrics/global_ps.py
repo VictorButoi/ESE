@@ -240,9 +240,9 @@ def joint_class_neighbor_bin_stats(
                 cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
                 # Choose whether or not to square for the cal error.
                 if square_diff:
-                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
                 else:
-                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
     # Return the calibration information.
     return cal_info
 

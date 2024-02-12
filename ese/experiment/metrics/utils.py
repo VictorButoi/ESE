@@ -322,11 +322,27 @@ def find_bins(
     return bin_indices
 
 
+def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
+    # Convert mask to float tensor
+    mask = mask.float()
+    # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
+    mask_unsqueezed = mask.unsqueeze(1)
+    # Calculate the mask padding depending on the neighborhood width
+    mask_padding = (neighborhood_width - 1) // 2
+    # Apply padding
+    padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
+    # Convolve the mask with the kernel to get the neighbor count using 2D convolution
+    neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
+    # Squeeze the result back to the original shape (B x H x W)
+    neighbor_count_squeezed = neighbor_count.squeeze(1).long()
+    return neighbor_count_squeezed
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def count_matching_neighbors(
     lab_map: Union[Tensor, np.ndarray],
-    neighborhood_width: int = 3,
-    ignore_index: Optional[int] = None
+    neighborhood_width: int,
+    binary: bool = False
 ):
     if len(lab_map.shape) == 4:
         lab_map = lab_map.squeeze(1) # Attempt to squeeze out the channel dimension.
@@ -344,23 +360,18 @@ def count_matching_neighbors(
         return_numpy = False
     # Convert to long tensor
     lab_map = lab_map.long()
-    count_array = torch.zeros_like(lab_map)
     # Define a 3x3 kernel of ones for the convolution
     kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=lab_map.device)
-    for label in lab_map.unique():
-        if ignore_index is None or label != ignore_index:
+    # Set the center pixel to zero
+    kernel[:, :, (neighborhood_width - 1) // 2, (neighborhood_width - 1) // 2] = 0
+    if binary:
+        count_array = get_bin_matching_neighbors(lab_map, neighborhood_width, kernel)
+    else:
+        count_array = torch.zeros_like(lab_map)
+        for label in lab_map.unique():
             # Create a binary mask for the current label
-            mask = (lab_map == label).float()
-            # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
-            mask_unsqueezed = mask.unsqueeze(1)
-            # Calculate the mask padding depending on the neighborhood width
-            mask_padding = (neighborhood_width - 1) // 2
-            # Apply padding
-            padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
-            # Convolve the mask with the kernel to get the neighbor count using 2D convolution
-            neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
-            # Squeeze the result back to the original shape (B x H x W)
-            neighbor_count_squeezed = neighbor_count.squeeze(1).long() - 1
+            mask = (lab_map == label)
+            neighbor_count_squeezed = get_bin_matching_neighbors(mask, neighborhood_width, kernel)
             # Update the count_array where the y_true matches the current label
             count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
     # Return the count_arra

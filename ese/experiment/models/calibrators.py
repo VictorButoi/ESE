@@ -49,6 +49,9 @@ class Histogram_Binning(nn.Module):
             neighborhood_conditioned=False,
             class_wise=True
         )['bin_freqs'].cuda() # C x Bins
+        print(self.val_freqs)
+        print(self.val_freqs.shape)
+        raise ValueError
         # Get the bins and bin widths
         num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
@@ -88,7 +91,7 @@ class NECTAR_Binning(nn.Module):
         normalize: bool, 
         **kwargs
     ):
-        super(Histogram_Binning, self).__init__()
+        super(NECTAR_Binning, self).__init__()
         # Load the data from the .pkl file
         with open(stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
@@ -99,6 +102,10 @@ class NECTAR_Binning(nn.Module):
             neighborhood_conditioned=True, # <---- This is the only difference
             class_wise=True
         )['bin_freqs'].cuda() # C x Bins
+        print(self.val_freqs)
+        print(self.val_freqs.shape)
+        raise ValueError
+        
         # Get the bins and bin widths
         num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
@@ -110,11 +117,13 @@ class NECTAR_Binning(nn.Module):
 
     def forward(self, logits, **kwargs):
         probs = torch.softmax(logits, dim=1) # B x C x H x W
+        hard_pred = torch.argmax(probs, dim=1) # B x H x W
         for lab_idx in range(probs.shape[1]):
-            prob_map = probs[:, lab_idx, :, :] # B x H x W
+            lab_prob_map = probs[:, lab_idx, :, :] # B x H x W
+            lab_hard_pred = (hard_pred == lab_idx) # B x H x W
             # Calculate the bin ownership map and transform the probs.
             bin_ownership_map = find_bins(
-                confidences=prob_map, 
+                confidences=lab_prob_map, 
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
             ).long() # B x H x W
