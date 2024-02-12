@@ -12,11 +12,13 @@ def global_binwise_stats(
     class_conditioned: bool,
     neighborhood_conditioned: bool,
     class_wise=False,
+    device: Optional[Literal["cpu", "cuda"]] = None,
     **kwargs
     ) -> dict:
     # Return the calibration information.
     cal_info = {
         "pixel_meters_dict": pixel_meters_dict,
+        "device": device,
         **kwargs
     }
     # If we are class or neighborhood conditioned, need to specify class_wise.
@@ -38,7 +40,8 @@ def prob_bin_stats(
     pixel_meters_dict: dict,
     neighborhood_width: int,
     square_diff: bool = False,
-    edge_only: bool = False
+    edge_only: bool = False,
+    device: Optional[Literal["cpu", "cuda"]] = None,
     ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         class_wise=False,
@@ -75,6 +78,9 @@ def prob_bin_stats(
             cal_info["bin_cal_errors"][bin_idx] = np.power(bin_conf - bin_freq, 2)
         else:
             cal_info["bin_cal_errors"][bin_idx] = np.abs(bin_conf - bin_freq)
+    if device is not None:
+        for key, value in cal_info.items():
+            cal_info[key] = value.to(device)
     # Return the calibration information.
     return cal_info
 
@@ -85,7 +91,8 @@ def class_wise_bin_stats(
     class_wise: bool,
     square_diff: bool = False,
     edge_only: bool = False,
-    neighborhood_width: Optional[int] = None
+    neighborhood_width: Optional[int] = None,
+    device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     if edge_only:
         assert neighborhood_width is not None, "If edge_only is True, neighborhood_width must be defined."
@@ -129,6 +136,9 @@ def class_wise_bin_stats(
                 cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
             else:
                 cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+    if device is not None:
+        for key, value in cal_info.items():
+            cal_info[key] = value.to(device)
     # Return the calibration information.
     return cal_info
 
@@ -139,7 +149,8 @@ def neighbor_wise_bin_stats(
     class_wise: bool,
     neighborhood_width: int,
     square_diff: bool = False,
-    edge_only: bool = False
+    edge_only: bool = False,
+    device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     if edge_only:
         assert neighborhood_width is not None, "If edge_only is True, neighborhood_width must be defined."
@@ -183,6 +194,9 @@ def neighbor_wise_bin_stats(
                 cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
             else:
                 cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+    if device is not None:
+        for key, value in cal_info.items():
+            cal_info[key] = value.to(device)
     # Return the calibration information.
     return cal_info
 
@@ -194,6 +208,7 @@ def joint_class_neighbor_bin_stats(
     square_diff: bool = False,
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
+    device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     if edge_only:
         assert neighborhood_width is not None, "If edge_only is True, neighborhood_width must be defined."
@@ -202,13 +217,13 @@ def joint_class_neighbor_bin_stats(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
-        key_2=f"{stat_type}_num_neighb",
+        key_2=f"pred_num_neighb",
         key_3="prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
     unique_labels = unique_values_dict[f"{stat_type}_label"]
-    unique_num_neighb = unique_values_dict[f"{stat_type}_num_neighb"]
+    unique_num_neighb = unique_values_dict[f"pred_num_neighb"]
     unique_bins = unique_values_dict["prob_bin"]
     # Get the num bins.
     num_labels = len(unique_labels)
@@ -243,6 +258,9 @@ def joint_class_neighbor_bin_stats(
                     cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
                 else:
                     cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+    if device is not None:
+        for key, value in cal_info.items():
+            cal_info[key] = value.to(device)
     # Return the calibration information.
     return cal_info
 
