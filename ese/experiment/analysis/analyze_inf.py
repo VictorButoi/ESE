@@ -161,17 +161,7 @@ def load_cal_inference_stats(
             # If the key is in the dataframe, remove the column.
             if drop_key in inference_df.columns:
                 inference_df = inference_df.drop(drop_key, axis=1)
-        # Get the number of rows in image_info_df for each log set.
-        num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
-        
-        if options_cfg["equal_rows_per_cfg_assert"]:
-            # Make sure there is only one unique value in the above.
-            assert len(num_rows_per_log_set.unique()) == 1, \
-                f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
-        else:
-            if len(num_rows_per_log_set.unique()) != 1:
-                print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
-        
+
         # Only choose rows with some minimal amount of foreground pixels.
         if options_cfg.get("min_fg_pixels", False):
             # Get the names of all columns that have "num_lab" in them.
@@ -180,10 +170,37 @@ def load_cal_inference_stats(
             num_lab_cols.remove("num_lab_0_pixels")
             # Make a new column that is the sum of all the num_lab columns.
             inference_df['num_fg_pixels'] = inference_df[num_lab_cols].sum(axis=1)
+            original_row_amount = len(inference_df)
             inference_df = inference_df[inference_df['num_fg_pixels'] >= options_cfg["min_fg_pixels"]]
+            print(f"Dropping rows that don't meet minimum foreground pixel requirements. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
         else:
             assert "WMH" not in results_cfg['log']['inference_group'],\
                 "You must specify a min_fg_pixels value for WMH experiments." 
+
+        # Drop the rows corresponding to NaNs in metric_score
+        if options_cfg['drop_nan_metric_rows']:
+            # Drop the rows where the metric score is NaN.
+            original_row_amount = len(inference_df)
+            # Get the triples of (data_idx, slice_idx, metric_name) where metric_score is NaN.
+            unique_nan_triples = inference_df[inference_df['metric_score'].isna()][['data_id', 'slice_idx', 'image_metric']].drop_duplicates()
+            # Drop the rows which match the triples.
+            for _, row in unique_nan_triples.iterrows():
+                inference_df = inference_df[
+                    ~((inference_df['data_id'] == row['data_id']) & 
+                      (inference_df['slice_idx'] == row['slice_idx']) & 
+                      (inference_df['image_metric'] == row['image_metric']))
+                      ]
+            print(f"Dropping (datapoint, metric) pairs with NaN metric score. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
+
+        # Get the number of rows in image_info_df for each log set.
+        num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
+        if options_cfg["equal_rows_per_cfg_assert"]:
+            # Make sure there is only one unique value in the above.
+            assert len(num_rows_per_log_set.unique()) == 1, \
+                f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
+        else:
+            if len(num_rows_per_log_set.unique()) != 1:
+                print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
         
         # Add new names for keys (helps with augment)
         inference_df["slice_idx"] = inference_df["slice_idx"].fillna("None")
@@ -288,13 +305,6 @@ def load_cal_inference_stats(
             )
             inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
-        # Drop the rows corresponding to NaNs in metric_score
-        if options_cfg['drop_nan_metric_rows']:
-            # Drop the rows where the metric score is NaN.
-            original_row_amount = len(inference_df)
-            inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
-            print(f"Dropping rows with NaN metric score. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
-        
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
         if options_cfg['add_dice_loss_rows']:

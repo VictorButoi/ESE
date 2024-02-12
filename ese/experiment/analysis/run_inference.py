@@ -172,19 +172,9 @@ def image_forward_loop(
         "y_pred": exp_output["y_pred"],
         "y_hard": exp_output["y_hard"],
         "data_id": batch["data_id"][0], # Works because batchsize = 1
-        "split": batch["split"], # "train", "val", "cal", "test
+        "split": batch["split"],
         "slice_idx": slice_idx
     }
-    # # Show the image ytrue ypred and yhard
-    # plt.imshow(output_dict["y_pred"].argmax(dim=1).cpu().numpy()[0])
-    # plt.title("y_pred")
-    # plt.show()
-    # plt.imshow(output_dict["y_true"].cpu().numpy().squeeze())
-    # plt.title("y_true")
-    # plt.show()
-    # plt.imshow(output_dict["y_hard"].cpu().numpy().squeeze())
-    # plt.title("y_hard")
-    # plt.show()
 
     if do_ensemble:
         output_dict["ens_weights"] = exp.ens_mem_weights
@@ -235,8 +225,8 @@ def get_calibration_item_info(
                 from_logits=from_logits
             ),
             "y_true": output_dict["y_true"],
-            "data_id": output_dict["data_id"], # Works because batchsize = 1
-            "split": output_dict["split"], # "train", "val", "cal", "test
+            "data_id": output_dict["data_id"],
+            "split": output_dict["split"],
             "slice_idx": output_dict["slice_idx"]
         }
     ########################

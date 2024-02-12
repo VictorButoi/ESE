@@ -2,7 +2,6 @@
 import os
 import ast
 import yaml
-import torch
 import pickle
 import pandas as pd
 from pathlib import Path
@@ -10,20 +9,15 @@ from typing import Optional, List
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 # ionpy imports
-from ionpy.analysis import ResultsLoader
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
+from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
 # local imports
-from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment
+from ...augmentation.gather import augmentations_from_config
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
-from ...metrics.utils import (
-    count_matching_neighbors,
-    get_bins,
-    find_bins
-)
 
 
 def add_dice_loss_rows(inference_df):
@@ -149,8 +143,8 @@ def get_average_unet_baselines(
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
     # They should have exactly 4, for four seeds.
     assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
-        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})"\
-             + f" with max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Got: {num_rows_per_group}."
+        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})."\
+             + f" Got max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Rows look like: {num_rows_per_group}."
     # Group everything we need. 
     total_group_metrics = ['metric_score', 'groupavg_metric_score']
     if group_metrics is not None:
