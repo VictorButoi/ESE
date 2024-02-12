@@ -42,6 +42,8 @@ def load_cal_inference_stats(
 ) -> dict:
     # Build a dictionary to store the inference info.
     log_cfg = results_cfg["log"] 
+    options_cfg = results_cfg["options"]
+
     log_root = log_cfg["root"] 
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
@@ -103,7 +105,7 @@ def load_cal_inference_stats(
                         print(f"{e}. Skipping.")
                         skip_log_sets.append(log_set.name)
         # Gather the columns that have unique values amongst the different configurations.
-        if log_cfg["remove_shared_columns"]:
+        if options_cfg["remove_shared_columns"]:
             meta_cols = []
             for col in metadata_df.columns:
                 if len(metadata_df[col].unique()) > 1:
@@ -138,7 +140,7 @@ def load_cal_inference_stats(
                                 f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
                             log_image_df[col] = metadata_log_df[col].values[0]
                         # Optionally load the pixel stats.
-                        if log_cfg["load_pixel_meters"]:
+                        if options_cfg["load_pixel_meters"]:
                             with open(log_set / "pixel_stats.pkl", 'rb') as f:
                                 pixel_meter_dict = pickle.load(f)
                             # Loop through the calibration metrics and add them to the dataframe.
@@ -162,7 +164,7 @@ def load_cal_inference_stats(
         # Get the number of rows in image_info_df for each log set.
         num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
         
-        if log_cfg["equal_rows_per_cfg_assert"]:
+        if options_cfg["equal_rows_per_cfg_assert"]:
             # Make sure there is only one unique value in the above.
             assert len(num_rows_per_log_set.unique()) == 1, \
                 f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
@@ -171,14 +173,14 @@ def load_cal_inference_stats(
                 print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
         
         # Only choose rows with some minimal amount of foreground pixels.
-        if "min_fg_pixels" in log_cfg:
+        if options_cfg.get("min_fg_pixels", False):
             # Get the names of all columns that have "num_lab" in them.
             num_lab_cols = [col for col in inference_df.columns if "num_lab" in col]
             # Remove num_lab_0_pixels because it is background
             num_lab_cols.remove("num_lab_0_pixels")
             # Make a new column that is the sum of all the num_lab columns.
             inference_df['num_fg_pixels'] = inference_df[num_lab_cols].sum(axis=1)
-            inference_df = inference_df[inference_df['num_fg_pixels'] >= log_cfg["min_fg_pixels"]]
+            inference_df = inference_df[inference_df['num_fg_pixels'] >= options_cfg["min_fg_pixels"]]
         else:
             assert "WMH" not in results_cfg['log']['inference_group'],\
                 "You must specify a min_fg_pixels value for WMH experiments." 
@@ -278,7 +280,7 @@ def load_cal_inference_stats(
         inference_df.augment(configuration)
 
         # Load the average unet baseline results.
-        if log_cfg['add_baseline_rows']:
+        if options_cfg['add_baseline_rows']:
             unet_avg = get_average_unet_baselines(
                 inference_df, 
                 num_seeds=4, # Used as a sanity check.
@@ -287,7 +289,7 @@ def load_cal_inference_stats(
             inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
 
         # Drop the rows corresponding to NaNs in metric_score
-        if log_cfg['drop_nan_metric_rows']:
+        if options_cfg['drop_nan_metric_rows']:
             # Drop the rows where the metric score is NaN.
             original_row_amount = len(inference_df)
             inference_df = inference_df.dropna(subset=['metric_score']).reset_index(drop=True)
@@ -295,7 +297,7 @@ def load_cal_inference_stats(
         
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
-        if log_cfg['add_dice_loss_rows']:
+        if options_cfg['add_dice_loss_rows']:
             inference_df = add_dice_loss_rows(inference_df)
 
         # Save the inference info to a pickle file.

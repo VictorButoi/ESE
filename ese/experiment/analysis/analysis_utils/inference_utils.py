@@ -155,6 +155,7 @@ def get_average_unet_baselines(
     total_group_metrics = ['metric_score', 'groupavg_metric_score']
     if group_metrics is not None:
         total_group_metrics += group_metrics
+    total_group_metrics = [gm for gm in total_group_metrics if gm in unet_info_df.keys()]
     
     average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({met_name: 'mean' for met_name in total_group_metrics}).reset_index()
     # Set some useful variables.
