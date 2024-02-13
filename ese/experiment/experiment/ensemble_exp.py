@@ -79,6 +79,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
                     "model": {
                         "pretrained_exp_root": str(exp_path),
                         "calibrator_cls": model_cfg["calibrator_cls"],
+                        "cal_stats_split": model_cfg["cal_stats_split"],
                         "normalize": model_cfg["normalize"],
                     },
                     "data": total_config["data"]

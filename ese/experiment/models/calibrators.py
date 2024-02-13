@@ -39,16 +39,18 @@ class Histogram_Binning(nn.Module):
         num_classes: int,
         stats_file: str,
         normalize: bool, 
-        stats_split: str = "val",
+        cal_stats_split: str,
         **kwargs
     ):
         super(Histogram_Binning, self).__init__()
+        print("Loaded pixel meter file:", stats_file)
+        print("Using stats split:", cal_stats_split)
         # Load the data from the .pkl file
         with open(stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[stats_split], # Use the validation set stats.
+            pixel_meters_dict=pixel_meters_dict[cal_stats_split], # Use the validation set stats.
             num_bins=num_bins, # Use 15 bins
             num_classes=num_classes,
             class_conditioned=True,
@@ -98,16 +100,18 @@ class NECTAR_Binning(nn.Module):
         neighborhood_width: int,
         stats_file: str,
         normalize: bool, 
-        stats_split: str = "val",
+        cal_stats_split: str,
         **kwargs
     ):
         super(NECTAR_Binning, self).__init__()
         # Load the data from the .pkl file
         with open(stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
+        print("Loaded pixel meter file:", stats_file)
+        print("Using stats split:", cal_stats_split)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[stats_split],
+            pixel_meters_dict=pixel_meters_dict[cal_stats_split],
             num_bins=num_bins, # Use 15 bins
             num_classes=num_classes,
             neighborhood_width=neighborhood_width,       
