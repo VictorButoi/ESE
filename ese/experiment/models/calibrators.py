@@ -40,6 +40,7 @@ class Histogram_Binning(nn.Module):
         stats_file: str,
         normalize: bool, 
         cal_stats_split: str,
+        smoothing: float = 1e-4,
         **kwargs
     ):
         super(Histogram_Binning, self).__init__()
@@ -63,15 +64,18 @@ class Histogram_Binning(nn.Module):
             start=0.0,
             end=1.0
         )
-        self.num_classes = num_classes
         self.normalize = normalize
+        self.smoothing = smoothing
+        self.num_classes = num_classes
         #############################################
         print("Loaded pixel meter file:", stats_file)
         print("Using stats split:", cal_stats_split)
 
     def forward(self, logits, **kwargs):
+        C = self.num_classes
+        # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
-        for lab_idx in range(self.num_classes):
+        for lab_idx in range(C):
             prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
             # Calculate the bin ownership map and transform the probs.
             prob_bin_ownership_map = find_bins(
@@ -82,11 +86,14 @@ class Histogram_Binning(nn.Module):
             calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
+        # Apply smoothing to avoid zero probabilities.
+        prob_tensor = torch.clamp(prob_tensor + self.smoothing, max=1.0)
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            sum_prob_tensor = prob_tensor.sum(dim=1, keepdim=True)
-            assert (sum_prob_tensor > 0).all(), "Sum of probabilities must be stricly non-zero."
-            return prob_tensor / sum_prob_tensor
+            sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
+            assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
+            # Return the normalized probabilities.
+            return prob_tensor / sum_tensor
         else:
             return prob_tensor 
 
@@ -104,6 +111,7 @@ class NECTAR_Binning(nn.Module):
         stats_file: str,
         normalize: bool, 
         cal_stats_split: str,
+        smoothing: float = 1e-4,
         **kwargs
     ):
         super(NECTAR_Binning, self).__init__()
@@ -129,6 +137,7 @@ class NECTAR_Binning(nn.Module):
             end=1.0
         )
         self.normalize = normalize
+        self.smoothing = smoothing
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
         #############################################
@@ -164,14 +173,14 @@ class NECTAR_Binning(nn.Module):
                     self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_cls_mask].float()
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
+        # Apply smoothing to avoid zero probabilities.
+        prob_tensor = torch.clamp(prob_tensor + self.smoothing, max=1.0)
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            sum_prob_tensor = prob_tensor.sum(dim=1, keepdim=True).repeat(1, C, 1, 1) # B x C x H x W
-            # Make the entries where sum_prob_tensor is zero to be equally likely for all classes.
-            prob_tensor[sum_prob_tensor == 0] = 1
-            sum_prob_tensor[sum_prob_tensor == 0] = C 
+            sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
+            assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
             # Return the normalized probabilities.
-            return prob_tensor / sum_prob_tensor
+            return prob_tensor / sum_tensor
         else:
             return prob_tensor 
 
