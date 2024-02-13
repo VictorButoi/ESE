@@ -12,24 +12,24 @@ def global_binwise_stats(
     num_bins: int,
     class_conditioned: bool,
     neighborhood_conditioned: bool,
-    class_wise=False,
+    class_wise: bool = False,
     num_classes: Optional[int] = None,
+    neighborhood_width: Optional[int] = None,
     device: Optional[Literal["cpu", "cuda"]] = None,
     **kwargs
     ) -> dict:
-    # Return the calibration information.
+    # If we are class conditioned, need to specify the number of classes.
+    if class_conditioned:
+        assert num_classes is not None, "If class_conditioned is True, num_classes must be defined."
     cal_info = {
         "pixel_meters_dict": pixel_meters_dict,
         "num_bins": num_bins,
+        "class_wise": class_wise,
+        "neighborhood_width": neighborhood_width,
+        "num_classes": num_classes,
         "device": device,
         **kwargs
     }
-    # If we are class or neighborhood conditioned, need to specify class_wise.
-    if class_conditioned or neighborhood_conditioned:
-        cal_info['class_wise'] = class_wise
-        if class_conditioned:
-            assert num_classes is not None, "If class_conditioned is True, num_classes must be defined."
-            cal_info['num_classes'] = num_classes
     # Run the selected global function.
     if not class_conditioned and not neighborhood_conditioned:
         return prob_bin_stats(**cal_info)
@@ -49,6 +49,7 @@ def prob_bin_stats(
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     device: Optional[Literal["cpu", "cuda"]] = None,
+    **kwargs
 ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         class_wise=False,
@@ -100,6 +101,7 @@ def class_wise_bin_stats(
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     device: Optional[Literal["cpu", "cuda"]] = None,
+    **kwargs
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(
@@ -153,6 +155,7 @@ def neighbor_wise_bin_stats(
     square_diff: bool = False,
     edge_only: bool = False,
     device: Optional[Literal["cpu", "cuda"]] = None,
+    **kwargs
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(
@@ -208,6 +211,7 @@ def joint_class_neighbor_bin_stats(
     square_diff: bool = False,
     edge_only: bool = False,
     device: Optional[Literal["cpu", "cuda"]] = None,
+    **kwargs
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(

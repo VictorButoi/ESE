@@ -35,6 +35,8 @@ def initialization(m):
 class Histogram_Binning(nn.Module):
     def __init__(
         self, 
+        num_bins: int,
+        num_classes: int,
         stats_file: str,
         normalize: bool, 
         **kwargs
@@ -46,6 +48,8 @@ class Histogram_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
             pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
+            num_bins=num_bins, # Use 15 bins
+            num_classes=num_classes,
             class_conditioned=True,
             neighborhood_conditioned=False,
             class_wise=True,
@@ -87,9 +91,11 @@ class Histogram_Binning(nn.Module):
 class NECTAR_Binning(nn.Module):
     def __init__(
         self, 
+        num_bins: int,
+        num_classes: int,
+        neighborhood_width: int,
         stats_file: str,
         normalize: bool, 
-        neighborhood_width: int,
         **kwargs
     ):
         super(NECTAR_Binning, self).__init__()
@@ -99,8 +105,11 @@ class NECTAR_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
             pixel_meters_dict=pixel_meters_dict["val"],
+            num_bins=num_bins, # Use 15 bins
+            num_classes=num_classes,
+            neighborhood_width=neighborhood_width,       
             class_conditioned=True,
-            neighborhood_conditioned=True, # <---- This is the only difference
+            neighborhood_conditioned=True,
             class_wise=True,
             device="cuda"
         )
