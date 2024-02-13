@@ -39,6 +39,7 @@ class Histogram_Binning(nn.Module):
         num_classes: int,
         stats_file: str,
         normalize: bool, 
+        stats_split: str = "val",
         **kwargs
     ):
         super(Histogram_Binning, self).__init__()
@@ -47,7 +48,7 @@ class Histogram_Binning(nn.Module):
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict["val"], # Use the validation set stats.
+            pixel_meters_dict=pixel_meters_dict[stats_split], # Use the validation set stats.
             num_bins=num_bins, # Use 15 bins
             num_classes=num_classes,
             class_conditioned=True,
@@ -57,31 +58,32 @@ class Histogram_Binning(nn.Module):
         )
         self.val_freqs = gbs['bin_freqs'] # C x Bins
         # Get the bins and bin widths
-        num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=num_conf_bins, 
+            num_bins=num_bins, 
             start=0.0,
             end=1.0
         )
+        self.num_classes = num_classes
         self.normalize = normalize
 
     def forward(self, logits, **kwargs):
-        probs = torch.softmax(logits, dim=1) # B x C x H x W
-        for lab_idx in range(probs.shape[1]):
-            prob_map = probs[:, lab_idx, :, :] # B x H x W
+        prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
+        for lab_idx in range(self.num_classes):
+            prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
             # Calculate the bin ownership map and transform the probs.
             prob_bin_ownership_map = find_bins(
                 confidences=prob_map, 
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
-            ).long() # B x H x W
+            ) # B x H x W
             calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
-            probs[:, lab_idx, :, :] = calibrated_prob_map
+            prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            probs = probs / probs.sum(dim=1, keepdim=True)
-        return probs
+            return prob_tensor / prob_tensor.sum(dim=1, keepdim=True)
+        else:
+            return prob_tensor 
 
     @property
     def device(self):
@@ -96,6 +98,7 @@ class NECTAR_Binning(nn.Module):
         neighborhood_width: int,
         stats_file: str,
         normalize: bool, 
+        stats_split: str = "val",
         **kwargs
     ):
         super(NECTAR_Binning, self).__init__()
@@ -104,7 +107,7 @@ class NECTAR_Binning(nn.Module):
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict["val"],
+            pixel_meters_dict=pixel_meters_dict[stats_split],
             num_bins=num_bins, # Use 15 bins
             num_classes=num_classes,
             neighborhood_width=neighborhood_width,       
@@ -115,9 +118,8 @@ class NECTAR_Binning(nn.Module):
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
         # Get the bins and bin widths
-        num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=num_conf_bins, 
+            num_bins=num_bins, 
             start=0.0,
             end=1.0
         )
@@ -126,34 +128,36 @@ class NECTAR_Binning(nn.Module):
         self.neighborhood_width = neighborhood_width
 
     def forward(self, logits, **kwargs):
-        probs = torch.softmax(logits, dim=1) # B x C x H x W
-        hard_pred = torch.argmax(probs, dim=1) # B x H x W
+        prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
+        y_hard = torch.argmax(prob_tensor, dim=1) # B x H x W
+        # Iterate through each label, and replace the probs with the calibrated probs.
         for lab_idx in range(self.num_classes):
-            lab_prob_map = probs[:, lab_idx, :, :] # B x H x W
-            lab_hard_pred = (hard_pred == lab_idx).long() # B x H x W
-            # Calculate the bin ownership map and transform the probs.
+            lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
+            # Calculate the bin ownership map for each pixel probability
             prob_bin_ownership_map = find_bins(
                 confidences=lab_prob_map, 
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
             ) # B x H x W
+            # Calculate how many neighbors of each pixel have this label.
             pred_num_neighb_map = count_matching_neighbors(
-                lab_map=lab_hard_pred,
+                lab_map=(y_hard==lab_idx).long(),
                 neighborhood_width=self.neighborhood_width,
                 binary=True
             ) # B x H x W
             calibrated_prob_map = torch.zeros_like(lab_prob_map)
             for nn_idx in range(self.neighborhood_width**2):
-                neighbor_mask = (pred_num_neighb_map == nn_idx)
+                neighbor_cls_mask = (pred_num_neighb_map == nn_idx)
                 # Replace the soft predictions with the old frequencies.
-                calibrated_prob_map[neighbor_mask] =\
-                    self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_mask].float()
+                calibrated_prob_map[neighbor_cls_mask] =\
+                    self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_cls_mask].float()
             # Inserted the calibrated prob map back into the original prob map.
-            probs[:, lab_idx, :, :] = calibrated_prob_map
+            prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            probs = probs / probs.sum(dim=1, keepdim=True)
-        return probs
+            return prob_tensor / prob_tensor.sum(dim=1, keepdim=True)
+        else:
+            return prob_tensor 
 
     @property
     def device(self):

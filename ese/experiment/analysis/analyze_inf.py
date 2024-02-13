@@ -253,8 +253,8 @@ def load_cal_inference_stats(
             else:
                 cal_cls = model_class_suffix
             # Add the normalization to the calibrator name.
-            if "Binning" in model_class: 
-                cal_cls += f" (norm:{normalize})"
+            if "Binning" in model_class and normalize: 
+                cal_cls += " (norm)"
             return cal_cls
 
         def joint_data_slice_id(data_id, slice_idx):

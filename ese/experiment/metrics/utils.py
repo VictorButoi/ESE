@@ -332,7 +332,7 @@ def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
     # Calculate the mask padding depending on the neighborhood width
     mask_padding = (neighborhood_width - 1) // 2
     # Apply padding
-    padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='constant')
+    padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='reflect')
     # Convolve the mask with the kernel to get the neighbor count using 2D convolution
     neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
     # Squeeze the result back to the original shape (B x H x W)
