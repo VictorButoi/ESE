@@ -154,37 +154,38 @@ def image_forward_loop(
 ):
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
-    # Get your image label pair and define some regions.
-    if image.device != exp.device:
-        image, label_map = to_device((image, label_map), exp.device)
-    # Get the prediction with no gradient accumulation.
-    predict_args = {'multi_class': True}
-    do_ensemble = inference_cfg["model"]["ensemble"]
-    if do_ensemble:
-        predict_args["combine_fn"] = "identity"
-    # Do a forward pass.
-    with torch.no_grad():
-        exp_output =  exp.predict(image, **predict_args)
-    # Wrap the outputs into a dictionary.
-    output_dict = {
-        "x": image,
-        "y_true": label_map.long(),
-        "y_pred": exp_output["y_pred"],
-        "y_hard": exp_output["y_hard"],
-        "data_id": batch["data_id"][0], # Works because batchsize = 1
-        "split": batch["split"],
-        "slice_idx": slice_idx
-    }
-
-    if do_ensemble:
-        output_dict["ens_weights"] = exp.ens_mem_weights
-    
-    # Get the calibration item info.  
-    get_calibration_item_info(
-        output_dict=output_dict,
-        inference_cfg=inference_cfg,
-        trackers=trackers,
-    )
+    # If we have don't have a minimum number of foreground pixels, then we skip this image.
+    if torch.sum(label_map != 0) >= inference_cfg["log"].get("min_fg_pixels", 0):
+        # Get your image label pair and define some regions.
+        if image.device != exp.device:
+            image, label_map = to_device((image, label_map), exp.device)
+        # Get the prediction with no gradient accumulation.
+        predict_args = {'multi_class': True}
+        do_ensemble = inference_cfg["model"]["ensemble"]
+        if do_ensemble:
+            predict_args["combine_fn"] = "identity"
+        # Do a forward pass.
+        with torch.no_grad():
+            exp_output =  exp.predict(image, **predict_args)
+        # Wrap the outputs into a dictionary.
+        output_dict = {
+            "x": image,
+            "y_true": label_map.long(),
+            "y_pred": exp_output["y_pred"],
+            "y_hard": exp_output["y_hard"],
+            "data_id": batch["data_id"][0], # Works because batchsize = 1
+            "split": batch["split"],
+            "slice_idx": slice_idx
+        }
+        # If ensembling is enabled, then we need to save the ensemble weights.
+        if do_ensemble:
+            output_dict["ens_weights"] = exp.ens_mem_weights
+        # Get the calibration item info.  
+        get_calibration_item_info(
+            output_dict=output_dict,
+            inference_cfg=inference_cfg,
+            trackers=trackers,
+        )
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(

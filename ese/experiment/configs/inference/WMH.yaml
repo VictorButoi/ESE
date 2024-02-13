@@ -1,5 +1,6 @@
 log:
   track_label_amounts: True 
+  min_fg_pixels: 100
 
 data:
   input_type: volume
