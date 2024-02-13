@@ -21,6 +21,8 @@ def global_binwise_stats(
     # If we are class conditioned, need to specify the number of classes.
     if class_conditioned:
         assert num_classes is not None, "If class_conditioned is True, num_classes must be defined."
+    if neighborhood_conditioned:
+        assert neighborhood_width is not None, "If neighborhood_conditioned is True, neighborhood_width must be defined."
     cal_info = {
         "pixel_meters_dict": pixel_meters_dict,
         "num_bins": num_bins,

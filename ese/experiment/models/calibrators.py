@@ -141,8 +141,12 @@ class NECTAR_Binning(nn.Module):
                 neighborhood_width=self.neighborhood_width,
                 binary=True
             ) # B x H x W
-            # Replace the soft predictions with the old frequencies.
-            calibrated_prob_map = self.val_freqs[lab_idx][bin_ownership_map] # B x H x W
+            calibrated_prob_map = torch.zeros_like(lab_prob_map)
+            for nn_idx in range(self.neighborhood_width**2):
+                neighbor_mask = (pred_num_neighb_map == nn_idx)
+                # Replace the soft predictions with the old frequencies.
+                calibrated_prob_map[neighbor_mask] =\
+                    self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_mask].float()
             # Inserted the calibrated prob map back into the original prob map.
             probs[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
