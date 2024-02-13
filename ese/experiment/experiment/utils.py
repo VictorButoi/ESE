@@ -138,24 +138,13 @@ def show_inference_examples(
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
-        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_combine_fn"])(
-            output_dict["y_pred"], 
-            pre_softmax=inference_cfg["model"]["ensemble_pre_softmax"]
-            )
-        # Get the hard prediction and probabilities, if we are doing identity,
-        # then we don't want to return probs.
-        ensemble_prob_map, ensemble_pred_map = process_pred_map(
-            ensemble_prob_map, 
-            multi_class=True, 
-            threshold=0.5,
-            from_logits=False, # Ensemble methods already return probs.
-            )
+        ensemble_outputs = reduce_ensemble_preds(output_dict, inference_cfg, from_logits=False)
         # Place the ensemble predictions in the output dict.
         ensembled_output_dict = {
             "x": output_dict["x"],
             "y_true": output_dict["y_true"],
-            "y_pred": ensemble_prob_map,
-            "y_hard": ensemble_pred_map
+            "y_pred": ensemble_outputs["y_pred"],
+            "y_hard": ensemble_outputs["y_hard"] 
         }
         # Finally, show the ensemble combination.
         ShowPredictionsCallback(

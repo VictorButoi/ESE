@@ -8,7 +8,7 @@ import matplotlib.colors as mcolors
 def ShowPredictionsCallback(
     batch, 
     threshold: float = 0.5,
-    size_per_iamge: int = 3,
+    size_per_iamge: int = 4,
     from_logits: bool = True,
     softpred_dim: Optional[int] = None 
 ):
@@ -61,8 +61,8 @@ def ShowPredictionsCallback(
             yhat = torch.sigmoid(yhat)
         y_hard = (yhat > threshold).numpy()
     
-    num_cols = 4 if (softpred_dim is not None) else 3
-    f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(4 * size_per_iamge, bs*size_per_iamge))
+    num_cols = 5 if (softpred_dim is not None) else 3
+    f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(num_cols * size_per_iamge, bs*size_per_iamge))
 
     # Squeeze all tensors in prep.
     x = x.squeeze()
@@ -90,6 +90,15 @@ def ShowPredictionsCallback(
                 im4 = axarr[3].imshow(yhat[softpred_dim], cmap=label_cm, interpolation='None')
                 f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
+                axarr[4].set_title("Pixel Miscalibration")
+                im5 = axarr[4].imshow(
+                    yhat[softpred_dim] - y, 
+                    cmap='seismic_r', 
+                    vmin=-1.0, 
+                    vmax=1.0, 
+                    interpolation='None')
+                f.colorbar(im5, ax=axarr[4], orientation='vertical')
+
             # turn off the axis and grid
             for ax in axarr:
                 ax.axis('off')
@@ -111,6 +120,15 @@ def ShowPredictionsCallback(
                 axarr[b_idx, 3].set_title("Soft Prediction")
                 im4 = axarr[b_idx, 3].imshow(yhat[b_idx, softpred_dim], cmap=label_cm, interpolation='None')
                 f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
+
+                axarr[b_idx, 4].set_title("Pixel Miscalibration")
+                im5 = axarr[b_idx, 4].imshow(
+                    yhat[b_idx, softpred_dim] - y[b_idx], 
+                    cmap='seismic_r', 
+                    vmin=-1.0, 
+                    vmax=1.0, 
+                    interpolation='None')
+                f.colorbar(im5, ax=axarr[b_idx, 4], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr[b_idx]:
