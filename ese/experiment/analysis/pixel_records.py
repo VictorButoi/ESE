@@ -57,7 +57,7 @@ def update_toplabel_pixel_meters(
         confidences=toplabel_prob_map, 
         bin_starts=toplabel_conf_bins,
         bin_widths=toplabel_conf_bin_widths
-    ).long()
+    )
     # Cast to int64
     ############################################################################3
     # These are conv ops so they are done on the GPU.
@@ -169,7 +169,7 @@ def update_cw_pixel_meters(
             bin_widths=classwise_conf_bin_widths,
         ) # B x H x W
         for l_idx in range(y_pred.shape[1])], dim=0
-    ).long().cpu().numpy() # C x B x H x W
+    ).cpu().numpy() # C x B x H x W
 
     # Reshape to look like the y_pred.
     ###########################################################################3
@@ -183,14 +183,16 @@ def update_cw_pixel_meters(
             lab_map=(output_dict["y_true"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
             binary=True # Ignore the background class.
-    ) for lab_idx in range(C)]) # C x B x H x W
+        )
+    for lab_idx in range(C)]) # C x B x H x W
 
     pred_num_neighb_map = torch.stack([
         count_matching_neighbors(
             lab_map=(output_dict["y_hard"] == lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
             binary=True # Ignore the background class.
-    ) for lab_idx in range(C)]) # C x B x H x W
+        ) 
+    for lab_idx in range(C)]) # C x B x H x W
 
     long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
     classwise_freq_map = torch.nn.functional.one_hot(

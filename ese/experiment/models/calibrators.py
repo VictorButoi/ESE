@@ -66,12 +66,12 @@ class Histogram_Binning(nn.Module):
         for lab_idx in range(probs.shape[1]):
             prob_map = probs[:, lab_idx, :, :] # B x H x W
             # Calculate the bin ownership map and transform the probs.
-            bin_ownership_map = find_bins(
+            prob_bin_ownership_map = find_bins(
                 confidences=prob_map, 
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
             ).long() # B x H x W
-            calibrated_prob_map = self.val_freqs[lab_idx][bin_ownership_map] # B x H x W
+            calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
             probs[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
@@ -89,6 +89,7 @@ class NECTAR_Binning(nn.Module):
         self, 
         stats_file: str,
         normalize: bool, 
+        neighborhood_width: int,
         **kwargs
     ):
         super(NECTAR_Binning, self).__init__()
@@ -103,7 +104,7 @@ class NECTAR_Binning(nn.Module):
             class_wise=True,
             device="cuda"
         )
-        self.val_freqs = gbs['bin_freqs'] # C x Bins
+        self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
         # Get the bins and bin widths
         num_conf_bins = self.val_freqs.shape[1]
         self.conf_bins, self.conf_bin_widths = get_bins(
@@ -112,19 +113,26 @@ class NECTAR_Binning(nn.Module):
             end=1.0
         )
         self.normalize = normalize
+        self.neighborhood_width = neighborhood_width
 
     def forward(self, logits, **kwargs):
         probs = torch.softmax(logits, dim=1) # B x C x H x W
         hard_pred = torch.argmax(probs, dim=1) # B x H x W
         for lab_idx in range(probs.shape[1]):
             lab_prob_map = probs[:, lab_idx, :, :] # B x H x W
-            lab_hard_pred = (hard_pred == lab_idx) # B x H x W
+            lab_hard_pred = (hard_pred == lab_idx).long() # B x H x W
             # Calculate the bin ownership map and transform the probs.
-            bin_ownership_map = find_bins(
+            prob_bin_ownership_map = find_bins(
                 confidences=lab_prob_map, 
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
-            ).long() # B x H x W
+            ) # B x H x W
+            pred_num_neighb_map = count_matching_neighbors(
+                lab_map=lab_hard_pred,
+                neighborhood_width=self.neighborhood_width,
+                binary=True
+            ) # B x H x W
+            # Replace the soft predictions with the old frequencies.
             calibrated_prob_map = self.val_freqs[lab_idx][bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
             probs[:, lab_idx, :, :] = calibrated_prob_map
@@ -158,11 +166,11 @@ class Temperature_Scaling(nn.Module):
 class NECTAR_Scaling(nn.Module):
     def __init__(
         self, 
-        num_classes,
-        neighborhood_width, 
-        threshold=None, 
-        eps=1e-12,
-        positive_constraint=True,
+        num_classes: int,
+        neighborhood_width: int, 
+        threshold: float = None, 
+        eps: float = 1e-12,
+        positive_constraint: bool = True,
         **kwargs
     ):
         super(NECTAR_Scaling, self).__init__()

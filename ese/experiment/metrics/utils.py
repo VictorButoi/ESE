@@ -319,6 +319,8 @@ def find_bins(
         bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
     # Place all things in bin -1 in bin 0, this can happen when stuff is perfectly the boundary of bin_starts.
     bin_indices[bin_indices == -1] = 0
+    # Convert bin_indices to long tensor
+    bin_indices = bin_indices.long()
     return bin_indices
 
 
@@ -374,6 +376,8 @@ def count_matching_neighbors(
             neighbor_count_squeezed = get_bin_matching_neighbors(mask, neighborhood_width, kernel)
             # Update the count_array where the y_true matches the current label
             count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
+    # Convert the tensor to a long tensor
+    count_array = count_array.long()
     # Return the count_arra
     if return_numpy:
         return count_array.numpy()
