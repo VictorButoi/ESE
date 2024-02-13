@@ -55,6 +55,7 @@ def image_ece_loss(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
     edge_only: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
@@ -62,6 +63,7 @@ def ece_loss(
 ) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
         class_conditioned=False,
         neighborhood_conditioned=False,
         square_diff=square_diff,
@@ -115,6 +117,7 @@ def image_tl_ece_loss(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def tl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
     class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
@@ -124,6 +127,7 @@ def tl_ece_loss(
 ) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
         class_wise=False,
         class_conditioned=True,
         neighborhood_conditioned=False,
@@ -182,6 +186,7 @@ def image_cw_ece_loss(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
     class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
@@ -192,6 +197,7 @@ def cw_ece_loss(
     # Get the statistics either from images or pixel meter dict.
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
         class_wise=True,
         class_conditioned=True,
         neighborhood_conditioned=False,

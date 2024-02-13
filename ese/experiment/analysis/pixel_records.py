@@ -22,7 +22,7 @@ def update_toplabel_pixel_meters(
     inference_cfg: dict,
     pixel_level_records 
 ):
-    calibration_cfg = inference_cfg['calibration']
+    calibration_cfg = inference_cfg['global_calibration']
     y_pred = output_dict["y_pred"]
     y_hard = output_dict["y_hard"]
     y_true = output_dict["y_true"]
@@ -150,7 +150,7 @@ def update_cw_pixel_meters(
     inference_cfg: dict,
     pixel_level_records 
 ):
-    calibration_cfg = inference_cfg['calibration']
+    calibration_cfg = inference_cfg['global_calibration']
     y_pred = output_dict["y_pred"]
     y_true = output_dict["y_true"]
 

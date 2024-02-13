@@ -49,6 +49,7 @@ def image_elm_loss(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def elm_loss(
     pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
     neighborhood_width: int,
     class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
@@ -57,6 +58,7 @@ def elm_loss(
     ) -> Union[dict, Tensor]:
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
         class_wise=False,
         class_conditioned=False,
         neighborhood_conditioned=True,

@@ -9,21 +9,26 @@ from pydantic import validate_arguments
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def global_binwise_stats(
     pixel_meters_dict: dict,
+    num_bins: int,
     class_conditioned: bool,
     neighborhood_conditioned: bool,
     class_wise=False,
+    num_classes: Optional[int] = None,
     device: Optional[Literal["cpu", "cuda"]] = None,
     **kwargs
     ) -> dict:
     # Return the calibration information.
     cal_info = {
         "pixel_meters_dict": pixel_meters_dict,
+        "num_bins": num_bins,
         "device": device,
         **kwargs
     }
     # If we are class or neighborhood conditioned, need to specify class_wise.
     if class_conditioned or neighborhood_conditioned:
         cal_info['class_wise'] = class_wise
+        if class_conditioned:
+            cal_info['num_classes'] = num_classes
     # Run the selected global function.
     if not class_conditioned and not neighborhood_conditioned:
         return prob_bin_stats(**cal_info)

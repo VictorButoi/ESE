@@ -235,7 +235,7 @@ def cal_stats_init(cfg_dict):
     # Image level metrics.
     if 'image_cal_metrics' in cfg_dict.keys():
         image_cal_metrics = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["calibration"],
+            base_cal_cfg=cfg_dict["local_calibration"],
             cal_metrics_dict=cfg_dict["image_cal_metrics"]
         )
     else:
@@ -243,7 +243,7 @@ def cal_stats_init(cfg_dict):
     # Global dataset level metrics. (Used for validation)
     if 'global_cal_metrics' in cfg_dict.keys():
         global_cal_metrics = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["calibration"],
+            base_cal_cfg=cfg_dict["global_calibration"],
             cal_metrics_dict=cfg_dict["global_cal_metrics"]
         )
     else:

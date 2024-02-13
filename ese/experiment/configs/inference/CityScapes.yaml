@@ -4,6 +4,17 @@ log:
 data:
   input_type: image 
 
+local_calibration:
+    num_bins: 15
+    neighborhood_width: 3
+    square_diff: False 
+
+global_calibration:
+    num_bins: 15
+    num_classes: 19
+    neighborhood_width: 3
+    square_diff: False 
+
 qual_metrics:
     - Dice:
         _fn: ese.experiment.metrics.dice_score

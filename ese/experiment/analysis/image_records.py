@@ -18,7 +18,7 @@ def get_image_stats(
         # The only case we don't need to softmax is when we have a Binning calibrator
         from_logits = not ("Binning" in inference_cfg["model"]["calibrator"])
         # Get the reduced predictions
-        ensemble_input_config = {
+        input_config = {
             'y_pred': reduce_ensemble_preds(
                 output_dict, 
                 inference_cfg=inference_cfg,
@@ -38,11 +38,11 @@ def get_image_stats(
                 "from_logits": True # IMPORTANT, we haven't softmaxed yet.
             } for member_pred in ensemble_member_preds
         ]
-    # Define the input to our loss functions.
-    input_config = {
-        "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
-        "y_true": output_dict["y_true"], # (B, C, H, W)
-    }
+    else:
+        input_config = {
+            "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+            "y_true": output_dict["y_true"], # (B, C, H, W)
+        }
     # Dicts for storing ensemble scores.
     grouped_scores_dict = {
         "calibration": {},
@@ -68,12 +68,10 @@ def get_image_stats(
             else:
                 grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
-            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**ensemble_input_config)
-        else:
-            qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**input_config)
-            # If you're showing the predictions, also print the scores.
-            if inference_cfg["log"]["show_examples"]:
-                print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**input_config)
+        # If you're showing the predictions, also print the scores.
+        if inference_cfg["log"]["show_examples"]:
+            print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -95,11 +93,8 @@ def get_image_stats(
                 grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(torch.Tensor(individual_cal_scores))
             else:
                 grouped_scores_dict['calibration'][cal_metric_name] = None
-            # Now get the ensemble calibration error.
-            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**ensemble_input_config)
-        else:
-            # Get the calibration error. 
-            cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**input_config)
+        # Get the calibration error. 
+        cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**input_config)
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
@@ -131,8 +126,7 @@ def get_image_stats(
                 "data_id": output_dict["data_id"],
                 "split": output_dict["split"],
                 "slice_idx": output_dict["slice_idx"],
-                **metrics_record, 
-                **inference_cfg["calibration"]
+                **metrics_record
             }
             if inference_cfg["log"]["track_label_amounts"]:
                 record = {**record, **label_amounts_dict}
