@@ -118,6 +118,7 @@ def image_tl_ece_loss(
 def tl_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     num_bins: int,
+    num_classes: int,
     class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
@@ -128,6 +129,7 @@ def tl_ece_loss(
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_bins=num_bins,
+        num_classes=num_classes,
         class_wise=False,
         class_conditioned=True,
         neighborhood_conditioned=False,
@@ -187,6 +189,7 @@ def image_cw_ece_loss(
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     num_bins: int,
+    num_classes: int,
     class_weighting: Literal["uniform", "proportional"],
     edge_only: bool = False,
     square_diff: bool = False,
@@ -198,6 +201,7 @@ def cw_ece_loss(
     cal_info = global_binwise_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_bins=num_bins,
+        num_classes=num_classes,
         class_wise=True,
         class_conditioned=True,
         neighborhood_conditioned=False,

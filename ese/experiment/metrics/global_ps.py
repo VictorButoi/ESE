@@ -28,6 +28,7 @@ def global_binwise_stats(
     if class_conditioned or neighborhood_conditioned:
         cal_info['class_wise'] = class_wise
         if class_conditioned:
+            assert num_classes is not None, "If class_conditioned is True, num_classes must be defined."
             cal_info['num_classes'] = num_classes
     # Run the selected global function.
     if not class_conditioned and not neighborhood_conditioned:
@@ -101,7 +102,7 @@ def class_wise_bin_stats(
     device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
-    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+    accumulated_meters_dict, _ = accumulate_pixel_preds(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
@@ -109,8 +110,6 @@ def class_wise_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
-    unique_labels = unique_values_dict[f"{stat_type}_label"]
-    unique_bins = unique_values_dict["prob_bin"]
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_classes, num_bins, dtype=torch.float64),
@@ -119,23 +118,25 @@ def class_wise_bin_stats(
         "bin_cal_errors": torch.zeros(num_classes, num_bins, dtype=torch.float64),
     }
     for lab_idx in range(num_classes):
-        for bin_idx in range(num_bins):
-            if lab_idx in unique_labels and bin_idx in unique_bins:
-                # Get the meter for the bin.
-                bin_meter = accumulated_meters_dict[lab_idx][bin_idx]
-                # Choose what key to use.
-                bin_conf = bin_meter["confidence"].mean
-                bin_freq = bin_meter["accuracy"].mean
-                num_samples = bin_meter["accuracy"].n
-                # Calculate the average calibration error for the regions in the bin.
-                cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
-                cal_info["bin_freqs"][lab_idx, bin_idx] = bin_freq
-                cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
-                # Choose whether or not to square for the cal error.
-                if square_diff:
-                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
-                else:
-                    cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+        if lab_idx in accumulated_meters_dict:
+            lab_meter_dict = accumulated_meters_dict[lab_idx]
+            for bin_idx in range(num_bins):
+                if bin_idx in lab_meter_dict.keys():
+                    # Get the meter for the bin.
+                    bin_meter = lab_meter_dict[bin_idx]
+                    # Choose what key to use.
+                    bin_conf = bin_meter["confidence"].mean
+                    bin_freq = bin_meter["accuracy"].mean
+                    num_samples = bin_meter["accuracy"].n
+                    # Calculate the average calibration error for the regions in the bin.
+                    cal_info["bin_confs"][lab_idx, bin_idx] = bin_conf
+                    cal_info["bin_freqs"][lab_idx, bin_idx] = bin_freq
+                    cal_info["bin_amounts"][lab_idx, bin_idx] = num_samples
+                    # Choose whether or not to square for the cal error.
+                    if square_diff:
+                        cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
+                    else:
+                        cal_info["bin_cal_errors"][lab_idx, bin_idx] = np.abs(bin_conf - bin_freq)
     if device is not None:
         for key, value in cal_info.items():
             cal_info[key] = value.to(device)
@@ -154,7 +155,7 @@ def neighbor_wise_bin_stats(
     device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
-    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+    accumulated_meters_dict, _ = accumulate_pixel_preds(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_num_neighb",
@@ -162,8 +163,6 @@ def neighbor_wise_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width,
     )
-    unique_neighbor_classes = unique_values_dict[f"{stat_type}_num_neighb"]
-    unique_prob_bins = unique_values_dict["prob_bin"]
     # Keep track of different things for each bin.
     num_neighb_classes = neighborhood_width**2
     cal_info = {
@@ -173,23 +172,25 @@ def neighbor_wise_bin_stats(
         "bin_cal_errors": torch.zeros(num_neighb_classes, num_bins, dtype=torch.float64),
     }
     for nn_idx in range(num_neighb_classes):
-        for bin_idx in range(num_bins):
-            if nn_idx in unique_neighbor_classes and bin_idx in unique_prob_bins:
-                # Get the meter for the bin.
-                bin_meter = accumulated_meters_dict[nn_idx][bin_idx]
-                # Choose what key to use.
-                bin_conf = bin_meter["confidence"].mean
-                bin_freq = bin_meter["accuracy"].mean
-                num_samples = bin_meter["accuracy"].n
-                # Calculate the average calibration error for the regions in the bin.
-                cal_info["bin_confs"][nn_idx, bin_idx] = bin_conf
-                cal_info["bin_freqs"][nn_idx, bin_idx] = bin_freq
-                cal_info["bin_amounts"][nn_idx, bin_idx] = num_samples
-                # Choose whether or not to square for the cal error.
-                if square_diff:
-                    cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
-                else:
-                    cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+        if nn_idx in accumulated_meters_dict:
+            nn_meter_dict = accumulated_meters_dict[nn_idx]
+            for bin_idx in range(num_bins):
+                if bin_idx in nn_meter_dict:
+                    # Get the meter for the bin.
+                    bin_meter = nn_meter_dict[bin_idx]
+                    # Choose what key to use.
+                    bin_conf = bin_meter["confidence"].mean
+                    bin_freq = bin_meter["accuracy"].mean
+                    num_samples = bin_meter["accuracy"].n
+                    # Calculate the average calibration error for the regions in the bin.
+                    cal_info["bin_confs"][nn_idx, bin_idx] = bin_conf
+                    cal_info["bin_freqs"][nn_idx, bin_idx] = bin_freq
+                    cal_info["bin_amounts"][nn_idx, bin_idx] = num_samples
+                    # Choose whether or not to square for the cal error.
+                    if square_diff:
+                        cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
+                    else:
+                        cal_info["bin_cal_errors"][nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
     if device is not None:
         for key, value in cal_info.items():
             cal_info[key] = value.to(device)
@@ -209,7 +210,7 @@ def joint_class_neighbor_bin_stats(
     device: Optional[Literal["cpu", "cuda"]] = None,
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
-    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+    accumulated_meters_dict, _ = accumulate_pixel_preds(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
@@ -218,9 +219,6 @@ def joint_class_neighbor_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
-    unique_labels = unique_values_dict[f"{stat_type}_label"]
-    unique_num_neighb = unique_values_dict[f"pred_num_neighb"]
-    unique_bins = unique_values_dict["prob_bin"]
     # Keep track of different things for each bin.
     num_nn_classes = neighborhood_width**2
     cal_info = {
@@ -229,29 +227,29 @@ def joint_class_neighbor_bin_stats(
         "bin_freqs": torch.zeros(num_classes, num_nn_classes, num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_classes, num_nn_classes, num_bins, dtype=torch.float64),
     }
-    for label in range(num_classes):
-        for nn_class in range(num_nn_classes):
-            for prob_bin in range(num_bins):
-                if label in unique_labels and nn_class in unique_num_neighb and prob_bin in unique_bins:
-                    # Get the meter for the bin.
-                    bin_meter = accumulated_meters_dict[label][nn_class][prob_bin]
-                    # Gather the statistics.
-                    bin_conf = bin_meter["confidence"].mean
-                    bin_freq = bin_meter["accuracy"].mean
-                    num_samples = bin_meter["accuracy"].n
-                    # Calculate the average calibration error for the regions in the bin.
-                    lab_idx = unique_labels.index(label)
-                    nn_idx = unique_num_neighb.index(nn_class)
-                    bin_idx = unique_bins.index(prob_bin)
-                    # Stick the values in the bins.
-                    cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bin_conf
-                    cal_info["bin_freqs"][lab_idx, nn_idx, bin_idx] = bin_freq
-                    cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
-                    # Choose whether or not to square for the cal error.
-                    if square_diff:
-                        cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
-                    else:
-                        cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
+    for lab_idx in range(num_classes):
+        if lab_idx in accumulated_meters_dict:
+            lab_meter_dict = accumulated_meters_dict[lab_idx]
+            for nn_idx in range(num_nn_classes):
+                if nn_idx in lab_meter_dict:
+                    nn_lab_meter_dict = lab_meter_dict[nn_idx]
+                    for bin_idx in range(num_bins):
+                        if bin_idx in nn_lab_meter_dict:
+                            # Get the meter for the bin.
+                            bin_meter = nn_lab_meter_dict[bin_idx]
+                            # Gather the statistics.
+                            bin_conf = bin_meter["confidence"].mean
+                            bin_freq = bin_meter["accuracy"].mean
+                            num_samples = bin_meter["accuracy"].n
+                            # Stick the values in the bins.
+                            cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bin_conf
+                            cal_info["bin_freqs"][lab_idx, nn_idx, bin_idx] = bin_freq
+                            cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = num_samples
+                            # Choose whether or not to square for the cal error.
+                            if square_diff:
+                                cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.power(bin_conf - bin_freq, 2)
+                            else:
+                                cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = np.abs(bin_conf - bin_freq)
     if device is not None:
         for key, value in cal_info.items():
             cal_info[key] = value.to(device)
