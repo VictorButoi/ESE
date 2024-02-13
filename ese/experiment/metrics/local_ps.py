@@ -189,8 +189,8 @@ def bin_stats(
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
         "bin_freqs": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
     }
     # Get the regions of the prediction corresponding to each bin of confidence.
@@ -214,6 +214,9 @@ def bin_stats(
                 pix_weights=obj_dict["pix_weights"],
                 square_diff=square_diff
             )
+            for k, v in bi.items():
+                # Assert that v is not a torch NaN
+                assert not torch.isnan(v).any(), f"Bin {bin_idx} has NaN in key: {k}."
             # Calculate the average calibration error for the regions in the bin.
             cal_info["bin_confs"][bin_idx] = bi["avg_conf"] 
             cal_info["bin_freqs"][bin_idx] = bi["avg_freq"] 
@@ -278,6 +281,9 @@ def top_label_bin_stats(
                     pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
+                for k, v in bi.items():
+                    # Assert that v is not a torch NaN
+                    assert not torch.isnan(v).any(), f"Lab {lab}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][lab_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][lab_idx, bin_idx] = bi["avg_freq"] 
@@ -347,6 +353,9 @@ def joint_label_bin_stats(
                     pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
+                for k, v in bi.items():
+                    # Assert that v is not a torch NaN
+                    assert not torch.isnan(v).any(), f"Lab {lab}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][l_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][l_idx, bin_idx] = bi["avg_freq"] 
@@ -409,6 +418,9 @@ def neighbor_bin_stats(
                     pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
+                for k, v in bi.items():
+                    # Assert that v is not a torch NaN
+                    assert not torch.isnan(v).any(), f"Num-neighbors {p_nn}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][nn_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][nn_idx, bin_idx] = bi["avg_freq"] 
@@ -484,6 +496,9 @@ def neighbor_joint_label_bin_stats(
                         pix_weights=obj_dict["pix_weights"],
                         square_diff=square_diff
                     )
+                    for k, v in bi.items():
+                        # Assert that v is not a torch NaN
+                        assert not torch.isnan(v).any(), f"Label {lab}, Num-neighbors {p_nn}, Bin {bin_idx} has NaN in key: {k}."
                     # Calculate the average calibration error for the regions in the bin.
                     cal_info["bin_confs"][l_idx, nn_idx, bin_idx] = bi["avg_conf"] 
                     cal_info["bin_freqs"][l_idx, nn_idx, bin_idx] = bi["avg_freq"] 
