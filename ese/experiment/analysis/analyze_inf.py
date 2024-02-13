@@ -208,6 +208,7 @@ def load_cal_inference_stats(
         inference_df["ensemble"] = inference_df["model.ensemble"]
         inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
         inference_df["normalize"] = inference_df["model.normalize"].fillna("None")
+        inference_df["cal_stats_split"] = inference_df["model.cal_stats_split"].fillna("None")
 
         # Go through several optional keys, and add them if they don't exist
         for optional_key in [
@@ -243,7 +244,7 @@ def load_cal_inference_stats(
                 else:
                     return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
-        def calibrator(model_class, normalize):
+        def calibrator(model_class, normalize, cal_stats_split):
             model_class_suffix = model_class.split('.')[-1]
             # Determine the calibration name.
             if "UNet" in model_class:
@@ -253,8 +254,12 @@ def load_cal_inference_stats(
             else:
                 cal_cls = model_class_suffix
             # Add the normalization to the calibrator name.
-            if "Binning" in model_class and normalize: 
-                cal_cls += " (norm)"
+            if "Binning" in model_class:
+                if normalize:
+                    cal_cls += f" (norm,{cal_stats_split})"
+                else:
+                    cal_cls += f" ({cal_stats_split})"
+
             return cal_cls
 
         def joint_data_slice_id(data_id, slice_idx):
