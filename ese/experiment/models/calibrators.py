@@ -122,12 +122,13 @@ class NECTAR_Binning(nn.Module):
             end=1.0
         )
         self.normalize = normalize
+        self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
 
     def forward(self, logits, **kwargs):
         probs = torch.softmax(logits, dim=1) # B x C x H x W
         hard_pred = torch.argmax(probs, dim=1) # B x H x W
-        for lab_idx in range(probs.shape[1]):
+        for lab_idx in range(self.num_classes):
             lab_prob_map = probs[:, lab_idx, :, :] # B x H x W
             lab_hard_pred = (hard_pred == lab_idx).long() # B x H x W
             # Calculate the bin ownership map and transform the probs.

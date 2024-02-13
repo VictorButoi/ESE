@@ -233,21 +233,17 @@ def cal_stats_init(cfg_dict):
     # INITIALIZE CALIBRATION METRICS #
     ##################################
     # Image level metrics.
-    if 'image_cal_metrics' in cfg_dict.keys():
-        image_cal_metrics = preload_calibration_metrics(
+    if cfg_dict.get('image_cal_metrics', None) is not None:
+        cfg_dict["image_cal_metrics"] = preload_calibration_metrics(
             base_cal_cfg=cfg_dict["local_calibration"],
             cal_metrics_dict=cfg_dict["image_cal_metrics"]
         )
-    else:
-        image_cal_metrics = {}
     # Global dataset level metrics. (Used for validation)
-    if 'global_cal_metrics' in cfg_dict.keys():
-        global_cal_metrics = preload_calibration_metrics(
+    if cfg_dict.get('global_cal_metrics', None) is not None:
+        cfg_dict["global_cal_metrics"] = preload_calibration_metrics(
             base_cal_cfg=cfg_dict["global_calibration"],
             cal_metrics_dict=cfg_dict["global_cal_metrics"]
         )
-    else:
-        global_cal_metrics = {}
     #############################
     trackers = {}
     # Setup trackers for both or either of image level statistics
@@ -263,8 +259,6 @@ def cal_stats_init(cfg_dict):
             trackers["cw_pixel_meter_dict"][data_split] = {}
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 
-    cfg_dict["image_cal_metrics"] = image_cal_metrics 
-    cfg_dict["global_cal_metrics"] = global_cal_metrics
     # Return a dictionary of the components needed for the calibration statistics.
     return {
         "inference_exp": inference_exp,

@@ -74,6 +74,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
                     "log": {
                         "root": total_config["log"]["root"] + "/binning_exp_logs"
                     },
+                    "global_calibration": total_config["global_calibration"],
                     "experiment": total_config["experiment"],
                     "model": {
                         "pretrained_exp_root": str(exp_path),
