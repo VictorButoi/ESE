@@ -43,8 +43,6 @@ class Histogram_Binning(nn.Module):
         **kwargs
     ):
         super(Histogram_Binning, self).__init__()
-        print("Loaded pixel meter file:", stats_file)
-        print("Using stats split:", cal_stats_split)
         # Load the data from the .pkl file
         with open(stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
@@ -67,6 +65,9 @@ class Histogram_Binning(nn.Module):
         )
         self.num_classes = num_classes
         self.normalize = normalize
+        #############################################
+        print("Loaded pixel meter file:", stats_file)
+        print("Using stats split:", cal_stats_split)
 
     def forward(self, logits, **kwargs):
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
@@ -83,7 +84,9 @@ class Histogram_Binning(nn.Module):
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            return prob_tensor / prob_tensor.sum(dim=1, keepdim=True)
+            sum_prob_tensor = prob_tensor.sum(dim=1, keepdim=True)
+            assert (sum_prob_tensor > 0).all(), "Sum of probabilities must be stricly non-zero."
+            return prob_tensor / sum_prob_tensor
         else:
             return prob_tensor 
 
@@ -107,8 +110,6 @@ class NECTAR_Binning(nn.Module):
         # Load the data from the .pkl file
         with open(stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
-        print("Loaded pixel meter file:", stats_file)
-        print("Using stats split:", cal_stats_split)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
             pixel_meters_dict=pixel_meters_dict[cal_stats_split],
@@ -130,12 +131,18 @@ class NECTAR_Binning(nn.Module):
         self.normalize = normalize
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
+        #############################################
+        print("Loaded pixel meter file:", stats_file)
+        print("Using stats split:", cal_stats_split)
 
     def forward(self, logits, **kwargs):
+        # Define C as the number of classes.
+        C = self.num_classes
+        # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
         y_hard = torch.argmax(prob_tensor, dim=1) # B x H x W
         # Iterate through each label, and replace the probs with the calibrated probs.
-        for lab_idx in range(self.num_classes):
+        for lab_idx in range(C):
             lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
             # Calculate the bin ownership map for each pixel probability
             prob_bin_ownership_map = find_bins(
@@ -159,7 +166,12 @@ class NECTAR_Binning(nn.Module):
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
-            return prob_tensor / prob_tensor.sum(dim=1, keepdim=True)
+            sum_prob_tensor = prob_tensor.sum(dim=1, keepdim=True).repeat(1, C, 1, 1) # B x C x H x W
+            # Make the entries where sum_prob_tensor is zero to be equally likely for all classes.
+            prob_tensor[sum_prob_tensor == 0] = 1
+            sum_prob_tensor[sum_prob_tensor == 0] = C 
+            # Return the normalized probabilities.
+            return prob_tensor / sum_prob_tensor
         else:
             return prob_tensor 
 

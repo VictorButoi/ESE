@@ -55,11 +55,6 @@ def reduce_bin_errors(
     # Multiply by the weights and sum.
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
     reduced_error = (error_per_bin * bin_weights).sum()
-    print("Error per bin: ", error_per_bin)
-    print("Bin weights: ", bin_weights)
-    print("Reduced error: ", reduced_error)
-    print()
-    print()
     assert 0 <= reduced_error <= 1, f"Reduced error should be between 0 and 1, got {reduced_error} instead."
     return reduced_error
 

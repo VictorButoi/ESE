@@ -43,7 +43,6 @@ def image_ece_loss(
         edge_only=edge_only,
         from_logits=from_logits
     )
-    print("Bin Cal Errors: ", cal_info['bin_cal_errors'])
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
