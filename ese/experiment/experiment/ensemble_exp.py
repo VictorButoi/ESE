@@ -123,7 +123,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         ################################################
         self.ens_mem_weights = get_ensemble_member_weights(
             results_df=rs.load_metrics(dfc),
-            metric=model_cfg["ensemble_w_metric"]
+            metric=ensemble_cfg["member_w_metric"]
         )
         ####################################################
         # Add other auxilliary information to the config.
@@ -175,13 +175,14 @@ class EnsembleInferenceExperiment(BaseExperiment):
             else:
                 return_logits = False
                 ensemble_model_outputs[exp_path] = member_pred['y_probs']
+
         # Combine the outputs of the models.
         if combine_fn is None:
-            assert self.ensemble_combine_fn is not None, "No combine function provided."
-            combine_fn = self.ensemble_combine_fn
+            assert self.combine_fn is not None, "No combine function provided."
+            combine_fn = self.combine_fn
         if combine_quantity is None:
-            assert self.ensemble_combine_quantity is not None, "No pre_softmax value provided."
-            combine_quantity = self.ensemble_combine_quantity
+            assert self.combine_quantity is not None, "No pre_softmax value provided."
+            combine_quantity = self.combine_quantity
         if weights is None:
             assert self.ens_mem_weights is not None, "No weights provided."   
             weights = self.ens_mem_weights

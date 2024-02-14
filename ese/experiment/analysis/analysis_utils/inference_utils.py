@@ -280,7 +280,6 @@ def load_inference_exp_from_cfg(
     # Get the configs of the experiment
     if model_cfg['ensemble']:
         assert is_exp_group, "Ensemble inference only works with experiment groups."
-        assert 'ensemble_cfg' in model_cfg.keys(), "Ensemble inference requires a combine function."
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     elif "Binning" in model_cfg['calibrator']:
