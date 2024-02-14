@@ -5,6 +5,9 @@ import torch.nn.functional as F
 # misc imports
 import math
 import pickle
+from dataclasses import dataclass
+# ionpy imports
+from ionpy.util.validation import validate_arguments_init
 # local imports
 from ..metrics.global_ps import global_binwise_stats
 from ..metrics.utils import (
@@ -15,6 +18,7 @@ from ..metrics.utils import (
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
     
+
 def initialization(m):
     # Initialize kernel weights with Gaussian distributions
     if isinstance(m, nn.Conv2d):
@@ -32,26 +36,26 @@ def initialization(m):
         m.bias.data.zero_()
         
 
+@validate_arguments_init
+@dataclass
 class Histogram_Binning(nn.Module):
-    def __init__(
-        self, 
-        num_bins: int,
-        num_classes: int,
-        stats_file: str,
-        normalize: bool, 
-        cal_stats_split: str,
-        smoothing: float = 1e-4,
-        **kwargs
-    ):
+
+    num_bins: int
+    num_classes: int
+    stats_file: str
+    normalize: bool
+    cal_stats_split: str
+
+    def __post_init__(self):
         super(Histogram_Binning, self).__init__()
         # Load the data from the .pkl file
-        with open(stats_file, "rb") as f:
+        with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[cal_stats_split], # Use the validation set stats.
-            num_bins=num_bins, # Use 15 bins
-            num_classes=num_classes,
+            pixel_meters_dict=pixel_meters_dict[self.cal_stats_split], # Use the validation set stats.
+            num_bins=self.num_bins, # Use 15 bins
+            num_classes=self.num_classes,
             class_conditioned=True,
             neighborhood_conditioned=False,
             class_wise=True,
@@ -60,16 +64,13 @@ class Histogram_Binning(nn.Module):
         self.val_freqs = gbs['bin_freqs'] # C x Bins
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=num_bins, 
+            num_bins=self.num_bins, 
             start=0.0,
             end=1.0
         )
-        self.normalize = normalize
-        self.smoothing = smoothing
-        self.num_classes = num_classes
         #############################################
-        print("Loaded pixel meter file:", stats_file)
-        print("Using stats split:", cal_stats_split)
+        print("Loaded pixel meter file:", self.stats_file)
+        print("Using stats split:", self.cal_stats_split)
 
     def forward(self, logits):
         C = self.num_classes
@@ -89,7 +90,7 @@ class Histogram_Binning(nn.Module):
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
-            sum_tensor[sum_tensor == 0] = self.smoothing
+            sum_tensor[sum_tensor == 0] = 1.0
             assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
             # Return the normalized probabilities.
             return prob_tensor / sum_tensor
@@ -101,29 +102,29 @@ class Histogram_Binning(nn.Module):
         return "cpu"
 
 
+@validate_arguments_init
+@dataclass
 class NECTAR_Binning(nn.Module):
-    def __init__(
-        self, 
-        num_bins: int,
-        num_classes: int,
-        neighborhood_width: int,
-        discretized_neighbors: bool,
-        stats_file: str,
-        normalize: bool, 
-        cal_stats_split: str,
-        smoothing: float = 1e-4,
-        **kwargs
-    ):
+
+    num_bins: int
+    num_classes: int
+    neighborhood_width: int
+    discretized_neighbors: bool
+    stats_file: str
+    normalize: bool 
+    cal_stats_split: str
+
+    def __post_init__(self):
         super(NECTAR_Binning, self).__init__()
         # Load the data from the .pkl file
-        with open(stats_file, "rb") as f:
+        with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[cal_stats_split],
-            num_bins=num_bins, # Use 15 bins
-            num_classes=num_classes,
-            neighborhood_width=neighborhood_width,       
+            pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
+            num_bins=self.num_bins, # Use 15 bins
+            num_classes=self.num_classes,
+            neighborhood_width=self.neighborhood_width,       
             class_conditioned=True,
             neighborhood_conditioned=True,
             class_wise=True,
@@ -132,18 +133,13 @@ class NECTAR_Binning(nn.Module):
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=num_bins, 
+            num_bins=self.num_bins, 
             start=0.0,
             end=1.0
         )
-        self.normalize = normalize
-        self.smoothing = smoothing
-        self.num_classes = num_classes
-        self.neighborhood_width = neighborhood_width
-        self.discretized_neighbors = discretized_neighbors
         #############################################
-        print("Loaded pixel meter file:", stats_file)
-        print("Using stats split:", cal_stats_split)
+        print("Loaded pixel meter file:", self.stats_file)
+        print("Using stats split:", self.cal_stats_split)
 
     def forward(self, logits):
         # Define C as the number of classes.
@@ -215,31 +211,24 @@ class Temperature_Scaling(nn.Module):
         return next(self.parameters()).device
 
 
-# NEighborhood-Conditional TemperAtuRe Scaling
+@validate_arguments_init
+@dataclass
 class NECTAR_Scaling(nn.Module):
-    def __init__(
-        self, 
-        num_classes: int,
-        neighborhood_width: int, 
-        class_wise: bool,
-        discretized_neighbors: bool,
-        eps: float = 1e-12,
-        threshold: float = 0.5, 
-        positive_constraint: bool = True,
-        **kwargs
-    ):
+
+    num_classes: int
+    neighborhood_width: int
+    class_wise: bool
+    discretized_neighbors: bool
+    eps: float = 1e-12
+    threshold: float = 0.5
+    positive_constraint: bool = True
+
+    def __post_init__(self):
         super(NECTAR_Scaling, self).__init__()
-        self.eps = eps
-        self.threshold = threshold
-        self.num_classes = num_classes
-        self.class_wise = class_wise
-        self.neighborhood_width = neighborhood_width
-        self.positive_constraint = positive_constraint
-        self.discretized_neighbors = discretized_neighbors
         # Define the parameters per neighborhood class (and optionally per label).
-        num_neighbor_classes = neighborhood_width**2
-        if class_wise:
-            self.neighborhood_temps = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
+        num_neighbor_classes = self.neighborhood_width**2
+        if self.class_wise:
+            self.neighborhood_temps = nn.Parameter(torch.ones(self.num_classes, num_neighbor_classes))
         else:
             self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
 

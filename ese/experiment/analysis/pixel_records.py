@@ -11,7 +11,7 @@ from ..metrics.utils import (
     get_bins, 
     find_bins, 
     get_conf_region_np,
-    count_matching_neighbors,
+    agg_neighbors_preds
 )
 
 
@@ -62,15 +62,17 @@ def update_toplabel_pixel_meters(
     # These are conv ops so they are done on the GPU.
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
-    pred_num_neighb_map = count_matching_neighbors(
+    pred_num_neighb_map = agg_neighbors_preds(
         lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
+        discrete=True,
     )
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
-    true_num_neighb_map = count_matching_neighbors(
+    true_num_neighb_map = agg_neighbors_preds(
         lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
+        discrete=True,
     )
 
     # Calculate the accuracy map.
@@ -178,17 +180,19 @@ def update_cw_pixel_meters(
     C = y_probs.shape[1]
 
     true_num_neighb_map = torch.stack([
-        count_matching_neighbors(
-            lab_map=(output_dict["y_true"] == lab_idx).long(),
+        agg_neighbors_preds(
+            lab_map=(output_dict["y_true"]==lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
+            discrete=True,
             binary=True # Ignore the background class.
         )
     for lab_idx in range(C)]) # C x B x H x W
 
     pred_num_neighb_map = torch.stack([
-        count_matching_neighbors(
-            lab_map=(output_dict["y_hard"] == lab_idx).long(),
+        agg_neighbors_preds(
+            lab_map=(output_dict["y_hard"]==lab_idx).long(),
             neighborhood_width=calibration_cfg["neighborhood_width"],
+            discrete=True,
             binary=True # Ignore the background class.
         ) 
     for lab_idx in range(C)]) # C x B x H x W

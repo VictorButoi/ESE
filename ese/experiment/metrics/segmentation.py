@@ -13,9 +13,8 @@ from ionpy.metrics.util import (
     InputMode,
     Reduction
 )
-from ionpy.loss.util import _loss_module_from_func
 # local imports
-from .utils import count_matching_neighbors
+from .utils import agg_neighbors_preds
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -241,22 +240,31 @@ def boundary_iou(
         y_hard = y_pred.argmax(dim=1).float() # B x H x W
     
     n_width = 2*boundary_width + 1 # The width of the neighborhood.
-    pred_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_hard, 
-        neighborhood_width=n_width
-    ) # B x H x W
-    true_matching_neighbors_map = count_matching_neighbors(
-        lab_map=y_true, 
-        neighborhood_width=n_width
-    ) # B x H x W
+    true_num_neighb_map = torch.stack([
+        agg_neighbors_preds(
+            lab_map=(y_true == lab_idx).long(),
+            neighborhood_width=n_width,
+            discrete=True,
+            binary=True # Ignore the background class.
+        )
+    for lab_idx in range(C)]) # C x B x H x W
+    pred_num_neighb_map = torch.stack([
+        agg_neighbors_preds(
+            lab_map=(y_hard == lab_idx).long(),
+            neighborhood_width=n_width,
+            discrete=True,
+            binary=True # Ignore the background class.
+        ) 
+    for lab_idx in range(C)]) # C x B x H x W
+
     # Get the non-center pixels.
-    center_pix_amount = (boundary_width ** 2 - 1) # The center pixel is not counted.
-    boundary_pred = (pred_matching_neighbors_map < center_pix_amount).float() # B x H x W
-    boundary_true = (true_matching_neighbors_map < center_pix_amount).float() # B x H x W
+    max_matching_neighbors = (boundary_width ** 2 - 1) # The center pixel is not counted.
+    boundary_pred = (pred_num_neighb_map < max_matching_neighbors).float() # B x C x H x W
+    boundary_true = (true_num_neighb_map < max_matching_neighbors).float() # B x C x H x W
 
     # Reshape the neighborhood maps to match what y_pred and y_true look like.
-    boundary_pred = boundary_pred.reshape(B, -1).unsqueeze(1).repeat(1, C, 1) # B x C x (H x W)
-    boundary_true = boundary_true.reshape(B, -1).unsqueeze(1).repeat(1, C, 1) # B x C x (H x W)
+    boundary_pred = boundary_pred.reshape(B, C, -1) # B x C x (H x W)
+    boundary_true = boundary_true.reshape(B, C, -1) # B x C x (H x W)
 
     # Get the one hot tensors. 
     y_pred, y_true = _inputs_as_onehot(

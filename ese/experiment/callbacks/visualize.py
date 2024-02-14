@@ -14,8 +14,11 @@ def ShowPredictionsCallback(
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
-    assert ("y_probs" in batch) ^ ("y_logits" in batch), "Must provide either probs or logits."
-    pred_cls = "y_probs" if ("y_probs" in batch) else "y_logits"
+    if ("y_probs" in batch) and (batch["y_probs"] is not None):
+        pred_cls = "y_probs"
+    else:
+        assert ("y_logits" in batch) and (batch["y_logits"] is not None), "Must provide either probs or logits."
+        pred_cls = "y_logits"
 
     if batch["x"].shape[0] != batch[pred_cls].shape[0]:
         assert batch["x"].shape[0] == 1, "Batchsize of input image must be 1 if batchsize of prediction is not 1."

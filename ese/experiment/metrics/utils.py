@@ -347,6 +347,8 @@ def agg_neighbors_preds(
     discrete: bool,
     binary: bool = False
 ):
+    assert discrete, "Currently only discrete label maps are supported."
+
     if len(lab_map.shape) == 4:
         lab_map = lab_map.squeeze(1) # Attempt to squeeze out the channel dimension.
     assert len(lab_map.shape) == 3,\

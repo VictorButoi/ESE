@@ -9,7 +9,7 @@ from .utils import (
     get_bins,
     find_bins,
     get_conf_region, 
-    count_matching_neighbors
+    agg_neighbors_preds 
 )
 
 
@@ -124,28 +124,32 @@ def bin_stats_init(
         if class_wise:
             # Pred map
             pred_matching_neighbors_map = torch.stack([
-                count_matching_neighbors(
+                agg_neighbors_preds(
                     lab_map=(y_hard == lab_idx).long(),
                     neighborhood_width=neighborhood_width,
+                    discrete=True,
                     binary=True # Ignore the background class.
             ) for lab_idx in range(C)]) # C x B x H x W
             # True map
             true_matching_neighbors_map = torch.stack([
-                count_matching_neighbors(
+                agg_neighbors_preds(
                     lab_map=(y_true == lab_idx).long(),
                     neighborhood_width=neighborhood_width,
+                    discrete=True,
                     binary=True # Ignore the background class.
             ) for lab_idx in range(C)]) # C x B x H x W
         else:
             # Pred map
-            pred_matching_neighbors_map = count_matching_neighbors(
+            pred_matching_neighbors_map = agg_neighbors_preds(
                 lab_map=y_hard, 
-                neighborhood_width=neighborhood_width
+                neighborhood_width=neighborhood_width,
+                discrete=True,
             ) # B x H x W
             # True map
-            true_matching_neighbors_map = count_matching_neighbors(
+            true_matching_neighbors_map = agg_neighbors_preds(
                 lab_map=y_true, 
-                neighborhood_width=neighborhood_width
+                neighborhood_width=neighborhood_width,
+                discrete=True,
             ) # B x H x W
     else:
         pred_matching_neighbors_map = None

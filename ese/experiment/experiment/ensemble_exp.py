@@ -56,11 +56,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
         verify_ensemble_configs(dfc)
         # Build the combine function.
         if "ensemble_cfg" in model_cfg:
-            self.ensemble_combine_fn = model_cfg["ensemble_cfg"][0]
-            self.ensemble_combine_quantity = model_cfg["ensemble_cfg"][1]
+            self.combine_fn = model_cfg["combine_fn"][0]
+            self.combine_quantity = model_cfg["combine_quantity"][1]
         else:
-            self.ensemble_combine_fn = None
-            self.ensemble_combine_quantity = None
+            self.combine_fn = None
+            self.combine_quantity = None
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.ens_exp_paths = []
         self.ens_exps = {}
