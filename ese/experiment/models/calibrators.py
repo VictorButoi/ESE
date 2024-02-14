@@ -10,7 +10,7 @@ from ..metrics.global_ps import global_binwise_stats
 from ..metrics.utils import (
     get_bins, 
     find_bins, 
-    count_matching_neighbors
+    agg_neighbors_preds
 )
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
@@ -86,11 +86,10 @@ class Histogram_Binning(nn.Module):
             calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
-        # Apply smoothing to avoid zero probabilities.
-        prob_tensor = torch.clamp(prob_tensor + self.smoothing, max=1.0)
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
+            sum_tensor[sum_tensor == 0] = self.smoothing
             assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
             # Return the normalized probabilities.
             return prob_tensor / sum_tensor
@@ -108,6 +107,7 @@ class NECTAR_Binning(nn.Module):
         num_bins: int,
         num_classes: int,
         neighborhood_width: int,
+        discretized_neighbors: bool,
         stats_file: str,
         normalize: bool, 
         cal_stats_split: str,
@@ -140,6 +140,7 @@ class NECTAR_Binning(nn.Module):
         self.smoothing = smoothing
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
+        self.discretized_neighbors = discretized_neighbors
         #############################################
         print("Loaded pixel meter file:", stats_file)
         print("Using stats split:", cal_stats_split)
@@ -160,11 +161,21 @@ class NECTAR_Binning(nn.Module):
                 bin_widths=self.conf_bin_widths
             ) # B x H x W
             # Calculate how many neighbors of each pixel have this label.
-            pred_num_neighb_map = count_matching_neighbors(
-                lab_map=(y_hard==lab_idx).long(),
-                neighborhood_width=self.neighborhood_width,
-                binary=True
-            ) # B x H x W
+            if self.discretized_neighbors:
+                neighbor_agg_map = agg_neighbors_preds(
+                    lab_map=(y_hard==lab_idx).long(),
+                    neighborhood_width=self.neighborhood_width,
+                    discrete=True,
+                    binary=True
+                ) # B x H x W
+            else:
+                neighbor_agg_map = agg_neighbors_preds(
+                    lab_map=(y_hard==lab_idx).long(),
+                    neighborhood_width=self.neighborhood_width,
+                    discrete=False,
+                    binary=True
+                )
+            # Construct the prob_maps
             calibrated_prob_map = torch.zeros_like(lab_prob_map)
             for nn_idx in range(self.neighborhood_width**2):
                 neighbor_cls_mask = (pred_num_neighb_map == nn_idx)
@@ -173,11 +184,10 @@ class NECTAR_Binning(nn.Module):
                     self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_cls_mask].float()
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
-        # Apply smoothing to avoid zero probabilities.
-        prob_tensor = torch.clamp(prob_tensor + self.smoothing, max=1.0)
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
+            sum_tensor[sum_tensor == 0] = self.smoothing
             assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
             # Return the normalized probabilities.
             return prob_tensor / sum_tensor
@@ -211,8 +221,10 @@ class NECTAR_Scaling(nn.Module):
         self, 
         num_classes: int,
         neighborhood_width: int, 
-        threshold: float = None, 
+        class_wise: bool,
+        discretized_neighbors: bool,
         eps: float = 1e-12,
+        threshold: float = 0.5, 
         positive_constraint: bool = True,
         **kwargs
     ):
@@ -220,32 +232,46 @@ class NECTAR_Scaling(nn.Module):
         self.eps = eps
         self.threshold = threshold
         self.num_classes = num_classes
+        self.class_wise = class_wise
         self.neighborhood_width = neighborhood_width
         self.positive_constraint = positive_constraint
-        # Define the parameters per neighborhood class
+        self.discretized_neighbors = discretized_neighbors
+        # Define the parameters per neighborhood class (and optionally per label).
         num_neighbor_classes = neighborhood_width**2
-        self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
+        if class_wise:
+            self.neighborhood_temps = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
+        else:
+            self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
 
     def weights_init(self):
         self.neighborhood_temps.data.fill_(1)
 
     def forward(self, logits, **kwargs):
         # Softmax the logits to get probabilities
-        probs = torch.softmax(logits, dim=1) # B C H W
+        y_probs = torch.softmax(logits, dim=1) # B C H W
         # Argnax over the channel dimension to get the current prediction
-        if probs.shape[1] == 1:
-            pred = (probs > self.threshold).float().squeeze(1) # B H W
+        if y_probs.shape[1] == 1:
+            y_hard = (y_probs > self.threshold).float().squeeze(1) # B H W
         else:
-            pred = torch.argmax(probs, dim=1) # B H W
+            y_hard = torch.argmax(y_probs, dim=1) # B H W
+
         # Get the per-pixel num neighborhood class
-        pred_matching_neighbors_map = count_matching_neighbors(
-            lab_map=pred, 
-            neighborhood_width=self.neighborhood_width
-        ).unsqueeze(1) # B 1 H W
+        if self.discrete_neighbors:
+            neighbor_agg_map = agg_neighbors_preds(
+                lab_map=y_hard, 
+                neighborhood_width=self.neighborhood_width,
+                discrete=True
+            ) # B 1 H W
+        else:
+            neighbor_agg_map = agg_neighbors_preds(
+                lab_map=y_probs, 
+                neighborhood_width=self.neighborhood_width, 
+                discrete=False
+            )
         # Place the temperatures in the correct positions
         neighborhood_temp_map = self.neighborhood_temps[pred_matching_neighbors_map]
         # Apply this to all classes.
-        temps = neighborhood_temp_map.repeat(1, self.num_classes, 1, 1) # B C H W
+        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B C H W
         # If we are constrained to have a positive temperature, then we need to guide
         # the optimization to picking a parameterization that is positive.
         if self.positive_constraint:

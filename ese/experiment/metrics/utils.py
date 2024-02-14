@@ -341,9 +341,10 @@ def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def count_matching_neighbors(
+def agg_neighbors_preds(
     lab_map: Union[Tensor, np.ndarray],
     neighborhood_width: int,
+    discrete: bool,
     binary: bool = False
 ):
     if len(lab_map.shape) == 4:
