@@ -34,6 +34,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         total_config = self.config.to_dict()
         # Use the model config.
         model_cfg = total_config["model"]
+        ensemble_cfg = total_config["ensemble"]
         # Get the configs of the experiment
         rs = ResultsLoader()
         # Load ALL the configs in the directory.
@@ -54,14 +55,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
                                         + f"Unique values: {dfc[column].unique()}")
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
-        # Build the combine function.
-        if "ensemble_cfg" in model_cfg:
-            self.combine_fn = model_cfg["combine_fn"][0]
-            self.combine_quantity = model_cfg["combine_quantity"][1]
-        else:
-            self.combine_fn = None
-            self.combine_quantity = None
         # Loop through each config and build the experiment, placing it in a dictionary.
+        self.combine_fn = ensemble_cfg["combine_fn"]
+        self.combine_quantity = ensemble_cfg["combine_quantity"]
         self.ens_exp_paths = []
         self.ens_exps = {}
         self.num_params = 0
