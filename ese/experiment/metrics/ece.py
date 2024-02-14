@@ -53,33 +53,6 @@ def image_ece_loss(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ece_loss(
-    pixel_meters_dict: Dict[tuple, Meter],
-    num_bins: int,
-    edge_only: bool = False,
-    square_diff: bool = False,
-    neighborhood_width: Optional[int] = None,
-    **kwargs
-) -> Union[dict, Tensor]:
-    cal_info = global_binwise_stats(
-        pixel_meters_dict=pixel_meters_dict,
-        num_bins=num_bins,
-        class_conditioned=False,
-        neighborhood_conditioned=False,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        edge_only=edge_only
-    )
-    metric_dict = {
-        "metric_type": "global",
-        "cal_info": cal_info,
-        "return_dict": kwargs.get("return_dict", False) 
-    }
-    # Return the calibration information
-    return ece_reduction(**metric_dict)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_tl_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
@@ -113,39 +86,6 @@ def image_tl_ece_loss(
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def tl_ece_loss(
-    pixel_meters_dict: Dict[tuple, Meter],
-    num_bins: int,
-    num_classes: int,
-    class_weighting: Literal["uniform", "proportional"],
-    edge_only: bool = False,
-    square_diff: bool = False,
-    neighborhood_width: Optional[int] = None,
-    ignore_index: Optional[int] = None,
-    **kwargs
-) -> Union[dict, Tensor]:
-    cal_info = global_binwise_stats(
-        pixel_meters_dict=pixel_meters_dict,
-        num_bins=num_bins,
-        num_classes=num_classes,
-        class_wise=False,
-        class_conditioned=True,
-        neighborhood_conditioned=False,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
-        edge_only=edge_only
-    )
-    metric_dict = {
-        "metric_type": "global",
-        "cal_info": cal_info,
-        "class_weighting": class_weighting,
-        "ignore_index": ignore_index,
-        "return_dict": kwargs.get("return_dict", False) 
-    }
-    # Return the calibration information
-    return class_ece_reduction(**metric_dict)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -186,6 +126,67 @@ def image_cw_ece_loss(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def ece_loss(
+    pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
+    edge_only: bool = False,
+    square_diff: bool = False,
+    neighborhood_width: Optional[int] = None,
+    **kwargs
+) -> Union[dict, Tensor]:
+    cal_info = global_binwise_stats(
+        pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
+        class_conditioned=False,
+        neighborhood_conditioned=False,
+        square_diff=square_diff,
+        neighborhood_width=neighborhood_width,
+        edge_only=edge_only
+    )
+    metric_dict = {
+        "metric_type": "global",
+        "cal_info": cal_info,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    # Return the calibration information
+    return ece_reduction(**metric_dict)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def tl_ece_loss(
+    pixel_meters_dict: Dict[tuple, Meter],
+    num_bins: int,
+    num_classes: int,
+    class_weighting: Literal["uniform", "proportional"],
+    edge_only: bool = False,
+    square_diff: bool = False,
+    neighborhood_width: Optional[int] = None,
+    ignore_index: Optional[int] = None,
+    **kwargs
+) -> Union[dict, Tensor]:
+    cal_info = global_binwise_stats(
+        pixel_meters_dict=pixel_meters_dict,
+        num_bins=num_bins,
+        num_classes=num_classes,
+        class_wise=False,
+        class_conditioned=True,
+        neighborhood_conditioned=False,
+        square_diff=square_diff,
+        neighborhood_width=neighborhood_width,
+        edge_only=edge_only
+    )
+    metric_dict = {
+        "metric_type": "global",
+        "cal_info": cal_info,
+        "class_weighting": class_weighting,
+        "ignore_index": ignore_index,
+        "return_dict": kwargs.get("return_dict", False) 
+    }
+    # Return the calibration information
+    return class_ece_reduction(**metric_dict)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def cw_ece_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     num_bins: int,
@@ -221,7 +222,6 @@ def cw_ece_loss(
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 
-
 # Edge only versions of the above functions.
 ##################################################################################################
 
@@ -240,18 +240,6 @@ def image_edge_ece_loss(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def edge_ece_loss(
-    pixel_meters_dict: Dict[tuple, Meter],
-    **kwargs
-) -> Union[dict, Tensor]:
-    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
-    kwargs["pixel_meters_dict"] = pixel_meters_dict 
-    kwargs["edge_only"] = True
-    # Return the calibration information
-    return ece_loss(**kwargs)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_etl_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
@@ -266,18 +254,6 @@ def image_etl_ece_loss(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def etl_ece_loss(
-    pixel_meters_dict: Dict[tuple, Meter],
-    **kwargs
-) -> Union[dict, Tensor]:
-    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
-    kwargs["pixel_meters_dict"] = pixel_meters_dict 
-    kwargs["edge_only"] = True
-    # Return the calibration information
-    return tl_ece_loss(**kwargs)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def image_ecw_ece_loss(
     y_pred: Tensor,
     y_true: Tensor,
@@ -289,6 +265,30 @@ def image_ecw_ece_loss(
     kwargs["edge_only"] = True
     # Return the calibration information
     return image_cw_ece_loss(**kwargs)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def edge_ece_loss(
+    pixel_meters_dict: Dict[tuple, Meter],
+    **kwargs
+) -> Union[dict, Tensor]:
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
+    kwargs["pixel_meters_dict"] = pixel_meters_dict 
+    kwargs["edge_only"] = True
+    # Return the calibration information
+    return ece_loss(**kwargs)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def etl_ece_loss(
+    pixel_meters_dict: Dict[tuple, Meter],
+    **kwargs
+) -> Union[dict, Tensor]:
+    assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
+    kwargs["pixel_meters_dict"] = pixel_meters_dict 
+    kwargs["edge_only"] = True
+    # Return the calibration information
+    return tl_ece_loss(**kwargs)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
