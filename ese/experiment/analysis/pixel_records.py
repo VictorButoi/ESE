@@ -1,7 +1,6 @@
 # Misc imports
-import time
-import itertools
 import numpy as np
+import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 # torch imports
 import torch
