@@ -22,14 +22,15 @@ def get_image_stats(
             'y_pred': reduce_ensemble_preds(
                 output_dict, 
                 inference_cfg=inference_cfg,
-                from_logits=from_logits)['y_pred'],
+                from_logits=from_logits
+                )['y_pred'],
             'y_true': output_dict['y_true']
         }
         # Gather the individual predictions
         ensemble_member_preds = [
             output_dict["y_pred"][:, :, ens_mem_idx, ...]\
             for ens_mem_idx in range(output_dict["y_pred"].shape[2])
-            ]
+        ]
         # Construct the input cfgs used for calulating metrics.
         ensemble_member_input_cfgs = [
             {
@@ -95,6 +96,9 @@ def get_image_stats(
                 grouped_scores_dict['calibration'][cal_metric_name] = None
         # Get the calibration error. 
         cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**input_config)
+        # If you're showing the predictions, also print the scores.
+        if inference_cfg["log"]["show_examples"]:
+            print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."

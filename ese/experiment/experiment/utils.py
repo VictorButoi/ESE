@@ -134,12 +134,16 @@ def show_inference_examples(
         show_dict, 
         softpred_dim=1,
         from_logits=from_logits # If ensemble, need to do a softmax. over ensemble members.
-        )
+    )
     # If we are showing examples with an ensemble, then we
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
-        ensemble_outputs = reduce_ensemble_preds(output_dict, inference_cfg, from_logits=False)
+        ensemble_outputs = reduce_ensemble_preds(
+            output_dict, 
+            inference_cfg, 
+            from_logits=from_logits
+        )
         # Place the ensemble predictions in the output dict.
         ensembled_output_dict = {
             "x": output_dict["x"],
@@ -152,4 +156,4 @@ def show_inference_examples(
             ensembled_output_dict, 
             softpred_dim=1,
             from_logits=False
-            )
+        )
