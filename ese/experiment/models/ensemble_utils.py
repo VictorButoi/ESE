@@ -2,7 +2,7 @@
 import torch
 import pandas as pd
 from torch import Tensor
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import validate_arguments
 
 
@@ -44,9 +44,9 @@ def identity_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def mean_combine_fn(
     ensemble_preds,
-    weights: Tensor,
     combine_quantity: Literal["probs", "logits"],
     from_logits: bool,
+    weights: Optional[Tensor] = None,
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):
@@ -56,11 +56,15 @@ def mean_combine_fn(
         ensemble_preds = torch.softmax(ensemble_preds, dim=1)
 
     # Multiply the logits by the weights.
-    weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
-    w_ensemble_logits = weights * ensemble_preds # B, C, E, H, W
+    if weights is None:
+        w_ensemble_logits = ensemble_preds # B, C, E, H, W
+    else:
+        weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
+        w_ensemble_logits = weights * ensemble_preds # B, C, E, H, W
+
     ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
-    if combine_quantity == "logits" and from_logits:
+    if (combine_quantity == "logits") and from_logits:
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
 
     return ensemble_mean_tensor
@@ -69,8 +73,8 @@ def mean_combine_fn(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def product_combine_fn(
     ensemble_preds,
-    weights: Tensor,
     from_logits: bool,
+    weights: Optional[Tensor] = None,
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):
@@ -81,8 +85,12 @@ def product_combine_fn(
         ensemble_preds = torch.softmax(ensemble_preds, dim=1)
 
     # We want to calculate the weighted geometric mean of the probabilities.
-    weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
-    scaled_ensemble_probs = torch.pow(ensemble_preds, weights) # B, C, E, H, W
+    if weights is None:
+        scaled_ensemble_probs = ensemble_preds # B, C, E, H, W
+    else:
+        weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
+        scaled_ensemble_probs = torch.pow(ensemble_preds, weights) # B, C, E, H, W
+
     ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
 
     return ensemble_product_tensor

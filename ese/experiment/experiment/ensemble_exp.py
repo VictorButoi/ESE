@@ -169,8 +169,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
         for exp_path in self.ens_exp_paths:
             # Multi-class needs to be true here so that we can combine the outputs.
             ensemble_model_outputs[exp_path] = self.ens_exps[exp_path].predict(
-                x=x, multi_class=True, return_logits=True
-            )['y_pred']
+                x=x, 
+                multi_class=True
+            )['y_logits']
         # Combine the outputs of the models.
         if combine_fn is None:
             assert self.ensemble_combine_fn is not None, "No combine function provided."
@@ -181,23 +182,29 @@ class EnsembleInferenceExperiment(BaseExperiment):
         if weights is None:
             assert self.ens_mem_weights is not None, "No weights provided."   
             weights = self.ens_mem_weights
+
         # Combine the outputs of the models.
-        prob_map = get_combine_fn(combine_fn)(
+        combined_outputs = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
             combine_quantity=combine_quantity,
             weights=weights
         )
         # Get the hard prediction and probabilities, if we are doing identity,
         # then we don't want to return probs.
-        prob_map, pred_map = process_pred_map(
-            prob_map, 
-            multi_class=multi_class, 
-            threshold=threshold,
-            from_logits=False, # Ensemble methods already return probs.
-            return_logits=(combine_fn == "identity")
-            )
-        # Return the outputs
-        return {
-            'y_pred': prob_map, 
-            'y_hard': pred_map # if identity, this will be None.
-        }
+        if combine_fn == "identity":
+            return {
+                'y_logits': combined_outputs,
+            }
+        else:
+            prob_map, pred_map = process_pred_map(
+                combined_outputs, 
+                multi_class=multi_class, 
+                threshold=threshold,
+                from_logits=False, # Ensemble methods already return probs.
+                return_logits=(combine_fn == "identity")
+                )
+            # Return the outputs
+            return {
+                'y_probs': prob_map, 
+                'y_hard': pred_map # if identity, this will be None.
+            }

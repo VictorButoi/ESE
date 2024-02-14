@@ -136,11 +136,12 @@ class CalibrationExperiment(TrainExperiment):
         self.run_callbacks("step", batch=forward_batch)
         return forward_batch
     
-    def predict(self, 
-                x, 
-                multi_class,
-                threshold=0.5,
-                return_logits=False):
+    def predict(
+        self, 
+        x, 
+        multi_class,
+        threshold=0.5,
+    ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Get the label predictions
         logit_map = self.model(x) 
@@ -150,11 +151,11 @@ class CalibrationExperiment(TrainExperiment):
             multi_class=multi_class, 
             threshold=threshold,
             from_logits=True,
-            return_logits=return_logits
-            )
+        )
         # Return the outputs
         return {
-            'y_pred': prob_map, 
+            'y_logits': logit_map,
+            'y_probs': prob_map, 
             'y_hard': pred_map 
         }
 

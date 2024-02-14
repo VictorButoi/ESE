@@ -23,42 +23,51 @@ def process_pred_map(
     multi_class: bool, 
     from_logits: bool,
     threshold: float = 0.5, 
-    return_logits: bool = False # in the case we just want to pass through.
     ):
-    if return_logits:
-        return conf_map, None
+    # Dealing with multi-class segmentation.
+    if conf_map.shape[1] > 1:
+        # Get the probabilities
+        if from_logits:
+            conf_map = torch.softmax(conf_map, dim=1)
+        # Add back the channel dimension (1)
+        pred_map = torch.argmax(conf_map, dim=1).unsqueeze(1)
     else:
-        # Dealing with multi-class segmentation.
-        if conf_map.shape[1] > 1:
-            # Get the probabilities
-            if from_logits:
-                conf_map = torch.softmax(conf_map, dim=1)
-            # Add back the channel dimension (1)
-            pred_map = torch.argmax(conf_map, dim=1).unsqueeze(1)
-        else:
-            # Get the prediction
-            if from_logits:
-                conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
-            pred_map = (conf_map >= threshold).float()
-            if multi_class:
-                conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0].unsqueeze(1)
-        # Return the outputs probs and predicted label map.
-        return conf_map, pred_map
+        # Get the prediction
+        if from_logits:
+            conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
+        pred_map = (conf_map >= threshold).float()
+        if multi_class:
+            conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0].unsqueeze(1)
+    # Return the outputs probs and predicted label map.
+    return conf_map, pred_map
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reduce_ensemble_preds(
     output_dict: dict, 
     inference_cfg: dict,
-    from_logits: bool
+    ens_weights: Optional[torch.Tensor] = None,
 ) -> dict:
-    # Combine the outputs of the models.
-    ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
-        output_dict["y_pred"], 
-        combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
-        weights=output_dict['ens_weights'],
-        from_logits=from_logits
-    )
+    if "ens_weights" in output_dict:
+        ens_weights = output_dict["ens_weights"]
+
+    if "y_probs" in output_dict and output_dict["y_probs"] is not None:
+        # Combine the outputs of the models.
+        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
+            output_dict["y_probs"], 
+            combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
+            weights=ens_weights,
+            from_logits=False
+        )
+    else:
+        assert "y_logits" in output_dict and output_dict["y_logits"] is not None, "No logits or probs provided."
+        # Combine the outputs of the models.
+        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
+            output_dict["y_logits"], 
+            combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
+            weights=ens_weights,
+            from_logits=True
+        )
     # Get the hard prediction and probabilities, if we are doing identity,
     # then we don't want to return probs.
     ensemble_prob_map, ensemble_pred_map = process_pred_map(
@@ -66,9 +75,9 @@ def reduce_ensemble_preds(
         multi_class=True, 
         threshold=0.5,
         from_logits=False, # Ensemble methods already return probs.
-        )
+    )
     return {
-        "y_pred": ensemble_prob_map, # (B, C, H, W)
+        "y_probs": ensemble_prob_map, # (B, C, H, W)
         "y_hard": ensemble_pred_map # (B, C, H, W)
     }
 
@@ -124,16 +133,14 @@ def show_inference_examples(
         show_dict = {
             "x": output_dict["x"],
             "y_true": output_dict["y_true"],
-            "y_pred": einops.rearrange(output_dict["y_pred"], "1 C E H W -> E C H W"),
+            "y_logits": einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
         }
     else:
         show_dict = output_dict
     # Show the individual predictions.
-    from_logits = inference_cfg["model"]["ensemble"] and not ("Binning" in inference_cfg["model"]["calibrator"])
     ShowPredictionsCallback(
         show_dict, 
-        softpred_dim=1,
-        from_logits=from_logits # If ensemble, need to do a softmax. over ensemble members.
+        softpred_dim=1
     )
     # If we are showing examples with an ensemble, then we
     # returned initially the individual predictions.
@@ -141,19 +148,17 @@ def show_inference_examples(
         # Combine the outputs of the models.
         ensemble_outputs = reduce_ensemble_preds(
             output_dict, 
-            inference_cfg, 
-            from_logits=from_logits
+            inference_cfg,
         )
         # Place the ensemble predictions in the output dict.
         ensembled_output_dict = {
             "x": output_dict["x"],
             "y_true": output_dict["y_true"],
-            "y_pred": ensemble_outputs["y_pred"],
+            "y_probs": ensemble_outputs["y_probs"],
             "y_hard": ensemble_outputs["y_hard"] 
         }
         # Finally, show the ensemble combination.
         ShowPredictionsCallback(
             ensembled_output_dict, 
-            softpred_dim=1,
-            from_logits=False
+            softpred_dim=1
         )

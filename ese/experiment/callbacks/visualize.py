@@ -9,16 +9,18 @@ def ShowPredictionsCallback(
     batch, 
     threshold: float = 0.5,
     size_per_iamge: int = 4,
-    from_logits: bool = True,
     softpred_dim: Optional[int] = None 
 ):
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
-    if batch["x"].shape[0] != batch["y_pred"].shape[0]:
+    assert ("y_probs" in batch) ^ ("y_logits" in batch), "Must provide either probs or logits."
+    pred_cls = "y_probs" if ("y_probs" in batch) else "y_logits"
+
+    if batch["x"].shape[0] != batch[pred_cls].shape[0]:
         assert batch["x"].shape[0] == 1, "Batchsize of input image must be 1 if batchsize of prediction is not 1."
         assert batch["y_true"].shape[0] == 1, "Batchsize of input label must be 1 if batchsize of prediction is not 1."
-        bs = batch["y_pred"].shape[0]
+        bs = batch[pred_cls].shape[0]
         x = batch["x"].repeat(bs, 1, 1, 1)
         y = batch["y_true"].repeat(bs, 1, 1, 1)
     else:
@@ -30,7 +32,7 @@ def ShowPredictionsCallback(
     y = y.detach().cpu().numpy() 
 
     # Get the predicted label
-    yhat = batch["y_pred"].detach().cpu()
+    yhat = batch[pred_cls].detach().cpu()
     bs = x.shape[0]
     num_pred_classes = yhat.shape[1]
 
@@ -53,11 +55,11 @@ def ShowPredictionsCallback(
         img_cmap = "gray"
 
     if num_pred_classes > 1:
-        if from_logits:
+        if pred_cls == "y_logits":
             yhat = torch.softmax(yhat, dim=1)
         y_hard = torch.argmax(yhat, dim=1).numpy()
     else:
-        if from_logits:
+        if pred_cls == "y_logits":
             yhat = torch.sigmoid(yhat)
         y_hard = (yhat > threshold).numpy()
     

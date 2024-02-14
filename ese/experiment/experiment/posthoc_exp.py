@@ -174,11 +174,12 @@ class PostHocExperiment(TrainExperiment):
         self.run_callbacks("step", batch=forward_batch)
         return forward_batch
 
-    def predict(self, 
-                x, 
-                multi_class,
-                threshold=0.5,
-                return_logits=False):
+    def predict(
+        self, 
+        x, 
+        multi_class,
+        threshold=0.5
+    ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Predict with the base model.
         with torch.no_grad():
@@ -193,12 +194,12 @@ class PostHocExperiment(TrainExperiment):
             yhat_cal, 
             multi_class=multi_class, 
             threshold=threshold,
-            from_logits=True,
-            return_logits=return_logits
-            )
+            from_logits=True
+        )
         # Return the outputs
         return {
-            'y_pred': prob_map, 
+            'y_logits': yhat_cal,
+            'y_probs': prob_map, 
             'y_hard': pred_map 
         }
 

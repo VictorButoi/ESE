@@ -161,8 +161,7 @@ def image_forward_loop(
             image, label_map = to_device((image, label_map), exp.device)
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
-        do_ensemble = inference_cfg["model"]["ensemble"]
-        if do_ensemble:
+        if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
         # Do a forward pass.
         with torch.no_grad():
@@ -171,15 +170,13 @@ def image_forward_loop(
         output_dict = {
             "x": image,
             "y_true": label_map.long(),
-            "y_pred": exp_output["y_pred"],
-            "y_hard": exp_output["y_hard"],
+            "y_logits": exp_output["y_logits"],
+            "y_probs": exp_output.get("y_probs", None),
+            "y_hard": exp_output.get("y_hard", None),
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "split": batch["split"],
             "slice_idx": slice_idx
         }
-        # If ensembling is enabled, then we need to save the ensemble weights.
-        if do_ensemble:
-            output_dict["ens_weights"] = exp.ens_mem_weights
         # Get the calibration item info.  
         get_calibration_item_info(
             output_dict=output_dict,
