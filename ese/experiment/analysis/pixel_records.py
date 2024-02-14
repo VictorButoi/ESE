@@ -23,18 +23,18 @@ def update_toplabel_pixel_meters(
     pixel_level_records 
 ):
     calibration_cfg = inference_cfg['global_calibration']
-    y_pred = output_dict["y_pred"]
+    y_probs = output_dict["y_probs"]
     y_hard = output_dict["y_hard"]
     y_true = output_dict["y_true"]
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    if y_pred.shape[1] > 1:
-        toplabel_prob_map = torch.max(y_pred, dim=1)[0]
+    if y_probs.shape[1] > 1:
+        toplabel_prob_map = torch.max(y_probs, dim=1)[0]
     else:
-        toplabel_prob_map = y_pred.squeeze(1) # Remove the channel dimension.
+        toplabel_prob_map = y_probs.squeeze(1) # Remove the channel dimension.
 
     # Define the confidence interval (if not provided).
-    C = y_pred.shape[1]
+    C = y_probs.shape[1]
     if "conf_interval" not in calibration_cfg:
         if C == 1:
             lower_bound = 0
@@ -151,7 +151,7 @@ def update_cw_pixel_meters(
     pixel_level_records 
 ):
     calibration_cfg = inference_cfg['global_calibration']
-    y_pred = output_dict["y_pred"]
+    y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
 
     # Figure out where each pixel belongs (in confidence)
@@ -164,19 +164,19 @@ def update_cw_pixel_meters(
     )
     classwise_bin_ownership_map = torch.stack([
         find_bins(
-            confidences=y_pred[:, l_idx, ...], 
+            confidences=y_probs[:, l_idx, ...], 
             bin_starts=classwise_conf_bins,
             bin_widths=classwise_conf_bin_widths,
         ) # B x H x W
-        for l_idx in range(y_pred.shape[1])], dim=0
+        for l_idx in range(y_probs.shape[1])], dim=0
     ).cpu().numpy() # C x B x H x W
 
-    # Reshape to look like the y_pred.
+    # Reshape to look like the y_probs.
     ###########################################################################3
     # These are conv ops so they are done on the GPU.
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
-    C = y_pred.shape[1]
+    C = y_probs.shape[1]
 
     true_num_neighb_map = torch.stack([
         count_matching_neighbors(
@@ -203,12 +203,12 @@ def update_cw_pixel_meters(
     classwise_freq_map = classwise_freq_map.cpu().numpy()
     true_nn_map = true_num_neighb_map.cpu().numpy()
     pred_nn_map = pred_num_neighb_map.cpu().numpy()
-    y_pred = y_pred.cpu().numpy()
+    y_probs = y_probs.cpu().numpy()
 
     # Make a version of pixel meter dict for this image (for error checking)
     image_cw_meter_dict = {}
     for lab_idx in range(C):
-        lab_conf_map = y_pred[:, lab_idx, ...]
+        lab_conf_map = y_probs[:, lab_idx, ...]
         lab_freq_map = classwise_freq_map[:, lab_idx, ...]
         lab_true_nn_map = true_nn_map[lab_idx, ...]
         lab_pred_nn_map = pred_nn_map[lab_idx, ...]

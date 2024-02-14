@@ -71,7 +71,7 @@ class Histogram_Binning(nn.Module):
         print("Loaded pixel meter file:", stats_file)
         print("Using stats split:", cal_stats_split)
 
-    def forward(self, logits, **kwargs):
+    def forward(self, logits):
         C = self.num_classes
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
@@ -144,7 +144,7 @@ class NECTAR_Binning(nn.Module):
         print("Loaded pixel meter file:", stats_file)
         print("Using stats split:", cal_stats_split)
 
-    def forward(self, logits, **kwargs):
+    def forward(self, logits):
         # Define C as the number of classes.
         C = self.num_classes
         # Softmax the logits to get probabilities

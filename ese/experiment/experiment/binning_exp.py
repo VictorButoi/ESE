@@ -113,25 +113,23 @@ class BinningInferenceExperiment(BaseExperiment):
         self, 
         x, 
         multi_class,
-        threshold=0.5,
-        return_logits=False
+        threshold=0.5
     ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Predict with the base model.
         with torch.no_grad():
-            yhat = self.base_model(x)
+            y_logits = self.base_model(x)
         # Apply post-hoc calibration.
-        yhat_cal = self.model(yhat, image=x)
+        y_probs_raw = self.model(y_logits)
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
-            yhat_cal, 
+            y_probs_raw, 
             multi_class=multi_class, 
             threshold=threshold,
-            return_logits=return_logits,
-            from_logits=False
+            from_logits=False # We are using the empirical frequencies already.
         )
         # Return the outputs
         return {
-            'y_pred': prob_map, 
+            'y_probs': prob_map, 
             'y_hard': pred_map 
         }

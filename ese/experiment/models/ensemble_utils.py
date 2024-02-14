@@ -50,19 +50,18 @@ def mean_combine_fn(
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):
-        ensemble_preds = batch_ensemble_preds(ensemble_preds)
+        ensemble_preds = batch_ensemble_preds(ensemble_preds) # B, C, E, H, W
 
     if combine_quantity == "probs" and from_logits:
         ensemble_preds = torch.softmax(ensemble_preds, dim=1)
 
     # Multiply the logits by the weights.
     if weights is None:
-        w_ensemble_logits = ensemble_preds # B, C, E, H, W
+        ensemble_mean_tensor = torch.mean(ensemble_preds, dim=2) # B, C, H, W
     else:
         weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
         w_ensemble_logits = weights * ensemble_preds # B, C, E, H, W
-
-    ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
+        ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
     if (combine_quantity == "logits") and from_logits:
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
@@ -78,7 +77,7 @@ def product_combine_fn(
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):
-        ensemble_preds = batch_ensemble_preds(ensemble_preds)
+        ensemble_preds = batch_ensemble_preds(ensemble_preds) # B, C, E, H, W
 
     # We always need to softmax the logits before taking the product.
     if from_logits:
@@ -86,12 +85,13 @@ def product_combine_fn(
 
     # We want to calculate the weighted geometric mean of the probabilities.
     if weights is None:
-        scaled_ensemble_probs = ensemble_preds # B, C, E, H, W
+        prod = torch.prod(ensemble_preds, dim=2)
+        E = ensemble_preds.shape[2]
+        ensemble_product_tensor = torch.pow(prod, 1.0/E)
     else:
         weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
-        scaled_ensemble_probs = torch.pow(ensemble_preds, weights) # B, C, E, H, W
-
-    ensemble_product_tensor = torch.prod(scaled_ensemble_probs, dim=2) # B, C, H, W
+        prod = torch.prod(ensemble_preds, dim=2) # B, C, H, W
+        ensemble_product_tensor  = torch.pow(prod, weights) # B, C, E, H, W
 
     return ensemble_product_tensor
 

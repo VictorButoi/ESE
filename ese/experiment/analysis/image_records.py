@@ -15,33 +15,44 @@ def get_image_stats(
 ):
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
-        # The only case we don't need to softmax is when we have a Binning calibrator
-        from_logits = not ("Binning" in inference_cfg["model"]["calibrator"])
         # Get the reduced predictions
         input_config = {
             'y_pred': reduce_ensemble_preds(
                 output_dict, 
                 inference_cfg=inference_cfg,
-                from_logits=from_logits
-                )['y_pred'],
+                )['y_probs'],
             'y_true': output_dict['y_true']
         }
         # Gather the individual predictions
-        ensemble_member_preds = [
-            output_dict["y_pred"][:, :, ens_mem_idx, ...]\
-            for ens_mem_idx in range(output_dict["y_pred"].shape[2])
-        ]
-        # Construct the input cfgs used for calulating metrics.
-        ensemble_member_input_cfgs = [
-            {
-                "y_pred": member_pred, 
-                "y_true": output_dict["y_true"],
-                "from_logits": True # IMPORTANT, we haven't softmaxed yet.
-            } for member_pred in ensemble_member_preds
-        ]
+        if output_dict['y_probs'] is not None:
+            ensemble_member_probs = [
+                output_dict["y_probs"][:, :, ens_mem_idx, ...]\
+                for ens_mem_idx in range(output_dict["y_probs"].shape[2])
+            ]
+            # Construct the input cfgs used for calulating metrics.
+            ensemble_member_input_cfgs = [
+                {
+                    "y_pred": member_pred, 
+                    "y_true": output_dict["y_true"],
+                    "from_logits": False # IMPORTANT, we HAVE softmaxed already.
+                } for member_pred in ensemble_member_probs 
+            ]
+        else:
+            ensemble_member_logits = [
+                output_dict["y_logits"][:, :, ens_mem_idx, ...]\
+                for ens_mem_idx in range(output_dict["y_logits"].shape[2])
+            ]
+            # Construct the input cfgs used for calulating metrics.
+            ensemble_member_input_cfgs = [
+                {
+                    "y_pred": member_pred, 
+                    "y_true": output_dict["y_true"],
+                    "from_logits": True # IMPORTANT, we haven't softmaxed yet.
+                } for member_pred in ensemble_member_logits
+            ]
     else:
         input_config = {
-            "y_pred": output_dict["y_pred"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+            "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
             "y_true": output_dict["y_true"], # (B, C, H, W)
         }
     # Dicts for storing ensemble scores.
@@ -105,7 +116,9 @@ def get_image_stats(
     
     # Calculate the amount of present ground-truth there is in the image per label.
     if inference_cfg["log"]["track_label_amounts"]:
-        num_classes = output_dict["y_pred"].shape[1]
+
+        pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
+        num_classes = output_dict[pred_cls].shape[1]
         y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
         label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
         label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}

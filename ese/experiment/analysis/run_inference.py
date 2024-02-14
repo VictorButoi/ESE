@@ -170,7 +170,7 @@ def image_forward_loop(
         output_dict = {
             "x": image,
             "y_true": label_map.long(),
-            "y_logits": exp_output["y_logits"],
+            "y_logits": exp_output.get("y_logits", None),
             "y_probs": exp_output.get("y_probs", None),
             "y_hard": exp_output.get("y_hard", None),
             "data_id": batch["data_id"][0], # Works because batchsize = 1
@@ -213,14 +213,11 @@ def get_calibration_item_info(
     # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
     ###############################################################################################
     if inference_cfg["model"]["ensemble"]:
-        # The only case we don't need to softmax is when we have a Binning calibrator
-        from_logits = not ("Binning" in inference_cfg["model"]["calibrator"])
         # Get the reduced predictions
         output_dict = {
             **reduce_ensemble_preds(
                 output_dict, 
                 inference_cfg=inference_cfg,
-                from_logits=from_logits
             ),
             "y_true": output_dict["y_true"],
             "data_id": output_dict["data_id"],
