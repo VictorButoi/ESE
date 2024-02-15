@@ -4,17 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
 import math
-import pickle
-from dataclasses import dataclass
-# ionpy imports
-from ionpy.util.validation import validate_arguments_init
 # local imports
-from ..metrics.global_ps import global_binwise_stats
-from ..metrics.utils import (
-    get_bins, 
-    find_bins, 
-    agg_neighbors_preds
-)
+from ..metrics.utils import agg_neighbors_preds
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
     
@@ -35,240 +26,6 @@ def initialization(m):
         m.weight.data.fill_(1)
         m.bias.data.zero_()
         
-
-@validate_arguments_init
-@dataclass
-class Histogram_Binning(nn.Module):
-
-    num_bins: int
-    num_classes: int
-    stats_file: str
-    normalize: bool
-    cal_stats_split: str
-
-    def __post_init__(self):
-        super(Histogram_Binning, self).__init__()
-        # Load the data from the .pkl file
-        with open(self.stats_file, "rb") as f:
-            pixel_meters_dict = pickle.load(f)
-        # Get the statistics either from images or pixel meter dict.
-        gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[self.cal_stats_split], # Use the validation set stats.
-            num_bins=self.num_bins, # Use 15 bins
-            num_classes=self.num_classes,
-            class_conditioned=True,
-            neighborhood_conditioned=False,
-            class_wise=True,
-            device="cuda"
-        )
-        self.val_freqs = gbs['bin_freqs'] # C x Bins
-        # Get the bins and bin widths
-        self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=self.num_bins, 
-            start=0.0,
-            end=1.0
-        )
-        #############################################
-        print("Loaded pixel meter file:", self.stats_file)
-        print("Using stats split:", self.cal_stats_split)
-
-    def forward(self, logits):
-        C = self.num_classes
-        # Softmax the logits to get probabilities
-        prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
-        for lab_idx in range(C):
-            prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
-            # Calculate the bin ownership map and transform the probs.
-            prob_bin_ownership_map = find_bins(
-                confidences=prob_map, 
-                bin_starts=self.conf_bins,
-                bin_widths=self.conf_bin_widths
-            ) # B x H x W
-            calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
-            # Inserted the calibrated prob map back into the original prob map.
-            prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
-        # If we are normalizing then we need to make sure the probabilities sum to 1.
-        if self.normalize:
-            sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
-            sum_tensor[sum_tensor == 0] = 1.0
-            assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
-            # Return the normalized probabilities.
-            return prob_tensor / sum_tensor
-        else:
-            return prob_tensor 
-
-    @property
-    def device(self):
-        return "cpu"
-
-
-@validate_arguments_init
-@dataclass
-class NECTAR_Binning(nn.Module):
-
-    num_bins: int
-    num_classes: int
-    neighborhood_width: int
-    discretized_neighbors: bool
-    stats_file: str
-    normalize: bool 
-    cal_stats_split: str
-
-    def __post_init__(self):
-        super(NECTAR_Binning, self).__init__()
-        # Load the data from the .pkl file
-        with open(self.stats_file, "rb") as f:
-            pixel_meters_dict = pickle.load(f)
-        # Get the statistics either from images or pixel meter dict.
-        gbs = global_binwise_stats(
-            pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
-            num_bins=self.num_bins, # Use 15 bins
-            num_classes=self.num_classes,
-            neighborhood_width=self.neighborhood_width,       
-            class_conditioned=True,
-            neighborhood_conditioned=True,
-            class_wise=True,
-            device="cuda"
-        )
-        self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
-        # Get the bins and bin widths
-        self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=self.num_bins, 
-            start=0.0,
-            end=1.0
-        )
-        #############################################
-        print("Loaded pixel meter file:", self.stats_file)
-        print("Using stats split:", self.cal_stats_split)
-
-    def forward(self, logits):
-        # Define C as the number of classes.
-        C = self.num_classes
-        # Softmax the logits to get probabilities
-        prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
-        y_hard = torch.argmax(prob_tensor, dim=1) # B x H x W
-        # Iterate through each label, and replace the probs with the calibrated probs.
-        for lab_idx in range(C):
-            lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
-            # Calculate the bin ownership map for each pixel probability
-            prob_bin_ownership_map = find_bins(
-                confidences=lab_prob_map, 
-                bin_starts=self.conf_bins,
-                bin_widths=self.conf_bin_widths
-            ) # B x H x W
-            # Calculate how many neighbors of each pixel have this label.
-            if self.discretized_neighbors:
-                neighbor_agg_map = agg_neighbors_preds(
-                    lab_map=(y_hard==lab_idx).long(),
-                    neighborhood_width=self.neighborhood_width,
-                    discrete=True,
-                    binary=True
-                ) # B x H x W
-            else:
-                neighbor_agg_map = agg_neighbors_preds(
-                    lab_map=(y_hard==lab_idx).long(),
-                    neighborhood_width=self.neighborhood_width,
-                    discrete=False,
-                    binary=True
-                )
-            # Construct the prob_maps
-            calibrated_prob_map = torch.zeros_like(lab_prob_map)
-            for nn_idx in range(self.neighborhood_width**2):
-                neighbor_cls_mask = (pred_num_neighb_map == nn_idx)
-                # Replace the soft predictions with the old frequencies.
-                calibrated_prob_map[neighbor_cls_mask] =\
-                    self.val_freqs[lab_idx][nn_idx][prob_bin_ownership_map][neighbor_cls_mask].float()
-            # Inserted the calibrated prob map back into the original prob map.
-            prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
-        # If we are normalizing then we need to make sure the probabilities sum to 1.
-        if self.normalize:
-            sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
-            sum_tensor[sum_tensor == 0] = self.smoothing
-            assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
-            # Return the normalized probabilities.
-            return prob_tensor / sum_tensor
-        else:
-            return prob_tensor 
-
-    @property
-    def device(self):
-        return "cpu"
-
-
-# NEighborhood-Conditional TemperAtuRe Scaling
-class NECTAR_Scaling(nn.Module):
-    def __init__(
-        self, 
-        num_classes: int,
-        neighborhood_width: int, 
-        class_wise: bool = False,
-        eps: float = 1e-12,
-        threshold: float = 0.5, 
-        positive_constraint: bool = True,
-        **kwargs
-    ):
-        super(NECTAR_Scaling, self).__init__()
-        self.eps = eps
-        self.threshold = threshold
-        self.class_wise = class_wise
-        self.num_classes = num_classes
-        self.neighborhood_width = neighborhood_width
-        self.positive_constraint = positive_constraint
-        # Define the parameters per neighborhood class
-        num_neighbor_classes = neighborhood_width**2
-        if class_wise:
-            self.class_wise_nt = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
-        else:
-            self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
-
-    def weights_init(self):
-        self.neighborhood_temps.data.fill_(1)
-
-    def forward(self, logits, **kwargs):
-        # Softmax the logits to get probabilities
-        y_probs = torch.softmax(logits, dim=1) # B C H W
-
-        # Argnax over the channel dimension to get the current prediction
-        if y_probs.shape[1] == 1:
-            y_hard = (y_probs > self.threshold).float().squeeze(1) # B H W
-        else:
-            y_hard = torch.argmax(y_probs, dim=1) # B H W
-
-        # Get the per-pixel num neighborhood class
-        neighbor_agg_map = agg_neighbors_preds(
-            lab_map=y_hard, 
-            neighborhood_width=self.neighborhood_width,
-            discrete=True
-        ) # B 1 H W
-
-        if self.class_wise:
-            # Place the temperatures in the correct positions
-            neighborhood_temp_map = torch.zeros_like(y_probs)
-            for class_idx in range(self.num_classes):
-                # Get the mask for the current class
-                neighborhood_temp_map[y_hard==class_idx] = self.class_wise_nt[class_idx][neighbor_agg_map][y_hard==class_idx]
-        else:
-            # Place the temperatures in the correct positions
-            neighborhood_temp_map = self.neighborhood_temps[neighbor_agg_map]
-
-        # Apply this to all classes.
-        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B C H W
-
-        # If we are constrained to have a positive temperature, then we need to guide
-        # the optimization to picking a parameterization that is positive.
-        if self.positive_constraint:
-            temps = F.relu(temps)
-
-        # Add an epsilon to avoid dividing by zero
-        temps = temps + self.eps
-
-        # Finally, scale the logits by the temperatures
-        return logits / temps 
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
 
 class Temperature_Scaling(nn.Module):
     def __init__(self, **kwargs):
@@ -420,6 +177,74 @@ class Selective_Scaling(nn.Module):
         tf_positive = self.binary_linear(out.permute(0,2,3,1))
         
         return  tf_positive.permute(0,3,1,2)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
+# NEighborhood-Conditional TemperAtuRe Scaling
+class NECTAR_Scaling(nn.Module):
+    def __init__(
+        self, 
+        num_classes: int,
+        neighborhood_width: int, 
+        class_wise: bool = False,
+        eps: float = 1e-12,
+        threshold: float = 0.5, 
+        positive_constraint: bool = True,
+        **kwargs
+    ):
+        super(NECTAR_Scaling, self).__init__()
+        self.eps = eps
+        self.threshold = threshold
+        self.class_wise = class_wise
+        self.num_classes = num_classes
+        self.neighborhood_width = neighborhood_width
+        self.positive_constraint = positive_constraint
+        # Define the parameters per neighborhood class
+        num_neighbor_classes = neighborhood_width**2
+        if class_wise:
+            self.class_wise_nt = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
+        else:
+            self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
+
+    def weights_init(self):
+        self.neighborhood_temps.data.fill_(1)
+
+    def forward(self, logits, **kwargs):
+        # Softmax the logits to get probabilities
+        y_probs = torch.softmax(logits, dim=1) # B C H W
+        # Argnax over the channel dimension to get the current prediction
+        if y_probs.shape[1] == 1:
+            y_hard = (y_probs > self.threshold).float().squeeze(1) # B H W
+        else:
+            y_hard = torch.argmax(y_probs, dim=1) # B H W
+        # Get the per-pixel num neighborhood class
+        neighbor_agg_map = agg_neighbors_preds(
+            lab_map=y_hard, 
+            neighborhood_width=self.neighborhood_width,
+            discrete=True
+        ) # B 1 H W
+        if self.class_wise:
+            # Place the temperatures in the correct positions
+            neighborhood_temp_map = torch.zeros_like(y_probs)
+            for class_idx in range(self.num_classes):
+                # Get the mask for the current class
+                neighborhood_temp_map[y_hard==class_idx] = self.class_wise_nt[class_idx][neighbor_agg_map][y_hard==class_idx]
+        else:
+            # Place the temperatures in the correct positions
+            neighborhood_temp_map = self.neighborhood_temps[neighbor_agg_map]
+        # Apply this to all classes.
+        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B C H W
+        # If we are constrained to have a positive temperature, then we need to guide
+        # the optimization to picking a parameterization that is positive.
+        if self.positive_constraint:
+            temps = F.relu(temps)
+        # Add an epsilon to avoid dividing by zero
+        temps = temps + self.eps
+        # Finally, scale the logits by the temperatures
+        return logits / temps 
 
     @property
     def device(self):
