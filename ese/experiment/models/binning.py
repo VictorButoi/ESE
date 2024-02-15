@@ -3,9 +3,6 @@ import torch
 import torch.nn as nn
 # misc imports
 import pickle
-from dataclasses import dataclass
-# ionpy imports
-from ionpy.util.validation import validate_arguments_init
 # local imports
 from ..metrics.global_ps import global_binwise_stats
 from ..metrics.utils import (
@@ -18,18 +15,24 @@ from ..metrics.utils import (
 torch.set_printoptions(sci_mode=False, precision=3)
 
 
-@validate_arguments_init
-@dataclass
 class Histogram_Binning(nn.Module):
 
-    num_bins: int
-    num_classes: int
-    stats_file: str
-    normalize: bool
-    cal_stats_split: str
-
-    def __post_init__(self):
+    def __init__(
+        self,
+        num_bins: int,
+        num_classes: int,
+        stats_file: str,
+        normalize: bool,
+        cal_stats_split: str,
+        **kwargs
+    ):
         super(Histogram_Binning, self).__init__()
+        # Set the parameters as class attributes
+        self.num_bins = num_bins
+        self.num_classes = num_classes
+        self.stats_file = stats_file
+        self.normalize = normalize
+        self.cal_stats_split = cal_stats_split
         # Load the data from the .pkl file
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
@@ -81,20 +84,28 @@ class Histogram_Binning(nn.Module):
         return "cpu"
 
 
-@validate_arguments_init
-@dataclass
 class NECTAR_Binning(nn.Module):
 
-    num_bins: int
-    num_classes: int
-    neighborhood_width: int
-    discretized_neighbors: bool
-    stats_file: str
-    normalize: bool 
-    cal_stats_split: str
-
-    def __post_init__(self):
+    def __init__(
+        self,
+        num_bins: int,
+        num_classes: int,
+        neighborhood_width: int,
+        discretized_neighbors: bool,
+        stats_file: str,
+        normalize: bool,
+        cal_stats_split: str,
+        **kwargs
+    ):
         super(NECTAR_Binning, self).__init__()
+        # Set the parameters as class attributes
+        self.num_bins = num_bins
+        self.num_classes = num_classes
+        self.neighborhood_width = neighborhood_width
+        self.discretized_neighbors = discretized_neighbors
+        self.stats_file = stats_file
+        self.normalize = normalize
+        self.cal_stats_split = cal_stats_split
         # Load the data from the .pkl file
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
