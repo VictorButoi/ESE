@@ -5,7 +5,7 @@ import torch.nn.functional as F
 # misc imports
 import numpy as np
 from pydantic import validate_arguments
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Literal
 from scipy.ndimage import (
     distance_transform_edt, 
     binary_erosion, 
@@ -324,6 +324,61 @@ def find_bins(
     return bin_indices
 
 
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def agg_neighbors_preds(
+    pred_map: Tensor,
+    neighborhood_width: int,
+    discrete: bool,
+    binary: bool = False,
+    kernel: Literal['mean', 'gaussian'] = 'mean'
+):
+    assert len(pred_map.shape) == 3,\
+        f"Label map shape should be: (B, H, W), got shape: {pred_map.shape}."
+    assert neighborhood_width % 2 == 1,\
+        "Neighborhood width should be an odd number."
+    assert neighborhood_width >= 3,\
+        "Neighborhood width should be at least 3."
+    # Do some type checking, if we are discrete than lab_map has to be a long tensor
+    # Otherwise it has to be a float32 or float64 tensor.
+    if discrete:
+        assert pred_map.dtype == torch.long,\
+            "Discrete label maps must be long tensors."
+        # If discrete then we just want a ones tensor.
+    else:
+        assert pred_map.dtype in [torch.float32, torch.float64],\
+            "Continuous label maps must be float32 or float64 tensors."
+    # Define a count kernel which is just a ones tensor.
+    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=pred_map.device)
+    # Set the center pixel to zero to exclude it from the count.
+    kernel[:, :, (neighborhood_width - 1) // 2, (neighborhood_width - 1) // 2] = 0
+    # If not discrete, then we want to normalize the kernel so that it sums to 1.
+    if not discrete:
+        kernel = kernel / kernel.sum()
+    # If binary, then we want to get the binary matching neighbors.
+    if binary:
+        return get_bin_matching_neighbors(
+                    pred_map, 
+                    neighborhood_width=neighborhood_width, 
+                    kernel=kernel
+                )
+    else:
+        assert discrete, "Can't do continuous with multiple labels."
+        count_array = torch.zeros_like(pred_map)
+        for label in pred_map.unique():
+            # Create a binary mask for the current label
+            lab_map = (pred_map == label)
+            neighbor_count_squeezed = get_bin_matching_neighbors(
+                lab_map, 
+                neighborhood_width=neighborhood_width, 
+                kernel=kernel
+            )
+            # Update the count_array where the y_true matches the current label
+            count_array[lab_map] = neighbor_count_squeezed[lab_map]
+        # Return the aggregated neighborhood predictions.
+        return count_array
+
+
 def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
     # Convert mask to float tensor
     mask = mask.float()
@@ -338,54 +393,6 @@ def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
     # Squeeze the result back to the original shape (B x H x W)
     neighbor_count_squeezed = neighbor_count.squeeze(1).long()
     return neighbor_count_squeezed
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def agg_neighbors_preds(
-    lab_map: Union[Tensor, np.ndarray],
-    neighborhood_width: int,
-    discrete: bool,
-    binary: bool = False
-):
-    assert discrete, "Currently only discrete label maps are supported."
-
-    if len(lab_map.shape) == 4:
-        lab_map = lab_map.squeeze(1) # Attempt to squeeze out the channel dimension.
-    assert len(lab_map.shape) == 3,\
-        f"Label map shape should be: (B, H, W), got shape: {lab_map.shape}."
-    assert neighborhood_width % 2 == 1,\
-        "Neighborhood width should be an odd number."
-    assert neighborhood_width >= 3,\
-        "Neighborhood width should be at least 3."
-    # Optionally take in numpy array, convert to torch tensor
-    if isinstance(lab_map, np.ndarray):
-        lab_map = torch.from_numpy(lab_map)
-        return_numpy = True
-    else:
-        return_numpy = False
-    # Convert to long tensor
-    lab_map = lab_map.long()
-    # Define a 3x3 kernel of ones for the convolution
-    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=lab_map.device)
-    # Set the center pixel to zero
-    kernel[:, :, (neighborhood_width - 1) // 2, (neighborhood_width - 1) // 2] = 0
-    if binary:
-        count_array = get_bin_matching_neighbors(lab_map, neighborhood_width, kernel)
-    else:
-        count_array = torch.zeros_like(lab_map)
-        for label in lab_map.unique():
-            # Create a binary mask for the current label
-            mask = (lab_map == label)
-            neighbor_count_squeezed = get_bin_matching_neighbors(mask, neighborhood_width, kernel)
-            # Update the count_array where the y_true matches the current label
-            count_array[lab_map == label] = neighbor_count_squeezed[lab_map == label]
-    # Convert the tensor to a long tensor
-    count_array = count_array.long()
-    # Return the count_arra
-    if return_numpy:
-        return count_array.numpy()
-    else:
-        return count_array
 
 
 # Get a distribution of per-pixel accuracy as a function of the size of the instance that it was 

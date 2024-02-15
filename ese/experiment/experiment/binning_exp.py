@@ -1,18 +1,13 @@
 # local imports
 from .utils import load_experiment, process_pred_map, parse_class_name
-from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
 # IonPy imports
 from ionpy.util import Config
-from ionpy.nn.util import num_params
 from ionpy.util.ioutil import autosave
-from ionpy.util.hash import json_digest
-from ionpy.analysis import ResultsLoader
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import BaseExperiment
-from ionpy.datasets.cuda import CUDACachedDataset
-from ionpy.experiment.util import absolute_import, eval_config
+from ionpy.experiment.util import absolute_import
 # misc imports
 import os
 
@@ -79,6 +74,7 @@ class BinningInferenceExperiment(BaseExperiment):
             neighborhood_width=calibration_cfg_dict['neighborhood_width'],
             stats_file=stats_file_dir,            
             cal_stats_split=model_cfg_dict['cal_stats_split'],
+            discretize_neighbors=model_cfg_dict['discretize_neighbors'],
             normalize=model_cfg_dict['normalize']
         )
         ########################################################################

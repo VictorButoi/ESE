@@ -91,7 +91,7 @@ class NECTAR_Binning(nn.Module):
         num_bins: int,
         num_classes: int,
         neighborhood_width: int,
-        discretized_neighbors: bool,
+        discretize_neighbors: bool,
         stats_file: str,
         normalize: bool,
         cal_stats_split: str,
@@ -102,7 +102,8 @@ class NECTAR_Binning(nn.Module):
         self.num_bins = num_bins
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
-        self.discretized_neighbors = discretized_neighbors
+        self.num_neighbor_classes = neighborhood_width**2
+        self.discretize_neighbors = discretize_neighbors
         self.stats_file = stats_file
         self.normalize = normalize
         self.cal_stats_split = cal_stats_split
@@ -122,7 +123,7 @@ class NECTAR_Binning(nn.Module):
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
         # Get the bins and bin widths
-        if self.discretized_neighbors:
+        if self.discretize_neighbors:
             self.conf_bins, self.conf_bin_widths = get_bins(
                 num_bins=self.num_bins, 
                 start=0.0,
@@ -146,44 +147,47 @@ class NECTAR_Binning(nn.Module):
         # Iterate through each label, and replace the probs with the calibrated probs.
         for lab_idx in range(C):
             lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
-            # Calculate the bin ownership map for each pixel probability
-            lab_prob_bin_map = find_bins(
-                confidences=lab_prob_map, 
-                bin_starts=self.conf_bins,
-                bin_widths=self.conf_bin_widths
-            ) # B x H x W
 
             # We are building the calibrated prob map. 
             calibrated_lab_prob_map = torch.zeros_like(lab_prob_map)
 
             # Calculate how many neighbors of each pixel have this label.
-            if self.discretized_neighbors:
+            if self.discretize_neighbors:
+                # Calculate the binary neighbor map.
                 disc_neighbor_agg_map = agg_neighbors_preds(
                     lab_map=(y_hard==lab_idx).long(),
                     neighborhood_width=self.neighborhood_width,
                     discrete=True,
                     binary=True
                 ) # B x H x W
+                # Calculate the bin ownership map for each pixel probability
+                lab_prob_bin_map = find_bins(
+                    confidences=lab_prob_map, 
+                    bin_starts=self.conf_bins,
+                    bin_widths=self.conf_bin_widths
+                ) # B x H x W
                 # Construct the prob_maps
-                for nn_idx in range(self.neighborhood_width**2):
+                for nn_idx in range(self.num_neighbor_classes):
                     neighbor_cls_mask = (disc_neighbor_agg_map==nn_idx)
                     # Replace the soft predictions with the old frequencies.
                     calibrated_lab_prob_map[neighbor_cls_mask] =\
                         self.val_freqs[lab_idx][nn_idx][lab_prob_bin_map][neighbor_cls_mask].float()
             else:
+                # Calculate the continuous neighbor map.
                 cont_neighbor_agg_map = agg_neighbors_preds(
                     lab_map=lab_prob_map,
                     neighborhood_width=self.neighborhood_width,
                     discrete=False,
                     binary=True
                 )
+                # Calculate the bin ownership map for each pixel probability
                 neighbor_bin_map = find_bins(
                     confidences=cont_neighbor_agg_map,
                     bin_starts=self.neighbor_bins,
                     bin_widths=self.neighbor_bin_widths
                 )
                 # Replace the soft predictions with the old freqencies.
-                for nn_bin_idx in range(self.neighborhood_width**2):
+                for nn_bin_idx in range(self.num_neighbor_classes):
                     # Get the region of image corresponding to the confidence
                     nn_conf_region = get_conf_region(
                         bin_idx=nn_bin_idx, 
@@ -191,13 +195,14 @@ class NECTAR_Binning(nn.Module):
                     )
                     calibrated_lab_prob_map[nn_conf_region] =\
                         self.val_freqs[lab_idx][nn_bin_idx][lab_prob_bin_map][nn_conf_region].float()
+
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map
 
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
-            sum_tensor[sum_tensor == 0] = self.smoothing
+            sum_tensor[sum_tensor == 0] = 1
             assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
             # Return the normalized probabilities.
             return prob_tensor / sum_tensor
