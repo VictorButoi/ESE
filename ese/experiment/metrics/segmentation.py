@@ -242,7 +242,7 @@ def boundary_iou(
     n_width = 2*boundary_width + 1 # The width of the neighborhood.
     true_num_neighb_map = torch.stack([
         agg_neighbors_preds(
-            lab_map=(y_true == lab_idx).long(),
+            pred_map=(y_true == lab_idx).long().squeeze(1), # B x H x W
             neighborhood_width=n_width,
             discrete=True,
             binary=True # Ignore the background class.
@@ -250,7 +250,7 @@ def boundary_iou(
     for lab_idx in range(C)]) # C x B x H x W
     pred_num_neighb_map = torch.stack([
         agg_neighbors_preds(
-            lab_map=(y_hard == lab_idx).long(),
+            pred_map=(y_hard == lab_idx).long().squeeze(1), # B x H x W
             neighborhood_width=n_width,
             discrete=True,
             binary=True # Ignore the background class.

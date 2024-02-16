@@ -155,7 +155,7 @@ class NECTAR_Binning(nn.Module):
             if self.discretize_neighbors:
                 # Calculate the binary neighbor map.
                 disc_neighbor_agg_map = agg_neighbors_preds(
-                    lab_map=(y_hard==lab_idx).long(),
+                    pred_map=(y_hard==lab_idx).long(),
                     neighborhood_width=self.neighborhood_width,
                     discrete=True,
                     binary=True
@@ -175,7 +175,7 @@ class NECTAR_Binning(nn.Module):
             else:
                 # Calculate the continuous neighbor map.
                 cont_neighbor_agg_map = agg_neighbors_preds(
-                    lab_map=lab_prob_map,
+                    pred_map=lab_prob_map,
                     neighborhood_width=self.neighborhood_width,
                     discrete=False,
                     binary=True
@@ -194,7 +194,7 @@ class NECTAR_Binning(nn.Module):
                         bin_ownership_map=neighbor_bin_map,
                     )
                     calibrated_lab_prob_map[nn_conf_region] =\
-                        self.val_freqs[lab_idx][nn_bin_idx][lab_prob_bin_map][nn_conf_region].float()
+                        self.val_freqs[lab_idx][nn_bin_idx][neighbor_bin_map][nn_conf_region].float()
 
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map

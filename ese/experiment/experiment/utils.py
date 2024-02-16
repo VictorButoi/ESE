@@ -51,20 +51,22 @@ def reduce_ensemble_preds(
     if "ens_weights" in output_dict:
         ens_weights = output_dict["ens_weights"]
 
+    combine_fn = inference_cfg['ensemble']['combine_fn']
+    combine_quantity = inference_cfg['ensemble']['combine_quantity']
     if output_dict["y_probs"] is not None:
         # Combine the outputs of the models.
-        ensemble_prob_map = get_combine_fn(inference_cfg["model"]["ensemble_cfg"][0])(
+        ensemble_prob_map = get_combine_fn(combine_fn)(
             output_dict["y_probs"], 
-            combine_quantity=inference_cfg["model"]["ensemble_cfg"][1],
+            combine_quantity=combine_quantity,
             weights=ens_weights,
             from_logits=False
         )
     else:
         assert output_dict["y_logits"] is not None, "No logits or probs provided."
         # Combine the outputs of the models.
-        ensemble_prob_map = get_combine_fn(inference_cfg['ensemble']['combine_fn'])(
+        ensemble_prob_map = get_combine_fn(combine_fn)(
             output_dict["y_logits"], 
-            combine_quantity=inference_cfg['ensemble']['combine_quantity'],
+            combine_quantity=combine_quantity,
             weights=ens_weights,
             from_logits=True
         )

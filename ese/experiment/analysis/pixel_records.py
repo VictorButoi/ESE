@@ -63,14 +63,14 @@ def update_toplabel_pixel_meters(
 
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = agg_neighbors_preds(
-        lab_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
+        pred_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
     
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = agg_neighbors_preds(
-        lab_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
+        pred_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
@@ -181,7 +181,7 @@ def update_cw_pixel_meters(
 
     true_num_neighb_map = torch.stack([
         agg_neighbors_preds(
-            lab_map=(output_dict["y_true"]==lab_idx).long(),
+            pred_map=(output_dict["y_true"]==lab_idx).long().squeeze(1), # B x H x W
             neighborhood_width=calibration_cfg["neighborhood_width"],
             discrete=True,
             binary=True # Ignore the background class.
@@ -190,7 +190,7 @@ def update_cw_pixel_meters(
 
     pred_num_neighb_map = torch.stack([
         agg_neighbors_preds(
-            lab_map=(output_dict["y_hard"]==lab_idx).long(),
+            pred_map=(output_dict["y_hard"]==lab_idx).long().squeeze(1), # B x H x W
             neighborhood_width=calibration_cfg["neighborhood_width"],
             discrete=True,
             binary=True # Ignore the background class.

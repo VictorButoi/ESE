@@ -125,7 +125,7 @@ def bin_stats_init(
             # Pred map
             pred_matching_neighbors_map = torch.stack([
                 agg_neighbors_preds(
-                    lab_map=(y_hard == lab_idx).long(),
+                    pred_map=(y_hard == lab_idx).long(),
                     neighborhood_width=neighborhood_width,
                     discrete=True,
                     binary=True # Ignore the background class.
@@ -133,7 +133,7 @@ def bin_stats_init(
             # True map
             true_matching_neighbors_map = torch.stack([
                 agg_neighbors_preds(
-                    lab_map=(y_true == lab_idx).long(),
+                    pred_map=(y_true == lab_idx).long(),
                     neighborhood_width=neighborhood_width,
                     discrete=True,
                     binary=True # Ignore the background class.
@@ -141,13 +141,13 @@ def bin_stats_init(
         else:
             # Pred map
             pred_matching_neighbors_map = agg_neighbors_preds(
-                lab_map=y_hard, 
+                pred_map=y_hard.long(), 
                 neighborhood_width=neighborhood_width,
                 discrete=True,
             ) # B x H x W
             # True map
             true_matching_neighbors_map = agg_neighbors_preds(
-                lab_map=y_true, 
+                pred_map=y_true.long(), 
                 neighborhood_width=neighborhood_width,
                 discrete=True,
             ) # B x H x W
