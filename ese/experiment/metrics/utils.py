@@ -310,11 +310,11 @@ def get_bin_per_sample(
       If a confidence doesn't fit in any bin, its bin index is set to -1.
     """
     # Ensure that the bin_starts and bin_widths tensors have the same shape
-    assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
     assert (num_bins is not None and start is not None and end is not None)\
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
     if num_bins is not None:
+        assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
         bin_starts, bin_widths = get_bins(num_bins, start, end, pred_map, device)
     # If class-wise, then we want to get the bin indices for each class. 
     if class_wise:

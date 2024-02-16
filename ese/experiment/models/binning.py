@@ -7,8 +7,8 @@ import pickle
 from ..metrics.global_ps import global_binwise_stats
 from ..metrics.utils import (
     get_bins, 
-    find_bins, 
     get_conf_region,
+    get_bin_per_sample,
     agg_neighbors_preds
 )
 # Set the print options
@@ -59,16 +59,17 @@ class Histogram_Binning(nn.Module):
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
         for lab_idx in range(C):
-            prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
+            lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
             # Calculate the bin ownership map and transform the probs.
-            prob_bin_ownership_map = find_bins(
-                confidences=prob_map, 
+            lab_prob_bin_ownership_map = get_bin_per_sample(
+                pred_map=lab_prob_map, 
+                class_wise=False,
                 bin_starts=self.conf_bins,
                 bin_widths=self.conf_bin_widths
             ) # B x H x W
-            calibrated_prob_map = self.val_freqs[lab_idx][prob_bin_ownership_map] # B x H x W
+            calibrated_lab_prob_map = self.val_freqs[lab_idx][lab_prob_bin_ownership_map] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
-            prob_tensor[:, lab_idx, :, :] = calibrated_prob_map
+            prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
@@ -161,8 +162,9 @@ class NECTAR_Binning(nn.Module):
                     binary=True
                 ) # B x H x W
                 # Calculate the bin ownership map for each pixel probability
-                lab_prob_bin_map = find_bins(
-                    confidences=lab_prob_map, 
+                lab_prob_bin_map = get_bin_per_sample(
+                    pred_map=lab_prob_map, 
+                    class_wise=False,
                     bin_starts=self.conf_bins,
                     bin_widths=self.conf_bin_widths
                 ) # B x H x W
@@ -181,8 +183,9 @@ class NECTAR_Binning(nn.Module):
                     binary=True
                 )
                 # Calculate the bin ownership map for each pixel probability
-                neighbor_bin_map = find_bins(
-                    confidences=cont_neighbor_agg_map,
+                neighbor_bin_map = get_bin_per_sample(
+                    pred_map=cont_neighbor_agg_map,
+                    class_wise=False,
                     bin_starts=self.neighbor_bins,
                     bin_widths=self.neighbor_bin_widths
                 )
