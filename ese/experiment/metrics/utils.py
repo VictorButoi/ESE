@@ -261,7 +261,7 @@ def get_bins(
     end: float = 1.0,
     adaptive: bool = False,
     y_pred: Optional[Tensor] = None,
-    device: Optional[torch.device] = "cuda"
+    device: Optional[str] = "cuda"
     ):
     if adaptive:
         sorted_pix_values = torch.sort(y_pred.flatten())[0]
@@ -296,7 +296,7 @@ def get_bin_per_sample(
     end: Optional[float] = None,
     bin_starts: Optional[Tensor] = None, 
     bin_widths: Optional[Tensor] = None,
-    device: Optional[torch.device] = "cuda"
+    device: Optional[str] = "cuda"
 ):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
@@ -314,11 +314,17 @@ def get_bin_per_sample(
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
     if num_bins is not None:
+        bin_starts, bin_widths = get_bins(
+            num_bins=num_bins, 
+            start=start, 
+            end=end, 
+            device=device
+        )
+    else:
         assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
-        bin_starts, bin_widths = get_bins(num_bins, start, end, pred_map, device)
     # If class-wise, then we want to get the bin indices for each class. 
     if class_wise:
-        assert len(pred_map.shape) == 4, "pred_map must be (B, C, H, W)."
+        assert len(pred_map.shape) == 4, f"pred_map must be (B, C, H, W). Got: {pred_map.shape}"
         bin_ownership_map = torch.stack([
             _bin_per_val(
                 pred_map=pred_map[:, l_idx, ...], # B x H x W
@@ -328,7 +334,7 @@ def get_bin_per_sample(
             )
         for l_idx in range(pred_map.shape[1])]).permute(1, 0, 2, 3) # B x C x H x W
     else:
-        assert len(pred_map.shape) == 3, "pred_map must be (B, H, W)."
+        assert len(pred_map.shape) == 3, f"pred_map must be (B, H, W). Got: {pred_map.shape}"
         bin_ownership_map = _bin_per_val(
             pred_map=pred_map, 
             bin_starts=bin_starts, 
@@ -358,26 +364,28 @@ def _bin_per_val(pred_map, bin_starts, bin_widths, device=None):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def agg_neighbors_preds(
     pred_map: Tensor,
+    class_wise: bool,
     neighborhood_width: int,
     discrete: bool,
     binary: bool = False,
-    kernel: Literal['mean', 'gaussian'] = 'mean'
+    kernel: Literal['mean', 'gaussian'] = 'mean',
+    num_classes: Optional[int] = None
 ):
-    assert len(pred_map.shape) == 3,\
-        f"Label map shape should be: (B, H, W), got shape: {pred_map.shape}."
     assert neighborhood_width % 2 == 1,\
         "Neighborhood width should be an odd number."
     assert neighborhood_width >= 3,\
         "Neighborhood width should be at least 3."
+    # Define the number of classes.
+    C = pred_map.shape[1]
     # Do some type checking, if we are discrete than lab_map has to be a long tensor
     # Otherwise it has to be a float32 or float64 tensor.
     if discrete:
         assert pred_map.dtype == torch.long,\
-            "Discrete label maps must be long tensors."
+            "Discrete pred maps must be long tensors."
         # If discrete then we just want a ones tensor.
     else:
         assert pred_map.dtype in [torch.float32, torch.float64],\
-            "Continuous label maps must be float32 or float64 tensors."
+            "Continuous pred maps must be float32 or float64 tensors."
     # Define a count kernel which is just a ones tensor.
     kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=pred_map.device)
     # Set the center pixel to zero to exclude it from the count.
@@ -385,9 +393,60 @@ def agg_neighbors_preds(
     # If not discrete, then we want to normalize the kernel so that it sums to 1.
     if not discrete:
         kernel = kernel / kernel.sum()
+    # If class_wise, then we want to get the neighbor predictions for each class.
+    if class_wise:
+        assert len(pred_map.shape) in [3, 4],\
+            f"Pred map shape should be: (B, C, H, W) or (B, H, W), got shape: {pred_map.shape}."
+        if len(pred_map.shape) == 4:
+            assert not discrete, "If class-wise with dim = 4, then we must be continuous."
+            return torch.stack([
+                _proc_neighbor_map(
+                    pred_map=pred_map[:, l_idx, ...], 
+                    neighborhood_width=neighborhood_width, 
+                    kernel=kernel,
+                    binary=binary,
+                    discrete=discrete
+                )
+            for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
+        else:
+            assert discrete, "If class-wise with dim = 3, then we must be discrete."
+            assert num_classes is not None, "If class-wise with dim = 3, then we must provide num_classes."
+            flat_neighb_map = _proc_neighbor_map(
+                pred_map=pred_map, 
+                neighborhood_width=neighborhood_width, 
+                kernel=kernel,
+                binary=binary,
+                discrete=discrete
+            ) # B x H x W
+            channel_repeated_fnm = flat_neighb_map.unsqueeze(1).repeat(1, num_classes, 1, 1)
+            # Convert the pred_map to an index tensor that is 
+            index_y_pred = torch.nn.functional.one_hot(pred_map, num_classes)
+            # Reshape it from (B x H x W x C) -> (B x C x H x W)
+            index_y_pred = index_y_pred.permute(0, 3, 1, 2)
+            # Return the product
+            return channel_repeated_fnm * index_y_pred
+    else:
+        assert len(pred_map.shape) == 3,\
+            f"Pred map shape should be: (B, H, W), got shape: {pred_map.shape}."
+        return _proc_neighbor_map(
+            pred_map=pred_map, 
+            neighborhood_width=neighborhood_width, 
+            kernel=kernel,
+            binary=binary,
+            discrete=discrete
+        )
+
+
+def  _proc_neighbor_map(
+    pred_map: Tensor,
+    neighborhood_width: int,
+    kernel: Tensor,
+    binary: bool,
+    discrete: bool
+):
     # If binary, then we want to get the binary matching neighbors.
     if binary:
-        return get_bin_matching_neighbors(
+        return _bin_matching_neighbors(
                     pred_map, 
                     neighborhood_width=neighborhood_width, 
                     kernel=kernel
@@ -398,7 +457,7 @@ def agg_neighbors_preds(
         for label in pred_map.unique():
             # Create a binary mask for the current label
             lab_map = (pred_map == label)
-            neighbor_count_squeezed = get_bin_matching_neighbors(
+            neighbor_count_squeezed = _bin_matching_neighbors(
                 lab_map, 
                 neighborhood_width=neighborhood_width, 
                 kernel=kernel
@@ -409,7 +468,7 @@ def agg_neighbors_preds(
         return count_array
 
 
-def get_bin_matching_neighbors(mask, neighborhood_width, kernel):
+def _bin_matching_neighbors(mask, neighborhood_width, kernel):
     # Convert mask to float tensor
     mask = mask.float()
     # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)

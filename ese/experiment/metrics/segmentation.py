@@ -240,31 +240,27 @@ def boundary_iou(
         y_hard = y_pred.argmax(dim=1).float() # B x H x W
     
     n_width = 2*boundary_width + 1 # The width of the neighborhood.
-    true_num_neighb_map = torch.stack([
-        agg_neighbors_preds(
-            pred_map=(y_true == lab_idx).long().squeeze(1), # B x H x W
-            neighborhood_width=n_width,
-            discrete=True,
-            binary=True # Ignore the background class.
-        )
-    for lab_idx in range(C)]) # C x B x H x W
-    pred_num_neighb_map = torch.stack([
-        agg_neighbors_preds(
-            pred_map=(y_hard == lab_idx).long().squeeze(1), # B x H x W
-            neighborhood_width=n_width,
-            discrete=True,
-            binary=True # Ignore the background class.
-        ) 
-    for lab_idx in range(C)]) # C x B x H x W
+    true_num_neighb_map = agg_neighbors_preds(
+                            pred_map=y_true.squeeze(1), # B x H x W
+                            class_wise=False,
+                            neighborhood_width=n_width,
+                            discrete=True,
+                        )
+    pred_num_neighb_map = agg_neighbors_preds(
+                            pred_map=y_hard.long(), # B x H x W
+                            class_wise=False,
+                            neighborhood_width=n_width,
+                            discrete=True,
+                        ) 
 
     # Get the non-center pixels.
-    max_matching_neighbors = (boundary_width ** 2 - 1) # The center pixel is not counted.
-    boundary_pred = (pred_num_neighb_map < max_matching_neighbors).float() # B x C x H x W
-    boundary_true = (true_num_neighb_map < max_matching_neighbors).float() # B x C x H x W
+    max_matching_neighbors = (boundary_width**2 - 1) # The center pixel is not counted.
+    boundary_pred = (pred_num_neighb_map < max_matching_neighbors) # B x 1 x H x W
+    boundary_true = (true_num_neighb_map < max_matching_neighbors) # B x 1 x H x W
 
     # Reshape the neighborhood maps to match what y_pred and y_true look like.
-    boundary_pred = boundary_pred.reshape(B, C, -1) # B x C x (H x W)
-    boundary_true = boundary_true.reshape(B, C, -1) # B x C x (H x W)
+    boundary_pred = boundary_pred.unsqueeze(1).repeat(1, C, 1, 1).reshape(B, C, -1) # B x C x (H x W)
+    boundary_true = boundary_true.unsqueeze(1).repeat(1, C, 1, 1).reshape(B, C, -1) # B x C x (H x W)
 
     # Get the one hot tensors. 
     y_pred, y_true = _inputs_as_onehot(
@@ -275,10 +271,11 @@ def boundary_iou(
         discretize=True,
     ) 
 
-    # Mask y_pred and y_true by the boundary regions.
+    # Only look at the indices of y_pred and y_true that are on the boundary. Make sure to keep the B and C dimensions.
+    # Currently y_pred and y_true are already B x C x (H x W).
     y_pred = y_pred * boundary_pred
     y_true = y_true * boundary_true
-    
+
     intersection = torch.logical_and(y_pred == 1.0, y_true == 1.0).sum(dim=-1)
     true_amounts = (y_true == 1.0).sum(dim=-1)
     pred_amounts = (y_pred == 1.0).sum(dim=-1)

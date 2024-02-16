@@ -178,6 +178,7 @@ class NECTAR_Binning(nn.Module):
                 # Calculate the continuous neighbor map.
                 cont_neighbor_agg_map = agg_neighbors_preds(
                     pred_map=lab_prob_map,
+                    class_wise=False,
                     neighborhood_width=self.neighborhood_width,
                     discrete=False,
                     binary=True

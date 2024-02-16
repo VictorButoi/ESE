@@ -63,6 +63,7 @@ def bin_stats_init(
 
     y_pred = y_pred.to(torch.float64) # Get precision for calibration.
     y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
+    C = y_pred.shape[1]
     assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
         f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
@@ -75,7 +76,6 @@ def bin_stats_init(
         if class_wise:
             conf_interval = (0.0, 1.0)
         else:
-            C = y_pred.shape[1]
             if C == 0:
                 lower_bound = 0.0
             else:
@@ -88,7 +88,7 @@ def bin_stats_init(
         assert conf_interval == (0.0, 1.0),\
             f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
     conf_bin_map = get_bin_per_sample(
-        pred_map=y_pred,
+        pred_map=y_pred if class_wise else y_max_prob_map,
         num_bins=num_bins,
         start=conf_interval[0],
         end=conf_interval[1],
@@ -97,40 +97,25 @@ def bin_stats_init(
 
     # Get a map of which pixels match their neighbors and how often.
     if neighborhood_width is not None:
-        # Get the matching neighbors map from our prediction.
-        if class_wise:
-            # Pred map
-            pred_matching_neighbors_map = torch.stack([
-                agg_neighbors_preds(
-                    pred_map=(y_hard == lab_idx).long(),
-                    neighborhood_width=neighborhood_width,
-                    discrete=True,
-                    binary=True # Ignore the background class.
-            ) for lab_idx in range(C)]) # C x B x H x W
-            # True map
-            true_matching_neighbors_map = torch.stack([
-                agg_neighbors_preds(
-                    pred_map=(y_true == lab_idx).long(),
-                    neighborhood_width=neighborhood_width,
-                    discrete=True,
-                    binary=True # Ignore the background class.
-            ) for lab_idx in range(C)]) # C x B x H x W
-        else:
-            # Pred map
-            pred_matching_neighbors_map = agg_neighbors_preds(
-                pred_map=y_hard.long(), 
-                neighborhood_width=neighborhood_width,
-                discrete=True,
-            ) # B x H x W
-            # True map
-            true_matching_neighbors_map = agg_neighbors_preds(
-                pred_map=y_true.long(), 
-                neighborhood_width=neighborhood_width,
-                discrete=True,
-            ) # B x H x W
+        # Predicted map
+        pred_neighbors_map = agg_neighbors_preds(
+                                pred_map=y_hard,
+                                neighborhood_width=neighborhood_width,
+                                discrete=True,
+                                class_wise=class_wise,
+                                binary=True
+                            )
+        # True map
+        true_neighbors_map = agg_neighbors_preds(
+                                pred_map=y_true.long(),
+                                neighborhood_width=neighborhood_width,
+                                discrete=True,
+                                class_wise=class_wise,
+                                binary=True
+                            )
     else:
-        pred_matching_neighbors_map = None
-        true_matching_neighbors_map = None 
+        pred_neighbors_map = None
+        true_neighbors_map = None 
 
     # Get the pixelwise frequency.
     if class_wise:
@@ -149,8 +134,8 @@ def bin_stats_init(
         "y_true": y_true.to(torch.float64),
         "frequency_map": frequency_map.to(torch.float64),
         "bin_ownership_map": conf_bin_map,
-        "pred_matching_neighbors_map": pred_matching_neighbors_map,
-        "true_matching_neighbors_map": true_matching_neighbors_map,
+        "pred_neighbors_map": pred_neighbors_map,
+        "true_neighbors_map": true_neighbors_map,
         "pix_weights": None 
     } 
 
@@ -189,7 +174,7 @@ def bin_stats(
         bin_conf_region = get_conf_region(
             bin_idx=bin_idx, 
             bin_ownership_map=obj_dict["bin_ownership_map"],
-            true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+            true_num_neighbors_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
             true_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
             edge_only=edge_only,
             neighborhood_width=neighborhood_width
@@ -257,7 +242,7 @@ def top_label_bin_stats(
                 bin_ownership_map=obj_dict["bin_ownership_map"],
                 pred_label=lab,
                 pred_lab_map=obj_dict["y_hard"], # Use ground truth to get the region.
-                true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                true_num_neighbors_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
                 neighborhood_width=neighborhood_width
             )
@@ -322,7 +307,7 @@ def joint_label_bin_stats(
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
         lab_frequency_map = obj_dict["frequency_map"][lab, ...]
         lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
-        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][lab, ...]
+        lab_true_neighbors_map = obj_dict["true_neighbors_map"][lab, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
@@ -331,7 +316,7 @@ def joint_label_bin_stats(
                 edge_only=edge_only,
                 neighborhood_width=neighborhood_width,
                 bin_ownership_map=lab_bin_ownership_map,
-                true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
+                true_num_neighbors_map=lab_true_neighbors_map, # Note this is off ACTUAL neighbors.
             )
             # If there are some pixels in this confidence bin.
             if bin_conf_region.sum() > 0:
@@ -377,7 +362,7 @@ def neighbor_bin_stats(
         class_wise=False
     )
     # Set the cal info tracker.
-    unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
+    unique_pred_matching_neighbors = obj_dict["pred_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     cal_info = {
         "bin_cal_errors": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
@@ -392,9 +377,9 @@ def neighbor_bin_stats(
                 bin_idx=bin_idx, 
                 true_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 bin_ownership_map=obj_dict["bin_ownership_map"],
-                pred_num_neighbors_map=obj_dict["pred_matching_neighbors_map"], # Note this is off PREDICTED neighbors.
+                pred_num_neighbors_map=obj_dict["pred_neighbors_map"], # Note this is off PREDICTED neighbors.
                 pred_nn=p_nn,
-                true_num_neighbors_map=obj_dict["true_matching_neighbors_map"], # Note this is off ACTUAL neighbors.
+                true_num_neighbors_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
                 edge_only=edge_only,
                 neighborhood_width=neighborhood_width,
                 )
@@ -448,7 +433,7 @@ def neighbor_joint_label_bin_stats(
     
     # Setup the cal info tracker.
     n_labs = len(label_set)
-    unique_pred_matching_neighbors = obj_dict["pred_matching_neighbors_map"].unique()
+    unique_pred_matching_neighbors = obj_dict["pred_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
@@ -461,8 +446,8 @@ def neighbor_joint_label_bin_stats(
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
         lab_frequency_map = obj_dict["frequency_map"][lab, ...]
         lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
-        lab_pred_matching_neighbors_map = obj_dict["pred_matching_neighbors_map"][lab, ...]
-        lab_true_matching_neighbors_map = obj_dict["true_matching_neighbors_map"][lab, ...]
+        lab_pred_neighbors_map = obj_dict["pred_neighbors_map"][lab, ...]
+        lab_true_neighbors_map = obj_dict["true_neighbors_map"][lab, ...]
         # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx in range(num_bins):
@@ -470,9 +455,9 @@ def neighbor_joint_label_bin_stats(
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
                     bin_ownership_map=lab_bin_ownership_map,
-                    true_num_neighbors_map=lab_true_matching_neighbors_map, # Note this is off ACTUAL neighbors.
+                    true_num_neighbors_map=lab_true_neighbors_map, # Note this is off ACTUAL neighbors.
                     pred_nn=p_nn,
-                    pred_num_neighbors_map=lab_pred_matching_neighbors_map, # Note this is off PREDICTED neighbors.
+                    pred_num_neighbors_map=lab_pred_neighbors_map, # Note this is off PREDICTED neighbors.
                     neighborhood_width=neighborhood_width,
                     edge_only=edge_only
                 )
