@@ -288,17 +288,21 @@ def get_bins(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def find_bins(
-    confidences: Tensor, 
-    bin_starts: Tensor, 
-    bin_widths: Tensor,
+def get_bin_per_sample(
+    pred_map: Tensor, 
+    class_wise: bool,
+    num_bins: Optional[int] = None,
+    start: Optional[float] = None,
+    end: Optional[float] = None,
+    bin_starts: Optional[Tensor] = None, 
+    bin_widths: Optional[Tensor] = None,
     device: Optional[torch.device] = "cuda"
-    ):
+):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
     find the bin index for each confidence.
     Args:
-    - confidences (Tensor): A batch torch tensor of confidence values.
+    - pred_map (Tensor): A batch torch tensor of confidence values.
     - bin_starts (Tensor): A 1D tensor representing the start position of each confidence bin.
     - bin_widths (Tensor): A 1D tensor representing the width of each confidence bin.
     Returns:
@@ -306,12 +310,40 @@ def find_bins(
       If a confidence doesn't fit in any bin, its bin index is set to -1.
     """
     # Ensure that the bin_starts and bin_widths tensors have the same shape
-    assert len(confidences.shape) == 3, "Confidences must be (B, H, W)."
     assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
+    assert (num_bins is not None and start is not None and end is not None)\
+        ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
+    # If num_bins, start, and end are provided, generate bin_starts and bin_widths
+    if num_bins is not None:
+        bin_starts, bin_widths = get_bins(num_bins, start, end, pred_map, device)
+    # If class-wise, then we want to get the bin indices for each class. 
+    if class_wise:
+        assert len(pred_map.shape) == 4, "pred_map must be (B, C, H, W)."
+        bin_ownership_map = torch.stack([
+            _bin_per_val(
+                pred_map=pred_map[:, l_idx, ...], # B x H x W
+                bin_starts=bin_starts,
+                bin_widths=bin_widths,
+                device=device,
+            )
+        for l_idx in range(pred_map.shape[1])]).permute(1, 0, 2, 3) # B x C x H x W
+    else:
+        assert len(pred_map.shape) == 3, "pred_map must be (B, H, W)."
+        bin_ownership_map = _bin_per_val(
+            pred_map=pred_map, 
+            bin_starts=bin_starts, 
+            bin_widths=bin_widths,
+            device=device
+        )
+
+    return bin_ownership_map
+
+
+def _bin_per_val(pred_map, bin_starts, bin_widths, device=None):
     # Expand dimensions for broadcasting
-    expanded_confidences = confidences.unsqueeze(-1)
+    expanded_pred_map = pred_map.unsqueeze(-1)
     # Compare confidences against all bin ranges using broadcasting
-    valid_bins = (expanded_confidences > bin_starts) & (expanded_confidences <= (bin_starts + bin_widths))
+    valid_bins = (expanded_pred_map > bin_starts) & (expanded_pred_map <= (bin_starts + bin_widths))
     # Get bin indices; if no valid bin is found for a confidence, the value will be -1
     if device is not None:
         bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)).to(device), -torch.ones_like(bin_starts)).max(dim=-1).values
@@ -319,10 +351,8 @@ def find_bins(
         bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
     # Place all things in bin -1 in bin 0, this can happen when stuff is perfectly the boundary of bin_starts.
     bin_indices[bin_indices == -1] = 0
-    # Convert bin_indices to long tensor
-    bin_indices = bin_indices.long()
-    return bin_indices
-
+    # Convert bin_indices to long tensor and return
+    return bin_indices.long()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

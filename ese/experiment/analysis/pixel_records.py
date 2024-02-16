@@ -8,8 +8,7 @@ import torch
 from ionpy.util import StatsMeter
 # local imports
 from ..metrics.utils import (
-    get_bins, 
-    find_bins, 
+    get_bin_per_sample, 
     get_conf_region_np,
     agg_neighbors_preds
 )
@@ -44,30 +43,17 @@ def update_toplabel_pixel_meters(
         calibration_cfg["conf_interval"] = (lower_bound, upper_bound)
 
     # Figure out where each pixel belongs (in confidence)
-    # BIN CONFIDENCE 
-    ############################################################################3
-    # Define the confidence bins and bin widths.
-    toplabel_conf_bins, toplabel_conf_bin_widths = get_bins(
+    toplabel_bin_ownership_map = get_bin_per_sample(
         num_bins=calibration_cfg['num_bins'], 
         start=calibration_cfg['conf_interval'][0], 
         end=calibration_cfg['conf_interval'][1]
     )
-    toplabel_bin_ownership_map = find_bins(
-        confidences=toplabel_prob_map, 
-        bin_starts=toplabel_conf_bins,
-        bin_widths=toplabel_conf_bin_widths
-    )
-    # Cast to int64
-    ############################################################################3
-    # These are conv ops so they are done on the GPU.
-
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
-    
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
@@ -154,48 +140,54 @@ def update_cw_pixel_meters(
     calibration_cfg = inference_cfg['global_calibration']
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
+    # Get the pixel-wise number of PREDICTED matching neighbors.
+    C = y_probs.shape[1]
 
     # Figure out where each pixel belongs (in confidence)
     # BIN CONFIDENCE 
     ############################################################################3
-    classwise_conf_bins, classwise_conf_bin_widths = get_bins(
-        num_bins=calibration_cfg['num_bins'], 
+    conf_bin_map = get_bin_per_sample(
+        pred_map=y_probs,
+        num_bins=calibration_cfg['num_bins'],
         start=0.0,
         end=1.0,
-    )
-    classwise_bin_ownership_map = torch.stack([
-        find_bins(
-            confidences=y_probs[:, l_idx, ...], 
-            bin_starts=classwise_conf_bins,
-            bin_widths=classwise_conf_bin_widths,
-        ) # B x H x W
-        for l_idx in range(y_probs.shape[1])], dim=0
-    ).cpu().numpy() # C x B x H x W
+        class_wise=True
+    ).cpu().numpy()
+
+    local_prob_map = agg_neighbors_preds(
+                        pred_map=y_probs, # B x H x W
+                        neighborhood_width=calibration_cfg["neighborhood_width"],
+                        discrete=False,
+                        binary=True,
+                        class_wise=True
+                    )
+    local_conf_bin_map = get_bin_per_sample(
+        pred_map=y_probs,
+        num_bins=calibration_cfg['neighborhood_width'],
+        start=0.0,
+        end=1.0,
+        class_wise=True
+    ).cpu().numpy()
 
     # Reshape to look like the y_probs.
     ###########################################################################3
     # These are conv ops so they are done on the GPU.
 
-    # Get the pixel-wise number of PREDICTED matching neighbors.
-    C = y_probs.shape[1]
+    true_nn_map = agg_neighbors_preds(
+                    pred_map=(output_dict["y_true"]==lab_idx).long().squeeze(1), # B x H x W
+                    neighborhood_width=calibration_cfg["neighborhood_width"],
+                    discrete=True,
+                    binary=True, # Ignore the background class.
+                    class_wise=True
+                ).cpu().numpy()
 
-    true_num_neighb_map = torch.stack([
-        agg_neighbors_preds(
-            pred_map=(output_dict["y_true"]==lab_idx).long().squeeze(1), # B x H x W
-            neighborhood_width=calibration_cfg["neighborhood_width"],
-            discrete=True,
-            binary=True # Ignore the background class.
-        )
-    for lab_idx in range(C)]) # C x B x H x W
-
-    pred_num_neighb_map = torch.stack([
-        agg_neighbors_preds(
-            pred_map=(output_dict["y_hard"]==lab_idx).long().squeeze(1), # B x H x W
-            neighborhood_width=calibration_cfg["neighborhood_width"],
-            discrete=True,
-            binary=True # Ignore the background class.
-        ) 
-    for lab_idx in range(C)]) # C x B x H x W
+    pred_nn_map = agg_neighbors_preds(
+                    pred_map=(output_dict["y_hard"]==lab_idx).long().squeeze(1), # B x H x W
+                    neighborhood_width=calibration_cfg["neighborhood_width"],
+                    discrete=True,
+                    binary=True, # Ignore the background class.
+                    class_wise=True
+                ).cpu().numpy() 
 
     long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
     classwise_freq_map = torch.nn.functional.one_hot(
@@ -204,22 +196,23 @@ def update_cw_pixel_meters(
     
     # Place all necessary tensors on the CPU as numpy arrays.
     classwise_freq_map = classwise_freq_map.cpu().numpy()
-    true_nn_map = true_num_neighb_map.cpu().numpy()
-    pred_nn_map = pred_num_neighb_map.cpu().numpy()
-    y_probs = y_probs.cpu().numpy()
+    classwise_prob_map = y_probs.cpu().numpy()
 
     # Make a version of pixel meter dict for this image (for error checking)
     image_cw_meter_dict = {}
     for lab_idx in range(C):
-        lab_conf_map = y_probs[:, lab_idx, ...]
+        lab_conf_map = classwise_prob_map[:, lab_idx, ...]
         lab_freq_map = classwise_freq_map[:, lab_idx, ...]
-        lab_true_nn_map = true_nn_map[lab_idx, ...]
-        lab_pred_nn_map = pred_nn_map[lab_idx, ...]
-        lab_bin_ownership_map = classwise_bin_ownership_map[lab_idx, ...]
+        # Get the region of image corresponding to the confidence
+        lab_true_nn_map = true_nn_map[:, lab_idx, ...]
+        lab_pred_nn_map = pred_nn_map[:, lab_idx, ...]
+        lab_bin_ownership_map = conf_bin_map[:, lab_idx, ...]
+        lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
         # Calculate the unique combinations.
         lab_combo_array = np.stack([
             lab_true_nn_map,
             lab_pred_nn_map,
+            lab_loc_bin_ownership_map,
             lab_bin_ownership_map,
         ]) # 3 x B x H x W
         # Reshape the numpy array to be 2 x (B x H x W)
@@ -229,11 +222,13 @@ def update_cw_pixel_meters(
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
-            true_nn, pred_nn, bin_idx = bin_combo
+            true_nn, pred_nn, loc_conf_bin_idx, bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
-                bin_idx=bin_idx, 
                 bin_ownership_map=lab_bin_ownership_map,
+                bin_idx=bin_idx, 
+                loc_bin_ownership_map=lab_loc_bin_ownership_map,
+                loc_conf_bin_idx=loc_conf_bin_idx,
                 true_num_neighbors_map=lab_true_nn_map, # Note this is off ACTUAL neighbors.
                 true_nn=true_nn,
                 pred_num_neighbors_map=lab_pred_nn_map,

@@ -6,9 +6,8 @@ from typing import Optional, Tuple
 from pydantic import validate_arguments
 # local imports 
 from .utils import (
-    get_bins,
-    find_bins,
     get_conf_region, 
+    get_bin_per_sample,
     agg_neighbors_preds 
 )
 
@@ -84,40 +83,18 @@ def bin_stats_init(
             upper_bound = 1.0
             # Set the confidence interval.
             conf_interval = (lower_bound, upper_bound)
-    # Create the confidence bins.    
-    conf_bins, conf_bin_widths = get_bins(
-        num_bins=num_bins, 
-        start=conf_interval[0], 
-        end=conf_interval[1]
-    )
 
     if class_wise:
         assert conf_interval == (0.0, 1.0),\
             f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
-        bin_ownership_map = torch.stack([
-            find_bins(
-                confidences=y_pred[:, l_idx, ...], 
-                bin_starts=conf_bins,
-                bin_widths=conf_bin_widths
-            ) # B x H x W
-            for l_idx in range(y_pred.shape[1])], dim=0
-        ) # C x B x H x W
-    else:
-        bin_ownership_map = find_bins(
-            confidences=y_max_prob_map, 
-            bin_starts=conf_bins,
-            bin_widths=conf_bin_widths
-        ) # B x H x W
+    conf_bin_map = get_bin_per_sample(
+        pred_map=y_pred,
+        num_bins=num_bins,
+        start=conf_interval[0],
+        end=conf_interval[1],
+        class_wise=class_wise
+    ) # B x H x W
 
-    # Get the pixelwise frequency.
-    if class_wise:
-        C = y_pred.shape[1]
-        frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
-        # Reshape it from B x H x W x C to C x B x H x W
-        frequency_map = frequency_map.permute(3, 0, 1, 2)
-    else:
-        frequency_map = (y_hard == y_true).float()
-    
     # Get a map of which pixels match their neighbors and how often.
     if neighborhood_width is not None:
         # Get the matching neighbors map from our prediction.
@@ -155,6 +132,15 @@ def bin_stats_init(
         pred_matching_neighbors_map = None
         true_matching_neighbors_map = None 
 
+    # Get the pixelwise frequency.
+    if class_wise:
+        C = y_pred.shape[1]
+        frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
+        # Reshape it from B x H x W x C to C x B x H x W
+        frequency_map = frequency_map.permute(3, 0, 1, 2)
+    else:
+        frequency_map = (y_hard == y_true).float()
+    
     # Wrap this into a dictionary.
     return {
         "y_pred": y_pred.to(torch.float64), # "to" is for precision.
@@ -162,7 +148,7 @@ def bin_stats_init(
         "y_hard": y_hard.to(torch.float64),
         "y_true": y_true.to(torch.float64),
         "frequency_map": frequency_map.to(torch.float64),
-        "bin_ownership_map": bin_ownership_map,
+        "bin_ownership_map": conf_bin_map,
         "pred_matching_neighbors_map": pred_matching_neighbors_map,
         "true_matching_neighbors_map": true_matching_neighbors_map,
         "pix_weights": None 
