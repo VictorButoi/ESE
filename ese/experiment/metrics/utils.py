@@ -322,7 +322,7 @@ def agg_neighbors_preds(
     class_wise: bool,
     neighborhood_width: int,
     discrete: bool,
-    binary: bool = False,
+    binary: bool,
     kernel: Literal['mean', 'gaussian'] = 'mean',
     num_classes: Optional[int] = None
 ):
@@ -350,6 +350,7 @@ def agg_neighbors_preds(
         kernel = kernel / kernel.sum()
     # If class_wise, then we want to get the neighbor predictions for each class.
     if class_wise:
+        assert binary, "If class-wise, then we must be doing binary neighbor maps."
         assert len(pred_map.shape) in [3, 4],\
             f"Pred map shape should be: (B, C, H, W) or (B, H, W), got shape: {pred_map.shape}."
         if len(pred_map.shape) == 4:
@@ -359,30 +360,28 @@ def agg_neighbors_preds(
                     pred_map=pred_map[:, l_idx, ...], 
                     neighborhood_width=neighborhood_width, 
                     kernel=kernel,
-                    binary=binary,
-                    discrete=discrete
+                    discrete=False,
+                    binary=True,
                 )
             for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
         else:
             assert discrete, "If class-wise with dim = 3, then we must be discrete."
             assert num_classes is not None, "If class-wise with dim = 3, then we must provide num_classes."
-            flat_neighb_map = _proc_neighbor_map(
-                pred_map=pred_map, 
-                neighborhood_width=neighborhood_width, 
-                kernel=kernel,
-                binary=binary,
-                discrete=discrete
-            ) # B x H x W
-            channel_repeated_fnm = flat_neighb_map.unsqueeze(1).repeat(1, num_classes, 1, 1)
-            # Convert the pred_map to an index tensor that is 
-            index_y_pred = torch.nn.functional.one_hot(pred_map, num_classes)
-            # Reshape it from (B x H x W x C) -> (B x C x H x W)
-            index_y_pred = index_y_pred.permute(0, 3, 1, 2)
-            # Return the product
-            return channel_repeated_fnm * index_y_pred
+            return torch.stack([
+                _proc_neighbor_map(
+                    pred_map=(pred_map == l_idx).long(),
+                    neighborhood_width=neighborhood_width, 
+                    kernel=kernel,
+                    discrete=True,
+                    binary=True,
+                )
+            for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
     else:
         assert len(pred_map.shape) == 3,\
             f"Pred map shape should be: (B, H, W), got shape: {pred_map.shape}."
+        if binary:
+            assert len(torch.unique(pred_map)) in [1, 2],\
+                "If binary, then we must have 1 or 2 unique values in the pred_map."
         return _proc_neighbor_map(
             pred_map=pred_map, 
             neighborhood_width=neighborhood_width, 
@@ -392,6 +391,7 @@ def agg_neighbors_preds(
         )
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def  _proc_neighbor_map(
     pred_map: Tensor,
     neighborhood_width: int,
@@ -404,7 +404,8 @@ def  _proc_neighbor_map(
         return _bin_matching_neighbors(
                     pred_map, 
                     neighborhood_width=neighborhood_width, 
-                    kernel=kernel
+                    kernel=kernel,
+                    discrete=discrete
                 )
     else:
         assert discrete, "Can't do continuous with multiple labels."
@@ -415,7 +416,8 @@ def  _proc_neighbor_map(
             neighbor_count_squeezed = _bin_matching_neighbors(
                 lab_map, 
                 neighborhood_width=neighborhood_width, 
-                kernel=kernel
+                kernel=kernel,
+                discrete=True
             )
             # Update the count_array where the y_true matches the current label
             count_array[lab_map] = neighbor_count_squeezed[lab_map]
@@ -423,7 +425,13 @@ def  _proc_neighbor_map(
         return count_array
 
 
-def _bin_matching_neighbors(mask, neighborhood_width, kernel):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def _bin_matching_neighbors(
+    mask: Tensor, 
+    neighborhood_width: int, 
+    kernel: Tensor, 
+    discrete: bool
+):
     # Convert mask to float tensor
     mask = mask.float()
     # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
@@ -435,8 +443,12 @@ def _bin_matching_neighbors(mask, neighborhood_width, kernel):
     # Convolve the mask with the kernel to get the neighbor count using 2D convolution
     neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
     # Squeeze the result back to the original shape (B x H x W)
-    neighbor_count_squeezed = neighbor_count.squeeze(1).long()
-    return neighbor_count_squeezed
+    neighbor_count_squeezed = neighbor_count.squeeze(1)
+    # Either return the discrete or continuous neighbor count.
+    if discrete:
+        return neighbor_count_squeezed.long()
+    else:
+        return neighbor_count_squeezed
 
 
 # Get a distribution of per-pixel accuracy as a function of the size of the instance that it was 
