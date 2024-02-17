@@ -51,33 +51,6 @@ image_cal_metrics:
         cal_type: 'toplabel'
         class_weighting: 'uniform'
 
-    # Foreground CW ECE Metrics
-    #########################################################
-
-    - Image_Foreground-CW-ECE:
-        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-        ignore_index: 0
-
-    - Image_Foreground-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-        ignore_index: 0
-
-    - Image_Uniform-Foreground-CW-ECE:
-        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-        ignore_index: 0
-
-    - Image_Uniform-Foreground-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-        ignore_index: 0
-
 # Define global metrics when you want to verify that these are the same as the image
 # based metrics, per image.
 global_cal_metrics:
@@ -132,30 +105,3 @@ global_cal_metrics:
         _fn: ese.experiment.metrics.elm.edge_elm_loss
         cal_type: 'toplabel'
         class_weighting: 'uniform'
-
-    # Foreground CW ECE Metrics
-    #########################################################
-
-    - Foreground-CW-ECE:
-        _fn: ese.experiment.metrics.ece.cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-        ignore_index: 0
-
-    - Foreground-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-        ignore_index: 0
-
-    - Uniform-Foreground-CW-ECE:
-        _fn: ese.experiment.metrics.ece.cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-        ignore_index: 0
-
-    - Uniform-Foreground-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-        ignore_index: 0

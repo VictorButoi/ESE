@@ -19,17 +19,10 @@ def calc_bin_info(
     frequency_map: Tensor,
     bin_conf_region: Tensor,
     square_diff: bool,
-    pix_weights: Optional[Tensor] = None
 ):
-    if pix_weights is None:
-        bin_num_samples = bin_conf_region.sum() 
-        avg_bin_confidence = prob_map[bin_conf_region].sum() / bin_num_samples
-        avg_bin_frequency = frequency_map[bin_conf_region].sum() / bin_num_samples
-    else:
-        bin_num_samples = pix_weights[bin_conf_region].sum()
-        avg_bin_confidence = (pix_weights[bin_conf_region] * prob_map[bin_conf_region]).sum() / bin_num_samples
-        avg_bin_frequency = (pix_weights[bin_conf_region] * frequency_map[bin_conf_region]).sum() / bin_num_samples
-
+    bin_num_samples = bin_conf_region.sum() 
+    avg_bin_confidence = prob_map[bin_conf_region].sum() / bin_num_samples
+    avg_bin_frequency = frequency_map[bin_conf_region].sum() / bin_num_samples
     # Calculate the calibration error.
     if square_diff:
         cal_error = (avg_bin_confidence - avg_bin_frequency).square()
@@ -77,17 +70,13 @@ def bin_stats_init(
         if class_wise:
             conf_interval = (0.0, 1.0)
         else:
-            if C == 0:
-                lower_bound = 0.0
-            else:
-                lower_bound = 1 / C
-            upper_bound = 1.0
-            # Set the confidence interval.
-            conf_interval = (lower_bound, upper_bound)
+            lower_bound = 0.0 if (C == 0) else 1 / C
+            conf_interval = (lower_bound, 1.0)
 
     if class_wise:
         assert conf_interval == (0.0, 1.0),\
             f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
+
     conf_bin_map = get_bin_per_sample(
         pred_map=y_pred if class_wise else y_max_prob_map,
         num_bins=num_bins,
@@ -139,7 +128,6 @@ def bin_stats_init(
         "bin_ownership_map": conf_bin_map,
         "pred_neighbors_map": pred_neighbors_map,
         "true_neighbors_map": true_neighbors_map,
-        "pix_weights": None 
     } 
 
 
@@ -189,7 +177,6 @@ def bin_stats(
                 prob_map=obj_dict["y_max_prob_map"],
                 bin_conf_region=bin_conf_region,
                 frequency_map=obj_dict["frequency_map"],
-                pix_weights=obj_dict["pix_weights"],
                 square_diff=square_diff
             )
             for k, v in bi.items():
@@ -256,7 +243,6 @@ def top_label_bin_stats(
                     prob_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
                     frequency_map=obj_dict["frequency_map"],
-                    pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
                 for k, v in bi.items():
@@ -329,7 +315,6 @@ def joint_label_bin_stats(
                     prob_map=lab_prob_map,
                     bin_conf_region=bin_conf_region,
                     frequency_map=lab_frequency_map,
-                    pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
                 for k, v in bi.items():
@@ -394,7 +379,6 @@ def neighbor_bin_stats(
                     prob_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
                     frequency_map=obj_dict["frequency_map"],
-                    pix_weights=obj_dict["pix_weights"],
                     square_diff=square_diff
                 )
                 for k, v in bi.items():
@@ -472,7 +456,6 @@ def neighbor_joint_label_bin_stats(
                         prob_map=lab_prob_map,
                         bin_conf_region=bin_conf_region,
                         frequency_map=lab_frequency_map,
-                        pix_weights=obj_dict["pix_weights"],
                         square_diff=square_diff
                     )
                     for k, v in bi.items():

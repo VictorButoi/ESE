@@ -18,38 +18,31 @@ def get_image_stats(
         # Get the reduced predictions
         input_config = {
             'y_pred': reduce_ensemble_preds(
-                output_dict, 
-                inference_cfg=inference_cfg,
-                )['y_probs'],
+                        output_dict, 
+                        inference_cfg=inference_cfg,
+                    )['y_probs'],
             'y_true': output_dict['y_true']
         }
         # Gather the individual predictions
         if output_dict['y_probs'] is not None:
-            ensemble_member_probs = [
-                output_dict["y_probs"][:, :, ens_mem_idx, ...]\
-                for ens_mem_idx in range(output_dict["y_probs"].shape[2])
-            ]
-            # Construct the input cfgs used for calulating metrics.
-            ensemble_member_input_cfgs = [
-                {
-                    "y_pred": member_pred, 
-                    "y_true": output_dict["y_true"],
-                    "from_logits": False # IMPORTANT, we HAVE softmaxed already.
-                } for member_pred in ensemble_member_probs 
-            ]
+            pred_type = "y_probs"
+            from_logits = False
         else:
-            ensemble_member_logits = [
-                output_dict["y_logits"][:, :, ens_mem_idx, ...]\
-                for ens_mem_idx in range(output_dict["y_logits"].shape[2])
-            ]
-            # Construct the input cfgs used for calulating metrics.
-            ensemble_member_input_cfgs = [
-                {
-                    "y_pred": member_pred, 
-                    "y_true": output_dict["y_true"],
-                    "from_logits": True # IMPORTANT, we haven't softmaxed yet.
-                } for member_pred in ensemble_member_logits
-            ]
+            pred_type = "y_logits"
+            from_logits = True
+        # Get the individual predictions.
+        ensemble_member_logits = [
+            output_dict[pred_type][:, :, ens_mem_idx, ...]\
+            for ens_mem_idx in range(output_dict[pred_type].shape[2])
+        ]
+        # Construct the input cfgs used for calulating metrics.
+        ensemble_member_input_cfgs = [
+            {
+                "y_pred": member_pred, 
+                "y_true": output_dict["y_true"],
+                "from_logits": from_logits# IMPORTANT, we haven't softmaxed yet.
+            } for member_pred in ensemble_member_logits
+        ]
     else:
         input_config = {
             "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling

@@ -12,9 +12,11 @@ from .pixel_records import (
     update_cw_pixel_meters
 )
 # Misc imports
+import time
 import pickle
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from typing import Any, Optional
 from pydantic import validate_arguments
 import matplotlib.pyplot as plt
@@ -54,6 +56,7 @@ def get_cal_stats(
 
     # Loop through the data, gather your stats!
     if cfg_dict["log"]["gether_inference_stats"]:
+        data_counter = 0
         with torch.no_grad():
             for split in all_dataloaders:
                 split_dataloader = all_dataloaders[split]
@@ -67,7 +70,9 @@ def get_cal_stats(
                         "exp": cal_stats_components["inference_exp"],
                         "batch": batch,
                         "inference_cfg": cfg_dict,
-                        "trackers": trackers
+                        "trackers": trackers,
+                        "data_counter": data_counter,
+                        "output_root": output_root
                     }
                     # Run the forward loop
                     if cal_stats_components["input_type"] == "volume":
@@ -76,10 +81,6 @@ def get_cal_stats(
                         image_forward_loop(**forward_item)
                     else:
                         raise ValueError(f"Input type {cal_stats_components['input_type']} not recognized.")
-                    # Save the records every so often, to get intermediate results. Note, because of data_ids
-                    # this can contain fewer than 'log interval' many items.
-                    if batch_idx % cfg['log']['log_interval'] == 0:
-                        save_trackers(output_root, trackers=trackers)
 
         # Save the records at the end too
         save_trackers(output_root, trackers=trackers)
@@ -119,7 +120,9 @@ def volume_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
-    trackers
+    trackers,
+    data_counter: int,
+    output_root: Path 
 ):
     # Get the batch info
     image_vol_cpu, label_vol_cpu  = batch["img"], batch["label"]
@@ -142,6 +145,8 @@ def volume_forward_loop(
             inference_cfg=inference_cfg,
             slice_idx=slice_idx,
             trackers=trackers,
+            output_root=output_root,    
+            data_counter=data_counter
         )
 
 
@@ -151,6 +156,8 @@ def image_forward_loop(
     batch: Any,
     inference_cfg: dict,
     trackers,
+    data_counter: int,
+    output_root: Path,
     slice_idx: Optional[int] = None,
 ):
     # Get the batch info
@@ -185,6 +192,13 @@ def image_forward_loop(
             trackers=trackers,
         )
 
+        # Save the records every so often, to get intermediate results. Note, because of data_ids
+        # this can contain fewer than 'log interval' many items.
+        if data_counter % inference_cfg['log']['log_interval'] == 0:
+            save_trackers(output_root, trackers=trackers)
+
+        data_counter += 1
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
     output_dict: dict,
@@ -201,6 +215,8 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
+    # start = time.time()
+    # print("Started Image Level Records")
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -210,6 +226,8 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=trackers["image_level_records"]
         ) 
+    # end = time.time()
+    # print("Finished Image Level Records. Took", end - start, "seconds.")
     ###############################################################################################
     # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
     ###############################################################################################
@@ -228,6 +246,8 @@ def get_calibration_item_info(
     ########################
     # PIXEL LEVEL TRACKING #
     ########################
+    # start = time.time()
+    # print("Started Pixel Records")
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
             output_dict=output_dict,
@@ -243,9 +263,13 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             pixel_level_records=trackers["cw_pixel_meter_dict"][split]
         )
+    # end = time.time()
+    # print("Finished Pixel Records. Took", end - start, "seconds.")
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
+    # start = time.time()
+    # print("Started Sanity Check")
     if "image_level_records" in trackers and\
         "tl_pixel_meter_dict" in trackers and\
          "cw_pixel_meter_dict" in trackers: 
@@ -257,6 +281,9 @@ def get_calibration_item_info(
             image_tl_pixel_meter_dict=image_tl_pixel_meter_dict,
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
+    # end = time.time()
+    # print("Finished Sanity Check. Took", end - start, "seconds.")
+
 
 
 def global_cal_sanity_check(
