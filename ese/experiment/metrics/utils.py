@@ -87,92 +87,62 @@ def split_tensor(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region(
-    bin_idx: int, 
-    bin_ownership_map: Tensor,
-    loc_conf_bin_idx: Optional[int] = None,
-    loc_bin_ownership_map: Optional[Tensor] = None,
-    true_label: Optional[int] = None,
-    true_lab_map: Optional[Tensor] = None,
-    pred_label: Optional[int] = None,
-    pred_lab_map: Optional[Tensor] = None,
-    true_nn: Optional[int] = None,
-    true_num_neighbors_map: Optional[Tensor] = None,
-    pred_nn: Optional[int] = None,
-    pred_num_neighbors_map: Optional[Tensor] = None,
+    conditional_region_dict: dict,
+    gt_lab_map: Optional[Tensor] = None,
+    gt_nn_map: Optional[Tensor] = None,
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
-    # We want to only pick things in the bin indicated.
-    bin_conf_region = (bin_ownership_map == bin_idx)
-    # Select by local confidence bin index.
-    if loc_conf_bin_idx is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (loc_bin_ownership_map == loc_conf_bin_idx))
-    # If we want to only pick things which match the ground truth label.
-    if true_label is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (true_lab_map==true_label))
-    # If we want to only pick things which match the pred label.
-    if pred_label is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (pred_lab_map==pred_label))
+    bin_conf_region = None
+    for cond_cls in conditional_region_dict:
+        cond_val, info_map = conditional_region_dict[cond_cls]
+        cond_match_region = (info_map == cond_val)
+        if bin_conf_region is None:
+            bin_conf_region = cond_match_region
+        else:
+            bin_conf_region = torch.logical_and(bin_conf_region, cond_match_region)
     # If we want to ignore a particular label, then we set it to 0.
     if ignore_index is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, (true_lab_map != ignore_index))
-    # If we only want the pixels with this particular number of neighbords that match the label
-    if true_nn is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map==true_nn)
-    # If we only want the pixels with this particular number of neighbords that match the label
-    if pred_nn is not None:
-        bin_conf_region = torch.logical_and(bin_conf_region, pred_num_neighbors_map==pred_nn)
+        assert gt_lab_map is not None, "If ignore_index is provided, then gt_lab_map must be provided."
+        bin_conf_region = torch.logical_and(bin_conf_region, (gt_lab_map != ignore_index))
     # If we are doing edges only, then select those uses 
     if edge_only:
+        assert neighborhood_width is not None and gt_nn_map is not None,\
+            "If edge_only, then neighborhood_width and gt_nn_map must be provided."
         n_neighbor_classes = (neighborhood_width**2 - 1)
-        bin_conf_region = torch.logical_and(bin_conf_region, true_num_neighbors_map < n_neighbor_classes)
+        bin_conf_region = torch.logical_and(bin_conf_region, gt_nn_map < n_neighbor_classes)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_conf_region_np(
-    bin_idx: int, 
-    bin_ownership_map: np.ndarray,
-    loc_conf_bin_idx: Optional[int] = None,
-    loc_bin_ownership_map: Optional[np.ndarray] = None,
-    true_label: Optional[int] = None,
-    true_lab_map: Optional[np.ndarray] = None,
-    pred_label: Optional[int] = None,
-    pred_lab_map: Optional[np.ndarray] = None,
-    true_nn: Optional[int] = None,
-    true_num_neighbors_map: Optional[np.ndarray] = None,
-    pred_nn: Optional[int] = None,
-    pred_num_neighbors_map: Optional[np.ndarray] = None,
+    conditional_region_dict: dict,
+    gt_lab_map: Optional[np.ndarray] = None,
+    gt_nn_map: Optional[np.ndarray] = None,
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
 ):
-    # We want to only pick things in the bin indicated.
-    bin_conf_region = (bin_ownership_map == bin_idx)
-    # Select by local confidence bin index.
-    if loc_conf_bin_idx is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, (loc_bin_ownership_map == loc_conf_bin_idx))
-    # If we want to only pick things which match the ground truth label.
-    if true_label is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, (true_lab_map==true_label))
-    # If we want to only pick things which match the pred label.
-    if pred_label is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, (pred_lab_map==pred_label))
+    bin_conf_region = None
+    for cond_cls in conditional_region_dict:
+        info_map, cond_val = conditional_region_dict[cond_cls]
+        cond_match_region = (info_map == cond_val)
+        if bin_conf_region is None:
+            bin_conf_region = cond_match_region
+        else:
+            bin_conf_region = np.logical_and(bin_conf_region, cond_match_region)
     # If we want to ignore a particular label, then we set it to 0.
     if ignore_index is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, (true_lab_map != ignore_index))
-    # If we only want the pixels with this particular number of neighbords that match the label
-    if true_nn is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, true_num_neighbors_map==true_nn)
-    # If we only want the pixels with this particular number of neighbords that match the label
-    if pred_nn is not None:
-        bin_conf_region = np.logical_and(bin_conf_region, pred_num_neighbors_map==pred_nn)
+        assert gt_lab_map is not None, "If ignore_index is provided, then gt_lab_map must be provided."
+        bin_conf_region = np.logical_and(bin_conf_region, (gt_lab_map != ignore_index))
     # If we are doing edges only, then select those uses 
     if edge_only:
+        assert neighborhood_width is not None and gt_nn_map is not None,\
+            "If edge_only, then neighborhood_width and gt_nn_map must be provided."
         n_neighbor_classes = (neighborhood_width**2 - 1)
-        bin_conf_region = np.logical_and(bin_conf_region, true_num_neighbors_map < n_neighbor_classes)
+        bin_conf_region = np.logical_and(bin_conf_region, gt_nn_map < n_neighbor_classes)
     # The final region is the intersection of the conditions.
     return bin_conf_region
 

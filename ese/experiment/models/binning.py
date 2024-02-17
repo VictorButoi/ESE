@@ -194,8 +194,9 @@ class NECTAR_Binning(nn.Module):
                 for nn_bin_idx in range(self.num_neighbor_classes):
                     # Get the region of image corresponding to the confidence
                     nn_conf_region = get_conf_region(
-                        bin_idx=nn_bin_idx, 
-                        bin_ownership_map=neighbor_bin_map,
+                        conditional_region_dict={
+                            "bin_idx": (nn_bin_idx, neighbor_bin_map)
+                        }
                     )
                     calibrated_lab_prob_map[nn_conf_region] =\
                         self.val_freqs[lab_idx][nn_bin_idx][neighbor_bin_map][nn_conf_region].float()

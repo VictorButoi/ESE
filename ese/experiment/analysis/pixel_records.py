@@ -93,19 +93,16 @@ def update_toplabel_pixel_meters(
     image_tl_meter_dict = {}
     for bin_combo in unique_combinations:
         bin_combo = tuple(bin_combo)
-        true_lab, pred_lab, true_num_neighb, pred_num_neighb, bin_idx = bin_combo
+        true_lab, pred_lab, true_nn, pred_nn, bin_idx = bin_combo
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region_np(
-            bin_idx=bin_idx, 
-            bin_ownership_map=toplabel_bin_ownership_map,
-            true_label=true_lab,
-            true_lab_map=y_true, # Use ground truth to get the region.
-            pred_label=pred_lab,
-            pred_lab_map=y_hard, # Use ground truth to get the region.
-            true_num_neighbors_map=true_num_neighb_map, # Note this is off ACTUAL neighbors.
-            true_nn=true_num_neighb,
-            pred_num_neighbors_map=pred_num_neighb_map,
-            pred_nn=pred_num_neighb
+            conditional_region_dict={
+                "bin_idx": (bin_idx, toplabel_bin_ownership_map),
+                "true_label": (true_lab, y_true),
+                "pred_label": (pred_lab, y_hard),
+                "true_num_neighbors": (true_nn, true_num_neighb_map),
+                "pred_num_neighbors": (pred_nn, pred_num_neighb_map)
+            }
         )
         if bin_conf_region.sum() > 0:
             # Add bin specific keys to the dictionary if they don't exist.
@@ -232,14 +229,12 @@ def update_cw_pixel_meters(
             true_nn, pred_nn, loc_conf_bin_idx, bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
-                bin_ownership_map=lab_bin_ownership_map,
-                bin_idx=bin_idx, 
-                loc_bin_ownership_map=lab_loc_bin_ownership_map,
-                loc_conf_bin_idx=loc_conf_bin_idx,
-                true_num_neighbors_map=lab_true_nn_map, # Note this is off ACTUAL neighbors.
-                true_nn=true_nn,
-                pred_num_neighbors_map=lab_pred_nn_map,
-                pred_nn=pred_nn
+                conditional_region_dict={
+                    "bin_idx": (bin_idx, lab_bin_ownership_map),
+                    "true_num_neighbors": (true_nn, lab_true_nn_map),
+                    "pred_num_neighbors": (pred_nn, lab_pred_nn_map),
+                    "loc_conf_bin_idx": (loc_conf_bin_idx, lab_loc_bin_ownership_map)
+                }
             )
             if lab_bin_conf_region.sum() > 0:
                 # Add bin specific keys to the dictionary if they don't exist.
