@@ -222,9 +222,11 @@ class NECTAR_Scaling(nn.Module):
             y_hard = torch.argmax(y_probs, dim=1) # B H W
         # Get the per-pixel num neighborhood class
         neighbor_agg_map = agg_neighbors_preds(
-            lab_map=y_hard, 
+            pred_map=y_hard, 
             neighborhood_width=self.neighborhood_width,
-            discrete=True
+            class_wise=False,
+            discrete=True,
+            binary=False
         ) # B 1 H W
         if self.class_wise:
             # Place the temperatures in the correct positions
