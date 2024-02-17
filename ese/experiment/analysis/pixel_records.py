@@ -54,6 +54,7 @@ def update_toplabel_pixel_meters(
     pred_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
         class_wise=False,
+        binary=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
@@ -61,6 +62,7 @@ def update_toplabel_pixel_meters(
     true_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
         class_wise=False,
+        binary=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )

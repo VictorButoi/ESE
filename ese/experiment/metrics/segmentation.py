@@ -243,12 +243,14 @@ def boundary_iou(
     true_num_neighb_map = agg_neighbors_preds(
                             pred_map=y_true.squeeze(1), # B x H x W
                             class_wise=False,
+                            binary=False,
                             neighborhood_width=n_width,
                             discrete=True,
                         )
     pred_num_neighb_map = agg_neighbors_preds(
                             pred_map=y_hard.long(), # B x H x W
                             class_wise=False,
+                            binary=False,
                             neighborhood_width=n_width,
                             discrete=True,
                         ) 
