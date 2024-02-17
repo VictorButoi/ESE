@@ -283,7 +283,7 @@ def accumulate_pixel_preds(
     # Iterate through the meters.
     for pix_dict_key, value in pixel_meters_dict.items():
         if class_wise:
-            true_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
+            true_label, true_num_neighb, pred_num_neighb, loc_conf_bin, prob_bin, measure = pix_dict_key
         else:
             true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
         # Get the total number of pixel classes for this neighborhood size.
@@ -298,7 +298,9 @@ def accumulate_pixel_preds(
                 "prob_bin": prob_bin,
                 "measure": measure,
             }
-            if not class_wise:
+            if class_wise:
+                item["local_conf_bin"] = loc_conf_bin
+            else:
                 item["pred_label"] = pred_label
             # Keep track of unique values.
             if item[key_1] not in unique_key_1:

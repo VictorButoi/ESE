@@ -5,37 +5,12 @@ import torch.nn.functional as F
 # misc imports
 import numpy as np
 from pydantic import validate_arguments
-from typing import Optional, Union, List, Literal
+from typing import Optional, Union, Literal
 from scipy.ndimage import (
     distance_transform_edt, 
     binary_erosion, 
     label
 )
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_edge_pixels(
-    y_pred: Tensor,
-    y_true: Tensor,
-    image_info_dict: dict
-    ) -> Tensor:
-    """
-    Returns the edge pixels of the ground truth label map.
-    """
-    # Get the edge map.
-    if "true_matching_neighbors_map" in image_info_dict:
-        y_true_edge_map = (image_info_dict["true_matching_neighbors_map"] < 8)
-    else:
-        y_true_squeezed = y_true.squeeze()
-        y_true_edge_map = get_edge_map(y_true_squeezed)
-    # Get the edge regions of both the prediction and the ground truth.
-    y_pred_e_reg = y_pred[..., y_true_edge_map]
-    y_true_e_reg = y_true[..., y_true_edge_map]
-    # Add a height dim.
-    y_edge_pred = y_pred_e_reg.unsqueeze(-2)
-    y_edge_true= y_true_e_reg.unsqueeze(-2)
-    # Return the edge-ified values.
-    return y_edge_pred, y_edge_true
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -496,115 +471,3 @@ def get_perpix_group_size(
         return size_map
     else:
         return torch.from_numpy(size_map)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_uni_pixel_weights(
-    lab_map: Union[Tensor, np.ndarray],
-    uni_w_attributes: List[str],
-    neighborhood_width: Optional[int] = None,
-    num_neighbors_map: Optional[Union[Tensor, np.ndarray]] = None,
-    ignore_index: Optional[int] = None
-):
-    """
-    Get a map of pixel weights for each unique label in the label map. The weights are calculated
-    based on the number of pixels with that label and the number of pixels with that label and
-    a particular number of neighbors. The weights are normalized such that the sum of the weights
-    for each label is 1.0.
-    Args:
-    - lab_map (Tensor): A 2D tensor of labels.
-    - uni_w_attributes (List[str]): A list of unique label attributes to use for weighting.
-    - neighborhood_width (int): The width of the neighborhood to use when counting neighbors.
-    - num_neighbors_map (Tensor): A 2D tensor of the number of neighbors for each pixel in
-        the label map.
-    Returns:
-    - Tensor: A 2D tensor of pixel weights for each pixel in the label map.
-    """
-    lab_map = lab_map.squeeze()
-    assert len(lab_map.shape) == 2, "Pred map can only currently be (H, W)."
-    # Optionally take in numpy array, convert to torch tensor
-    if isinstance(lab_map, np.ndarray):
-        lab_map = torch.from_numpy(lab_map)
-        return_numpy = True
-    else:
-        return_numpy = False
-
-    # Get a map where each pixel corresponds to the amount of pixels with that label who have 
-    # that number of neighbors, and the total amount of pixels with that label.
-    nn_balanced_weights_map = torch.zeros_like(lab_map).float()
-    if ignore_index is not None:
-        NUM_SAMPLES = lab_map[lab_map != ignore_index].numel()
-    else:
-        NUM_SAMPLES = lab_map.numel()
-
-    # Get information about labels.
-    unique_pred_labels = torch.unique(lab_map)
-    if ignore_index is not None:
-        unique_pred_labels = unique_pred_labels[unique_pred_labels != ignore_index]
-    NUM_LAB = len(unique_pred_labels)
-
-    # Choose how you uniformly condition. 
-    neighbor_condition = "neighbors" in uni_w_attributes
-    label_condition = "labels" in uni_w_attributes
-    neighbor_and_label_condition = neighbor_condition and label_condition
-    # If doing something with neighbors, get the neighbor map (if not passed in).
-    if num_neighbors_map is None:
-        num_neighbors_map = count_matching_neighbors(
-            lab_map=lab_map, 
-            neighborhood_width=neighborhood_width
-            )
-    if ignore_index is not None:
-        num_neighbors_map[lab_map == ignore_index] = -1
-
-    # If we are conditioning on both.
-    if neighbor_and_label_condition:
-        # Loop through each unique label and its number of neighbors.
-        for label in unique_pred_labels:
-            label_group = (lab_map == label)
-            unique_label_nns = torch.unique(num_neighbors_map[label_group])
-            NUM_NN = len(unique_label_nns)
-            for nn in unique_label_nns:
-                label_nn_group = (label_group) & (num_neighbors_map==nn)
-                pix_weights = (1 / (NUM_NN * NUM_LAB)) * (NUM_SAMPLES / label_nn_group.sum().item())
-                nn_balanced_weights_map[label_nn_group] = pix_weights
-
-    # If we are conditioning ONLY on number of neighbors. 
-    elif neighbor_condition:
-        unique_nns = torch.unique(num_neighbors_map[num_neighbors_map != -1])
-        # Loop through each number of neighbors.
-        NUM_NN = len(unique_nns)
-        for nn in unique_nns:
-            nn_group = (num_neighbors_map == nn)
-            pix_weights = (1 / NUM_NN) * (NUM_SAMPLES / nn_group.sum().item())
-            nn_balanced_weights_map[nn_group] = pix_weights
-
-    # If we are conditioning ONLY on amount of label.
-    elif label_condition:
-        # Loop through each label.
-        for label in unique_pred_labels:
-            label_group = (lab_map == label)
-            nn_balanced_weights_map[label_group] = (NUM_SAMPLES / label_group.sum().item()) * (1 / NUM_LAB)
-
-    else:
-        raise ValueError(f"Uniform conditioning must be one of 'neighbors', 'labels', or both, got {uni_w_attributes} instead.")
-
-    # Return the count_array
-    if return_numpy:
-        return nn_balanced_weights_map.numpy()
-    else:
-        return nn_balanced_weights_map
-    
-
-# Helpful for calculating edge accuracies.
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_edge_map(
-    lab_map: Tensor,
-    neighborhood_width: int = 3
-    ) -> Tensor:
-    # Neighbor map
-    num_neighbor_map = count_matching_neighbors(
-        lab_map=lab_map, 
-        neighborhood_width=neighborhood_width
-        )
-    edge_map = (num_neighbor_map < (neighborhood_width**2 - 1))
-    return edge_map

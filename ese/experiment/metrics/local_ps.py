@@ -2,6 +2,7 @@
 import torch
 from torch import Tensor
 # misc imports
+import matplotlib.pyplot as plt
 from typing import Optional, Tuple
 from pydantic import validate_arguments
 # local imports 
@@ -104,7 +105,7 @@ def bin_stats_init(
                                 discrete=True,
                                 class_wise=class_wise,
                                 num_classes=C,
-                                binary=True
+                                binary=class_wise
                             )
         # True map
         true_neighbors_map = agg_neighbors_preds(
@@ -113,7 +114,7 @@ def bin_stats_init(
                                 discrete=True,
                                 class_wise=class_wise,
                                 num_classes=C,
-                                binary=True
+                                binary=class_wise
                             )
     else:
         pred_neighbors_map = None
