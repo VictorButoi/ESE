@@ -44,6 +44,8 @@ def update_toplabel_pixel_meters(
 
     # Figure out where each pixel belongs (in confidence)
     toplabel_bin_ownership_map = get_bin_per_sample(
+        pred_map=toplabel_prob_map,
+        class_wise=False,
         num_bins=calibration_cfg['num_bins'], 
         start=calibration_cfg['conf_interval'][0], 
         end=calibration_cfg['conf_interval'][1]
@@ -51,12 +53,14 @@ def update_toplabel_pixel_meters(
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
+        class_wise=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = agg_neighbors_preds(
         pred_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
+        class_wise=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
     )
@@ -162,7 +166,7 @@ def update_cw_pixel_meters(
                         class_wise=True
                     )
     local_conf_bin_map = get_bin_per_sample(
-        pred_map=y_probs,
+        pred_map=local_prob_map,
         num_bins=calibration_cfg['neighborhood_width'],
         start=0.0,
         end=1.0,
@@ -174,25 +178,28 @@ def update_cw_pixel_meters(
     # These are conv ops so they are done on the GPU.
 
     true_nn_map = agg_neighbors_preds(
-                    pred_map=(output_dict["y_true"]==lab_idx).long().squeeze(1), # B x H x W
+                    pred_map=output_dict["y_true"].squeeze(1), # B x H x W
                     neighborhood_width=calibration_cfg["neighborhood_width"],
                     discrete=True,
                     binary=True, # Ignore the background class.
-                    class_wise=True
+                    class_wise=True,
+                    num_classes=C,
                 ).cpu().numpy()
 
     pred_nn_map = agg_neighbors_preds(
-                    pred_map=(output_dict["y_hard"]==lab_idx).long().squeeze(1), # B x H x W
+                    pred_map=output_dict["y_hard"].long().squeeze(1), # B x H x W
                     neighborhood_width=calibration_cfg["neighborhood_width"],
                     discrete=True,
                     binary=True, # Ignore the background class.
-                    class_wise=True
+                    class_wise=True,
+                    num_classes=C,
                 ).cpu().numpy() 
 
-    long_label_map = y_true.squeeze(1).long() # Squeeze out the channel dimension and convert to long.
     classwise_freq_map = torch.nn.functional.one_hot(
-        long_label_map, C
-    ).permute(0, 3, 1, 2) # B x C x H x W
+        y_true.squeeze(1).long(), C
+    ) 
+    # (B x H x W x C) -> (B x C x H x W)
+    classwise_freq_map = classwise_freq_map.permute(0, 3, 1, 2)
     
     # Place all necessary tensors on the CPU as numpy arrays.
     classwise_freq_map = classwise_freq_map.cpu().numpy()

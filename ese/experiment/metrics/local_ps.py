@@ -103,6 +103,7 @@ def bin_stats_init(
                                 neighborhood_width=neighborhood_width,
                                 discrete=True,
                                 class_wise=class_wise,
+                                num_classes=C,
                                 binary=True
                             )
         # True map
@@ -111,6 +112,7 @@ def bin_stats_init(
                                 neighborhood_width=neighborhood_width,
                                 discrete=True,
                                 class_wise=class_wise,
+                                num_classes=C,
                                 binary=True
                             )
     else:
@@ -121,8 +123,8 @@ def bin_stats_init(
     if class_wise:
         C = y_pred.shape[1]
         frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
-        # Reshape it from B x H x W x C to C x B x H x W
-        frequency_map = frequency_map.permute(3, 0, 1, 2)
+        # Reshape it from B x H x W x C -> B x C x H x W
+        frequency_map = frequency_map.permute(0, 3, 1, 2)
     else:
         frequency_map = (y_hard == y_true).float()
     
@@ -305,9 +307,9 @@ def joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
-        lab_true_neighbors_map = obj_dict["true_neighbors_map"][lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
+        lab_true_neighbors_map = obj_dict["true_neighbors_map"][:, lab, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_bins):
             # Get the region of image corresponding to the confidence
@@ -444,10 +446,10 @@ def neighbor_joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][lab, ...]
-        lab_pred_neighbors_map = obj_dict["pred_neighbors_map"][lab, ...]
-        lab_true_neighbors_map = obj_dict["true_neighbors_map"][lab, ...]
+        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
+        lab_pred_neighbors_map = obj_dict["pred_neighbors_map"][:, lab, ...]
+        lab_true_neighbors_map = obj_dict["true_neighbors_map"][:, lab, ...]
         # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
             for bin_idx in range(num_bins):

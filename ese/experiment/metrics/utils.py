@@ -89,6 +89,8 @@ def split_tensor(
 def get_conf_region(
     bin_idx: int, 
     bin_ownership_map: Tensor,
+    loc_conf_bin_idx: Optional[int] = None,
+    loc_bin_ownership_map: Optional[Tensor] = None,
     true_label: Optional[int] = None,
     true_lab_map: Optional[Tensor] = None,
     pred_label: Optional[int] = None,
@@ -100,9 +102,12 @@ def get_conf_region(
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
-    ):
+):
     # We want to only pick things in the bin indicated.
     bin_conf_region = (bin_ownership_map == bin_idx)
+    # Select by local confidence bin index.
+    if loc_conf_bin_idx is not None:
+        bin_conf_region = torch.logical_and(bin_conf_region, (loc_bin_ownership_map == loc_conf_bin_idx))
     # If we want to only pick things which match the ground truth label.
     if true_label is not None:
         bin_conf_region = torch.logical_and(bin_conf_region, (true_lab_map==true_label))
@@ -130,6 +135,8 @@ def get_conf_region(
 def get_conf_region_np(
     bin_idx: int, 
     bin_ownership_map: np.ndarray,
+    loc_conf_bin_idx: Optional[int] = None,
+    loc_bin_ownership_map: Optional[np.ndarray] = None,
     true_label: Optional[int] = None,
     true_lab_map: Optional[np.ndarray] = None,
     pred_label: Optional[int] = None,
@@ -141,9 +148,12 @@ def get_conf_region_np(
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
-    ):
+):
     # We want to only pick things in the bin indicated.
     bin_conf_region = (bin_ownership_map == bin_idx)
+    # Select by local confidence bin index.
+    if loc_conf_bin_idx is not None:
+        bin_conf_region = np.logical_and(bin_conf_region, (loc_bin_ownership_map == loc_conf_bin_idx))
     # If we want to only pick things which match the ground truth label.
     if true_label is not None:
         bin_conf_region = np.logical_and(bin_conf_region, (true_lab_map==true_label))
