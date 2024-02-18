@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
 import math
+import matplotlib.pyplot as plt
 # local imports
 from ..metrics.utils import agg_neighbors_preds
 # Set the print options
@@ -296,12 +297,12 @@ class NS_V2(nn.Module):
             binary=False
         ) # B 1 H W
         # Place the temperatures in the correct positions
-        neighborhood_temp_map = torch.zeros_like(y_probs)
+        neighborhood_temp_map = torch.zeros((y_hard.shape), device=y_probs.device, dtype=y_probs.dtype)
         for class_idx in range(self.num_classes):
             # Get the mask for the current class
             neighborhood_temp_map[y_hard==class_idx] = self.class_wise_nt[class_idx][neighbor_agg_map][y_hard==class_idx]
         # Apply this to all classes.
-        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B C H W
+        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B x C x H x W
         # If we are constrained to have a positive temperature, then we need to guide
         # the optimization to picking a parameterization that is positive.
         if self.positive_constraint:
