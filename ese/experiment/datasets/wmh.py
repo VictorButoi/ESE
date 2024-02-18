@@ -25,6 +25,7 @@ class WMH(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     return_data_id: bool = False
+    min_fg_label: Optional[int] = None
     slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
@@ -52,7 +53,12 @@ class WMH(ThunderDataset, DatapathMixin):
         img_vol = subj_dict['image']
         mask_vol = subj_dict['masks'][self.annotator]
 
-        label_amounts = subj_dict['pixel_proportions'][self.annotator]
+        # NOTE: Pixel proportions is just the label amounts, it is not a proportion...
+        label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        # Threshold if we can about having a minimum amount of label.
+        if self.min_fg_label is not None and np.any(label_amounts > self.min_fg_label):
+            label_amounts[label_amounts < self.min_fg_label] = 0
+
         allow_replacement = self.replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
 
         vol_size = img_vol.shape[0] # Typically 245

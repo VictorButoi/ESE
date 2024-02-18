@@ -168,6 +168,7 @@ class PostHocExperiment(TrainExperiment):
             "x": x,
             "y_true": y,
             "y_pred": yhat_cal,
+            "y_logits": yhat_cal, # Used for visualization functions.
             "loss": loss,
             "batch_idx": batch_idx,
         }

@@ -1,5 +1,6 @@
 data:
   iters_per_epoch: 100
+  min_fg_label: 100
 
 log:
   checkpoint_freq: 50 
@@ -21,6 +22,7 @@ log:
       neighborhood_width: 3
     elm_loss:
       _fn: ese.experiment.metrics.image_elm_loss
+      class_weighting: 'proportional'
       from_logits: True
       num_bins: 15
       neighborhood_width: 3
