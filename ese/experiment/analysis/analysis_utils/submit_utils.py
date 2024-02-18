@@ -22,11 +22,14 @@ def get_ese_inference_configs(
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
     
     # For ensembles, we have three choices for combining the predictions.
-    ens_cfg_options=[
-        ('mean', 'logits'), 
-        ('mean', 'probs'), 
-        ('product', 'probs')
-    ]
+    if do_ensemble:
+        ens_cfg_options=[
+            ('mean', 'logits'), 
+            ('mean', 'probs'), 
+            ('product', 'probs')
+        ]
+    else:
+        ens_cfg_options=[None]
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Gather the different config options.

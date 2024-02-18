@@ -207,15 +207,15 @@ def load_cal_inference_stats(
         inference_df["model_class"] = inference_df["model._class"]
         inference_df["ensemble"] = inference_df["model.ensemble"]
         inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
-        inference_df["normalize"] = inference_df["model.normalize"].fillna("None")
-        inference_df["cal_stats_split"] = inference_df["model.cal_stats_split"].fillna("None")
 
         # Go through several optional keys, and add them if they don't exist
         for optional_key in [
             "model._pretrained_class",
-            "model.ensemble_combine_fn",
-            "model.ensemble_combine_quantity",
-            "model.ensemble_w_metric",
+            "model.normalize",
+            "model.cal_stats_split",
+            "ensemble.combine_fn",
+            "ensemble.combine_quantity",
+            "ensemble.member_w_metric",
             "groupavg_image_metric",
             "groupavg_metric_score"
         ]:
@@ -231,11 +231,11 @@ def load_cal_inference_stats(
             _pretrained_class, 
             pretrained_seed, 
             ensemble, 
-            ensemble_combine_quantity, 
-            ensemble_combine_fn
+            combine_quantity, 
+            combine_fn
         ):
             if ensemble:
-                return f"Ensemble ({ensemble_combine_fn}, {ensemble_combine_quantity})" 
+                return f"Ensemble ({combine_fn}, {combine_quantity})" 
             else:
                 if model_class == "Vanilla":
                     return f"UNet (seed={pretrained_seed})"

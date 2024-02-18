@@ -118,6 +118,7 @@ def get_average_unet_baselines(
 ) -> pd.DataFrame:
     # Collect all the individual networks.
     unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
+    print(unet_info_df.keys())
     # These are the keys we want to group by.
     unet_group_keys = [
         'data_id',
