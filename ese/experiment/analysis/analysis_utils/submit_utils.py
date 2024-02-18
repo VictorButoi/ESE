@@ -102,3 +102,39 @@ def get_ese_inference_configs(
 
     # Return the list of different configs.
     return calibrator_option_list
+
+
+def get_ese_calibration_configs(
+    group_dict: dict,
+    calibrators: List[str], 
+    base_options: Optional[dict] = None
+):
+    scratch_root = Path("/storage/vbutoi/scratch/ESE")
+
+    cal_option_list = []
+    for calibrator in calibrators:
+        log_root = scratch_root / 'calibration' / group_dict['exp_group'] / f"Individual_{calibrator}"
+        # Get the calibrator name
+        calibrator_class_name_map = {
+            "LTS": "ese.experiment.models.calibrators.LTS",
+            "TempScaling": "ese.experiment.models.calibrators.Temperature_Scaling",
+            "VectorScaling": "ese.experiment.models.calibrators.Vector_Scaling",
+            "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
+            "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
+            "NS_V2": "ese.experiment.models.calibrators.NS_V2",
+        }
+        if calibrator in calibrator_class_name_map:
+            calibrator = calibrator_class_name_map[calibrator]
+
+        calibration_options = {
+            'log.root': [log_root],
+            'data.preload': [group_dict['preload']],
+            'train.pretrained_dir': gather_exp_paths(group_dict['base_models_group']),
+            'model._class': [calibrator],
+        }
+        if base_options is not None:
+            calibration_options.update(base_options)
+        # Add the calibration options to the list
+        cal_option_list.append(calibration_options)
+    # Return the list of calibration options
+    return cal_option_list
