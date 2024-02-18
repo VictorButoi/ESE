@@ -19,7 +19,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
     preload: bool = False
     cities: Any = "all" 
     return_data_id: bool = False
-    iters_per_epoch: Optional[int] = None
+    iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
 
     def __post_init__(self):

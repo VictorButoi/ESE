@@ -110,6 +110,7 @@ def get_ese_calibration_configs(
     base_options: Optional[dict] = None
 ):
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
+    training_exps_dir = scratch_root / "training" / group_dict['base_models_group']
 
     cal_option_list = []
     for calibrator in calibrators:
@@ -127,9 +128,9 @@ def get_ese_calibration_configs(
             calibrator = calibrator_class_name_map[calibrator]
 
         calibration_options = {
-            'log.root': [log_root],
+            'log.root': [str(log_root)],
             'data.preload': [group_dict['preload']],
-            'train.pretrained_dir': gather_exp_paths(group_dict['base_models_group']),
+            'train.pretrained_dir': gather_exp_paths(training_exps_dir),
             'model._class': [calibrator],
         }
         if base_options is not None:

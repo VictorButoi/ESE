@@ -210,7 +210,10 @@ class NECTAR_Scaling(nn.Module):
             self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
 
     def weights_init(self):
-        self.neighborhood_temps.data.fill_(1)
+        if self.class_wise:
+            self.class_wise_nt.data.fill_(1)
+        else:
+            self.neighborhood_temps.data.fill_(1)
 
     def forward(self, logits, **kwargs):
         # Softmax the logits to get probabilities
@@ -263,7 +266,7 @@ class NS_V2(nn.Module):
         positive_constraint: bool = True,
         **kwargs
     ):
-        super(NECTAR_Scaling, self).__init__()
+        super(NS_V2, self).__init__()
         self.eps = eps
         self.threshold = threshold
         self.num_classes = num_classes
@@ -274,7 +277,7 @@ class NS_V2(nn.Module):
         self.class_wise_nt = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
 
     def weights_init(self):
-        self.neighborhood_temps.data.fill_(1)
+        self.class_wise_nt.data.fill_(1)
 
     def forward(self, logits, **kwargs):
         # Softmax the logits to get probabilities
