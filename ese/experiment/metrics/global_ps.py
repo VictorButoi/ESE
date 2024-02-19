@@ -212,15 +212,15 @@ def joint_class_neighbor_bin_stats(
     neighborhood_width: int,
     square_diff: bool = False,
     edge_only: bool = False,
+    discrete: bool = True,
     device: Optional[Literal["cpu", "cuda"]] = None,
     **kwargs
 ) -> dict:
-    stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
-        key_1=f"{stat_type}_label",
-        key_2=f"pred_num_neighb",
+        key_1="true_label" if class_wise else "pred_label",
+        key_2="pred_num_neighb" if discrete else "local_conf_bin",
         key_3="prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width

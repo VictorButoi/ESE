@@ -4,7 +4,7 @@ import torch.nn as nn
 # misc imports
 import pickle
 # local imports
-from ..metrics.global_ps import global_binwise_stats
+from ..metrics.global_ps import class_wise_bin_stats, joint_class_neighbor_bin_stats
 from ..metrics.utils import (
     get_bins, 
     get_conf_region,
@@ -37,12 +37,10 @@ class Histogram_Binning(nn.Module):
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
-        gbs = global_binwise_stats(
+        gbs = class_wise_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split], # Use the validation set stats.
             num_prob_bins=self.num_bins, # Use 15 bins
             num_classes=self.num_classes,
-            class_conditioned=True,
-            neighborhood_conditioned=False,
             class_wise=True,
             device="cuda"
         )
@@ -110,14 +108,13 @@ class NECTAR_Binning(nn.Module):
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
-        gbs = global_binwise_stats(
+        gbs = joint_class_neighbor_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
             num_prob_bins=self.num_prob_bins, # Use 15 bins
             num_classes=self.num_classes,
             neighborhood_width=self.neighborhood_width,       
-            class_conditioned=True,
-            neighborhood_conditioned=True,
             class_wise=True,
+            discrete=True,
             device="cuda"
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
@@ -183,7 +180,7 @@ class NECTAR_Binning(nn.Module):
         return "cpu"
 
 
-class NB_V2(nn.Module):
+class Soft_NECTAR_Binning(nn.Module):
 
     def __init__(
         self,
@@ -195,7 +192,7 @@ class NB_V2(nn.Module):
         cal_stats_split: str,
         **kwargs
     ):
-        super(NB_V2, self).__init__()
+        super(Soft_NECTAR_Binning, self).__init__()
         # Set the parameters as class attributes
         self.num_prob_bins = num_prob_bins
         self.num_classes = num_classes
@@ -208,14 +205,13 @@ class NB_V2(nn.Module):
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
-        gbs = global_binwise_stats(
+        gbs = joint_class_neighbor_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
             num_prob_bins=self.num_prob_bins, # Use 15 bins
             num_classes=self.num_classes,
             neighborhood_width=self.neighborhood_width,       
-            class_conditioned=True,
-            neighborhood_conditioned=True,
             class_wise=True,
+            discrete=False,
             device="cuda"
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins

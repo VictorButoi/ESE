@@ -9,6 +9,7 @@ def get_calibrator_cls(calibrator: str):
         "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
         "NectarBinning": "ese.experiment.models.binning.NECTAR_Binning",
+        "SoftNectarBinning": "ese.experiment.models.binning.Soft_NECTAR_Binning",
     }
     if calibrator in calibrator_class_name_map:
         return calibrator_class_name_map[calibrator]
