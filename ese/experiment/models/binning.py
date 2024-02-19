@@ -19,7 +19,7 @@ class Histogram_Binning(nn.Module):
 
     def __init__(
         self,
-        num_bins: int,
+        num_prob_bins: int,
         num_classes: int,
         stats_file: str,
         normalize: bool,
@@ -28,7 +28,7 @@ class Histogram_Binning(nn.Module):
     ):
         super(Histogram_Binning, self).__init__()
         # Set the parameters as class attributes
-        self.num_bins = num_bins
+        self.num_prob_bins = num_prob_bins
         self.num_classes = num_classes
         self.stats_file = stats_file
         self.normalize = normalize
@@ -39,7 +39,7 @@ class Histogram_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         gbs = class_wise_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split], # Use the validation set stats.
-            num_prob_bins=self.num_bins, # Use 15 bins
+            num_prob_bins=self.num_prob_bins, # Use 15 bins
             num_classes=self.num_classes,
             class_wise=True,
             device="cuda"
@@ -47,7 +47,7 @@ class Histogram_Binning(nn.Module):
         self.val_freqs = gbs['bin_freqs'] # C x Bins
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
-            num_bins=self.num_bins, 
+            num_prob_bins=self.num_prob_bins, 
             start=0.0,
             end=1.0
         )
