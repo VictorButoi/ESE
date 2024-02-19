@@ -322,7 +322,7 @@ def agg_neighbors_preds(
     class_wise: bool,
     neighborhood_width: int,
     discrete: bool,
-    binary: bool,
+    binary: bool = True,
     kernel: Literal['mean', 'gaussian'] = 'mean',
     num_classes: Optional[int] = None
 ):

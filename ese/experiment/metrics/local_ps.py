@@ -41,13 +41,10 @@ def bin_stats_init(
     y_pred: Tensor,
     y_true: Tensor,
     num_prob_bins: int,
-    class_wise: bool,
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None
 ):
-    if len(y_true.shape) == 3:
-        y_true = y_true.unsqueeze(1) # Unsqueezing the channel dimension.
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
         f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
     
@@ -67,56 +64,68 @@ def bin_stats_init(
 
     # Define the confidence interval (if not provided).
     if conf_interval is None:
-        if class_wise:
-            conf_interval = (0.0, 1.0)
-        else:
-            lower_bound = 0.0 if (C == 0) else 1 / C
-            conf_interval = (lower_bound, 1.0)
+        lower_bound = 0.0 if (C == 0) else 1 / C
+        conf_interval = (lower_bound, 1.0)
 
-    if class_wise:
-        assert conf_interval == (0.0, 1.0),\
-            f"Confidence interval must be (0, 1) for class-wise binning. Got {conf_interval}."
-
-    conf_bin_map = get_bin_per_sample(
-        pred_map=y_pred if class_wise else y_max_prob_map,
+    top_prob_bin_map = get_bin_per_sample(
+        pred_map=y_max_prob_map,
         num_prob_bins=num_prob_bins,
         start=conf_interval[0],
         end=conf_interval[1],
-        class_wise=class_wise
+        class_wise=False
+    ) # B x H x W
+
+    classwise_prob_bin_map = get_bin_per_sample(
+        pred_map=y_pred,
+        num_prob_bins=num_prob_bins,
+        start=0.0,
+        end=1.0,
+        class_wise=True
     ) # B x H x W
 
     # Get a map of which pixels match their neighbors and how often.
     if neighborhood_width is not None:
+        nn_args = {
+            "neighborhood_width": neighborhood_width,
+            "discrete": True,
+        }
         # Predicted map
-        pred_neighbors_map = agg_neighbors_preds(
+        top_pred_neighbors_map = agg_neighbors_preds(
                                 pred_map=y_hard,
-                                neighborhood_width=neighborhood_width,
-                                discrete=True,
-                                class_wise=class_wise,
-                                num_classes=C,
-                                binary=class_wise
+                                class_wise=False,
+                                binary=False,
+                                **nn_args
                             )
         # True map
-        true_neighbors_map = agg_neighbors_preds(
+        top_true_neighbors_map = agg_neighbors_preds(
                                 pred_map=y_true.long(),
-                                neighborhood_width=neighborhood_width,
-                                discrete=True,
-                                class_wise=class_wise,
+                                class_wise=False,
+                                binary=False,
+                                **nn_args
+                            )
+        # Predicted map
+        classwise_pred_neighbors_map = agg_neighbors_preds(
+                                pred_map=y_hard,
+                                class_wise=True,
                                 num_classes=C,
-                                binary=class_wise
+                                **nn_args
+                            )
+        # True map
+        classwise_true_neighbors_map = agg_neighbors_preds(
+                                pred_map=y_true.long(),
+                                class_wise=True,
+                                num_classes=C,
+                                **nn_args
                             )
     else:
-        pred_neighbors_map = None
-        true_neighbors_map = None 
+        top_pred_neighbors_map = None
+        top_true_neighbors_map = None 
+        classwise_pred_neighbors_map = None
+        classwise_true_neighbors_map = None 
 
     # Get the pixelwise frequency.
-    if class_wise:
-        C = y_pred.shape[1]
-        frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float()
-        # Reshape it from B x H x W x C -> B x C x H x W
-        frequency_map = frequency_map.permute(0, 3, 1, 2)
-    else:
-        frequency_map = (y_hard == y_true).float()
+    top_frequency_map = (y_hard == y_true).float()
+    classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
     
     # Wrap this into a dictionary.
     return {
@@ -124,10 +133,14 @@ def bin_stats_init(
         "y_max_prob_map": y_max_prob_map.to(torch.float64),
         "y_hard": y_hard.to(torch.float64),
         "y_true": y_true.to(torch.float64),
-        "frequency_map": frequency_map.to(torch.float64),
-        "bin_ownership_map": conf_bin_map,
-        "pred_neighbors_map": pred_neighbors_map,
-        "true_neighbors_map": true_neighbors_map,
+        "top_frequency_map": top_frequency_map.to(torch.float64),
+        "classwise_frequency_map": classwise_frequency_map.to(torch.float64),
+        "top_prob_bin_map": top_prob_bin_map,
+        "classwise_prob_bin_map": classwise_prob_bin_map,
+        "top_pred_neighbors_map": top_pred_neighbors_map,
+        "top_true_neighbors_map": top_true_neighbors_map,
+        "classwise_pred_neighbors_map": classwise_pred_neighbors_map,
+        "classwise_true_neighbors_map": classwise_true_neighbors_map,
     } 
 
 
@@ -141,17 +154,20 @@ def bin_stats(
     square_diff: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
     # Init some things.
-    obj_dict = bin_stats_init(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
-        neighborhood_width=neighborhood_width,
-        from_logits=from_logits,
-        class_wise=False
-    )
+    if preloaded_obj_dict is not None:
+        obj_dict = preloaded_obj_dict
+    else:
+        obj_dict = bin_stats_init(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_prob_bins=num_prob_bins,
+            conf_interval=conf_interval,
+            neighborhood_width=neighborhood_width,
+            from_logits=from_logits,
+        )
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_prob_bins, dtype=torch.float64),
@@ -164,9 +180,9 @@ def bin_stats(
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
             conditional_region_dict={
-                "bin_idx": (bin_idx, obj_dict["bin_ownership_map"]),
+                "bin_idx": (bin_idx, obj_dict["top_prob_bin_map"]),
             },
-            gt_nn_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
+            gt_nn_map=obj_dict["top_true_neighbors_map"], # Note this is off ACTUAL neighbors.
             neighborhood_width=neighborhood_width,
             edge_only=edge_only,
         )
@@ -176,7 +192,7 @@ def bin_stats(
             bi = calc_bin_info(
                 prob_map=obj_dict["y_max_prob_map"],
                 bin_conf_region=bin_conf_region,
-                frequency_map=obj_dict["frequency_map"],
+                frequency_map=obj_dict["top_frequency_map"],
                 square_diff=square_diff
             )
             for k, v in bi.items():
@@ -201,17 +217,20 @@ def top_label_bin_stats(
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
     # Init some things.
-    obj_dict = bin_stats_init(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
-        neighborhood_width=neighborhood_width,
-        from_logits=from_logits,
-        class_wise=False
-    )
+    if preloaded_obj_dict is not None:
+        obj_dict = preloaded_obj_dict
+    else:
+        obj_dict = bin_stats_init(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_prob_bins=num_prob_bins,
+            conf_interval=conf_interval,
+            neighborhood_width=neighborhood_width,
+            from_logits=from_logits,
+        )
     # If top label, then everything is done based on
     # predicted values, not ground truth. 
     unique_labels = torch.unique(obj_dict["y_hard"])
@@ -229,10 +248,10 @@ def top_label_bin_stats(
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
-                    "bin_idx": (bin_idx, obj_dict["bin_ownership_map"]),
+                    "bin_idx": (bin_idx, obj_dict["top_prob_bin_map"]),
                     "pred_label": (lab, obj_dict["y_hard"])
                 },
-                gt_nn_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
+                gt_nn_map=obj_dict["top_true_neighbors_map"], # Note this is off ACTUAL neighbors.
                 neighborhood_width=neighborhood_width,
                 edge_only=edge_only,
             )
@@ -242,7 +261,7 @@ def top_label_bin_stats(
                 bi = calc_bin_info(
                     prob_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
-                    frequency_map=obj_dict["frequency_map"],
+                    frequency_map=obj_dict["top_frequency_map"],
                     square_diff=square_diff
                 )
                 for k, v in bi.items():
@@ -267,18 +286,20 @@ def joint_label_bin_stats(
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
-
-    # Init some things.
-    obj_dict = bin_stats_init(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
-        neighborhood_width=neighborhood_width,
-        from_logits=from_logits,
-        class_wise=True
-    )
+    if preloaded_obj_dict is not None:
+        obj_dict = preloaded_obj_dict
+    else:
+        # Init some things.
+        obj_dict = bin_stats_init(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_prob_bins=num_prob_bins,
+            conf_interval=conf_interval,
+            neighborhood_width=neighborhood_width,
+            from_logits=from_logits,
+        )
     
     # Unlike true labels we need to get the true unique labels.
     max_label = y_pred.shape[1]
@@ -294,9 +315,9 @@ def joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
-        lab_true_neighbors_map = obj_dict["true_neighbors_map"][:, lab, ...]
+        lab_frequency_map = obj_dict["classwise_frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, lab, ...]
+        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, lab, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
@@ -339,19 +360,21 @@ def neighbor_bin_stats(
     from_logits: bool = False,
     square_diff: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
-    # Init some things.
-    obj_dict = bin_stats_init(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
-        neighborhood_width=neighborhood_width,
-        from_logits=from_logits,
-        class_wise=False
-    )
+    if preloaded_obj_dict is not None:
+        obj_dict = preloaded_obj_dict
+    else:
+        obj_dict = bin_stats_init(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_prob_bins=num_prob_bins,
+            conf_interval=conf_interval,
+            neighborhood_width=neighborhood_width,
+            from_logits=from_logits,
+        )
     # Set the cal info tracker.
-    unique_pred_matching_neighbors = obj_dict["pred_neighbors_map"].unique()
+    unique_pred_matching_neighbors = obj_dict["top_pred_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     cal_info = {
         "bin_cal_errors": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
@@ -364,11 +387,11 @@ def neighbor_bin_stats(
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
-                    "bin_idx": (bin_idx, obj_dict["bin_ownership_map"]),
-                    "pred_nn": (p_nn, obj_dict["pred_neighbors_map"])
+                    "bin_idx": (bin_idx, obj_dict["top_prob_bin_map"]),
+                    "pred_nn": (p_nn, obj_dict["top_pred_neighbors_map"])
                 },
                 gt_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
-                gt_nn_map=obj_dict["true_neighbors_map"], # Note this is off ACTUAL neighbors.
+                gt_nn_map=obj_dict["top_true_neighbors_map"], # Note this is off ACTUAL neighbors.
                 neighborhood_width=neighborhood_width,
                 edge_only=edge_only,
             )
@@ -378,7 +401,7 @@ def neighbor_bin_stats(
                 bi = calc_bin_info(
                     prob_map=obj_dict["y_max_prob_map"],
                     bin_conf_region=bin_conf_region,
-                    frequency_map=obj_dict["frequency_map"],
+                    frequency_map=obj_dict["top_frequency_map"],
                     square_diff=square_diff
                 )
                 for k, v in bi.items():
@@ -403,17 +426,19 @@ def neighbor_joint_label_bin_stats(
     edge_only: bool = False,
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
-    # Init some things.
-    obj_dict = bin_stats_init(
-        y_pred=y_pred,
-        y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
-        neighborhood_width=neighborhood_width,
-        from_logits=from_logits,
-        class_wise=True
-    )
+    if preloaded_obj_dict is not None:
+        obj_dict = preloaded_obj_dict
+    else:
+        obj_dict = bin_stats_init(
+            y_pred=y_pred,
+            y_true=y_true,
+            num_prob_bins=num_prob_bins,
+            conf_interval=conf_interval,
+            neighborhood_width=neighborhood_width,
+            from_logits=from_logits,
+        )
 
     # Unlike true labels we need to get the true unique labels.
     max_label = y_pred.shape[1]
@@ -421,7 +446,7 @@ def neighbor_joint_label_bin_stats(
     
     # Setup the cal info tracker.
     n_labs = len(label_set)
-    unique_pred_matching_neighbors = obj_dict["pred_neighbors_map"].unique()
+    unique_pred_matching_neighbors = obj_dict["classwise_pred_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
@@ -432,13 +457,13 @@ def neighbor_joint_label_bin_stats(
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
-        lab_pred_neighbors_map = obj_dict["pred_neighbors_map"][:, lab, ...]
-        lab_true_neighbors_map = obj_dict["true_neighbors_map"][:, lab, ...]
+        lab_frequency_map = obj_dict["classwise_frequency_map"][:, lab, ...]
+        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, lab, ...]
+        lab_pred_neighbors_map = obj_dict["classwise_pred_neighbors_map"][:, lab, ...]
+        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, lab, ...]
         # Cycle through the neighborhood classes.
         for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-            for bin_idx in range(num_bins):
+            for bin_idx in range(num_prob_bins):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
                     bin_idx=bin_idx, 
