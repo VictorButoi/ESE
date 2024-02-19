@@ -246,18 +246,15 @@ def cal_stats_init(cfg_dict):
             cal_metrics_dict=cfg_dict["global_cal_metrics"]
         )
     #############################
-    trackers = {}
-    # Setup trackers for both or either of image level statistics
-    if cfg_dict['log']["log_image_stats"]:
-        trackers["image_level_records"] = []
-    # or pixel level statistics.
-    if cfg_dict['log']["log_pixel_stats"]:
-        trackers["tl_pixel_meter_dict"] = {}
-        trackers["cw_pixel_meter_dict"] = {}
-        # Add trackers per split
-        for data_split in dataloaders:
-            trackers["tl_pixel_meter_dict"][data_split] = {}
-            trackers["cw_pixel_meter_dict"][data_split] = {}
+    trackers = {
+        "image_level_records": [],
+        "tl_pixel_meter_dict": {},
+        "cw_pixel_meter_dict": {}
+    }
+    # Add trackers per split
+    for data_split in dataloaders:
+        trackers["tl_pixel_meter_dict"][data_split] = {}
+        trackers["cw_pixel_meter_dict"][data_split] = {}
     # Place these dictionaries into the config dictionary.
     cfg_dict["qual_metrics"] = qual_metrics 
     # Return a dictionary of the components needed for the calibration statistics.

@@ -81,9 +81,9 @@ def get_cal_stats(
                         image_forward_loop(**forward_item)
                     else:
                         raise ValueError(f"Input type {cal_stats_components['input_type']} not recognized.")
-
         # Save the records at the end too
-        save_trackers(output_root, trackers=trackers)
+        if cfg_dict["log"]["log_image_stats"]:
+            save_trackers(output_root, trackers=trackers)
 
     # After the forward loop, we can calculate the global calibration metrics.
     if cfg_dict["log"]["summary_compute_global_metrics"]:
@@ -112,7 +112,8 @@ def get_cal_stats(
                 else:
                     raise ValueError(f"Calibration type {cal_metric_dict['cal_type']} not recognized.")
         # Save the dataframe again.
-        log_image_df.to_pickle(image_stats_dir)
+        if cfg_dict["log"]["log_pixel_stats"]:
+            log_image_df.to_pickle(image_stats_dir)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -194,7 +195,7 @@ def image_forward_loop(
 
         # Save the records every so often, to get intermediate results. Note, because of data_ids
         # this can contain fewer than 'log interval' many items.
-        if data_counter % inference_cfg['log']['log_interval'] == 0:
+        if inference_cfg["log"]["log_image_stats"] and data_counter % inference_cfg['log']['log_interval'] == 0:
             save_trackers(output_root, trackers=trackers)
 
         data_counter += 1
