@@ -5,6 +5,7 @@ from torch.nn import functional as F
 from pydantic import validate_arguments
 # local imports
 from ..experiment.utils import reduce_ensemble_preds
+from ..metrics.local_ps import bin_stats_init
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -13,16 +14,11 @@ def get_image_stats(
     inference_cfg: dict,
     image_level_records
 ):
+    num_prob_bins = inference_cfg["local_calibration"]["num_prob_bins"]
+    neighborhood_width = inference_cfg["local_calibration"]["neighborhood_width"]
+
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
-        # Get the reduced predictions
-        input_config = {
-            'y_pred': reduce_ensemble_preds(
-                        output_dict, 
-                        inference_cfg=inference_cfg,
-                    )['y_probs'],
-            'y_true': output_dict['y_true']
-        }
         # Gather the individual predictions
         if output_dict['y_probs'] is not None:
             pred_type = "y_probs"
@@ -36,17 +32,60 @@ def get_image_stats(
             for ens_mem_idx in range(output_dict[pred_type].shape[2])
         ]
         # Construct the input cfgs used for calulating metrics.
-        ensemble_member_input_cfgs = [
+        ens_member_qual_input_cfgs = [
             {
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
-                "from_logits": from_logits
+                "from_logits": from_logits,
             } for member_pred in ensemble_member_logits
         ]
+        ens_member_cal_input_cfgs = [
+            {
+                "y_pred": member_pred, 
+                "y_true": output_dict["y_true"],
+                "from_logits": from_logits,
+                "preloaded_obj_dict": bin_stats_init(
+                                        y_pred=member_pred,
+                                        y_true=output_dict["y_true"],
+                                        from_logits=from_logits,
+                                        num_prob_bins=num_prob_bins,
+                                        neighborhood_width=neighborhood_width
+                                    )
+            } for member_pred in ensemble_member_logits
+        ]
+        # Get the reduced predictions
+        qual_input_config = {
+            'y_pred': reduce_ensemble_preds(
+                        output_dict, 
+                        inference_cfg=inference_cfg,
+                    )['y_probs'],
+            'y_true': output_dict['y_true']
+        }
+        # Get the reduced predictions
+        cal_input_config = {
+            **qual_input_config,
+            "preloaded_obj_dict": bin_stats_init(
+                                    y_pred=qual_input_config['y_pred'],
+                                    y_true=qual_input_config['y_true'],
+                                    from_logits=False,
+                                    num_prob_bins=num_prob_bins,
+                                    neighborhood_width=neighborhood_width
+                                )
+        }
     else:
-        input_config = {
+        qual_input_config = {
             "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
             "y_true": output_dict["y_true"], # (B, C, H, W)
+        }
+        cal_input_config = {
+            **qual_input_config,
+            "preloaded_obj_dict": bin_stats_init(
+                                    y_pred=qual_input_config['y_pred'],
+                                    y_true=qual_input_config['y_true'],
+                                    from_logits=False,
+                                    num_prob_bins=num_prob_bins,
+                                    neighborhood_width=neighborhood_width
+                                )
         }
     # Dicts for storing ensemble scores.
     grouped_scores_dict = {
@@ -65,7 +104,7 @@ def get_image_stats(
             #######################################################
             if inference_cfg["log"]["track_ensemble_member_scores"]:
                 individual_qual_scores = []
-                for ens_mem_input_cfg in ensemble_member_input_cfgs:
+                for ens_mem_input_cfg in ens_member_qual_input_cfgs:
                     member_qual_score = qual_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_qual_scores.append(member_qual_score)
                 # Now place it in the dictionary.
@@ -73,7 +112,7 @@ def get_image_stats(
             else:
                 grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
-        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**input_config)
+        qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"]["show_examples"]:
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
@@ -90,7 +129,7 @@ def get_image_stats(
             #######################################################
             if inference_cfg["log"]["track_ensemble_member_scores"]:
                 individual_cal_scores = []
-                for ens_mem_input_cfg in ensemble_member_input_cfgs:
+                for ens_mem_input_cfg in ens_member_cal_input_cfgs:
                     member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_cal_scores.append(member_cal_score)
                 # print("Ignoring Ensemble member preds~!")
@@ -99,7 +138,7 @@ def get_image_stats(
             else:
                 grouped_scores_dict['calibration'][cal_metric_name] = None
         # Get the calibration error. 
-        cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**input_config)
+        cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config)
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"]["show_examples"]:
             print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
