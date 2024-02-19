@@ -33,6 +33,7 @@ def run_ese_exp(
     submit_input_check(experiment_class, job_func)
     # Get the config as a dictionary.
     cfg = config.to_dict()
+    cfg["log"]["show_examples"] = show_examples
     # If run num undefined, make a substitute.
     if run_name is not None:
         log_dir_root = "/".join(cfg["log"]["root"].split("/")[:-1])

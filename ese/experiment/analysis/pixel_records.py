@@ -141,67 +141,60 @@ def update_cw_pixel_meters(
     pixel_level_records 
 ):
     calibration_cfg = inference_cfg['global_calibration']
+    num_neighbor_classes = calibration_cfg["neighborhood_width"]**2
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
-    # Get the pixel-wise number of PREDICTED matching neighbors.
     C = y_probs.shape[1]
 
-    # Figure out where each pixel belongs (in confidence)
-    # BIN CONFIDENCE 
+    # BIN CONFIDENCE, both the actual bins and the smoothed local conf bins.
     ############################################################################3
+    bin_args = {
+        "start": 0.0,
+        "end": 1.0,
+        "class_wise": True
+    }
     conf_bin_map = get_bin_per_sample(
         pred_map=y_probs,
         num_prob_bins=calibration_cfg['num_prob_bins'],
-        start=0.0,
-        end=1.0,
-        class_wise=True
+        **bin_args
     ).cpu().numpy()
 
-    local_prob_map = agg_neighbors_preds(
-                        pred_map=y_probs, # B x H x W
-                        neighborhood_width=calibration_cfg["neighborhood_width"],
-                        discrete=False,
-                        binary=True,
-                        class_wise=True
-                    )
     local_conf_bin_map = get_bin_per_sample(
-        pred_map=local_prob_map,
-        num_prob_bins=calibration_cfg['neighborhood_width'],
-        start=0.0,
-        end=1.0,
-        class_wise=True
+        pred_map=agg_neighbors_preds(
+                    pred_map=y_probs, # B x H x W
+                    neighborhood_width=calibration_cfg["neighborhood_width"],
+                    discrete=False,
+                    class_wise=True
+                ),
+        num_prob_bins=num_neighbor_classes,
+        **bin_args
     ).cpu().numpy()
-
-    # Reshape to look like the y_probs.
+    
+    # NEIGHBORHOOD INFO. Get the predicted and actual number of label neighbors.
     ###########################################################################3
-    # These are conv ops so they are done on the GPU.
+    agg_neighbor_args = {
+        "class_wise": True,
+        "discrete": True,
+        "neighborhood_width": calibration_cfg["neighborhood_width"],
+        "num_classes": C
 
+    }
     true_nn_map = agg_neighbors_preds(
                     pred_map=output_dict["y_true"].squeeze(1), # B x H x W
-                    neighborhood_width=calibration_cfg["neighborhood_width"],
-                    discrete=True,
-                    binary=True, # Ignore the background class.
-                    class_wise=True,
-                    num_classes=C,
+                    **agg_neighbor_args
                 ).cpu().numpy()
 
     pred_nn_map = agg_neighbors_preds(
                     pred_map=output_dict["y_hard"].long().squeeze(1), # B x H x W
-                    neighborhood_width=calibration_cfg["neighborhood_width"],
-                    discrete=True,
-                    binary=True, # Ignore the background class.
-                    class_wise=True,
-                    num_classes=C,
+                    **agg_neighbor_args
                 ).cpu().numpy() 
 
+    # CALIBRATION VARS.
+    ###########################################################################3
     classwise_freq_map = torch.nn.functional.one_hot(
         y_true.squeeze(1).long(), C
-    ) 
-    # (B x H x W x C) -> (B x C x H x W)
-    classwise_freq_map = classwise_freq_map.permute(0, 3, 1, 2)
-    
+    ).permute(0, 3, 1, 2).cpu().numpy() # (B x H x W x C) -> (B x C x H x W)
     # Place all necessary tensors on the CPU as numpy arrays.
-    classwise_freq_map = classwise_freq_map.cpu().numpy()
     classwise_prob_map = y_probs.cpu().numpy()
 
     # Make a version of pixel meter dict for this image (for error checking)
@@ -220,8 +213,8 @@ def update_cw_pixel_meters(
             lab_pred_nn_map,
             lab_loc_bin_ownership_map,
             lab_bin_ownership_map,
-        ]) # 3 x B x H x W
-        # Reshape the numpy array to be 2 x (B x H x W)
+        ]) # 4 x B x H x W
+        # Reshape the numpy array to be 4 x (B x H x W)
         lab_combo_array = lab_combo_array.reshape(lab_combo_array.shape[0], -1)
         # Get the unique vectors along the pixel dimensions.
         unique_lab_combinations = np.unique(lab_combo_array, axis=1).T

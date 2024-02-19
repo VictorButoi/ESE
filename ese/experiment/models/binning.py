@@ -225,18 +225,13 @@ class Soft_NECTAR_Binning(nn.Module):
     def forward(self, logits):
         # Define C as the number of classes.
         C = self.num_classes
-
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
-        y_hard = torch.argmax(prob_tensor, dim=1) # B x H x W
-
         # Iterate through each label, and replace the probs with the calibrated probs.
         for lab_idx in range(C):
             lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
-
             # We are building the calibrated prob map. 
             calibrated_lab_prob_map = torch.zeros_like(lab_prob_map)
-
             # Calculate the continuous neighbor map.
             cont_neighbor_agg_map = agg_neighbors_preds(
                 pred_map=lab_prob_map,
@@ -262,10 +257,8 @@ class Soft_NECTAR_Binning(nn.Module):
                 )
                 calibrated_lab_prob_map[nn_conf_region] =\
                     self.val_freqs[lab_idx][nn_bin_idx][neighbor_bin_map][nn_conf_region].float()
-
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map
-
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = prob_tensor.sum(dim=1, keepdim=True)
