@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 # misc imports
 import pickle
+import matplotlib.pyplot as plt
 # local imports
 from ..metrics.global_ps import class_wise_bin_stats, joint_class_neighbor_bin_stats
 from ..metrics.utils import (
@@ -128,40 +129,37 @@ class NECTAR_Binning(nn.Module):
     def forward(self, logits):
         # Define C as the number of classes.
         C = self.num_classes
-
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
-        y_hard = torch.argmax(prob_tensor, dim=1) # B x H x W
-
+        y_hard = torch.argmax(prob_tensor, dim=1).long() # B x H x W
+        # Calculate the binary neighbor map.
+        disc_neighbor_map = agg_neighbors_preds(
+            pred_map=y_hard,
+            class_wise=True,
+            num_classes=C,
+            neighborhood_width=self.neighborhood_width,
+            discrete=True,
+        ) # B x H x W
+        # Calculate the bin ownership map for each pixel probability
+        prob_bin_map = get_bin_per_sample(
+            pred_map=prob_tensor, 
+            class_wise=True,
+            bin_starts=self.conf_bins,
+            bin_widths=self.conf_bin_widths
+        ) # B x H x W
         # Iterate through each label, and replace the probs with the calibrated probs.
         for lab_idx in range(C):
             lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
-
+            lab_disc_neighbor_map = disc_neighbor_map[:, lab_idx, :, :] # B x H x W
+            lab_prob_bin_map = prob_bin_map[:, lab_idx, :, :] # B x H x W
             # We are building the calibrated prob map. 
             calibrated_lab_prob_map = torch.zeros_like(lab_prob_map)
-
-            # Calculate the binary neighbor map.
-            disc_neighbor_agg_map = agg_neighbors_preds(
-                pred_map=(y_hard==lab_idx).long(),
-                class_wise=False,
-                neighborhood_width=self.neighborhood_width,
-                discrete=True,
-                binary=True
-            ) # B x H x W
-            # Calculate the bin ownership map for each pixel probability
-            lab_prob_bin_map = get_bin_per_sample(
-                pred_map=lab_prob_map, 
-                class_wise=False,
-                bin_starts=self.conf_bins,
-                bin_widths=self.conf_bin_widths
-            ) # B x H x W
             # Construct the prob_maps
             for nn_idx in range(self.num_neighbor_classes):
-                neighbor_cls_mask = (disc_neighbor_agg_map==nn_idx)
+                neighbor_cls_mask = (lab_disc_neighbor_map==nn_idx)
                 # Replace the soft predictions with the old frequencies.
                 calibrated_lab_prob_map[neighbor_cls_mask] =\
                     self.val_freqs[lab_idx][nn_idx][lab_prob_bin_map][neighbor_cls_mask].float()
-
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map
 
@@ -215,48 +213,58 @@ class Soft_NECTAR_Binning(nn.Module):
             device="cuda"
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
+        # raise ValueError
         # Get the bins and bin widths
         self.neighbor_bins, self.neighbor_bin_widths = get_bins(
-            num_prob_bins=(self.neighborhood_width**2), 
+            num_prob_bins=self.num_neighbor_classes, 
+            start=0.0,
+            end=1.0
+        )
+        # Get the bins and bin widths
+        self.conf_bins, self.conf_bin_widths = get_bins(
+            num_prob_bins=self.num_prob_bins, 
             start=0.0,
             end=1.0
         )
 
     def forward(self, logits):
-        # Define C as the number of classes.
-        C = self.num_classes
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
+        # Calculate the continuous neighbor map.
+        loc_conf_bin_map = get_bin_per_sample(
+            pred_map=agg_neighbors_preds(
+                        pred_map=prob_tensor,
+                        class_wise=True,
+                        neighborhood_width=self.neighborhood_width,
+                        discrete=False,
+                    ),
+            class_wise=True,
+            bin_starts=self.neighbor_bins,
+            bin_widths=self.neighbor_bin_widths,
+        )
+        # Calculate the bin ownership map for each pixel probability
+        prob_bin_map = get_bin_per_sample(
+            pred_map=prob_tensor, 
+            class_wise=True,
+            bin_starts=self.conf_bins,
+            bin_widths=self.conf_bin_widths
+        ) # B x H x W
         # Iterate through each label, and replace the probs with the calibrated probs.
-        for lab_idx in range(C):
+        for lab_idx in range(self.num_classes):
             lab_prob_map = prob_tensor[:, lab_idx, :, :] # B x H x W
+            lab_loc_conf_bin_map = loc_conf_bin_map[:, lab_idx, :, :] # B x H x W
+            lab_prob_bin_map = prob_bin_map[:, lab_idx, :, :] # B x H x W
             # We are building the calibrated prob map. 
             calibrated_lab_prob_map = torch.zeros_like(lab_prob_map)
-            # Calculate the continuous neighbor map.
-            cont_neighbor_agg_map = agg_neighbors_preds(
-                pred_map=lab_prob_map,
-                class_wise=False,
-                neighborhood_width=self.neighborhood_width,
-                discrete=False,
-                binary=True
-            )
-            # Calculate the bin ownership map for each pixel probability
-            neighbor_bin_map = get_bin_per_sample(
-                pred_map=cont_neighbor_agg_map,
-                class_wise=False,
-                bin_starts=self.neighbor_bins,
-                bin_widths=self.neighbor_bin_widths
-            )
-            # Replace the soft predictions with the old freqencies.
             for nn_bin_idx in range(self.num_neighbor_classes):
                 # Get the region of image corresponding to the confidence
                 nn_conf_region = get_conf_region(
                     conditional_region_dict={
-                        "bin_idx": (nn_bin_idx, neighbor_bin_map)
+                        "bin_idx": (nn_bin_idx, lab_loc_conf_bin_map)
                     }
                 )
                 calibrated_lab_prob_map[nn_conf_region] =\
-                    self.val_freqs[lab_idx][nn_bin_idx][neighbor_bin_map][nn_conf_region].float()
+                    self.val_freqs[lab_idx][nn_bin_idx][lab_prob_bin_map][nn_conf_region].float()
             # Inserted the calibrated prob map back into the original prob map.
             prob_tensor[:, lab_idx, :, :] = calibrated_lab_prob_map
         # If we are normalizing then we need to make sure the probabilities sum to 1.

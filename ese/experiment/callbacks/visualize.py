@@ -8,7 +8,7 @@ import matplotlib.colors as mcolors
 def ShowPredictionsCallback(
     batch, 
     threshold: float = 0.5,
-    size_per_iamge: int = 4,
+    size_per_iamge: int = 5,
     softpred_dim: Optional[int] = None 
 ):
     # If our pred has a different batchsize than our inputs, we

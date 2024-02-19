@@ -245,7 +245,7 @@ def get_bins(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bin_per_sample(
     pred_map: Tensor, 
-    class_wise: bool,
+    class_wise: bool = False,
     num_prob_bins: Optional[int] = None,
     start: Optional[float] = None,
     end: Optional[float] = None,
