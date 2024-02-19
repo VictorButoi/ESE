@@ -15,7 +15,6 @@ def get_ese_inference_configs(
     log_pixel_stats: bool = True,
     ensemble_upper_bound: bool = False,
     normalize_opts: Optional[List[bool]] = [None],
-    discrete_neighbors_opts: Optional[List[bool]] = [None],
     cal_stats_splits: Optional[List[str]] = [None],
     additional_args: Optional[dict] = None,
 ):
@@ -38,10 +37,9 @@ def get_ese_inference_configs(
         ens_cfg_options, 
         normalize_opts, 
         cal_stats_splits,
-        discrete_neighbors_opts,
     ))
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, ens_cfg, normalize, cal_stats_split, discrete_neighbs) in run_cfg_options: 
+    for (calibrator, ens_cfg, normalize, cal_stats_split) in run_cfg_options: 
         # Set a few things that will be consistent for all runs.
         ##################################################
         exp_root = scratch_root / "inference" / group_dict['exp_group']
@@ -61,7 +59,6 @@ def get_ese_inference_configs(
         if "Binning" in calibrator:
             default_config_options['model.normalize'] = [normalize]
             default_config_options['model.cal_stats_split'] = [cal_stats_split]
-            default_config_options['model.discretize_neighbors'] = [discrete_neighbs]
         # If additional args are provided, update the default config options.
         if additional_args is not None:
             default_config_options.update(additional_args)

@@ -211,16 +211,16 @@ def get_label_region_sizes(y_true):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
-    num_bins: int,
+    num_prob_bins: int,
     start: float = 0.0,
     end: float = 1.0,
     adaptive: bool = False,
     y_pred: Optional[Tensor] = None,
     device: Optional[str] = "cuda"
-    ):
+):
     if adaptive:
         sorted_pix_values = torch.sort(y_pred.flatten())[0]
-        conf_bins_chunks = split_tensor(sorted_pix_values, num_bins)
+        conf_bins_chunks = split_tensor(sorted_pix_values, num_prob_bins)
         # Get the ranges of the confidences bins.
         bin_widths = []
         bin_starts = []
@@ -231,10 +231,10 @@ def get_bins(
         conf_bin_widths = Tensor(bin_widths)
         conf_bins = Tensor(bin_starts)
     else:
-        conf_bins = torch.linspace(start, end, num_bins+1)[:-1] # Off by one error
+        conf_bins = torch.linspace(start, end, num_prob_bins+1)[:-1] # Off by one error
         # Get the confidence bins
         bin_width = conf_bins[1] - conf_bins[0]
-        conf_bin_widths = torch.ones(num_bins) * bin_width
+        conf_bin_widths = torch.ones(num_prob_bins) * bin_width
 
     if device is not None:
         return conf_bins.to(device), conf_bin_widths.to(device)
@@ -246,7 +246,7 @@ def get_bins(
 def get_bin_per_sample(
     pred_map: Tensor, 
     class_wise: bool,
-    num_bins: Optional[int] = None,
+    num_prob_bins: Optional[int] = None,
     start: Optional[float] = None,
     end: Optional[float] = None,
     bin_starts: Optional[Tensor] = None, 
@@ -265,12 +265,12 @@ def get_bin_per_sample(
       If a confidence doesn't fit in any bin, its bin index is set to -1.
     """
     # Ensure that the bin_starts and bin_widths tensors have the same shape
-    assert (num_bins is not None and start is not None and end is not None)\
+    assert (num_prob_bins is not None and start is not None and end is not None)\
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
-    if num_bins is not None:
+    if num_prob_bins is not None:
         bin_starts, bin_widths = get_bins(
-            num_bins=num_bins, 
+            num_prob_bins=num_prob_bins, 
             start=start, 
             end=end, 
             device=device
@@ -379,7 +379,7 @@ def agg_neighbors_preds(
     else:
         assert len(pred_map.shape) == 3,\
             f"Pred map shape should be: (B, H, W), got shape: {pred_map.shape}."
-        if binary:
+        if binary and discrete:
             assert len(torch.unique(pred_map)) in [1, 2],\
                 "If binary, then we must have 1 or 2 unique values in the pred_map."
         return _proc_neighbor_map(

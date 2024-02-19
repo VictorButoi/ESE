@@ -46,7 +46,7 @@ def update_toplabel_pixel_meters(
     toplabel_bin_ownership_map = get_bin_per_sample(
         pred_map=toplabel_prob_map,
         class_wise=False,
-        num_bins=calibration_cfg['num_bins'], 
+        num_prob_bins=calibration_cfg['num_prob_bins'], 
         start=calibration_cfg['conf_interval'][0], 
         end=calibration_cfg['conf_interval'][1]
     )
@@ -151,7 +151,7 @@ def update_cw_pixel_meters(
     ############################################################################3
     conf_bin_map = get_bin_per_sample(
         pred_map=y_probs,
-        num_bins=calibration_cfg['num_bins'],
+        num_prob_bins=calibration_cfg['num_prob_bins'],
         start=0.0,
         end=1.0,
         class_wise=True
@@ -166,7 +166,7 @@ def update_cw_pixel_meters(
                     )
     local_conf_bin_map = get_bin_per_sample(
         pred_map=local_prob_map,
-        num_bins=calibration_cfg['neighborhood_width'],
+        num_prob_bins=calibration_cfg['neighborhood_width'],
         start=0.0,
         end=1.0,
         class_wise=True

@@ -69,12 +69,11 @@ class BinningInferenceExperiment(BaseExperiment):
                     stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
         # Load the model
         self.model = absolute_import(self.model_class)(
-            num_bins=calibration_cfg_dict['num_bins'],
+            num_prob_bins=calibration_cfg_dict['num_prob_bins'],
             num_classes=calibration_cfg_dict['num_classes'],
             neighborhood_width=calibration_cfg_dict['neighborhood_width'],
             stats_file=stats_file_dir,            
             cal_stats_split=model_cfg_dict['cal_stats_split'],
-            discretize_neighbors=model_cfg_dict['discretize_neighbors'],
             normalize=model_cfg_dict['normalize']
         )
         ########################################################################

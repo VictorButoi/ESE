@@ -76,7 +76,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
                         "pretrained_exp_root": str(exp_path),
                         "calibrator_cls": model_cfg["calibrator_cls"],
                         "cal_stats_split": model_cfg["cal_stats_split"],
-                        "discretize_neighbors": model_cfg["discretize_neighbors"],
                         "normalize": model_cfg["normalize"],
                     },
                     "data": total_config["data"]

@@ -40,7 +40,7 @@ def calc_bin_info(
 def bin_stats_init(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     class_wise: bool,
     from_logits: bool = False,
     conf_interval: Optional[Tuple[float, float]] = None,
@@ -79,7 +79,7 @@ def bin_stats_init(
 
     conf_bin_map = get_bin_per_sample(
         pred_map=y_pred if class_wise else y_max_prob_map,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         start=conf_interval[0],
         end=conf_interval[1],
         class_wise=class_wise
@@ -135,7 +135,7 @@ def bin_stats_init(
 def bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
@@ -146,7 +146,7 @@ def bin_stats(
     obj_dict = bin_stats_init(
         y_pred=y_pred,
         y_true=y_true,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         from_logits=from_logits,
@@ -154,13 +154,13 @@ def bin_stats(
     )
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_bins, dtype=torch.float64),
-        "bin_freqs": torch.zeros(num_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_bins, dtype=torch.float64),
+        "bin_confs": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_prob_bins, dtype=torch.float64),
     }
     # Get the regions of the prediction corresponding to each bin of confidence.
-    for bin_idx in range(num_bins):
+    for bin_idx in range(num_prob_bins):
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region(
             conditional_region_dict={
@@ -195,7 +195,7 @@ def bin_stats(
 def top_label_bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -206,7 +206,7 @@ def top_label_bin_stats(
     obj_dict = bin_stats_init(
         y_pred=y_pred,
         y_true=y_true,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         from_logits=from_logits,
@@ -219,13 +219,13 @@ def top_label_bin_stats(
     num_labels = len(unique_labels)
     # Setup the cal info tracker.
     cal_info = {
-        "bin_confs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_labels, num_bins), dtype=torch.float64),
-        "bin_cal_errors": torch.zeros((num_labels, num_bins), dtype=torch.float64)
+        "bin_confs": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64)
     }
     for lab_idx, lab in enumerate(unique_labels):
-        for bin_idx in range(num_bins):
+        for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
@@ -261,7 +261,7 @@ def top_label_bin_stats(
 def joint_label_bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
@@ -273,7 +273,7 @@ def joint_label_bin_stats(
     obj_dict = bin_stats_init(
         y_pred=y_pred,
         y_true=y_true,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         from_logits=from_logits,
@@ -287,10 +287,10 @@ def joint_label_bin_stats(
     # Setup the cal info tracker.
     n_labs = len(label_set)
     cal_info = {
-        "bin_confs": torch.zeros((n_labs, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((n_labs, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((n_labs, num_bins), dtype=torch.float64),
-        "bin_cal_errors": torch.zeros((n_labs, num_bins), dtype=torch.float64)
+        "bin_confs": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64)
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]
@@ -298,7 +298,7 @@ def joint_label_bin_stats(
         lab_bin_ownership_map = obj_dict["bin_ownership_map"][:, lab, ...]
         lab_true_neighbors_map = obj_dict["true_neighbors_map"][:, lab, ...]
         # Cycle through the probability bins.
-        for bin_idx in range(num_bins):
+        for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
@@ -333,7 +333,7 @@ def joint_label_bin_stats(
 def neighbor_bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     neighborhood_width: int,
     edge_only: bool = False,
     from_logits: bool = False,
@@ -344,7 +344,7 @@ def neighbor_bin_stats(
     obj_dict = bin_stats_init(
         y_pred=y_pred,
         y_true=y_true,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         from_logits=from_logits,
@@ -354,13 +354,13 @@ def neighbor_bin_stats(
     unique_pred_matching_neighbors = obj_dict["pred_neighbors_map"].unique()
     num_neighbors = len(unique_pred_matching_neighbors)
     cal_info = {
-        "bin_cal_errors": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
-        "bin_confs": torch.zeros((num_neighbors, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_neighbors, num_bins), dtype=torch.float64)
+        "bin_cal_errors": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64)
     }
     for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
-        for bin_idx in range(num_bins):
+        for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
@@ -397,7 +397,7 @@ def neighbor_bin_stats(
 def neighbor_joint_label_bin_stats(
     y_pred: Tensor,
     y_true: Tensor,
-    num_bins: int,
+    num_prob_bins: int,
     square_diff: bool,
     neighborhood_width: int,
     edge_only: bool = False,
@@ -408,7 +408,7 @@ def neighbor_joint_label_bin_stats(
     obj_dict = bin_stats_init(
         y_pred=y_pred,
         y_true=y_true,
-        num_bins=num_bins,
+        num_prob_bins=num_prob_bins,
         conf_interval=conf_interval,
         neighborhood_width=neighborhood_width,
         from_logits=from_logits,
@@ -425,10 +425,10 @@ def neighbor_joint_label_bin_stats(
     num_neighbors = len(unique_pred_matching_neighbors)
     # Init the cal info tracker.
     cal_info = {
-        "bin_cal_errors": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_confs": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((n_labs, num_neighbors, num_bins), dtype=torch.float64)
+        "bin_cal_errors": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64)
     }
     for l_idx, lab in enumerate(label_set):
         lab_prob_map = obj_dict["y_pred"][:, lab, ...]

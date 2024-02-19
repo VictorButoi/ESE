@@ -7,12 +7,12 @@ data:
   slicing: dense_full
 
 local_calibration:
-    num_bins: 15
+    num_prob_bins: 15
     neighborhood_width: 3
     square_diff: False 
 
 global_calibration:
-    num_bins: 15
+    num_prob_bins: 15
     num_classes: 2
     neighborhood_width: 3
     square_diff: False 
