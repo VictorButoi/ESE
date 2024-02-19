@@ -40,7 +40,7 @@ def get_image_stats(
             {
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
-                "from_logits": from_logits# IMPORTANT, we haven't softmaxed yet.
+                "from_logits": from_logits
             } for member_pred in ensemble_member_logits
         ]
     else:

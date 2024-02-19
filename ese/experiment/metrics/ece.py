@@ -31,6 +31,7 @@ def image_ece_loss(
     from_logits: bool = False,
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
     cal_info = bin_stats(
@@ -41,7 +42,8 @@ def image_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        from_logits=from_logits
+        from_logits=from_logits,
+        preloaded_obj_dict=preloaded_obj_dict
     )
     metric_dict = {
         "metric_type": "local",
@@ -66,6 +68,7 @@ def image_tl_ece_loss(
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
     cal_info = top_label_bin_stats(
@@ -76,7 +79,8 @@ def image_tl_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        from_logits=from_logits
+        from_logits=from_logits,
+        preloaded_obj_dict=preloaded_obj_dict
     )
     metric_dict = {
         "metric_type": "local",
@@ -102,6 +106,7 @@ def image_cw_ece_loss(
     conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
     cal_info = joint_label_bin_stats(
@@ -112,7 +117,8 @@ def image_cw_ece_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        from_logits=from_logits
+        from_logits=from_logits,
+        preloaded_obj_dict=preloaded_obj_dict
     )
     metric_dict = {
         "metric_type": "local",

@@ -23,6 +23,7 @@ def image_elm_loss(
     square_diff: bool = False,
     from_logits: bool = False,
     conf_interval: Optional[List[float]] = None,
+    preloaded_obj_dict: Optional[dict] = None,
     **kwargs
     ) -> Union[dict, Tensor]:
     cal_info = neighbor_bin_stats(
@@ -33,7 +34,8 @@ def image_elm_loss(
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
-        from_logits=from_logits
+        from_logits=from_logits,
+        preloaded_obj_dict=preloaded_obj_dict
     )
     metric_dict = {
         "metric_type": "local",
