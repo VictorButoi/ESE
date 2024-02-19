@@ -7,43 +7,6 @@ from pydantic import validate_arguments
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def global_binwise_stats(
-    pixel_meters_dict: dict,
-    num_prob_bins: int,
-    class_conditioned: bool,
-    neighborhood_conditioned: bool,
-    class_wise: bool = False,
-    num_classes: Optional[int] = None,
-    neighborhood_width: Optional[int] = None,
-    device: Optional[Literal["cpu", "cuda"]] = None,
-    **kwargs
-) -> dict:
-    # If we are class conditioned, need to specify the number of classes.
-    if class_conditioned:
-        assert num_classes is not None, "If class_conditioned is True, num_classes must be defined."
-    if neighborhood_conditioned:
-        assert neighborhood_width is not None, "If neighborhood_conditioned is True, neighborhood_width must be defined."
-    cal_info = {
-        "pixel_meters_dict": pixel_meters_dict,
-        "num_prob_bins": num_prob_bins,
-        "class_wise": class_wise,
-        "neighborhood_width": neighborhood_width,
-        "num_classes": num_classes,
-        "device": device,
-        **kwargs
-    }
-    # Run the selected global function.
-    if not class_conditioned and not neighborhood_conditioned:
-        return prob_bin_stats(**cal_info)
-    elif not neighborhood_conditioned:
-        return class_wise_bin_stats(**cal_info)
-    elif not class_conditioned:
-        return neighbor_wise_bin_stats(**cal_info)
-    else:
-        return joint_class_neighbor_bin_stats(**cal_info)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def prob_bin_stats(
     pixel_meters_dict: dict,
     num_prob_bins: int,

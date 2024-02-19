@@ -1,7 +1,9 @@
 # get the processing function.
 from .local_ps import neighbor_bin_stats 
 from .metric_reductions import elm_reduction 
-from .global_ps import global_binwise_stats  
+from .global_ps import (
+    neighbor_wise_bin_stats
+)  
 # torch imports
 from torch import Tensor
 # misc imports
@@ -58,12 +60,10 @@ def elm_loss(
     square_diff: bool = False,
     **kwargs
     ) -> Union[dict, Tensor]:
-    cal_info = global_binwise_stats(
+    cal_info = neighbor_wise_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         class_wise=False,
-        class_conditioned=False,
-        neighborhood_conditioned=True,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only

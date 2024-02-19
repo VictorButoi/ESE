@@ -18,7 +18,10 @@ from .local_ps import (
     joint_label_bin_stats
 )
 # - global statistics
-from .global_ps import global_binwise_stats  
+from .global_ps import (
+    prob_bin_stats,
+    class_wise_bin_stats
+)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -142,11 +145,9 @@ def ece_loss(
     neighborhood_width: Optional[int] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
-    cal_info = global_binwise_stats(
+    cal_info = prob_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
-        class_conditioned=False,
-        neighborhood_conditioned=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only
@@ -174,13 +175,11 @@ def tl_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
-    cal_info = global_binwise_stats(
+    cal_info = class_wise_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         num_classes=num_classes,
-        class_wise=False,
-        class_conditioned=True,
-        neighborhood_conditioned=False,
+        class_wise=True,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only
@@ -209,13 +208,11 @@ def cw_ece_loss(
     **kwargs
 ) -> Union[dict, Tensor]:
     # Get the statistics either from images or pixel meter dict.
-    cal_info = global_binwise_stats(
+    cal_info = class_wise_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         num_classes=num_classes,
         class_wise=True,
-        class_conditioned=True,
-        neighborhood_conditioned=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only
