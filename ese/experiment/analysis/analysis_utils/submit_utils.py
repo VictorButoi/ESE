@@ -14,8 +14,7 @@ def get_ese_inference_configs(
     log_image_stats: bool = True,
     log_pixel_stats: bool = True,
     ensemble_upper_bound: bool = False,
-    norm_ensemble: Optional[List[bool]] = [None],
-    norm_binning: Optional[List[bool]] = [None],
+    norm_binning_opts: Optional[List[bool]] = [None],
     cal_stats_splits: Optional[List[str]] = [None],
     additional_args: Optional[dict] = None,
 ):
@@ -23,21 +22,24 @@ def get_ese_inference_configs(
     
     # For ensembles, we have three choices for combining the predictions.
     if do_ensemble:
-        ens_cfg_options=[
+        ens_cfg_options = [
             ('mean', 'logits'), 
             ('mean', 'probs'), 
             ('product', 'probs')
         ]
+        norm_ens_opts=[True, False]
     else:
-        ens_cfg_options=[None]
+        ens_cfg_options = [None]
+        norm_ens_opts = [None]
+
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Gather the different config options.
     run_cfg_options = list(itertools.product(
         calibrators_list, 
         ens_cfg_options, 
-        norm_ensemble,
-        norm_binning,
+        norm_ens_opts,
+        norm_binning_opts,
         cal_stats_splits,
     ))
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.

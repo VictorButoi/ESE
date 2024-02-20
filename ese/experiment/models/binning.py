@@ -49,8 +49,8 @@ class Histogram_Binning(nn.Module):
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
             num_prob_bins=self.num_prob_bins, 
-            start=0.0,
-            end=1.0
+            int_start=0.0,
+            int_end=1.0
         )
 
     def forward(self, logits):
@@ -122,8 +122,8 @@ class NECTAR_Binning(nn.Module):
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
             num_prob_bins=self.num_prob_bins, 
-            start=0.0,
-            end=1.0
+            int_start=0.0,
+            int_end=1.0
         )
 
     def forward(self, logits):
@@ -217,14 +217,14 @@ class Soft_NECTAR_Binning(nn.Module):
         # Get the bins and bin widths
         self.neighbor_bins, self.neighbor_bin_widths = get_bins(
             num_prob_bins=self.num_neighbor_classes, 
-            start=0.0,
-            end=1.0
+            int_start=0.0,
+            int_end=1.0
         )
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
             num_prob_bins=self.num_prob_bins, 
-            start=0.0,
-            end=1.0
+            int_start=0.0,
+            int_end=1.0
         )
 
     def forward(self, logits):
