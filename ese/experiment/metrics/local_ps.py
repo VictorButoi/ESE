@@ -224,23 +224,21 @@ def top_label_bin_stats(
         )
     # If top label, then everything is done based on
     # predicted values, not ground truth. 
-    unique_labels = torch.unique(obj_dict["y_hard"])
-
-    num_labels = len(unique_labels)
+    num_classes = y_pred.shape[1]
     # Setup the cal info tracker.
     cal_info = {
-        "bin_confs": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64),
-        "bin_cal_errors": torch.zeros((num_labels, num_prob_bins), dtype=torch.float64)
+        "bin_confs": torch.zeros((num_classes, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_classes, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_classes, num_prob_bins), dtype=torch.float64),
+        "bin_cal_errors": torch.zeros((num_classes, num_prob_bins), dtype=torch.float64)
     }
-    for lab_idx, lab in enumerate(unique_labels):
+    for lab_idx in range(num_classes):
         for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, obj_dict["top_prob_bin_map"]),
-                    "pred_label": (lab, obj_dict["y_hard"])
+                    "pred_label": (lab_idx, obj_dict["y_hard"])
                 },
                 gt_nn_map=obj_dict["top_true_neighbors_map"], # Note this is off ACTUAL neighbors.
                 neighborhood_width=neighborhood_width,
@@ -257,7 +255,7 @@ def top_label_bin_stats(
                 )
                 for k, v in bi.items():
                     # Assert that v is not a torch NaN
-                    assert not torch.isnan(v).any(), f"Lab {lab}, Bin {bin_idx} has NaN in key: {k}."
+                    assert not torch.isnan(v).any(), f"Lab {lab_idx}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][lab_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][lab_idx, bin_idx] = bi["avg_freq"] 
@@ -290,7 +288,7 @@ def joint_label_bin_stats(
             from_logits=from_logits,
         )
     
-    # Unlike true labels we need to get the true unique labels.
+    # Unlike true labels we need to get the true labels.
     max_label = y_pred.shape[1]
     label_set = torch.arange(max_label)
     
@@ -361,21 +359,20 @@ def neighbor_bin_stats(
             from_logits=from_logits,
         )
     # Set the cal info tracker.
-    unique_pred_matching_neighbors = obj_dict["top_pred_neighbors_map"].unique()
-    num_neighbors = len(unique_pred_matching_neighbors)
+    num_neighb_classes = neighborhood_width**2
     cal_info = {
-        "bin_cal_errors": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_confs": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((num_neighbors, num_prob_bins), dtype=torch.float64)
+        "bin_cal_errors": torch.zeros((num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_neighb_classes, num_prob_bins), dtype=torch.float64)
     }
-    for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
+    for nn_idx in range(num_neighb_classes):
         for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
             bin_conf_region = get_conf_region(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, obj_dict["top_prob_bin_map"]),
-                    "pred_nn": (p_nn, obj_dict["top_pred_neighbors_map"])
+                    "pred_nn": (nn_idx, obj_dict["top_pred_neighbors_map"])
                 },
                 gt_lab_map=obj_dict["y_true"], # Use ground truth to get the region.
                 gt_nn_map=obj_dict["top_true_neighbors_map"], # Note this is off ACTUAL neighbors.
@@ -393,7 +390,7 @@ def neighbor_bin_stats(
                 )
                 for k, v in bi.items():
                     # Assert that v is not a torch NaN
-                    assert not torch.isnan(v).any(), f"Num-neighbors {p_nn}, Bin {bin_idx} has NaN in key: {k}."
+                    assert not torch.isnan(v).any(), f"Num-neighbors {nn_idx}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][nn_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][nn_idx, bin_idx] = bi["avg_freq"] 
@@ -424,38 +421,32 @@ def neighbor_joint_label_bin_stats(
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )
-
-    # Unlike true labels we need to get the true unique labels.
-    max_label = y_pred.shape[1]
-    label_set = torch.arange(max_label)
-    
     # Setup the cal info tracker.
-    n_labs = len(label_set)
-    unique_pred_matching_neighbors = obj_dict["classwise_pred_neighbors_map"].unique()
-    num_neighbors = len(unique_pred_matching_neighbors)
+    num_classes = y_pred.shape[1]
+    num_neighb_classes = neighborhood_width**2
     # Init the cal info tracker.
     cal_info = {
-        "bin_cal_errors": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_freqs": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_confs": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64),
-        "bin_amounts": torch.zeros((n_labs, num_neighbors, num_prob_bins), dtype=torch.float64)
+        "bin_cal_errors": torch.zeros((num_classes, num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_freqs": torch.zeros((num_classes, num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_confs": torch.zeros((num_classes, num_neighb_classes, num_prob_bins), dtype=torch.float64),
+        "bin_amounts": torch.zeros((num_classes, num_neighb_classes, num_prob_bins), dtype=torch.float64)
     }
-    for l_idx, lab in enumerate(label_set):
-        lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["classwise_frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, lab, ...]
-        lab_pred_neighbors_map = obj_dict["classwise_pred_neighbors_map"][:, lab, ...]
-        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, lab, ...]
+    for lab_idx in enumerate(num_classes):
+        lab_prob_map = obj_dict["y_pred"][:, lab_idx, ...]
+        lab_frequency_map = obj_dict["classwise_frequency_map"][:, lab_idx, ...]
+        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, lab_idx, ...]
+        lab_pred_neighbors_map = obj_dict["classwise_pred_neighbors_map"][:, lab_idx, ...]
+        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, lab_idx, ...]
         # Cycle through the neighborhood classes.
-        for nn_idx, p_nn in enumerate(unique_pred_matching_neighbors):
+        for nn_idx in range(num_neighb_classes):
             for bin_idx in range(num_prob_bins):
                 # Get the region of image corresponding to the confidence
                 bin_conf_region = get_conf_region(
-                    bin_idx=bin_idx, 
-                    bin_ownership_map=lab_bin_ownership_map,
+                    conditional_region_dict={
+                        "bin_idx": (bin_idx, lab_bin_ownership_map),
+                        "pred_nn": (nn_idx, lab_pred_neighbors_map)
+                    },
                     true_num_neighbors_map=lab_true_neighbors_map, # Note this is off ACTUAL neighbors.
-                    pred_nn=p_nn,
-                    pred_num_neighbors_map=lab_pred_neighbors_map, # Note this is off PREDICTED neighbors.
                     neighborhood_width=neighborhood_width,
                     edge_only=edge_only
                 )
@@ -470,12 +461,12 @@ def neighbor_joint_label_bin_stats(
                     )
                     for k, v in bi.items():
                         # Assert that v is not a torch NaN
-                        assert not torch.isnan(v).any(), f"Label {lab}, Num-neighbors {p_nn}, Bin {bin_idx} has NaN in key: {k}."
+                        assert not torch.isnan(v).any(), f"Label {lab_idx}, Num-neighbors {nn_idx}, Bin {bin_idx} has NaN in key: {k}."
                     # Calculate the average calibration error for the regions in the bin.
-                    cal_info["bin_confs"][l_idx, nn_idx, bin_idx] = bi["avg_conf"] 
-                    cal_info["bin_freqs"][l_idx, nn_idx, bin_idx] = bi["avg_freq"] 
-                    cal_info["bin_amounts"][l_idx, nn_idx, bin_idx] = bi["num_samples"] 
-                    cal_info["bin_cal_errors"][l_idx, nn_idx, bin_idx] = bi["cal_error"] 
+                    cal_info["bin_confs"][lab_idx, nn_idx, bin_idx] = bi["avg_conf"] 
+                    cal_info["bin_freqs"][lab_idx, nn_idx, bin_idx] = bi["avg_freq"] 
+                    cal_info["bin_amounts"][lab_idx, nn_idx, bin_idx] = bi["num_samples"] 
+                    cal_info["bin_cal_errors"][lab_idx, nn_idx, bin_idx] = bi["cal_error"] 
     # Return the label-wise and neighborhood conditioned calibration information.
     return cal_info
 
