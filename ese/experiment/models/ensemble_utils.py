@@ -46,6 +46,7 @@ def mean_combine_fn(
     ensemble_preds,
     combine_quantity: Literal["probs", "logits"],
     from_logits: bool,
+    normalize: bool,
     weights: Optional[Tensor] = None,
     **kwargs
 ):
@@ -64,7 +65,14 @@ def mean_combine_fn(
         ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
     if (combine_quantity == "logits") and from_logits:
-        ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1)
+        ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1) # B, C, H, W
+    
+    # Make the output distribution a valid probability distribution.
+    if normalize:
+        # Get the sum across classes
+        classwise_sum = ensemble_mean_tensor.sum(dim=1, keepdim=True) # B, 1, H, W
+        classwise_sum[classwise_sum == 0] = 1
+        ensemble_mean_tensor = ensemble_mean_tensor / classwise_sum
 
     return ensemble_mean_tensor
 
@@ -73,6 +81,7 @@ def mean_combine_fn(
 def product_combine_fn(
     ensemble_preds,
     from_logits: bool,
+    normalize: bool,
     weights: Optional[Tensor] = None,
     **kwargs
 ):
@@ -91,7 +100,14 @@ def product_combine_fn(
     else:
         weights = weights.reshape(1, 1, -1, 1, 1) # 1, 1, E, 1, 1
         prod = torch.prod(ensemble_preds, dim=2) # B, C, H, W
-        ensemble_product_tensor  = torch.pow(prod, weights) # B, C, E, H, W
+        ensemble_product_tensor  = torch.pow(prod, weights) # B, C, H, W
+
+    # Make the output distribution a valid probability distribution.
+    if normalize:
+        # Get the sum across classes
+        classwise_sum = ensemble_product_tensor.sum(dim=1, keepdim=True) # B, 1, H, W
+        classwise_sum[classwise_sum == 0] = 1
+        ensemble_product_tensor = ensemble_product_tensor / classwise_sum
 
     return ensemble_product_tensor
 
@@ -101,6 +117,7 @@ def upperbound_combine_fn(
     ensemble_preds,
     y_true: Tensor,
     from_logits: bool,
+    normalize: bool,
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):
