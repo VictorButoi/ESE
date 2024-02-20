@@ -42,7 +42,6 @@ def bin_stats_init(
     y_true: Tensor,
     num_prob_bins: int,
     from_logits: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None
 ):
     assert len(y_pred.shape) == len(y_true.shape) == 4,\
@@ -62,25 +61,21 @@ def bin_stats_init(
     y_hard = y_pred.argmax(dim=1) # B x H x W
     y_max_prob_map = y_pred.max(dim=1).values # B x H x W
 
-    # Define the confidence interval (if not provided).
-    if conf_interval is None:
-        lower_bound = 0.0 if (C == 0) else 1 / C
-        conf_interval = (lower_bound, 1.0)
-
+    conf_bin_args = {
+        "num_prob_bins": num_prob_bins,
+        "int_start": 0.0,
+        "int_end": 1.0,
+    }
     top_prob_bin_map = get_bin_per_sample(
         pred_map=y_max_prob_map,
-        num_prob_bins=num_prob_bins,
-        start=conf_interval[0],
-        end=conf_interval[1],
-        class_wise=False
+        class_wise=False,
+        **conf_bin_args
     ) # B x H x W
 
     classwise_prob_bin_map = get_bin_per_sample(
         pred_map=y_pred,
-        num_prob_bins=num_prob_bins,
-        start=0.0,
-        end=1.0,
-        class_wise=True
+        class_wise=True,
+        **conf_bin_args
     ) # B x H x W
 
     # Get a map of which pixels match their neighbors and how often.
@@ -152,7 +147,6 @@ def bin_stats(
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
@@ -164,7 +158,6 @@ def bin_stats(
             y_pred=y_pred,
             y_true=y_true,
             num_prob_bins=num_prob_bins,
-            conf_interval=conf_interval,
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )
@@ -215,7 +208,6 @@ def top_label_bin_stats(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
@@ -227,7 +219,6 @@ def top_label_bin_stats(
             y_pred=y_pred,
             y_true=y_true,
             num_prob_bins=num_prob_bins,
-            conf_interval=conf_interval,
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )
@@ -284,7 +275,6 @@ def joint_label_bin_stats(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
@@ -296,7 +286,6 @@ def joint_label_bin_stats(
             y_pred=y_pred,
             y_true=y_true,
             num_prob_bins=num_prob_bins,
-            conf_interval=conf_interval,
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )
@@ -359,7 +348,6 @@ def neighbor_bin_stats(
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
     if preloaded_obj_dict is not None:
@@ -369,7 +357,6 @@ def neighbor_bin_stats(
             y_pred=y_pred,
             y_true=y_true,
             num_prob_bins=num_prob_bins,
-            conf_interval=conf_interval,
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )
@@ -425,7 +412,6 @@ def neighbor_joint_label_bin_stats(
     neighborhood_width: int,
     edge_only: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[Tuple[float, float]] = None,
     preloaded_obj_dict: Optional[dict] = None,
     ) -> dict:
     if preloaded_obj_dict is not None:
@@ -435,7 +421,6 @@ def neighbor_joint_label_bin_stats(
             y_pred=y_pred,
             y_true=y_true,
             num_prob_bins=num_prob_bins,
-            conf_interval=conf_interval,
             neighborhood_width=neighborhood_width,
             from_logits=from_logits,
         )

@@ -32,7 +32,6 @@ def image_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
@@ -41,7 +40,6 @@ def image_ece_loss(
         y_pred=y_pred,
         y_true=y_true,
         num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -68,7 +66,6 @@ def image_tl_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
@@ -78,7 +75,6 @@ def image_tl_ece_loss(
         y_pred=y_pred,
         y_true=y_true,
         num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -106,7 +102,6 @@ def image_cw_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[List[float]] = None,
     neighborhood_width: Optional[int] = None,
     ignore_index: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
@@ -116,7 +111,6 @@ def image_cw_ece_loss(
         y_pred=y_pred,
         y_true=y_true,
         num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -157,6 +151,8 @@ def ece_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
+    # print("Global Bin counts: ", cal_info["bin_amounts"])
+    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
     return ece_reduction(**metric_dict)
 
@@ -189,6 +185,8 @@ def tl_ece_loss(
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
     }
+    # print("Global Bin counts: ", cal_info["bin_amounts"])
+    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
     return class_ece_reduction(**metric_dict)
 

@@ -24,15 +24,13 @@ def image_elm_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
-    conf_interval: Optional[List[float]] = None,
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = neighbor_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
         num_prob_bins=num_prob_bins,
-        conf_interval=conf_interval,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only,
@@ -59,7 +57,7 @@ def elm_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = neighbor_wise_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
@@ -87,7 +85,7 @@ def image_edge_elm_loss(
     y_pred: Tensor,
     y_true: Tensor,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["y_pred"] = y_pred
     kwargs["y_true"] = y_true
@@ -100,7 +98,7 @@ def image_edge_elm_loss(
 def edge_elm_loss(
     pixel_meters_dict: Dict[tuple, Meter],
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     assert "neighborhood_width" in kwargs, "Must provide neighborhood width if doing an edge metric."
     kwargs["pixel_meters_dict"] = pixel_meters_dict 
     kwargs["edge_only"] = True

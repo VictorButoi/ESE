@@ -212,8 +212,8 @@ def get_label_region_sizes(y_true):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bins(
     num_prob_bins: int,
-    start: float = 0.0,
-    end: float = 1.0,
+    int_start: float,
+    int_end: float,
     adaptive: bool = False,
     y_pred: Optional[Tensor] = None,
     device: Optional[str] = "cuda"
@@ -231,7 +231,7 @@ def get_bins(
         conf_bin_widths = Tensor(bin_widths)
         conf_bins = Tensor(bin_starts)
     else:
-        conf_bins = torch.linspace(start, end, num_prob_bins+1)[:-1] # Off by one error
+        conf_bins = torch.linspace(int_start, int_end, num_prob_bins+1)[:-1] # Off by one error
         # Get the confidence bins
         bin_width = conf_bins[1] - conf_bins[0]
         conf_bin_widths = torch.ones(num_prob_bins) * bin_width
@@ -247,8 +247,8 @@ def get_bin_per_sample(
     pred_map: Tensor, 
     class_wise: bool = False,
     num_prob_bins: Optional[int] = None,
-    start: Optional[float] = None,
-    end: Optional[float] = None,
+    int_start: Optional[float] = None,
+    int_end: Optional[float] = None,
     bin_starts: Optional[Tensor] = None, 
     bin_widths: Optional[Tensor] = None,
     device: Optional[str] = "cuda"
@@ -265,14 +265,14 @@ def get_bin_per_sample(
       If a confidence doesn't fit in any bin, its bin index is set to -1.
     """
     # Ensure that the bin_starts and bin_widths tensors have the same shape
-    assert (num_prob_bins is not None and start is not None and end is not None)\
+    assert (num_prob_bins is not None and int_start is not None and int_end is not None)\
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
     if num_prob_bins is not None:
         bin_starts, bin_widths = get_bins(
             num_prob_bins=num_prob_bins, 
-            start=start, 
-            end=end, 
+            int_start=int_start, 
+            int_end=int_end, 
             device=device
         )
     else:

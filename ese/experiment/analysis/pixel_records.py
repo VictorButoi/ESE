@@ -30,18 +30,14 @@ def update_toplabel_pixel_meters(
         toplabel_prob_map = torch.max(y_probs, dim=1)[0]
     else:
         toplabel_prob_map = y_probs.squeeze(1) # Remove the channel dimension.
-    # Define the confidence interval (if not provided).
-    C = y_probs.shape[1]
-    if "conf_interval" not in calibration_cfg:
-        lower_bound = 0 if (C == 1) else 1 / C
-        calibration_cfg["conf_interval"] = (lower_bound, 1)
+
     # Figure out where each pixel belongs (in confidence)
     toplabel_bin_ownership_map = get_bin_per_sample(
         pred_map=toplabel_prob_map,
         class_wise=False,
         num_prob_bins=calibration_cfg['num_prob_bins'], 
-        start=calibration_cfg['conf_interval'][0], 
-        end=calibration_cfg['conf_interval'][1]
+        int_start=0.0,
+        int_end=1.0
     ).cpu().numpy()
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = agg_neighbors_preds(
@@ -137,8 +133,8 @@ def update_cw_pixel_meters(
     # BIN CONFIDENCE, both the actual bins and the smoothed local conf bins.
     ############################################################################3
     bin_args = {
-        "start": 0.0,
-        "end": 1.0,
+        "int_start": 0.0,
+        "int_end": 1.0,
         "class_wise": True
     }
     conf_bin_map = get_bin_per_sample(
