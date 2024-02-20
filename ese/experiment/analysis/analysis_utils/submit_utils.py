@@ -14,7 +14,8 @@ def get_ese_inference_configs(
     log_image_stats: bool = True,
     log_pixel_stats: bool = True,
     ensemble_upper_bound: bool = False,
-    normalize_opts: Optional[List[bool]] = [None],
+    norm_ensemble: Optional[List[bool]] = [None],
+    norm_binning: Optional[List[bool]] = [None],
     cal_stats_splits: Optional[List[str]] = [None],
     additional_args: Optional[dict] = None,
 ):
@@ -35,11 +36,12 @@ def get_ese_inference_configs(
     run_cfg_options = list(itertools.product(
         calibrators_list, 
         ens_cfg_options, 
-        normalize_opts, 
+        norm_ensemble,
+        norm_binning,
         cal_stats_splits,
     ))
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, ens_cfg, normalize, cal_stats_split) in run_cfg_options: 
+    for (calibrator, ens_cfg, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
         # Set a few things that will be consistent for all runs.
         ##################################################
         exp_root = scratch_root / "inference" / group_dict['exp_group']
@@ -57,7 +59,7 @@ def get_ese_inference_configs(
         }
         # Add the unique arguments for the binning calibrator.
         if "Binning" in calibrator:
-            default_config_options['model.normalize'] = [normalize]
+            default_config_options['model.normalize'] = [norm_binning]
             default_config_options['model.cal_stats_split'] = [cal_stats_split]
         # If additional args are provided, update the default config options.
         if additional_args is not None:
@@ -82,6 +84,7 @@ def get_ese_inference_configs(
                 'log.root': [str(inf_log_root)],
                 'model.pretrained_exp_root': [str(inf_group_dir)],
                 'model.ensemble': [True],
+                'ensemble.normalize': [norm_ensemble],
                 'ensemble.combine_fn': [ens_cfg[0]],
                 'ensemble.combine_quantity': [ens_cfg[1]],
             }

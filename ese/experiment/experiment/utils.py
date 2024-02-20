@@ -53,12 +53,14 @@ def reduce_ensemble_preds(
 
     combine_fn = inference_cfg['ensemble']['combine_fn']
     combine_quantity = inference_cfg['ensemble']['combine_quantity']
+    norm_ensemble = inference_cfg['ensemble']['normalize']
     if output_dict["y_probs"] is not None:
         # Combine the outputs of the models.
         ensemble_prob_map = get_combine_fn(combine_fn)(
             output_dict["y_probs"], 
             combine_quantity=combine_quantity,
             weights=ens_weights,
+            normalize=norm_ensemble,
             from_logits=False
         )
     else:
@@ -68,6 +70,7 @@ def reduce_ensemble_preds(
             output_dict["y_logits"], 
             combine_quantity=combine_quantity,
             weights=ens_weights,
+            normalize=norm_ensemble,
             from_logits=True
         )
     # Get the hard prediction and probabilities, if we are doing identity,

@@ -56,6 +56,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Verify that the configs are valid.
         verify_ensemble_configs(dfc)
         # Loop through each config and build the experiment, placing it in a dictionary.
+        self.normalize = ensemble_cfg["normalize"]
         self.combine_fn = ensemble_cfg["combine_fn"]
         self.combine_quantity = ensemble_cfg["combine_quantity"]
         self.ens_exp_paths = []
@@ -157,6 +158,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         multi_class: bool, 
         threshold: float = 0.5, 
         weights: Optional[Tensor] = None,
+        normalize: Optional[bool] = None,
         combine_fn: Optional[str] = None,
         combine_quantity: Optional[Literal["probs", "logits"]] = None
     ):
@@ -183,6 +185,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
         if combine_quantity is None:
             assert self.combine_quantity is not None, "No pre_softmax value provided."
             combine_quantity = self.combine_quantity
+        if normalize is None:
+            assert self.normalize is not None, "No normalization value provided."
+            normalize = self.normalize
         if weights is None:
             assert self.ens_mem_weights is not None, "No weights provided."   
             weights = self.ens_mem_weights
@@ -192,6 +197,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             ensemble_model_outputs, 
             combine_quantity=combine_quantity,
             weights=weights,
+            normalize=normalize,
             from_logits=return_logits 
         )
         # Get the hard prediction and probabilities, if we are doing identity,
