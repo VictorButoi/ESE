@@ -157,8 +157,6 @@ def ece_loss(
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Global Bin counts: ", cal_info["bin_amounts"])
-    # print("Global Bin cal errors: ", cal_info["bin_cal_errors"])
     # Return the calibration information
     return ece_reduction(**metric_dict)
 

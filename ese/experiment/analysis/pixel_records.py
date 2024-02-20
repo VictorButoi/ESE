@@ -22,26 +22,19 @@ def update_toplabel_pixel_meters(
 ):
     calibration_cfg = inference_cfg['global_calibration']
     y_probs = output_dict["y_probs"]
-    y_hard = output_dict["y_hard"]
-    y_true = output_dict["y_true"]
+    y_hard = output_dict["y_hard"].squeeze(1) # Remove the channel dimension.
+    y_true = output_dict["y_true"].squeeze(1) # Remove the channel dimension.
 
     # If the confidence map is mulitclass, then we need to do some extra work.
     if y_probs.shape[1] > 1:
         toplabel_prob_map = torch.max(y_probs, dim=1)[0]
     else:
         toplabel_prob_map = y_probs.squeeze(1) # Remove the channel dimension.
-
     # Define the confidence interval (if not provided).
     C = y_probs.shape[1]
     if "conf_interval" not in calibration_cfg:
-        if C == 1:
-            lower_bound = 0
-        else:
-            lower_bound = 1 / C
-        upper_bound = 1
-        # Set the confidence interval.
-        calibration_cfg["conf_interval"] = (lower_bound, upper_bound)
-
+        lower_bound = 0 if (C == 1) else 1 / C
+        calibration_cfg["conf_interval"] = (lower_bound, 1)
     # Figure out where each pixel belongs (in confidence)
     toplabel_bin_ownership_map = get_bin_per_sample(
         pred_map=toplabel_prob_map,
@@ -49,36 +42,31 @@ def update_toplabel_pixel_meters(
         num_prob_bins=calibration_cfg['num_prob_bins'], 
         start=calibration_cfg['conf_interval'][0], 
         end=calibration_cfg['conf_interval'][1]
-    )
+    ).cpu().numpy()
     # Get the pixel-wise number of PREDICTED matching neighbors.
     pred_num_neighb_map = agg_neighbors_preds(
-        pred_map=output_dict["y_hard"].squeeze(1), # Remove the channel dimension. 
+        pred_map=y_hard, # Remove the channel dimension. 
         class_wise=False,
         binary=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
-    )
+    ).cpu().numpy()
     # Get the pixel-wise number of PREDICTED matching neighbors.
     true_num_neighb_map = agg_neighbors_preds(
-        pred_map=output_dict["y_true"].squeeze(1), # Remove the channel dimension. 
+        pred_map=y_true, # Remove the channel dimension. 
         class_wise=False,
         binary=False,
         neighborhood_width=calibration_cfg["neighborhood_width"],
         discrete=True,
-    )
-
+    ).cpu().numpy()
     # Calculate the accuracy map.
     ############################################################################3
-    toplabel_freq_map = (y_hard == y_true).squeeze(1).cpu().numpy() # Remove the channel dimension. B x H x W
+    toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
 
     # Place all necessary tensors on the CPU as numpy arrays.
-    y_true = y_true.squeeze(1).cpu().numpy() # Remove the channel dimension. B x H x W
-    y_hard = y_hard.squeeze(1).cpu().numpy() # Remove the channel dimension. B x H x W
-    toplabel_bin_ownership_map = toplabel_bin_ownership_map.cpu().numpy()
-    true_num_neighb_map = true_num_neighb_map.cpu().numpy()
-    pred_num_neighb_map = pred_num_neighb_map.cpu().numpy()
-
+    y_true = y_true.cpu().numpy() # Remove the channel dimension. B x H x W
+    y_hard = y_hard.cpu().numpy() # Remove the channel dimension. B x H x W
     # Make a cross product of the unique iterators using itertools
     combo_array = np.stack([
         y_true,
