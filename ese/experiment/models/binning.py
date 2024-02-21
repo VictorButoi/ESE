@@ -64,7 +64,7 @@ class Histogram_Binning(nn.Module):
         # Calculate the bin ownership map and transform the probs.
         prob_bin_ownership_map = get_bin_per_sample(
             pred_map=prob_tensor,
-            class_wise=False,
+            class_wise=True,
             bin_starts=self.conf_bins,
             bin_widths=self.conf_bin_widths
         ) # B x H x W
@@ -93,15 +93,17 @@ class Local_Histogram_Binning(nn.Module):
         self,
         num_prob_bins: int,
         num_classes: int,
+        neighborhood_width: int,
         stats_file: str,
         normalize: bool,
         cal_stats_split: str,
         **kwargs
     ):
-        super(Histogram_Binning, self).__init__()
+        super(Local_Histogram_Binning, self).__init__()
         # Set the parameters as class attributes
         self.num_prob_bins = num_prob_bins
         self.num_classes = num_classes
+        self.neighborhood_width = neighborhood_width
         self.stats_file = stats_file
         self.normalize = normalize
         self.cal_stats_split = cal_stats_split

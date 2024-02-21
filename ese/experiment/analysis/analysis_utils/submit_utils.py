@@ -14,8 +14,10 @@ def get_ese_inference_configs(
     log_image_stats: bool = True,
     log_pixel_stats: bool = True,
     ensemble_upper_bound: bool = False,
-    norm_binning_opts: Optional[List[bool]] = [None],
+    norm_ens_opts: Optional[List[bool]] = [False],
+    norm_binning_opts: Optional[List[bool]] = [False],
     cal_stats_splits: Optional[List[str]] = [None],
+    ens_cfg_options: Optional[List[str]] = [None],
     additional_args: Optional[dict] = None,
 ):
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
@@ -23,14 +25,9 @@ def get_ese_inference_configs(
     # For ensembles, we have three choices for combining the predictions.
     if do_ensemble:
         ens_cfg_options = [
-            ('mean', 'logits'), 
             ('mean', 'probs'), 
             ('product', 'probs')
         ]
-        norm_ens_opts=[True, False]
-    else:
-        ens_cfg_options = [None]
-        norm_ens_opts = [None]
 
     # Keep a list of all the run configuration options.
     calibrator_option_list = []

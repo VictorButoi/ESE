@@ -74,7 +74,7 @@ def classwise_prob_bin_stats(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
-        key_2="prob_bin" if local else "local_prob_bin",
+        key_2="local_prob_bin" if local else "prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )

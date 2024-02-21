@@ -8,6 +8,7 @@ def get_calibrator_cls(calibrator: str):
         "LTS": "ese.experiment.models.calibrators.LTS",
         "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
+        "LocalHistogramBinning": "ese.experiment.models.binning.Local_Histogram_Binning",
         "NectarBinning": "ese.experiment.models.binning.NECTAR_Binning",
         "SoftNectarBinning": "ese.experiment.models.binning.Soft_NECTAR_Binning",
     }

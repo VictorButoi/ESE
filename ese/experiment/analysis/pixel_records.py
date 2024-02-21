@@ -128,7 +128,6 @@ def update_cw_pixel_meters(
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
     C = y_probs.shape[1]
-
     # BIN CONFIDENCE, both the actual bins and the smoothed local conf bins.
     ############################################################################3
     bin_args = {
@@ -137,11 +136,12 @@ def update_cw_pixel_meters(
         "class_wise": True,
         "num_prob_bins": calibration_cfg['num_prob_bins']
     }
+    # Figure out where each pixel belongs (in confidence)
     conf_bin_map = get_bin_per_sample(
         pred_map=y_probs,
         **bin_args
     ).cpu().numpy()
-
+    # Figure out where each group of pixels belongs (in confidence)
     local_conf_bin_map = get_bin_per_sample(
         pred_map=agg_neighbors_preds(
                     pred_map=y_probs, # B x H x W
@@ -151,7 +151,6 @@ def update_cw_pixel_meters(
                 ),
         **bin_args
     ).cpu().numpy()
-    
     # NEIGHBORHOOD INFO. Get the predicted and actual number of label neighbors.
     ###########################################################################3
     agg_neighbor_args = {
@@ -170,7 +169,6 @@ def update_cw_pixel_meters(
                     pred_map=output_dict["y_hard"].long().squeeze(1), # B x H x W
                     **agg_neighbor_args
                 ).cpu().numpy() 
-
     # CALIBRATION VARS.
     ###########################################################################3
     classwise_freq_map = torch.nn.functional.one_hot(

@@ -169,11 +169,12 @@ def tl_ece_loss(
     ignore_index: Optional[int] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
-    cal_info = class_wise_bin_stats(
+    cal_info = classwise_prob_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         num_classes=num_classes,
         class_wise=True,
+        local=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only
@@ -204,11 +205,12 @@ def cw_ece_loss(
     **kwargs
 ) -> Union[dict, Tensor]:
     # Get the statistics either from images or pixel meter dict.
-    cal_info = class_wise_bin_stats(
+    cal_info = classwise_prob_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         num_classes=num_classes,
         class_wise=True,
+        local=False,
         square_diff=square_diff,
         neighborhood_width=neighborhood_width,
         edge_only=edge_only
