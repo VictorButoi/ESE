@@ -20,7 +20,7 @@ from ...augmentation.gather import augmentations_from_config
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 
 
-def add_dice_loss_rows(inference_df):
+def add_dice_loss_rows(inference_df, opts_cfg):
     # Get the rows corresponding to the Dice metric.
     dice_rows = inference_df[inference_df['image_metric'] == 'Dice']
     # Make a copy of the rows.
@@ -30,7 +30,7 @@ def add_dice_loss_rows(inference_df):
     # Change the image metric to Dice Loss.
     dice_loss_rows['image_metric'] = 'Dice Loss'
     # If groupavg metrics are present, then change those as well.
-    if 'groupavg_image_metric' in dice_loss_rows.keys():
+    if 'groupavg_image_metric' in dice_loss_rows.keys() and opts_cfg['load_groupavg_metrics']:
         # First replace Dice in the groupavg metric with 'Dice Loss'
         dice_loss_rows['groupavg_image_metric'] = dice_loss_rows['groupavg_image_metric'].str.replace('Dice', 'Dice_Loss')
         # Then flip the groupavg metric score.

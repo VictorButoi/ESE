@@ -211,7 +211,6 @@ def load_cal_inference_stats(
         # Go through several optional keys, and add them if they don't exist
         for optional_key in [
             "model._pretrained_class",
-            "model.normalize",
             "model.cal_stats_split",
             "ensemble.combine_fn",
             "ensemble.combine_quantity",
@@ -224,6 +223,16 @@ def load_cal_inference_stats(
                 inference_df[new_key] = inference_df[optional_key].fillna("None")
             else:
                 inference_df[new_key] = "None"
+        
+        if "model.normalize" in inference_df.columns:
+            inference_df["model_norm"] = inference_df["model.normalize"].fillna("None")
+        else:
+            inference_df["model_norm"] = "None"
+
+        if "ensemble.normalize" in inference_df.columns:
+            inference_df["ensemble_norm"] = inference_df["ensemble.normalize"].fillna("None")
+        else:
+            inference_df["ensemble_norm"] = "None"
 
         # Here are a few common columns that we will always want in the dataframe.    
         def method_name(
@@ -232,10 +241,14 @@ def load_cal_inference_stats(
             pretrained_seed, 
             ensemble, 
             combine_quantity, 
-            combine_fn
+            combine_fn,
+            ensemble_norm
         ):
             if ensemble:
-                return f"Ensemble ({combine_fn}, {combine_quantity})" 
+                if ensemble_norm: 
+                    return f"Ensemble ({combine_fn}, {combine_quantity}, norm)"
+                else:
+                    return f"Ensemble ({combine_fn}, {combine_quantity})" 
             else:
                 if model_class == "Vanilla":
                     return f"UNet (seed={pretrained_seed})"
@@ -244,7 +257,7 @@ def load_cal_inference_stats(
                 else:
                     return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
-        def calibrator(model_class, normalize, cal_stats_split):
+        def calibrator(model_class, model_norm, cal_stats_split):
             model_class_suffix = model_class.split('.')[-1]
             # Determine the calibration name.
             if "UNet" in model_class:
@@ -255,7 +268,7 @@ def load_cal_inference_stats(
                 cal_cls = model_class_suffix
             # Add the normalization to the calibrator name.
             if "Binning" in model_class:
-                if normalize:
+                if model_norm:
                     cal_cls += f" (norm,{cal_stats_split})"
                 else:
                     cal_cls += f" ({cal_stats_split})"
@@ -313,7 +326,7 @@ def load_cal_inference_stats(
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
         if options_cfg['add_dice_loss_rows']:
-            inference_df = add_dice_loss_rows(inference_df)
+            inference_df = add_dice_loss_rows(inference_df, opts_cfg=options_cfg)
 
         # Save the inference info to a pickle file.
         with open(precomputed_results_path, 'wb') as f:
