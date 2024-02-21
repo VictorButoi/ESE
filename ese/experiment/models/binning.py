@@ -190,6 +190,7 @@ class NECTAR_Binning(nn.Module):
         gbs = classwise_neighbor_prob_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
             num_prob_bins=self.num_prob_bins, # Use 15 bins
+            num_neighbor_bins=self.num_neighbor_classes,
             num_classes=self.num_classes,
             neighborhood_width=self.neighborhood_width,       
             class_wise=True,
