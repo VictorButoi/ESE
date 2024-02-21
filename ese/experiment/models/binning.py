@@ -273,7 +273,6 @@ class Soft_NECTAR_Binning(nn.Module):
         self.num_prob_bins = num_prob_bins
         self.num_classes = num_classes
         self.neighborhood_width = neighborhood_width
-        self.num_neighbor_classes = neighborhood_width**2
         self.stats_file = stats_file
         self.normalize = normalize
         self.cal_stats_split = cal_stats_split
@@ -283,7 +282,8 @@ class Soft_NECTAR_Binning(nn.Module):
         # Get the statistics either from images or pixel meter dict.
         gbs = classwise_neighbor_prob_bin_stats(
             pixel_meters_dict=pixel_meters_dict[self.cal_stats_split],
-            num_prob_bins=self.num_prob_bins, # Use 15 bins
+            num_prob_bins=self.num_prob_bins,
+            num_neighbor_bins=self.num_prob_bins,
             num_classes=self.num_classes,
             neighborhood_width=self.neighborhood_width,       
             class_wise=True,
@@ -291,13 +291,6 @@ class Soft_NECTAR_Binning(nn.Module):
             device="cuda"
         )
         self.val_freqs = gbs['bin_freqs'] # C x Neighborhood Classes x Bins
-        # raise ValueError
-        # Get the bins and bin widths
-        self.neighbor_bins, self.neighbor_bin_widths = get_bins(
-            num_prob_bins=self.num_neighbor_classes, 
-            int_start=0.0,
-            int_end=1.0
-        )
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
             num_prob_bins=self.num_prob_bins, 
@@ -308,6 +301,11 @@ class Soft_NECTAR_Binning(nn.Module):
     def forward(self, logits):
         # Softmax the logits to get probabilities
         prob_tensor = torch.softmax(logits, dim=1) # B x C x H x W
+        prob_bin_args = {
+            "class_wise": True,
+            "bin_starts": self.conf_bins,
+            "bin_widths": self.conf_bin_widths
+        }
         # Calculate the continuous neighbor map.
         loc_conf_bin_map = get_bin_per_sample(
             pred_map=agg_neighbors_preds(
@@ -316,16 +314,12 @@ class Soft_NECTAR_Binning(nn.Module):
                         neighborhood_width=self.neighborhood_width,
                         discrete=False,
                     ),
-            class_wise=True,
-            bin_starts=self.neighbor_bins,
-            bin_widths=self.neighbor_bin_widths,
+            **prob_bin_args
         )
         # Calculate the bin ownership map for each pixel probability
         prob_bin_map = get_bin_per_sample(
             pred_map=prob_tensor, 
-            class_wise=True,
-            bin_starts=self.conf_bins,
-            bin_widths=self.conf_bin_widths
+            **prob_bin_args
         ) # B x H x W
         # Iterate through each label, and replace the probs with the calibrated probs.
         for lab_idx in range(self.num_classes):
@@ -334,7 +328,7 @@ class Soft_NECTAR_Binning(nn.Module):
             lab_prob_bin_map = prob_bin_map[:, lab_idx, :, :] # B x H x W
             # We are building the calibrated prob map. 
             calibrated_lab_prob_map = torch.zeros_like(lab_prob_map)
-            for nn_bin_idx in range(self.num_neighbor_classes):
+            for nn_bin_idx in range(self.num_prob_bins):
                 # Get the region of image corresponding to the confidence
                 nn_conf_region = get_conf_region(
                     conditional_region_dict={

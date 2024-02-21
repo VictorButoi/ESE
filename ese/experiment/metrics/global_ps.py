@@ -172,6 +172,7 @@ def classwise_neighbor_prob_bin_stats(
     pixel_meters_dict: dict,
     class_wise: bool,
     num_prob_bins: int,
+    num_neighbor_bins: int,
     num_classes: int,
     neighborhood_width: int,
     square_diff: bool = False,
@@ -184,23 +185,22 @@ def classwise_neighbor_prob_bin_stats(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1="true_label" if class_wise else "pred_label",
-        key_2="pred_num_neighb" if discrete else "local_conf_bin",
+        key_2="pred_num_neighb" if discrete else "local_prob_bin",
         key_3="prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
     # Keep track of different things for each bin.
-    num_nn_classes = neighborhood_width**2
     cal_info = {
-        "bin_confs": torch.zeros(num_classes, num_nn_classes, num_prob_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_classes, num_nn_classes, num_prob_bins, dtype=torch.float64),
-        "bin_freqs": torch.zeros(num_classes, num_nn_classes, num_prob_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_classes, num_nn_classes, num_prob_bins, dtype=torch.float64),
+        "bin_confs": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
     }
     for lab_idx in range(num_classes):
         if lab_idx in accumulated_meters_dict:
             lab_meter_dict = accumulated_meters_dict[lab_idx]
-            for nn_idx in range(num_nn_classes):
+            for nn_idx in range(num_neighbor_bins):
                 if nn_idx in lab_meter_dict:
                     nn_lab_meter_dict = lab_meter_dict[nn_idx]
                     for prob_bin_idx in range(num_prob_bins):
