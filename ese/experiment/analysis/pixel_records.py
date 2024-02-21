@@ -125,7 +125,6 @@ def update_cw_pixel_meters(
     pixel_level_records 
 ):
     calibration_cfg = inference_cfg['global_calibration']
-    num_neighbor_classes = calibration_cfg["neighborhood_width"]**2
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
     C = y_probs.shape[1]
@@ -135,11 +134,11 @@ def update_cw_pixel_meters(
     bin_args = {
         "int_start": 0.0,
         "int_end": 1.0,
-        "class_wise": True
+        "class_wise": True,
+        "num_prob_bins": calibration_cfg['num_prob_bins']
     }
     conf_bin_map = get_bin_per_sample(
         pred_map=y_probs,
-        num_prob_bins=calibration_cfg['num_prob_bins'],
         **bin_args
     ).cpu().numpy()
 
@@ -150,7 +149,6 @@ def update_cw_pixel_meters(
                     discrete=False,
                     class_wise=True
                 ),
-        num_prob_bins=num_neighbor_classes,
         **bin_args
     ).cpu().numpy()
     

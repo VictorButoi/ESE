@@ -57,11 +57,12 @@ def prob_bin_stats(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def class_wise_bin_stats(
+def classwise_prob_bin_stats(
     pixel_meters_dict: dict,
     num_prob_bins: int,
     num_classes: int,
     class_wise: bool,
+    local: bool,
     square_diff: bool = False,
     edge_only: bool = False,
     neighborhood_width: Optional[int] = None,
@@ -73,7 +74,7 @@ def class_wise_bin_stats(
         class_wise=class_wise,
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
-        key_2="prob_bin",
+        key_2="prob_bin" if local else "local_prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
@@ -167,7 +168,7 @@ def neighbor_wise_bin_stats(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def joint_class_neighbor_bin_stats(
+def classwise_neighbor_prob_bin_stats(
     pixel_meters_dict: dict,
     class_wise: bool,
     num_prob_bins: int,
@@ -262,7 +263,7 @@ def accumulate_pixel_preds(
                 "measure": measure,
             }
             if class_wise:
-                item["local_conf_bin"] = loc_conf_bin
+                item["local_prob_bin"] = loc_conf_bin
             else:
                 item["pred_label"] = pred_label
             # Keep track of unique values.

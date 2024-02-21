@@ -20,7 +20,7 @@ from .local_ps import (
 # - global statistics
 from .global_ps import (
     prob_bin_stats,
-    class_wise_bin_stats
+    classwise_prob_bin_stats
 )
 
 
