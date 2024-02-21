@@ -217,6 +217,8 @@ class NECTAR_Scaling(nn.Module):
             self.neighborhood_temps.data.fill_(1)
 
     def forward(self, logits, **kwargs):
+        # print("Neighborhood Temps: ", self.neighborhood_temps)
+        # print()
         # Softmax the logits to get probabilities
         y_probs = torch.softmax(logits, dim=1) # B C H W
         # Argnax over the channel dimension to get the current prediction

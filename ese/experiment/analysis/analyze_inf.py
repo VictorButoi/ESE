@@ -245,7 +245,7 @@ def load_cal_inference_stats(
             ensemble_norm
         ):
             if ensemble:
-                if ensemble_norm: 
+                if ensemble_norm and not isinstance(ensemble_norm, str): 
                     return f"Ensemble ({combine_fn}, {combine_quantity}, norm)"
                 else:
                     return f"Ensemble ({combine_fn}, {combine_quantity})" 
