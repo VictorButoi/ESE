@@ -1,0 +1,4 @@
+data:
+  _class: ese.experiment.datasets.Shapes
+  preload: False 
+  version: 0.1
