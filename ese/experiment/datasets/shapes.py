@@ -53,12 +53,9 @@ class Shapes(ThunderDataset, DatapathMixin):
         
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img),
+            "img": torch.from_numpy(img)[None],
             "label": torch.from_numpy(mask)[None], # Add a channel dimension 
         }
-
-        print(return_dict['img'].shape)
-        print(return_dict['label'].shape)
 
         if self.return_data_id:
             return_dict["data_id"] = example_name 

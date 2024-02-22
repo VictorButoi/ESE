@@ -103,12 +103,7 @@ class CalibrationExperiment(TrainExperiment):
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
 
-        # torch.cuda.synchronize()
-        # start = time.time()
         yhat = self.model(x)
-        # torch.cuda.synchronize()
-        # end = time.time()
-        # print("Model forward pass time: ", end - start)
 
         if yhat.shape[1] > 1:
             y = y.long()
@@ -116,13 +111,7 @@ class CalibrationExperiment(TrainExperiment):
         loss = self.loss_func(yhat, y)
         # If backward then backprop the gradients.
         if backward:
-            # torch.cuda.synchronize()
-            # start = time.time()
             loss.backward()
-            # torch.cuda.synchronize()
-            # end = time.time()
-            # print("Backward pass time: ", end - start)
-            # print()
             self.optim.step()
             self.optim.zero_grad()
         # Run step-wise callbacks if you have them.
@@ -130,6 +119,7 @@ class CalibrationExperiment(TrainExperiment):
             "x": x,
             "y_true": y,
             "y_pred": yhat,
+            "y_logits": yhat, # Used for visualization functions.
             "loss": loss,
             "batch_idx": batch_idx,
         }

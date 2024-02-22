@@ -11,6 +11,26 @@ dataloader:
   batch_size: 4
   num_workers: 2
 
+log:
+  root: '?'
+  checkpoint_freq: 20 
+  metrics:
+    dice_score:
+      _fn: ionpy.metrics.dice_score
+      batch_reduction: 'mean' 
+      ignore_empty_labels: False 
+      ignore_index: 0
+      from_logits: True
+    ece_loss:
+      _fn: ese.experiment.metrics.image_ece_loss
+      num_prob_bins: 15
+      from_logits: True
+    edge_ece_loss:
+      _fn: ese.experiment.metrics.image_edge_ece_loss
+      num_prob_bins: 15
+      neighborhood_width: 3
+      from_logits: True
+
 loss_func: 
   _class: ionpy.loss.SoftDiceLoss
   from_logits: True
