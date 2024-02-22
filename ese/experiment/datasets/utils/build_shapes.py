@@ -178,5 +178,9 @@ def perlin_generation(
                                                                   bias_res=bias_res,
                                                                   bias_std=bias_std,
                                                                   blur_std=blur_std)
+
+    # Add a noise to each image
+    for i in range(len(images)):
+        images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 
     
     return images, label_maps, _ 
