@@ -43,6 +43,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
             properties=False,
         )
         def verify_ensemble_configs(dfc):
+            raise NotImplementedError("This function is not implemented yet.")
             seed_values = dfc["seed"].unique()
             unique_runs = dfc["path"].unique()
             if len(seed_values) < len(unique_runs):
