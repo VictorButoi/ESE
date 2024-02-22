@@ -3,3 +3,28 @@ data:
   in_channels: 3
   out_channels: 19 
 
+dataloader:
+  batch_size: 4
+  num_workers: 2
+
+loss_func: 
+  _class: ionpy.loss.SoftDiceLoss
+  from_logits: True
+  batch_reduction: 'mean' 
+  ignore_empty_labels: True 
+
+model:
+  filters: [128, 128, 128, 128, 128]
+
+# AUGMNENTATIONS USED FOR CITYSCAPES
+augmentations:
+    train:
+        - Resize:
+            height: 256
+            width: 512
+        - HorizontalFlip:
+            p: 0.5
+    val:
+        - Resize: # Maybe strange to do this, but we want to be able to compare the results.
+            height: 256
+            width: 512

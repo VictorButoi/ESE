@@ -10,3 +10,17 @@ data:
   version: 0.2
   iters_per_epoch: 1000 
   preload: '?' 
+
+dataloader:
+  batch_size: 4
+  num_workers: 2
+
+loss_func: 
+  _class: ionpy.loss.SoftDiceLoss
+  from_logits: True
+  batch_reduction: 'mean' 
+  ignore_empty_labels: False
+  ignore_index: 0 
+
+model:
+  filters: [64, 64, 64, 64, 64]

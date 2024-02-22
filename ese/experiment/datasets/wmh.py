@@ -100,6 +100,9 @@ class WMH(ThunderDataset, DatapathMixin):
             "label": torch.from_numpy(mask).float(),
         }
 
+        print(return_dict['img'].shape)
+        print(return_dict['label'].shape)
+
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
 
