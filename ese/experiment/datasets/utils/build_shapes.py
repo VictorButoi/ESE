@@ -47,7 +47,12 @@ def thunderify_Shapes(
     splits_ratio = (0.6, 0.15, 0.15, 0.1)
 
     # Get the data.
-    images, label_maps, _ = perlin_generation(config["synth_cfg"], seed=cfg['log']['seed'])
+    images, label_maps, _ = perlin_generation(
+        num_to_gen=config["log"]["num_to_gen"],
+        gen_opts_cfg=config["gen_opts"], 
+        aug_cfg=config["aug_opts"], 
+        seed=cfg['log']['seed']
+    )
 
     # Iterate through each datacenter, axis  and build it as a task
     with ThunderDB.open(str(dst_dir), "c") as db:
@@ -96,12 +101,11 @@ def thunderify_Shapes(
 
 
 def perlin_generation(
-    synth_cfg: dict,
+    num_to_gen: int,
+    gen_opts_cfg: dict,
+    aug_cfg: dict,
     seed: int
 ):
-    gen_opts_cfg = synth_cfg['gen_opts']
-    aug_cfg = synth_cfg['augmentations']
-
     fix_seed(seed)
 
     # Gen parameters
@@ -158,7 +162,7 @@ def perlin_generation(
 
     # Gen tasks
     images, label_maps, _ = nes.tf.utils.synth.perlin_nshot_task(in_shape=gen_opts_cfg['img_res'],
-                                                                  num_gen=gen_opts_cfg['num_to_gen'],
+                                                                  num_gen=num_to_gen,
                                                                   num_label=num_labels,
                                                                   shapes_im_scales=gen_opts_cfg['shapes_im_scales'],
                                                                   shapes_warp_scales=gen_opts_cfg['shapes_warp_scales'],
