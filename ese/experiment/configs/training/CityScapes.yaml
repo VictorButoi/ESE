@@ -1,0 +1,5 @@
+data:
+  _class: ese.experiment.datasets.CityScapes
+  in_channels: 3
+  out_channels: 19 
+

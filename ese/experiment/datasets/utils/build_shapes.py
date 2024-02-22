@@ -43,7 +43,7 @@ def thunderify_Shapes(
 ):
     config = cfg.to_dict()
     # Append version to our paths
-    dst_dir = pathlib.Path(config["dst_dir"]) / str(config["version"])
+    dst_dir = pathlib.Path(config['log']['dst_dir']) / str(config['log']['version'])
     splits_ratio = (0.6, 0.15, 0.15, 0.1)
 
     # Get the data.
@@ -56,7 +56,7 @@ def thunderify_Shapes(
         # Iterate through the examples.
         for data_id, (image, label_map) in tqdm(enumerate(zip(images, label_maps)), total=len(images)):
             # Example name
-            key = "synth_" +data_id
+            key = "synth_" + str(data_id)
             # Convert to the right type
             img = image.astype(np.float32)
             seg = label_map.astype(np.int64)
@@ -87,7 +87,7 @@ def thunderify_Shapes(
         db["_splits"] = splits
         attrs = dict(
             dataset="Shapes",
-            version=config["version"],
+            version=config['log']['version'],
         )
         db["_splits"] = splits
         db["_attrs"] = attrs
