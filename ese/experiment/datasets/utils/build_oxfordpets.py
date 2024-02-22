@@ -209,7 +209,7 @@ def thunderify_OxfordPets(
     dst_dir = dst / version
 
     # Append version to our paths
-    splits_ratio = (0.6, 0.1, 0.2, 0.1)
+    splits_ratio = (0.6, 0.15, 0.15, 0.1)
     splits_seed = 42
 
     # Iterate through each datacenter, axis  and build it as a task

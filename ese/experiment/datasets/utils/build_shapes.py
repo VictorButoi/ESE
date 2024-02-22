@@ -22,10 +22,6 @@ def data_splits(
     if len(set(values)) != len(values):
         raise ValueError(f"Duplicate entries found in values")
 
-    # Super weird bug, removing for now, add up to 1!
-    # if (s := sum(splits)) != 1.0:
-    #     raise ValueError(f"Splits must add up to 1.0, got {splits}->{s}")
-
     train_size, cal_size, val_size, test_size = splits
     values = sorted(values)
     # First get the size of the test splut
@@ -48,68 +44,49 @@ def thunderify_Shapes(
     config = cfg.to_dict()
     # Append version to our paths
     dst_dir = pathlib.Path(config["dst_dir"]) / str(config["version"])
+    splits_ratio = (0.6, 0.15, 0.15, 0.1)
 
-    # Append version to our paths
-    splits_seed = 42
+    # Get the data.
+    images, label_maps, _ = perlin_generation(config["synth_cfg"], seed=cfg['log']['seed'])
 
     # Iterate through each datacenter, axis  and build it as a task
     with ThunderDB.open(str(dst_dir), "c") as db:
         # Key track of the ids
-        example_dict = {} 
+        examples = [] 
         # Iterate through the examples.
-        for split_dir in proc_root.iterdir():
-            print("Doing split", split_dir.name)
-            example_dict[split_dir.name] = []
-            for example_dir in tqdm(split_dir.iterdir(), total=len(list(split_dir.iterdir()))):
-                # Example name
-                key = example_dir.name
-                # Paths to the image and segmentation
-                img_dir = example_dir / "image.npy"
-                seg_dir = example_dir / "label.npy"
-                try:
-                    # Load the image and segmentation.
-                    img = np.load(img_dir)
-                    img = img.transpose(2, 0, 1)
-                    seg = np.load(seg_dir)
-                    
-                    # Convert to the right type
-                    img = img.astype(np.float32)
-                    seg = seg.astype(np.int64)
-                    
-                    # Save the datapoint to the database
-                    db[key] = (img, seg) 
-                    example_dict[split_dir.name].append(key)   
-                except Exception as e:
-                    print(f"Error with {key}: {e}. Skipping")
+        for data_id, (image, label_map) in tqdm(enumerate(zip(images, label_maps)), total=len(images)):
+            # Example name
+            key = "synth_" +data_id
+            # Convert to the right type
+            img = image.astype(np.float32)
+            seg = label_map.astype(np.int64)
+            # Save the datapoint to the database
+            db[key] = (img, seg) 
+            examples.append(key)   
 
         # Split the data into train, cal, val, test
-        train_examples = sorted(example_dict["train"])
-        valcal_examples = sorted(example_dict["val"])
-        val_examples, cal_examples = train_test_split(valcal_examples, test_size=0.5, random_state=splits_seed)
-        test_examples = sorted(example_dict["test"])
+        splits = data_splits(examples, splits_ratio, seed=cfg['log']['seed'])
+        splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-        # Accumulate the examples
-        examples = train_examples + val_examples + cal_examples + test_examples
-
-        # Extract the ids
-        data_ids = ["_".join(ex.split("_")[1:]) for ex in examples]
-        cities = [ex.split("_")[0] for ex in examples]
+        # Evenly split a list into n different lists
+        num_subplits = cfg['log']['num_subplits']
+        train_subsplit_dict = dict(zip(range(num_subplits), [splits["train"][i::num_subplits] for i in range(num_subplits)]))
+        val_subsplit_dict = dict(zip(range(num_subplits), [splits["val"][i::num_subplits] for i in range(num_subplits)]))
+        cal_subsplit_dict = dict(zip(range(num_subplits), [splits["cal"][i::num_subplits] for i in range(num_subplits)]))
+        test_subsplit_dict = dict(zip(range(num_subplits), [splits["test"][i::num_subplits] for i in range(num_subplits)]))
 
         splits = {
-            "train": train_examples,
-            "val": val_examples,
-            "cal": cal_examples,
-            "test": test_examples
+            "train": train_subsplit_dict,
+            "val": val_subsplit_dict,
+            "cal": cal_subsplit_dict,
+            "test": test_subsplit_dict
         }
-
         # Save the metadata
         db["_examples"] = examples 
         db["_samples"] = examples 
-        db["_ids"] = data_ids 
-        db["_cities"] = cities 
         db["_splits"] = splits
         attrs = dict(
-            dataset="CityScapes",
+            dataset="Shapes",
             version=config["version"],
         )
         db["_splits"] = splits
@@ -117,12 +94,13 @@ def thunderify_Shapes(
 
 
 def perlin_generation(
-    synth_cfg: dict
+    synth_cfg: dict,
+    seed: int
 ):
     gen_opts_cfg = synth_cfg['gen_opts']
     aug_cfg = synth_cfg['augmentations']
 
-    fix_seed(gen_opts_cfg["seed"])
+    fix_seed(seed)
 
     # Gen parameters
     if gen_opts_cfg['num_labels_range'][0] == gen_opts_cfg['num_labels_range'][1]:
