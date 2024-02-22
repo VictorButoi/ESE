@@ -16,7 +16,7 @@ class Shapes(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
     subsplit: Literal[0, 1, 2, 3, 4] # These corresponds to different versions of the dataset for the same split.
-    version: float = 0.1
+    version: float
     preload: bool = False
     labels: Optional[List[int]] = None
     return_data_id: bool = False

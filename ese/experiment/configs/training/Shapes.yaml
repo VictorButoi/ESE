@@ -1,7 +1,7 @@
 data:
   _class: ese.experiment.datasets.Shapes
   preload: False 
-  version: 0.2
+  version: 0.3
   in_channels: 1
   out_channels: 2 
   labels: 
