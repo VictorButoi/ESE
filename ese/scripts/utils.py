@@ -43,11 +43,8 @@ def get_option_product(
         for cfg_update in dict_product(option_dict):
             cfg = base_cfg.update([cfg_update, proc_exp_name(exp_name, cfg_update)])
             # Verify it's a valid config
-            try:
-                check_missing(cfg)
-                cfgs.append(cfg)
-            except Exception as e:
-                print("Not a valid config!")
+            check_missing(cfg)
+            cfgs.append(cfg)
     return cfgs
 
 

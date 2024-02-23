@@ -1,9 +1,9 @@
 log:
   track_label_amounts: True 
+  min_fg_pixels: 0
 
 data:
-  input_type: volume
-  slicing: dense_full
+  input_type: image 
 
 local_calibration:
     num_prob_bins: 15

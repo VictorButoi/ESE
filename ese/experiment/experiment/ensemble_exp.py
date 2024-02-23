@@ -43,13 +43,12 @@ class EnsembleInferenceExperiment(BaseExperiment):
             properties=False,
         )
         def verify_ensemble_configs(dfc):
-            raise NotImplementedError("This function is not implemented yet.")
             seed_values = dfc["seed"].unique()
             unique_runs = dfc["path"].unique()
             if len(seed_values) < len(unique_runs):
                 raise ValueError("Duplicate seeds found in ensemble.")
             for column in dfc.columns:
-                if column not in ["seed", "path", "pretrained_dir"] and\
+                if column not in ["seed", "subsplit", "path", "pretrained_dir"] and\
                     len(dfc[column].unique()) > 1:
                     raise ValueError(f"The only difference between the configs should be the seed, "\
                                       + f"but found different values in column '{column}'."\
