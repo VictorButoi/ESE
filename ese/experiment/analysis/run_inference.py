@@ -211,7 +211,7 @@ def get_calibration_item_info(
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################
-    if inference_cfg["log"]["show_examples"]:
+    if inference_cfg["log"].get("show_examples", False):
         show_inference_examples(
             output_dict, 
             inference_cfg=inference_cfg

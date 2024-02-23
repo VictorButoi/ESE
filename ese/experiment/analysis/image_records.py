@@ -114,7 +114,7 @@ def get_image_stats(
             # Now get the ensemble quality score.
         qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
         # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"]["show_examples"]:
+        if inference_cfg["log"].get("show_examples", False):
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
 
     #############################################################
@@ -140,7 +140,7 @@ def get_image_stats(
         # Get the calibration error. 
         cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config)
         # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"]["show_examples"]:
+        if inference_cfg["log"].get("show_examples", False):
             print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
