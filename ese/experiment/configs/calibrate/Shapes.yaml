@@ -1,6 +1,5 @@
 data:
-  iters_per_epoch: 100
-  min_fg_label: 100
+  iters_per_epoch: 250 
 
 log:
   checkpoint_freq: 50 
