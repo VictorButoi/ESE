@@ -83,13 +83,14 @@ def load_cal_inference_stats(
                         for drop_key in [
                             "augmentations",
                             "dataset.augmentations",
+                            "dataset.labels",
                             "qual_metrics", 
                             "image_cal_metrics", 
                             "global_cal_metrics", 
                             "calibration.bin_weightings", 
                             "calibration.conf_interval",
-                            "model.filters"
-                            ]:
+                            "model.filters",
+                        ]:
                             if drop_key in flat_cfg:
                                 flat_cfg.pop(drop_key)
                         # If the column 'model.ensemble_cfg' is in the columns,

@@ -133,7 +133,7 @@ def get_average_unet_baselines(
         '_pretrained_class',
         'image_metric',
         'metric_type',
-        'groupavg_image_metric',
+       'groupavg_image_metric',
     ]
     # Only keep the keys that are actually in the columns of unet_info_df.
     unet_group_keys = [key for key in unet_group_keys if key in unet_info_df.keys()]
