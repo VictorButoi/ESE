@@ -76,11 +76,11 @@ def thunderify_Shapes(
         splits = dict(zip(("train", "cal", "val", "test"), splits))
 
         # Evenly split a list into n different lists
-        num_subplits = cfg['log']['num_subplits']
-        train_subsplit_dict = dict(zip(range(num_subplits), [splits["train"][i::num_subplits] for i in range(num_subplits)]))
-        val_subsplit_dict = dict(zip(range(num_subplits), [splits["val"][i::num_subplits] for i in range(num_subplits)]))
-        cal_subsplit_dict = dict(zip(range(num_subplits), [splits["cal"][i::num_subplits] for i in range(num_subplits)]))
-        test_subsplit_dict = dict(zip(range(num_subplits), [splits["test"][i::num_subplits] for i in range(num_subplits)]))
+        num_subsplits = cfg['log']['num_subsplits']
+        train_subsplit_dict = dict(zip(range(num_subsplits), [splits["train"][i::num_subsplits] for i in range(num_subsplits)]))
+        val_subsplit_dict = dict(zip(range(num_subsplits), [splits["val"][i::num_subsplits] for i in range(num_subsplits)]))
+        cal_subsplit_dict = dict(zip(range(num_subsplits), [splits["cal"][i::num_subsplits] for i in range(num_subsplits)]))
+        test_subsplit_dict = dict(zip(range(num_subsplits), [splits["test"][i::num_subsplits] for i in range(num_subsplits)]))
 
         splits = {
             "train": train_subsplit_dict,
@@ -182,5 +182,10 @@ def perlin_generation(
     # Add a noise to each image
     for i in range(len(images)):
         images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 
+
+        # Apply a random rotation of 90 degrees to the image
+        rot_k = np.random.randint(1, 4)
+        images[i] = np.rot90(images[i], k=rot_k)
+        label_maps[i] = np.rot90(label_maps[i], k=rot_k)
     
     return images, label_maps, _ 

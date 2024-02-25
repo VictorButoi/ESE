@@ -66,8 +66,8 @@ def ShowPredictionsCallback(
             yhat = torch.sigmoid(yhat)
         y_hard = (yhat > threshold).numpy()
     
-    num_cols = 5 if (softpred_dim is not None) else 3
-    f, axarr = plt.subplots(nrows=bs, ncols=num_cols, figsize=(num_cols * size_per_iamge, bs*size_per_iamge))
+    # num_cols = 5 if (softpred_dim is not None) else 3
+    f, axarr = plt.subplots(nrows=bs, ncols=5, figsize=(5 * size_per_iamge, bs*size_per_iamge))
 
     # Squeeze all tensors in prep.
     x = x.squeeze()
