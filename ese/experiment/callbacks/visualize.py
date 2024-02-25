@@ -90,26 +90,25 @@ def ShowPredictionsCallback(
             im3 = axarr[2].imshow(y_hard, cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
-            if softpred_dim is not None:
-                if len(yhat.shape) == 3:
-                    max_probs = torch.max(yhat, dim=0)[0]
-                else:
-                    assert len(yhat.shape()) == 2, "Soft prediction must be 2D if not 3D."
-                    max_probs = yhat
+            if len(yhat.shape) == 3:
+                max_probs = torch.max(yhat, dim=0)[0]
+            else:
+                assert len(yhat.shape()) == 2, "Soft prediction must be 2D if not 3D."
+                max_probs = yhat
 
-                axarr[3].set_title("Soft Prediction")
-                im4 = axarr[3].imshow(max_probs, cmap=label_cm, interpolation='None')
-                f.colorbar(im4, ax=axarr[3], orientation='vertical')
+            axarr[3].set_title("Max Probs")
+            im4 = axarr[3].imshow(max_probs, cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
+            f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
-                pix_accuracy = (y_hard == y)
-                axarr[4].set_title("Pixel Miscalibration")
-                im5 = axarr[4].imshow(
-                    (max_probs - pix_accuracy), 
-                    cmap='RdBu_r', 
-                    vmax=1.0, 
-                    vmin=-1.0, 
-                    interpolation='None')
-                f.colorbar(im5, ax=axarr[4], orientation='vertical')
+            pix_accuracy = (y_hard == y)
+            axarr[4].set_title("Pixel Miscalibration")
+            im5 = axarr[4].imshow(
+                (max_probs - pix_accuracy), 
+                cmap='RdBu_r', 
+                vmax=1.0, 
+                vmin=-1.0, 
+                interpolation='None')
+            f.colorbar(im5, ax=axarr[4], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr:
@@ -128,26 +127,25 @@ def ShowPredictionsCallback(
             im3 = axarr[b_idx, 2].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
 
-            if softpred_dim is not None:
-                if len(yhat.shape) == 4:
-                    max_probs = torch.max(yhat, dim=1)[0]
-                else:
-                    assert len(yhat.shape()) == 3, "Soft prediction must be 2D if not 3D."
-                    max_probs = yhat
+            if len(yhat.shape) == 4:
+                max_probs = torch.max(yhat, dim=1)[0]
+            else:
+                assert len(yhat.shape()) == 3, "Soft prediction must be 2D if not 3D."
+                max_probs = yhat
 
-                axarr[b_idx, 3].set_title("Soft Prediction")
-                im4 = axarr[b_idx, 3].imshow(max_probs[b_idx], cmap=label_cm, interpolation='None')
-                f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
+            axarr[b_idx, 3].set_title("Max Probs")
+            im4 = axarr[b_idx, 3].imshow(max_probs[b_idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
+            f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
 
-                axarr[b_idx, 4].set_title("Pixel Miscalibration")
-                pix_accuracy = (y_hard == y)
-                im5 = axarr[b_idx, 4].imshow(
-                    (max_probs[b_idx] - pix_accuracy[b_idx]), 
-                    cmap='RdBu_r', 
-                    vmax=1.0, 
-                    vmin=-1.0, 
-                    interpolation='None')
-                f.colorbar(im5, ax=axarr[b_idx, 4], orientation='vertical')
+            axarr[b_idx, 4].set_title("Pixel Miscalibration")
+            pix_accuracy = (y_hard == y)
+            im5 = axarr[b_idx, 4].imshow(
+                (max_probs[b_idx] - pix_accuracy[b_idx]), 
+                cmap='RdBu_r', 
+                vmax=1.0, 
+                vmin=-1.0, 
+                interpolation='None')
+            f.colorbar(im5, ax=axarr[b_idx, 4], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr[b_idx]:
