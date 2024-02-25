@@ -3,6 +3,8 @@ import torch
 from torch.nn import functional as F
 # Misc imports
 from pydantic import validate_arguments
+# Ionpy imports
+from ionpy.metrics.segmentation import dice_score
 # local imports
 from ..experiment.utils import reduce_ensemble_preds
 from ..metrics.local_ps import bin_stats_init
@@ -116,12 +118,22 @@ def get_image_stats(
     # If we are ensembling, then we also want to calculate the variance of the ensemble predictions.
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
-        stacked_preds = torch.stack(ensemble_member_preds, dim=0)
-        ensemble_variance = torch.var(stacked_preds, dim=0).mean()
-        # Add it to the quality metrics.
-        qual_metric_scores_dict["Ensemble_VAR"] = ensemble_variance
+        stacked_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
+        # Calculate the variance amongst the probabilities of the ensemble members.
+        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.var(stacked_preds, dim=0).mean()
+        # Calculate the average pairwise dice score between the hard predictions of the ensemble members.
+        hard_ensemble_preds = torch.argmax(stacked_preds, dim=2, keepdim=True) # E x B x 1 x H x W
+        paired_dice_losses = []
+        num_ensemble_members = hard_ensemble_preds.shape[0]
+        for i in range(num_ensemble_members):
+            for j in range(num_ensemble_members):
+                if i != j: # Leave out the diagonal.
+                    paired_dice_losses.append(1 - dice_score(hard_ensemble_preds[i, ...], hard_ensemble_preds[j, ...]))
+        qual_metric_scores_dict["Hard_Ens_VAR"] = torch.stack(paired_dice_losses).mean()
+        # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
-            print(f"Ensemble Variance: {ensemble_variance}")
+            print(f"Soft Ensemble Variance: {qual_metric_scores_dict['Soft_Ens_VAR']}")
+            print(f"Hard Ensemble Variance: {qual_metric_scores_dict['Hard_Ens_VAR']}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -173,7 +185,7 @@ def get_image_stats(
                 "image_metric": met_name,
                 "metric_score": metric_score_dict[met_name].item(),
             }
-            if inference_cfg["model"]["ensemble"] and met_name != "Ensemble_VAR":
+            if inference_cfg["model"]["ensemble"] and met_name not in ["Soft_Ens_VAR", "Hard_Ens_VAR"]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
             # Add the dataset info to the record
