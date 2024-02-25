@@ -20,34 +20,31 @@ def get_image_stats(
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
         # Gather the individual predictions
-        if output_dict['y_probs'] is not None:
-            pred_type = "y_probs"
-            from_logits = False
-        else:
-            pred_type = "y_logits"
-            from_logits = True
+        if output_dict['y_logits'] is not None:
+            output_dict['y_probs'] = torch.softmax(output_dict['y_logits'], dim=1)
+            output_dict.pop('y_logits')
         # Get the individual predictions.
         ensemble_member_preds = [
-            output_dict[pred_type][:, :, ens_mem_idx, ...]\
-            for ens_mem_idx in range(output_dict[pred_type].shape[2])
+            output_dict['y_probs'][:, :, ens_mem_idx, ...]\
+            for ens_mem_idx in range(output_dict['y_probs'].shape[2])
         ]
         # Construct the input cfgs used for calulating metrics.
         ens_member_qual_input_cfgs = [
             {
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
-                "from_logits": from_logits,
+                "from_logits": False,
             } for member_pred in ensemble_member_preds
         ]
         ens_member_cal_input_cfgs = [
             {
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
-                "from_logits": from_logits,
+                "from_logits": False,
                 "preloaded_obj_dict": bin_stats_init(
                                         y_pred=member_pred,
                                         y_true=output_dict["y_true"],
-                                        from_logits=from_logits,
+                                        from_logits=False,
                                         num_prob_bins=num_prob_bins,
                                         neighborhood_width=neighborhood_width
                                     )
