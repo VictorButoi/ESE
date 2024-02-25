@@ -4,6 +4,7 @@ log:
 
 data:
   input_type: image 
+  subsplit: 4 # Separate split from any of the trained ensemble members.
 
 local_calibration:
     num_prob_bins: 15

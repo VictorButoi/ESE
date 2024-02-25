@@ -27,7 +27,7 @@ def get_image_stats(
             pred_type = "y_logits"
             from_logits = True
         # Get the individual predictions.
-        ensemble_member_logits = [
+        ensemble_member_preds = [
             output_dict[pred_type][:, :, ens_mem_idx, ...]\
             for ens_mem_idx in range(output_dict[pred_type].shape[2])
         ]
@@ -37,7 +37,7 @@ def get_image_stats(
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
                 "from_logits": from_logits,
-            } for member_pred in ensemble_member_logits
+            } for member_pred in ensemble_member_preds
         ]
         ens_member_cal_input_cfgs = [
             {
@@ -51,7 +51,7 @@ def get_image_stats(
                                         num_prob_bins=num_prob_bins,
                                         neighborhood_width=neighborhood_width
                                     )
-            } for member_pred in ensemble_member_logits
+            } for member_pred in ensemble_member_preds
         ]
         # Get the reduced predictions
         qual_input_config = {
@@ -116,6 +116,15 @@ def get_image_stats(
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+    # If we are ensembling, then we also want to calculate the variance of the ensemble predictions.
+    if inference_cfg["model"]["ensemble"]:
+        # Calculate the variance of the ensemble predictions.
+        stacked_preds = torch.stack(ensemble_member_preds, dim=0)
+        ensemble_variance = torch.var(stacked_preds, dim=0).mean()
+        # Add it to the quality metrics.
+        qual_metric_scores_dict["Ensemble_VAR"] = ensemble_variance
+        if inference_cfg["log"].get("show_examples", False):
+            print(f"Ensemble Variance: {ensemble_variance}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -167,7 +176,7 @@ def get_image_stats(
                 "image_metric": met_name,
                 "metric_score": metric_score_dict[met_name].item(),
             }
-            if inference_cfg["model"]["ensemble"]:
+            if inference_cfg["model"]["ensemble"] and met_name != "Ensemble_VAR":
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
             # Add the dataset info to the record
