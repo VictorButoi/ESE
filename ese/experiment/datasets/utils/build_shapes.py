@@ -182,7 +182,6 @@ def perlin_generation(
     # Add a noise to each image
     for i in range(len(images)):
         images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 
-
         # Apply a random rotation of 90 degrees to the image
         rot_k = np.random.randint(1, 4)
         images[i] = np.rot90(images[i], k=rot_k)

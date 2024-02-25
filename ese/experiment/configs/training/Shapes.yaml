@@ -38,4 +38,4 @@ loss_func:
   ignore_index: 0 
 
 model:
-  filters: [8, 8, 8, 8]
+  filters: [8, 8, 8]
