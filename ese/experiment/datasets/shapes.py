@@ -15,9 +15,10 @@ from ionpy.util.validation import validate_arguments_init
 class Shapes(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
-    subsplit: Literal[0, 1, 2, 3, 4] # These corresponds to different versions of the dataset for the same split.
+    subsplit: int # These corresponds to different versions of the dataset for the same split.
     version: float
     preload: bool = False
+    binarize: bool = False
     labels: Optional[List[int]] = None
     return_data_id: bool = False
     iters_per_epoch: Optional[Any] = None
@@ -27,7 +28,7 @@ class Shapes(ThunderDataset, DatapathMixin):
         super().__init__(self.path, preload=self.preload)
         super().supress_readonly_warning()
         # Get the subjects from the splits
-        samples = self._db["_splits"][self.split][self.subsplit]
+        samples = self._db["_splits"][self.split]
         self.samples = samples 
         # Control how many samples are in each epoch.
         self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
@@ -43,6 +44,8 @@ class Shapes(ThunderDataset, DatapathMixin):
         # Zero out all labels that are not in the list.
         if self.labels is not None:
             mask = np.where(np.isin(mask, self.labels), mask, 0)
+        if self.binarize:
+            mask = np.where(mask > 0, 1, 0)
 
         # Apply the transforms to the numpy images.
         if self.transforms:
@@ -64,7 +67,7 @@ class Shapes(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"Shapes/thunder_shapes/{self.version}"
+        return f"Shapes/thunder_shapes/{self.version}/subsplit_{self.subsplit}"
 
     @property
     def signature(self):

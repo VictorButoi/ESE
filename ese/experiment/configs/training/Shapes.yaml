@@ -1,9 +1,12 @@
 data:
   _class: ese.experiment.datasets.Shapes
+  binarize: False 
   preload: False 
-  version: 0.4
+  version: 0.5
   in_channels: 1
-  out_channels: 2 
+  out_channels: 5 
+  labels:
+    - 1
   subsplit: '?'
 
 dataloader:
