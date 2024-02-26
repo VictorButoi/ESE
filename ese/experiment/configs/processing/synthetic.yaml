@@ -9,13 +9,14 @@ gen_opts:
         - 2 
     # Controls the relative size of the regions in the image. Big = Bigger regions
     shapes_im_scales: 
-        - 36 
+        - 48 
     # Unclear what this does.
     shapes_warp_scales: 
         - 32 
         - 64 
         - 128
     warp_res: 
+        - 16
         - 32 
         - 64
 
@@ -23,9 +24,6 @@ aug_opts:
     shapes_im_max_std_range: 
         - 7 
         - 7 
-    shapes_warp_max_std_range: 
-        - 12.0 
-        - 12.0
     std_min_range: 
         - 0.1 
         - 0.1
@@ -35,9 +33,12 @@ aug_opts:
     lab_int_interimage_std_range: 
         - 0.5
         - 0.5
+    shapes_warp_max_std_range: 
+        - 8.0 
+        - 8.0
     warp_std_range:
-        - 12.0
-        - 12.0 
+        - 8.0
+        - 8.0 
     bias_res_range: 
         - 64 
         - 64 
@@ -45,5 +46,5 @@ aug_opts:
         - 0.5 
         - 0.5
     blur_std_range: 
-        - 5 
-        - 5 
+        - 6 
+        - 6 

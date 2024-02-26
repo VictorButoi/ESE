@@ -5,7 +5,7 @@ from thunderpack import ThunderDB
 from tqdm import tqdm
 from ionpy.util import Config
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from sklearn.model_selection import train_test_split
 from ionpy.experiment.util import fix_seed
 import neurite_sandbox as nes
@@ -104,7 +104,8 @@ def perlin_generation(
     num_to_gen: int,
     gen_opts_cfg: dict,
     aug_cfg: dict,
-    seed: int
+    seed: int,
+    rot_k: Optional[int] = 0
 ):
     fix_seed(seed)
 
@@ -182,9 +183,9 @@ def perlin_generation(
     # Add a noise to each image
     for i in range(len(images)):
         images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 
-        # Apply a random rotation of 90 degrees to the image
-        rot_k = np.random.randint(1, 4)
-        images[i] = np.rot90(images[i], k=rot_k)
-        label_maps[i] = np.rot90(label_maps[i], k=rot_k)
+        # If rot_k is not 0, rotate the image
+        if rot_k != 0:
+            images[i] = np.rot90(images[i], k=rot_k)
+            label_maps[i] = np.rot90(label_maps[i], k=rot_k)
     
     return images, label_maps, _ 
