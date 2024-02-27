@@ -1,4 +1,5 @@
 data:
+  subsplit: 5
   iters_per_epoch: 250 
 
 log:
