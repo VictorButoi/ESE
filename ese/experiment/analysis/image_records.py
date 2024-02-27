@@ -119,8 +119,6 @@ def get_image_stats(
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
         stacked_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        # Calculate the variance amongst the probabilities of the ensemble members.
-        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.var(stacked_preds, dim=0).mean()
         # Calculate the average pairwise dice score between the hard predictions of the ensemble members.
         hard_ensemble_preds = torch.argmax(stacked_preds, dim=2, keepdim=True) # E x B x 1 x H x W
         paired_dice_losses = []
@@ -129,7 +127,13 @@ def get_image_stats(
             for j in range(num_ensemble_members):
                 if i != j: # Leave out the diagonal.
                     paired_dice_losses.append(1 - dice_score(hard_ensemble_preds[i, ...], hard_ensemble_preds[j, ...]))
+        # Calculate the variance amongst the probabilities of the ensemble members and average pairwise dice.
+        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.var(stacked_preds, dim=0).mean()
         qual_metric_scores_dict["Hard_Ens_VAR"] = torch.stack(paired_dice_losses).mean()
+    else:
+        qual_metric_scores_dict["Soft_Ens_VAR"] = None
+        qual_metric_scores_dict["Hard_Ens_VAR"] = None
+
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
             print(f"Soft Ensemble Variance: {qual_metric_scores_dict['Soft_Ens_VAR']}")

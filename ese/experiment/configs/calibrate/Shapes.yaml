@@ -1,6 +1,6 @@
 data:
-  subsplit: 5
   iters_per_epoch: 250 
+  subsplit: 4
 
 log:
   checkpoint_freq: 50 
