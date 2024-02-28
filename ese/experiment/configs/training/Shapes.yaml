@@ -6,7 +6,7 @@ data:
   in_channels: 1
   out_channels: 2 
   labels:
-    - 2
+    - 1
   subsplit: '?'
 
 dataloader:
@@ -42,3 +42,4 @@ loss_func:
 
 model:
   filters: [4, 4, 4]
+  convs_per_block: 1
