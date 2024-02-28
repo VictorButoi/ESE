@@ -1,15 +1,16 @@
-import numpy as np
 import pathlib
 import numpy as np
-from thunderpack import ThunderDB
 from tqdm import tqdm
-from ionpy.util import Config
-
+import matplotlib.pyplot as plt
+from thunderpack import ThunderDB
+from pydantic import validate_arguments
 from typing import List, Tuple, Optional, Any
 from sklearn.model_selection import train_test_split
+# Ionpy imports
+from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
+# Neurite imports
 import neurite_sandbox as nes
-from pydantic import validate_arguments
 
 
 @validate_arguments
@@ -49,12 +50,33 @@ def thunderify_Shapes(
     fix_seed(config['log']['seed'])
 
     data_dict = {}
-    dps = config["log"]["datapoints_per_subsplit"]
-    all_images, all_labels = perlin_generation(
-        num_to_gen=dps * config["log"]["num_subsplits"],
-        gen_opts_cfg=config["gen_opts"], 
-        aug_cfg=config["aug_opts"], 
-    )
+
+    confirmation = False
+    while not confirmation:
+        dps = config["log"]["datapoints_per_subsplit"]
+        all_images, all_labels = perlin_generation(
+            num_to_gen=dps * config["log"]["num_subsplits"],
+            gen_opts_cfg=config["gen_opts"], 
+            aug_cfg=config["aug_opts"], 
+        )
+        num_cols = 6
+        num_rows = (config["log"]["preshow_synth_samples"] // num_cols) * 2
+        f, axarr = plt.subplots(num_rows, num_cols, figsize=(num_cols*4, num_rows*4))
+        for idx in range(config["log"]["preshow_synth_samples"]):
+            row_offset = 2*(idx // num_cols)
+            col_idx = idx % num_cols
+            im = axarr[row_offset, col_idx].imshow(all_images[idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='none')
+            lab = axarr[row_offset + 1, col_idx].imshow(all_labels[idx], cmap='tab10', interpolation='none')
+            f.colorbar(im, ax=axarr[row_offset, col_idx], shrink=0.6)
+            f.colorbar(lab, ax=axarr[row_offset + 1, col_idx], shrink=0.6)
+            # Turn off axis lines and labels.
+            axarr[row_offset, col_idx].axis('off')
+            axarr[row_offset + 1, col_idx].axis('off')
+        plt.show()
+
+        confirm_input = input("Do you accept the generated data? (y/n): ")
+        confirmation = (confirm_input == "y")
+
     # For every subplit, except the last one because we
     # want it to be random rotation, we generate the data.
     max_subsplit_num = config['log']['num_subsplits'] - 1

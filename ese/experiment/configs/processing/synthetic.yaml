@@ -5,8 +5,8 @@ gen_opts:
         - 256
     # Controls the number of "regions" in the image, each is a label.
     num_labels_range: 
-        - 5 
-        - 5 
+        - 3 
+        - 3 
     # Controls the relative size of the regions in the image. Big = Bigger regions
     shapes_im_scales: 
         - 64 
@@ -31,8 +31,8 @@ aug_opts:
         - 0.2
         - 0.2 
     lab_int_interimage_std_range: 
-        - 0.1
-        - 0.1
+        - 0.0
+        - 0.0
     shapes_warp_max_std_range: 
         - 8.0 
         - 8.0
@@ -43,8 +43,8 @@ aug_opts:
         - 64 
         - 64 
     bias_std_range: 
-        - 0.5 
-        - 0.5
+        - 0.1 
+        - 0.1
     blur_std_range: 
-        - 6 
-        - 6 
+        - 8 
+        - 8 
