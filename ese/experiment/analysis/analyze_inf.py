@@ -212,6 +212,7 @@ def load_cal_inference_stats(
         # Go through several optional keys, and add them if they don't exist
         for optional_key in [
             "model._pretrained_class",
+            "model.calibrator",
             "model.cal_stats_split",
             "ensemble.combine_fn",
             "ensemble.combine_quantity",
@@ -251,30 +252,21 @@ def load_cal_inference_stats(
                 else:
                     return f"Ensemble ({combine_fn}, {combine_quantity})" 
             else:
-                if model_class == "Vanilla":
+                if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
                     return f"UNet (seed={pretrained_seed})"
                 elif _pretrained_class == "None":
                     return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
                 else:
                     return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
-        def calibrator(model_class, model_norm, cal_stats_split):
-            model_class_suffix = model_class.split('.')[-1]
-            # Determine the calibration name.
-            if "UNet" in model_class:
-                cal_cls = "Uncalibrated"
-            elif model_class_suffix == "Identity":
-                cal_cls = "Vanilla"
-            else:
-                cal_cls = model_class_suffix
+        def calibrator(calibrator, model_class, model_norm, cal_stats_split):
             # Add the normalization to the calibrator name.
             if "Binning" in model_class:
                 if model_norm:
-                    cal_cls += f" (norm,{cal_stats_split})"
+                    calibrator += f" (norm,{cal_stats_split})"
                 else:
-                    cal_cls += f" ({cal_stats_split})"
-
-            return cal_cls
+                    calibrator += f" ({cal_stats_split})"
+            return calibrator 
 
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"
