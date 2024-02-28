@@ -34,11 +34,11 @@ class PostHocExperiment(TrainExperiment):
         total_config["data"] = pretrained_data_cfg
         autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_config)
+        self.data_class = pretrained_data_cfg["_class"]
         # Optionally, load the data.
         if load_data:
             # Get the dataset class and build the transforms
-            self.data_class = pretrained_data_cfg.pop("_class")
-            dataset_cls = absolute_import(self.data_class)
+            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
 
             # Build the augmentation pipeline.
             if "augmentations" in total_config and (total_config["augmentations"] is not None):
@@ -206,7 +206,7 @@ class PostHocExperiment(TrainExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Apply post-hoc calibration.
-        if self.model_class == ["Vanilla", "FT_CE, FT_Dice"]:
+        if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
