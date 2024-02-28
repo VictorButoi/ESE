@@ -52,10 +52,11 @@ def get_ese_inference_configs(
             'model.checkpoint': ["max-val-dice_score" if use_uncalibrated_models else "min-val-ece_loss"],
             'model.calibrator': [calibrator],
             'model.calibrator_cls': [get_calibrator_cls(calibrator)],
-            'data.preload': [group_dict['preload']],
             'log.log_image_stats': [log_image_stats],
             'log.log_pixel_stats': [log_pixel_stats],
         }
+        if 'preload' in group_dict:
+            default_config_options['data.preload'] = [group_dict['preload']]
         # Add the unique arguments for the binning calibrator.
         if "Binning" in calibrator:
             default_config_options['model.normalize'] = [norm_binning]

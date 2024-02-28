@@ -5,11 +5,11 @@ gen_opts:
         - 256
     # Controls the number of "regions" in the image, each is a label.
     num_labels_range: 
-        - 3 
-        - 3 
+        - 10 
+        - 10 
     # Controls the relative size of the regions in the image. Big = Bigger regions
     shapes_im_scales: 
-        - 64 
+        - 32 
     # Unclear what this does.
     shapes_warp_scales: 
         - 32 
