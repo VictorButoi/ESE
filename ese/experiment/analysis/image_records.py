@@ -4,7 +4,7 @@ from torch.nn import functional as F
 # Misc imports
 from pydantic import validate_arguments
 # Ionpy imports
-from ionpy.metrics.segmentation import dice_score
+from ionpy.metrics.segmentation import soft_dice_score, dice_score
 # local imports
 from ..experiment.utils import reduce_ensemble_preds
 from ..metrics.local_ps import bin_stats_init
@@ -118,26 +118,36 @@ def get_image_stats(
     # If we are ensembling, then we also want to calculate the variance of the ensemble predictions.
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
-        stacked_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        # Calculate the average pairwise dice score between the hard predictions of the ensemble members.
-        hard_ensemble_preds = torch.argmax(stacked_preds, dim=2, keepdim=True) # E x B x 1 x H x W
-        paired_dice_losses = []
+        soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
+        hard_ensemble_preds = torch.argmax(soft_ensemble_preds, dim=2, keepdim=True) # E x B x 1 x H x W
+        # Accumulat the pairwise soft/hard dice scores.
+        paired_soft_losses = []
+        paired_hard_losses = []
         num_ensemble_members = hard_ensemble_preds.shape[0]
+        # Loop through the pairs.
         for i in range(num_ensemble_members):
             for j in range(num_ensemble_members):
                 if i != j: # Leave out the diagonal.
-                    paired_dice_losses.append(1 - dice_score(hard_ensemble_preds[i, ...], hard_ensemble_preds[j, ...]))
+                    # Calculate the dice score between the soft predictions of the ensemble members.
+                    soft_pred_i = soft_ensemble_preds[i, ...]
+                    soft_pred_j = soft_ensemble_preds[j, ...]
+                    #
+                    hard_pred_i = hard_ensemble_preds[i, ...]
+                    hard_pred_j = hard_ensemble_preds[j, ...]
+                    # Accumulate the losses.
+                    paired_soft_losses.append(1 - soft_dice_score(soft_pred_i, soft_pred_j))
+                    paired_hard_losses.append(1 - dice_score(hard_pred_i, hard_pred_j))
         # Calculate the variance amongst the probabilities of the ensemble members and average pairwise dice.
-        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.var(stacked_preds, dim=0).mean()
-        qual_metric_scores_dict["Hard_Ens_VAR"] = torch.stack(paired_dice_losses).mean()
+        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.stack(paired_soft_losses).mean()
+        qual_metric_scores_dict["Hard_Ens_VAR"] = torch.stack(paired_hard_losses).mean()
     else:
         qual_metric_scores_dict["Soft_Ens_VAR"] = None
         qual_metric_scores_dict["Hard_Ens_VAR"] = None
 
-        # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"].get("show_examples", False):
-            print(f"Soft Ensemble Variance: {qual_metric_scores_dict['Soft_Ens_VAR']}")
-            print(f"Hard Ensemble Variance: {qual_metric_scores_dict['Hard_Ens_VAR']}")
+    # If you're showing the predictions, also print the scores.
+    if inference_cfg["log"].get("show_examples", False):
+        print(f"Soft Ensemble Variance: {qual_metric_scores_dict['Soft_Ens_VAR']}")
+        print(f"Hard Ensemble Variance: {qual_metric_scores_dict['Hard_Ens_VAR']}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -186,7 +196,7 @@ def get_image_stats(
     for dict_type, metric_score_dict in metrics_collection.items():
         for met_name in list(metric_score_dict.keys()):
             metric_score = metric_score_dict[met_name]
-            if met_name not in ["Soft_Ens_VAR", "Hard_Ens_VAR"]:
+            if metric_score is not None:
                 metric_score = metric_score.item()
             metrics_record = {
                 "image_metric": met_name,
