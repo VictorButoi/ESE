@@ -2,7 +2,9 @@
 from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name
 # torch imports
+import yaml
 import torch
+from pathlib import Path
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.util import Config
@@ -35,7 +37,8 @@ class PostHocExperiment(TrainExperiment):
         # Optionally, load the data.
         if load_data:
             # Get the dataset class and build the transforms
-            dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
+            self.data_class = pretrained_data_cfg.pop("_class")
+            dataset_cls = absolute_import(self.data_class)
 
             # Build the augmentation pipeline.
             if "augmentations" in total_config and (total_config["augmentations"] is not None):
@@ -140,6 +143,23 @@ class PostHocExperiment(TrainExperiment):
         self.config = Config(total_config)
     
     def build_loss(self):
+        total_config = self.config.to_dict()
+        if self.model_class in ["FT_CE", "FT_Dice"]:
+            # Load the config for the loss function.
+            loss_cfg_root = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/losses")
+            ##################################################
+            dataset_name = self.data_class.split(".")[-1]
+            with open(loss_cfg_root / f"{dataset_name}.yaml", 'r') as file:
+                loss_cfg = yaml.safe_load(file)
+            if self.model_class == "FT_CE":
+                new_loss_cfg = loss_cfg["ce_loss"]
+            else:
+                new_loss_cfg = loss_cfg["dice_loss"]
+            ##################################################
+            total_config["loss_func"] = new_loss_cfg
+            autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
+            self.config = Config(total_config)
+        # Build the loss function.
         self.loss_func = eval_config(self.config["loss_func"])
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
@@ -152,7 +172,7 @@ class PostHocExperiment(TrainExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Calibrate the predictions.
-        if self.model_class in ["Vanilla", "FT_CE, FT_Dice"]:
+        if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
