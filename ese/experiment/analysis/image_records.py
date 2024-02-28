@@ -185,9 +185,12 @@ def get_image_stats(
 
     for dict_type, metric_score_dict in metrics_collection.items():
         for met_name in list(metric_score_dict.keys()):
+            metric_score = metric_score_dict[met_name]
+            if met_name not in ["Soft_Ens_VAR", "Hard_Ens_VAR"]:
+                metric_score = metric_score.item()
             metrics_record = {
                 "image_metric": met_name,
-                "metric_score": metric_score_dict[met_name].item(),
+                "metric_score": metric_score
             }
             if inference_cfg["model"]["ensemble"] and met_name not in ["Soft_Ens_VAR", "Hard_Ens_VAR"]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
