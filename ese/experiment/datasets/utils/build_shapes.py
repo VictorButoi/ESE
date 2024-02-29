@@ -131,8 +131,6 @@ def thunderify_Shapes(
                 # Convert to the right type
                 img = image.astype(np.float32)
                 seg = label_map.astype(np.int64)
-                # Make the seg a 2D tensor by argmaxing the last dimension
-                seg = np.argmax(seg, axis=-1)
                 # Save the datapoint to the database
                 db[key] = (img, seg) 
                 examples.append(key)   
