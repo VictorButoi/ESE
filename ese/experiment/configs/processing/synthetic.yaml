@@ -12,6 +12,7 @@ gen_opts:
         - 32 
     # Unclear what this does.
     shapes_warp_scales: 
+        - 16
         - 32 
         - 64 
         - 128
@@ -25,36 +26,36 @@ aug_opts:
         - 3
         - 3 
     std_min_range: 
-        - 0.1 
-        - 0.1
-    std_max_range: 
-        - 0.2
         - 0.2 
+        - 0.2
+    std_max_range: 
+        - 0.5
+        - 0.5 
     lab_int_interimage_std_range: 
-        - 0.0
-        - 0.0
+        - 1.0
+        - 1.0
     shapes_warp_max_std_range: 
-        - 8.0 
-        - 8.0
+        - 10.0 
+        - 10.0
     warp_std_range:
-        - 8.0
-        - 8.0 
+        - 10.0
+        - 10.0 
     bias_res_range: 
         - 64 
         - 64 
     bias_std_range: 
-        - 0.1 
-        - 0.1
+        - 0.3 
+        - 0.3
     blur_std_range: 
-        - 8 
-        - 8 
+        - 5 
+        - 5 
     circle_x_range:
-        - '?' 
-        - '?' 
+        - 10 
+        - 64 
     circle_y_range:
-        - '?' 
-        - '?' 
+        - 10 
+        - 64 
     circle_rad_range:
-        - '?' 
-        - '?' 
+        - 16 
+        - 48 
     

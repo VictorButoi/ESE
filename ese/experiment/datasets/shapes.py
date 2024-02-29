@@ -19,8 +19,10 @@ class Shapes(ThunderDataset, DatapathMixin):
     version: float
     preload: bool = False
     binarize: bool = False
-    labels: Optional[List[int]] = None
     return_data_id: bool = False
+    return_data_subsplit: bool = False
+    num_examples: Optional[int] = None
+    labels: Optional[List[int]] = None
     iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
 
@@ -30,6 +32,9 @@ class Shapes(ThunderDataset, DatapathMixin):
         # Get the subjects from the splits
         samples = self._db["_splits"][self.split]
         self.samples = samples 
+        # Limit the number of examples available if necessary.
+        if self.num_examples is not None:
+            self.samples = self.samples[:self.num_examples]
         # Control how many samples are in each epoch.
         self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
             
@@ -62,6 +67,8 @@ class Shapes(ThunderDataset, DatapathMixin):
 
         if self.return_data_id:
             return_dict["data_id"] = example_name 
+        if self.return_data_subsplit:
+            return_dict["data_subsplit"] = self.subsplit
 
         return return_dict
 
