@@ -233,8 +233,11 @@ def perlin_generation(
                                                                   warp_res=gen_opts_cfg['warp_res'],
                                                                   bias_res=bias_res,
                                                                   bias_std=bias_std,
-                                                                  blur_std=blur_std)
-
+                                                                  blur_std=blur_std,
+                                                                  circle_x_range=aug_cfg['circle_x_range'],
+                                                                  circle_y_range=aug_cfg['circle_y_range'],
+                                                                  circle_rad_range=aug_cfg['circle_rad_range'],
+                                                                  visualize=False)
     # Add a noise to each image
     for i in range(len(images)):
         images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 

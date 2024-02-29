@@ -5,8 +5,8 @@ gen_opts:
         - 256
     # Controls the number of "regions" in the image, each is a label.
     num_labels_range: 
-        - 10 
-        - 10 
+        - 9 
+        - 9 
     # Controls the relative size of the regions in the image. Big = Bigger regions
     shapes_im_scales: 
         - 32 
@@ -48,3 +48,13 @@ aug_opts:
     blur_std_range: 
         - 8 
         - 8 
+    circle_x_range:
+        - '?' 
+        - '?' 
+    circle_y_range:
+        - '?' 
+        - '?' 
+    circle_rad_range:
+        - '?' 
+        - '?' 
+    
