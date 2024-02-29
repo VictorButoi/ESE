@@ -41,5 +41,5 @@ loss_func:
   ignore_index: 0 
 
 model:
-  filters: [4, 4, 4]
-  convs_per_block: 1
+  filters: [16, 16, 16, 16]
+  convs_per_block: 2

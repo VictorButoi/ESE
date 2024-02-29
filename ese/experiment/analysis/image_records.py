@@ -120,6 +120,7 @@ def get_image_stats(
         # Calculate the variance of the ensemble predictions.
         soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
         hard_ensemble_preds = torch.argmax(soft_ensemble_preds, dim=2, keepdim=True) # E x B x 1 x H x W
+        maxprob_ensemble_preds = torch.max(soft_ensemble_preds, dim=2)[0] # E x B x H x W
         # Accumulat the pairwise soft/hard dice scores.
         paired_soft_losses = []
         paired_hard_losses = []
@@ -137,17 +138,24 @@ def get_image_stats(
                     # Accumulate the losses.
                     paired_soft_losses.append(1 - soft_dice_score(soft_pred_i, soft_pred_j))
                     paired_hard_losses.append(1 - dice_score(hard_pred_i, hard_pred_j))
-        # Calculate the variance amongst the probabilities of the ensemble members and average pairwise dice.
-        qual_metric_scores_dict["Soft_Ens_VAR"] = torch.stack(paired_soft_losses).mean()
-        qual_metric_scores_dict["Hard_Ens_VAR"] = torch.stack(paired_hard_losses).mean()
+        qual_metric_scores_dict["Avg-PW Soft-Dice"] = torch.stack(paired_soft_losses).mean()
+        qual_metric_scores_dict["Avg-PW Hard-Dice"] = torch.stack(paired_hard_losses).mean()
+        # Calculate the variance of the ensemble predictions per predicted probabilitiy per pixel. 
+        # We do this for all of the predictions, AND for the top-prediction probabilities.
+        qual_metric_scores_dict["Ensemble-VAR"] = torch.var(soft_ensemble_preds, dim=0).mean()
+        qual_metric_scores_dict["Ensemble-TOP-VAR"] = torch.var(maxprob_ensemble_preds, dim=0).mean()
     else:
-        qual_metric_scores_dict["Soft_Ens_VAR"] = None
-        qual_metric_scores_dict["Hard_Ens_VAR"] = None
+        qual_metric_scores_dict["Avg-PW Soft-Dice"] = None
+        qual_metric_scores_dict["Avg-PW Hard-Dice"] = None
+        # 
+        qual_metric_scores_dict["Ensemble-VAR"] = None
+        qual_metric_scores_dict["Ensemble-TOP-VAR"] = None
 
     # If you're showing the predictions, also print the scores.
     if inference_cfg["log"].get("show_examples", False):
-        print(f"Soft Ensemble Variance: {qual_metric_scores_dict['Soft_Ens_VAR']}")
-        print(f"Hard Ensemble Variance: {qual_metric_scores_dict['Hard_Ens_VAR']}")
+        print(f"Ensemble-VAR: {qual_metric_scores_dict['Ensemble-VAR']}")
+        print(f"Avg-PW Soft-Dice: {qual_metric_scores_dict['Avg-PW Soft-Dice']}")
+        print(f"Avg-PW Hard-Dice: {qual_metric_scores_dict['Avg-PW Hard-Dice']}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -180,7 +188,6 @@ def get_image_stats(
     
     # Calculate the amount of present ground-truth there is in the image per label.
     if inference_cfg["log"]["track_label_amounts"]:
-
         pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
         num_classes = output_dict[pred_cls].shape[1]
         y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
@@ -202,7 +209,11 @@ def get_image_stats(
                 "image_metric": met_name,
                 "metric_score": metric_score
             }
-            if inference_cfg["model"]["ensemble"] and met_name not in ["Soft_Ens_VAR", "Hard_Ens_VAR"]:
+            if inference_cfg["model"]["ensemble"] and met_name not in [
+                "Ensemble-VAR", 
+                "Avg-PW Soft-Dice",
+                "Avg-PW Hard-Dice"
+            ]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
             # Add the dataset info to the record
