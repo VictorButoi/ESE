@@ -154,6 +154,7 @@ def get_image_stats(
     # If you're showing the predictions, also print the scores.
     if inference_cfg["log"].get("show_examples", False):
         print(f"Ensemble-VAR: {qual_metric_scores_dict['Ensemble-VAR']}")
+        print(f"Ensemble-TOP-VAR: {qual_metric_scores_dict['Ensemble-TOP-VAR']}")
         print(f"Avg-PW Soft-Dice: {qual_metric_scores_dict['Avg-PW Soft-Dice']}")
         print(f"Avg-PW Hard-Dice: {qual_metric_scores_dict['Avg-PW Hard-Dice']}")
 
@@ -211,6 +212,7 @@ def get_image_stats(
             }
             if inference_cfg["model"]["ensemble"] and met_name not in [
                 "Ensemble-VAR", 
+                "Ensemble-TOP-VAR", 
                 "Avg-PW Soft-Dice",
                 "Avg-PW Hard-Dice"
             ]:
