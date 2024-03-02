@@ -147,7 +147,8 @@ def update_cw_pixel_meters(
                     pred_map=y_probs, # B x H x W
                     neighborhood_width=calibration_cfg["neighborhood_width"],
                     discrete=False,
-                    class_wise=True
+                    class_wise=True,
+                    num_classes=C
                 ),
         **bin_args
     ).cpu().numpy()
@@ -158,7 +159,6 @@ def update_cw_pixel_meters(
         "discrete": True,
         "neighborhood_width": calibration_cfg["neighborhood_width"],
         "num_classes": C
-
     }
     true_nn_map = agg_neighbors_preds(
                     pred_map=output_dict["y_true"].squeeze(1), # B x H x W

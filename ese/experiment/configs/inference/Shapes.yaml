@@ -34,7 +34,7 @@ qual_metrics:
         metric_type: quality
     - BoundaryIOU:
         _fn: ese.experiment.metrics.boundary_iou
-        boundary_width: 4
+        boundary_width: 1
         from_logits: True
         batch_reduction: 'mean' 
         ignore_empty_labels: False 

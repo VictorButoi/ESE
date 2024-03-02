@@ -35,8 +35,8 @@ aug_opts:
         - 1.0
         - 1.0
     shapes_warp_max_std_range: 
-        - 10.0 
-        - 10.0
+        - 12.0 
+        - 12.0
     warp_std_range:
         - 10.0
         - 10.0 
@@ -53,9 +53,9 @@ aug_opts:
         - 10 
         - 64 
     circle_y_range:
-        - 10 
-        - 64 
+        - 0 
+        - 128 
     circle_rad_range:
-        - 16 
-        - 48 
+        - 8 
+        - 128 
     

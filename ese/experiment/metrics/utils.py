@@ -330,8 +330,6 @@ def agg_neighbors_preds(
         "Neighborhood width should be an odd number."
     assert neighborhood_width >= 3,\
         "Neighborhood width should be at least 3."
-    # Define the number of classes.
-    C = pred_map.shape[1]
     # Do some type checking, if we are discrete than lab_map has to be a long tensor
     # Otherwise it has to be a float32 or float64 tensor.
     if discrete:
@@ -350,7 +348,6 @@ def agg_neighbors_preds(
         kernel = kernel / kernel.sum()
     # If class_wise, then we want to get the neighbor predictions for each class.
     if class_wise:
-        assert binary, "If class-wise, then we must be doing binary neighbor maps."
         assert len(pred_map.shape) in [3, 4],\
             f"Pred map shape should be: (B, C, H, W) or (B, H, W), got shape: {pred_map.shape}."
         if len(pred_map.shape) == 4:
@@ -360,10 +357,10 @@ def agg_neighbors_preds(
                     pred_map=pred_map[:, l_idx, ...], 
                     neighborhood_width=neighborhood_width, 
                     kernel=kernel,
+                    binary=binary,
                     discrete=False,
-                    binary=True,
                 )
-            for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
+            for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
         else:
             assert discrete, "If class-wise with dim = 3, then we must be discrete."
             assert num_classes is not None, "If class-wise with dim = 3, then we must provide num_classes."
@@ -372,10 +369,10 @@ def agg_neighbors_preds(
                     pred_map=(pred_map == l_idx).long(),
                     neighborhood_width=neighborhood_width, 
                     kernel=kernel,
+                    binary=binary,
                     discrete=True,
-                    binary=True,
                 )
-            for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
+            for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
     else:
         assert len(pred_map.shape) == 3,\
             f"Pred map shape should be: (B, H, W), got shape: {pred_map.shape}."

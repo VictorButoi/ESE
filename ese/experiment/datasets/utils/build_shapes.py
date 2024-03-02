@@ -102,6 +102,7 @@ def thunderify_Shapes(
     # The final subsplit always has random rotation.
     finalsplit_images = all_images[max_subsplit_num * dps:]
     finalsplit_labels = all_labels[max_subsplit_num * dps:]
+
     rot_fs_images, rot_fs_labels = rotate_images_and_segs(
         finalsplit_images, 
         finalsplit_labels, 
