@@ -6,8 +6,9 @@ from pydantic import validate_arguments
 # Ionpy imports
 from ionpy.metrics.segmentation import soft_dice_score, dice_score
 # local imports
-from ..experiment.utils import reduce_ensemble_preds
+from ..metrics.scoring import ambiguity
 from ..metrics.local_ps import bin_stats_init
+from ..experiment.utils import reduce_ensemble_preds
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -144,12 +145,16 @@ def get_image_stats(
         # We do this for all of the predictions, AND for the top-prediction probabilities.
         qual_metric_scores_dict["Ensemble-VAR"] = torch.var(soft_ensemble_preds, dim=0).mean()
         qual_metric_scores_dict["Ensemble-TOP-VAR"] = torch.var(maxprob_ensemble_preds, dim=0).mean()
+        # New ambiguity measure.
+        qual_metric_scores_dict["Ambiguity"] = ambiguity(soft_ensemble_preds, qual_input_config["y_pred"])
     else:
         qual_metric_scores_dict["Avg-PW Soft-Dice"] = None
         qual_metric_scores_dict["Avg-PW Hard-Dice"] = None
         # 
         qual_metric_scores_dict["Ensemble-VAR"] = None
         qual_metric_scores_dict["Ensemble-TOP-VAR"] = None
+        #
+        qual_metric_scores_dict["Ambiguity"] = None
 
     # If you're showing the predictions, also print the scores.
     if inference_cfg["log"].get("show_examples", False):
@@ -157,6 +162,7 @@ def get_image_stats(
         print(f"Ensemble-TOP-VAR: {qual_metric_scores_dict['Ensemble-TOP-VAR']}")
         print(f"Avg-PW Soft-Dice: {qual_metric_scores_dict['Avg-PW Soft-Dice']}")
         print(f"Avg-PW Hard-Dice: {qual_metric_scores_dict['Avg-PW Hard-Dice']}")
+        print(f"Ambiguity: {qual_metric_scores_dict['Ambiguity']}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -214,7 +220,8 @@ def get_image_stats(
                 "Ensemble-VAR", 
                 "Ensemble-TOP-VAR", 
                 "Avg-PW Soft-Dice",
-                "Avg-PW Hard-Dice"
+                "Avg-PW Hard-Dice",
+                "Ambiguity"
             ]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]

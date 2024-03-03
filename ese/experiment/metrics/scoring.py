@@ -94,7 +94,7 @@ def ambiguity(
         # Average over ensemble members.
         amb_scores[:, lab] = ens_mem_amb_scores.mean(dim=0)
     # Reduce over the labels.
-    if ignore_index is not None:
+    if ignore_index is None:
         amb_scores = amb_scores.mean(dim=1)
     else:
         weights = torch.ones((B, C), device=ens_pred.device)
