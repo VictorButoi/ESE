@@ -55,7 +55,7 @@ def proc_exp_name(
     params = []
     params.append("exp_name:" + exp_name)
     for key, value in cfg.items():
-        if key != "log.root":
+        if key not in ["log.root", "train.pretrained_dir"]:
             key_name = key.split(".")[-1]
             short_value = str(value).replace(" ", "")
             params.append(f"{key_name}:{short_value}")
