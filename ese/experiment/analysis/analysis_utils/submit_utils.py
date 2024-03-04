@@ -105,34 +105,39 @@ def get_ese_inference_configs(
 def get_ese_calibration_configs(
     group_dict: dict,
     calibrators: List[str], 
-    additional_args: Optional[dict] = None
+    additional_args: Optional[dict] = None,
+    subsplit_dict: Optional[dict] = None
 ):
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
     training_exps_dir = scratch_root / "training" / group_dict['base_models_group']
 
     cal_option_list = []
     for calibrator in calibrators:
-        log_root = scratch_root / 'calibration' / group_dict['exp_group'] / f"Individual_{calibrator}"
-        # Get the calibrator name
-        calibrator_class_name_map = {
-            "LTS": "ese.experiment.models.calibrators.LTS",
-            "TempScaling": "ese.experiment.models.calibrators.Temperature_Scaling",
-            "VectorScaling": "ese.experiment.models.calibrators.Vector_Scaling",
-            "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
-            "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
-            "NS_V2": "ese.experiment.models.calibrators.NS_V2",
-        }
-        if calibrator in calibrator_class_name_map:
-            calibrator = calibrator_class_name_map[calibrator]
+        for pt_dir in gather_exp_paths(training_exps_dir):
+            log_root = scratch_root / 'calibration' / group_dict['exp_group'] / f"Individual_{calibrator}"
+            # Get the calibrator name
+            calibrator_class_name_map = {
+                "LTS": "ese.experiment.models.calibrators.LTS",
+                "TempScaling": "ese.experiment.models.calibrators.Temperature_Scaling",
+                "VectorScaling": "ese.experiment.models.calibrators.Vector_Scaling",
+                "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
+                "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
+                "NS_V2": "ese.experiment.models.calibrators.NS_V2",
+            }
+            if calibrator in calibrator_class_name_map:
+                calibrator = calibrator_class_name_map[calibrator]
 
-        calibration_options = {
-            'log.root': [str(log_root)],
-            'train.pretrained_dir': gather_exp_paths(training_exps_dir),
-            'model._class': [calibrator],
-        }
-        if additional_args is not None:
-            calibration_options.update(additional_args)
-        # Add the calibration options to the list
-        cal_option_list.append(calibration_options)
+            calibration_options = {
+                'log.root': [str(log_root)],
+                'train.pretrained_dir': [pt_dir],
+                'model._class': [calibrator],
+            }
+            if subsplit_dict is not None:
+                pt_dir_id = pt_dir.split('/')[-1]
+                calibration_options['data.subsplit'] = [subsplit_dict[pt_dir_id]]
+            if additional_args is not None:
+                calibration_options.update(additional_args)
+            # Add the calibration options to the list
+            cal_option_list.append(calibration_options)
     # Return the list of calibration options
     return cal_option_list
