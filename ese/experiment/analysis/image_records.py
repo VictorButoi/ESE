@@ -63,14 +63,14 @@ def get_image_stats(
         }
         # Get the reduced predictions
         cal_input_config = {
-            **qual_input_config,
             "preloaded_obj_dict": bin_stats_init(
                                     y_pred=qual_input_config['y_pred'],
                                     y_true=qual_input_config['y_true'],
                                     from_logits=False,
                                     num_prob_bins=num_prob_bins,
                                     neighborhood_width=neighborhood_width
-                                )
+                                ),
+            **qual_input_config
         }
     else:
         qual_input_config = {

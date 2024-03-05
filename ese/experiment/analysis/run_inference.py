@@ -195,7 +195,7 @@ def image_forward_loop(
 
         # Save the records every so often, to get intermediate results. Note, because of data_ids
         # this can contain fewer than 'log interval' many items.
-        if inference_cfg["log"]["log_image_stats"] and data_counter % inference_cfg['log']['log_interval'] == 0:
+        if inference_cfg["log"]["log_image_stats"] and (data_counter % inference_cfg['log']['log_interval'] == 0):
             save_trackers(output_root, trackers=trackers)
 
         data_counter += 1

@@ -283,9 +283,10 @@ def boundary_iou(
                             **neighb_args
                         ) # B x C x H x W
     pred_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_hard.long(), # B x H x W
+                            pred_map=y_hard, # B x H x W
                             **neighb_args
                         ) # B x C x H x W
+
     # Get the non-center pixels.
     max_matching_neighbors = (n_width**2 - 1) # The center pixel is not counted.
     boundary_pred = (pred_num_neighb_map < max_matching_neighbors) # B x C x H x W
