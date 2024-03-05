@@ -120,8 +120,8 @@ def get_image_stats(
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
         soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        hard_ensemble_preds = torch.argmax(soft_ensemble_preds, dim=2, keepdim=True) # E x B x 1 x H x W
         maxprob_ensemble_preds = torch.max(soft_ensemble_preds, dim=2)[0] # E x B x H x W
+        hard_ensemble_preds = torch.argmax(soft_ensemble_preds, dim=2, keepdim=True) # E x B x 1 x H x W
         # Accumulat the pairwise soft/hard dice scores.
         paired_soft_losses = []
         paired_hard_losses = []
@@ -136,9 +136,13 @@ def get_image_stats(
                     #
                     hard_pred_i = hard_ensemble_preds[i, ...]
                     hard_pred_j = hard_ensemble_preds[j, ...]
+                    # Calculate the soft and hard dice scores.
+                    s_dice = soft_dice_score(soft_pred_i, soft_pred_j)
+                    h_dice = dice_score(hard_pred_i, hard_pred_j)
                     # Accumulate the losses.
-                    paired_soft_losses.append(1 - soft_dice_score(soft_pred_i, soft_pred_j))
-                    paired_hard_losses.append(1 - dice_score(hard_pred_i, hard_pred_j))
+                    paired_soft_losses.append(1 - s_dice)
+                    paired_hard_losses.append(1 - h_dice)
+                    #
         qual_metric_scores_dict["Avg-PW Soft-Dice"] = torch.stack(paired_soft_losses).mean()
         qual_metric_scores_dict["Avg-PW Hard-Dice"] = torch.stack(paired_hard_losses).mean()
         # Calculate the variance of the ensemble predictions per predicted probabilitiy per pixel. 
