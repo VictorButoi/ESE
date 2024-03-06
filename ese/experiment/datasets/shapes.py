@@ -44,7 +44,10 @@ class Shapes(ThunderDataset, DatapathMixin):
     def __getitem__(self, key):
         key = key % len(self.samples)
         example_name = self.samples[key]
-        img, mask = super().__getitem__(key)
+        sample_dict = super().__getitem__(key)
+        # Get the stuff out of the sample dictionary.
+        img = sample_dict["img"]
+        mask = sample_dict["label"]
 
         # Zero out all labels that are not in the list.
         if self.labels is not None:

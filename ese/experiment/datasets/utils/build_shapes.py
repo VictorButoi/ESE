@@ -1,6 +1,7 @@
 import pathlib
 import numpy as np
 from tqdm import tqdm
+from scipy import ndimage
 import matplotlib.pyplot as plt
 from thunderpack import ThunderDB
 from pydantic import validate_arguments
@@ -45,37 +46,46 @@ def thunderify_Shapes(
     config = cfg.to_dict()
     # Append version to our paths
     dst_dir = pathlib.Path(config['log']['dst_dir']) / str(config['log']['version'])
-    splits_ratio = (0.6, 0.1, 0.2, 0.1)
+    splits_ratio = (0.5, 0.2, 0.2, 0.1)
     # Fix the seed of the generation process.
     fix_seed(config['log']['seed'])
 
     data_dict = {}
 
-    confirmation = False
-    while not confirmation:
+    if "preshow_synth_samples" in config["log"]:
+        confirmation = False
+        while not confirmation:
+            dps = config["log"]["datapoints_per_subsplit"]
+            all_images, all_labels = perlin_generation(
+                num_to_gen=dps * config["log"]["num_subsplits"],
+                gen_opts_cfg=config["gen_opts"], 
+                aug_cfg=config["aug_opts"], 
+            )
+            num_cols = 6
+            num_rows = (config["log"]["preshow_synth_samples"] // num_cols) * 2
+            f, axarr = plt.subplots(num_rows, num_cols, figsize=(num_cols*4, num_rows*4))
+            for idx in range(config["log"]["preshow_synth_samples"]):
+                row_offset = 2*(idx // num_cols)
+                col_idx = idx % num_cols
+                im = axarr[row_offset, col_idx].imshow(all_images[idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='none')
+                lab = axarr[row_offset + 1, col_idx].imshow(all_labels[idx], cmap='tab10', interpolation='none')
+                f.colorbar(im, ax=axarr[row_offset, col_idx], shrink=0.6)
+                f.colorbar(lab, ax=axarr[row_offset + 1, col_idx], shrink=0.6)
+                # Turn off axis lines and labels.
+                axarr[row_offset, col_idx].axis('off')
+                axarr[row_offset + 1, col_idx].axis('off')
+            plt.show()
+
+            confirm_input = input("Do you accept the generated data? (y/n): ")
+            confirmation = (confirm_input == "y")
+    else:
         dps = config["log"]["datapoints_per_subsplit"]
         all_images, all_labels = perlin_generation(
             num_to_gen=dps * config["log"]["num_subsplits"],
             gen_opts_cfg=config["gen_opts"], 
             aug_cfg=config["aug_opts"], 
         )
-        num_cols = 6
-        num_rows = (config["log"]["preshow_synth_samples"] // num_cols) * 2
-        f, axarr = plt.subplots(num_rows, num_cols, figsize=(num_cols*4, num_rows*4))
-        for idx in range(config["log"]["preshow_synth_samples"]):
-            row_offset = 2*(idx // num_cols)
-            col_idx = idx % num_cols
-            im = axarr[row_offset, col_idx].imshow(all_images[idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='none')
-            lab = axarr[row_offset + 1, col_idx].imshow(all_labels[idx], cmap='tab10', interpolation='none')
-            f.colorbar(im, ax=axarr[row_offset, col_idx], shrink=0.6)
-            f.colorbar(lab, ax=axarr[row_offset + 1, col_idx], shrink=0.6)
-            # Turn off axis lines and labels.
-            axarr[row_offset, col_idx].axis('off')
-            axarr[row_offset + 1, col_idx].axis('off')
-        plt.show()
 
-        confirm_input = input("Do you accept the generated data? (y/n): ")
-        confirmation = (confirm_input == "y")
 
     # For every subplit, except the last one because we
     # want it to be random rotation, we generate the data.
@@ -131,9 +141,18 @@ def thunderify_Shapes(
                 key = f"syn_subsplit:{subsplit_idx}_{data_id}"
                 # Convert to the right type
                 img = image.astype(np.float32)
-                seg = label_map.astype(np.int64)
+                seg = (label_map == 9).astype(np.int64)
+                # Calculate the distance transform.
+                dist_to_boundary = ndimage.distance_transform_edt(seg)
+                background_dist_to_boundary = ndimage.distance_transform_edt(1 - seg)
+                combined_dist_to_boundary = (dist_to_boundary + background_dist_to_boundary)/2
+
                 # Save the datapoint to the database
-                db[key] = (img, seg) 
+                db[key] = {
+                    "img": img, 
+                    "seg": seg,
+                    "dst_to_bdry": combined_dist_to_boundary 
+                }
                 examples.append(key)   
 
             # Split the data into train, cal, val, test

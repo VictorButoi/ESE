@@ -6,8 +6,8 @@ data:
   out_channels: 2 
   version: '?'
   subsplit: '?'
-  labels:
-    - 9 # THis is the Circle label.
+  # labels:
+  #   - 9 # THis is the Circle label.
 
 dataloader:
   batch_size: 4
