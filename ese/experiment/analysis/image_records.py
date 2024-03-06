@@ -3,10 +3,8 @@ import torch
 from torch.nn import functional as F
 # Misc imports
 from pydantic import validate_arguments
-# Ionpy imports
-from ionpy.metrics.segmentation import soft_dice_score, dice_score
 # local imports
-from ..metrics.scoring import ambiguity
+from ..metrics.scoring import pixel_ambiguity, region_ambiguity
 from ..metrics.local_ps import bin_stats_init
 from ..experiment.utils import reduce_ensemble_preds
     
@@ -120,45 +118,19 @@ def get_image_stats(
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
         soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        maxprob_ensemble_preds = torch.max(soft_ensemble_preds, dim=2)[0] # E x B x H x W
-        hard_ensemble_preds = torch.argmax(soft_ensemble_preds, dim=2, keepdim=True) # E x B x 1 x H x W
-        # Accumulat the pairwise soft/hard dice scores.
-        paired_soft_losses = []
-        paired_hard_losses = []
-        num_ensemble_members = hard_ensemble_preds.shape[0]
-        # Loop through the pairs.
-        for i in range(num_ensemble_members):
-            for j in range(num_ensemble_members):
-                if i != j: # Leave out the diagonal.
-                    # Calculate the dice score between the soft predictions of the ensemble members.
-                    soft_pred_i = soft_ensemble_preds[i, ...]
-                    soft_pred_j = soft_ensemble_preds[j, ...]
-                    #
-                    hard_pred_i = hard_ensemble_preds[i, ...]
-                    hard_pred_j = hard_ensemble_preds[j, ...]
-                    # Calculate the soft and hard dice scores.
-                    s_dice = soft_dice_score(soft_pred_i, soft_pred_j)
-                    h_dice = dice_score(hard_pred_i, hard_pred_j)
-                    # Accumulate the losses.
-                    paired_soft_losses.append(1 - s_dice)
-                    paired_hard_losses.append(1 - h_dice)
-                    #
-        qual_metric_scores_dict["Avg-PW Soft-Dice"] = torch.stack(paired_soft_losses).mean()
-        qual_metric_scores_dict["Avg-PW Hard-Dice"] = torch.stack(paired_hard_losses).mean()
-        # Calculate the variance of the ensemble predictions per predicted probabilitiy per pixel. 
-        # We do this for all of the predictions, AND for the top-prediction probabilities.
-        qual_metric_scores_dict["Ensemble-VAR"] = torch.var(soft_ensemble_preds, dim=0).mean()
-        qual_metric_scores_dict["Ensemble-TOP-VAR"] = torch.var(maxprob_ensemble_preds, dim=0).mean()
-        # New ambiguity measure.
-        qual_metric_scores_dict["Ambiguity"] = ambiguity(soft_ensemble_preds, qual_input_config["y_pred"])
+        qual_metric_scores_dict["Pixel-Ambiguity"] = pixel_ambiguity(
+            ind_preds=soft_ensemble_preds, 
+            ens_pred=qual_input_config["y_pred"], 
+            from_logits=False
+        )
+        qual_metric_scores_dict["Region-Ambiguity"] = region_ambiguity(
+            ind_preds=soft_ensemble_preds, 
+            ens_pred=qual_input_config["y_pred"], 
+            from_logits=False
+        )
     else:
-        qual_metric_scores_dict["Avg-PW Soft-Dice"] = None
-        qual_metric_scores_dict["Avg-PW Hard-Dice"] = None
-        # 
-        qual_metric_scores_dict["Ensemble-VAR"] = None
-        qual_metric_scores_dict["Ensemble-TOP-VAR"] = None
-        #
-        qual_metric_scores_dict["Ambiguity"] = None
+        qual_metric_scores_dict["Pixel-Ambiguity"] = None
+        qual_metric_scores_dict["Region-Ambiguity"] = None
 
     # If you're showing the predictions, also print the scores.
     if inference_cfg["log"].get("show_examples", False):

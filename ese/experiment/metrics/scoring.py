@@ -8,6 +8,7 @@ from typing import Optional, List
 from ionpy.metrics.util import (
     Reduction,
 )
+from ionpy.metrics.segmentation import soft_dice_score
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -58,7 +59,7 @@ def brier_score(
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def ambiguity(
+def pixel_ambiguity(
     ind_preds: Tensor, # (E, B, C, H, W)
     ens_pred: Tensor, # (B, C, H, W)
     batch_reduction: Reduction = "mean",
@@ -66,9 +67,6 @@ def ambiguity(
     square_diff: bool = True,
     ignore_index: Optional[int] = None,
 ):
-    """
-    Calculates the Brier Score for a predicted label map.
-    """
     assert len(ind_preds.shape) == 5 and len(ens_pred.shape) == 4,\
         "y_pred and y_true must be 5D and 4D tensors."
     # If the input is multi-channel for confidence, take the max across channels.
@@ -91,6 +89,54 @@ def ambiguity(
                 pos_diff_per_pix = (cls_mem_pred - cls_ens_pred).abs()
             # Sum across pixels.
             ens_mem_amb_scores[e_mem_idx, :] = pos_diff_per_pix.mean(dim=(1, 2)) # B
+        # Average over ensemble members.
+        amb_scores[:, lab] = ens_mem_amb_scores.mean(dim=0)
+    # Reduce over the labels.
+    if ignore_index is None:
+        amb_scores = amb_scores.mean(dim=1)
+    else:
+        weights = torch.ones((B, C), device=ens_pred.device)
+        weights[:, ignore_index] = 0
+        # Normalize the weights so that they sum to 1.
+        weights = weights / weights.sum(dim=1, keepdim=True)
+        amb_scores = (amb_scores * weights).sum(dim=1)
+    # Return the ambiguity score for the image.
+    if batch_reduction == "mean":
+        return amb_scores.mean()
+    else:
+        return amb_scores 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def region_ambiguity(
+    ind_preds: Tensor, # (E, B, C, H, W)
+    ens_pred: Tensor, # (B, C, H, W)
+    batch_reduction: Reduction = "mean",
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None,
+):
+    assert len(ind_preds.shape) == 5 and len(ens_pred.shape) == 4,\
+        "y_pred and y_true must be 5D and 4D tensors."
+    # If the input is multi-channel for confidence, take the max across channels.
+    if from_logits:
+        ind_preds = torch.softmax(ind_preds, dim=2)
+        ens_pred = torch.softmax(ens_pred, dim=1)
+
+    E, B, C = ind_preds.shape[:3]
+    amb_scores = torch.zeros((B, C), device=ens_pred.device)
+    # Iterate through the possible label classes.
+    for lab in range(C):
+        ens_mem_amb_scores = torch.zeros((E, B), device=ens_pred.device)
+        cls_ens_pred = ens_pred[:, lab:lab+1, ...] # (B, C, H, W)
+        for e_mem_idx in range(E):
+            cls_mem_pred = ind_preds[e_mem_idx, :, lab:lab+1, ...] # (B, C, H, W)
+            # Sum across pixels.
+            ens_mem_amb_scores[e_mem_idx, :] = soft_dice_score(
+                y_pred=cls_mem_pred, 
+                y_true=cls_ens_pred, 
+                reduction="mean", 
+                batch_reduction=None
+            ) 
         # Average over ensemble members.
         amb_scores[:, lab] = ens_mem_amb_scores.mean(dim=0)
     # Reduce over the labels.
