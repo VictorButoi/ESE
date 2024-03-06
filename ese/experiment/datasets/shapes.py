@@ -20,6 +20,7 @@ class Shapes(ThunderDataset, DatapathMixin):
     preload: bool = False
     binarize: bool = False
     return_data_id: bool = False
+    return_dst_to_bdry: bool = False
     return_data_subsplit: bool = False
     num_examples: Optional[int] = None
     labels: Optional[List[int]] = None
@@ -47,7 +48,7 @@ class Shapes(ThunderDataset, DatapathMixin):
         sample_dict = super().__getitem__(key)
         # Get the stuff out of the sample dictionary.
         img = sample_dict["img"]
-        mask = sample_dict["label"]
+        mask = sample_dict["seg"]
 
         # Zero out all labels that are not in the list.
         if self.labels is not None:
@@ -72,6 +73,8 @@ class Shapes(ThunderDataset, DatapathMixin):
             return_dict["data_id"] = example_name 
         if self.return_data_subsplit:
             return_dict["data_subsplit"] = self.subsplit
+        if self.return_dst_to_bdry:
+            return_dict["dst_to_bdry"] = sample_dict["dst_to_bdry"]
 
         return return_dict
 
