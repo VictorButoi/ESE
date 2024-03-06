@@ -8,7 +8,6 @@ from pydantic import validate_arguments
 from typing import Optional, Union, List
 from medpy.metric.binary import hd95 as HausdorffDist95
 # local imports
-from ionpy.loss.util import _loss_module_from_func
 from ionpy.metrics.util import (
     _metric_reduction,
     _inputs_as_onehot,
@@ -322,6 +321,3 @@ def boundary_iou(
         ignore_index=ignore_index,
         batch_reduction=batch_reduction,
     )
-
-
-BWPixelCELoss = _loss_module_from_func("BWPixelCELoss", bw_pixel_crossentropy_loss)
