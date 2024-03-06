@@ -4,7 +4,11 @@ from torch.nn import functional as F
 # Misc imports
 from pydantic import validate_arguments
 # local imports
-from ..metrics.scoring import pixel_ambiguity, region_ambiguity
+from ..metrics.scoring import (
+    pixel_ambiguity, 
+    soft_region_ambiguity, 
+    hard_region_ambiguity
+)
 from ..metrics.local_ps import bin_stats_init
 from ..experiment.utils import reduce_ensemble_preds
     
@@ -118,27 +122,25 @@ def get_image_stats(
     if inference_cfg["model"]["ensemble"]:
         # Calculate the variance of the ensemble predictions.
         soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        qual_metric_scores_dict["Pixel-Ambiguity"] = pixel_ambiguity(
-            ind_preds=soft_ensemble_preds, 
-            ens_pred=qual_input_config["y_pred"], 
-            from_logits=False
-        )
-        qual_metric_scores_dict["Region-Ambiguity"] = region_ambiguity(
-            ind_preds=soft_ensemble_preds, 
-            ens_pred=qual_input_config["y_pred"], 
-            from_logits=False
-        )
+        amb_args = {
+            "ind_preds": soft_ensemble_preds,
+            "ens_pred": qual_input_config["y_pred"],
+            "batch_reduction": "mean",
+            "from_logits": False
+        }
+        qual_metric_scores_dict["Pixel-Ambiguity"] = pixel_ambiguity(**amb_args)
+        qual_metric_scores_dict["Soft-Region-Ambiguity"] = soft_region_ambiguity(**amb_args)
+        qual_metric_scores_dict["Hard-Region-Ambiguity"] = hard_region_ambiguity(**amb_args)
     else:
         qual_metric_scores_dict["Pixel-Ambiguity"] = None
-        qual_metric_scores_dict["Region-Ambiguity"] = None
+        qual_metric_scores_dict["Soft-Region-Ambiguity"] = None
+        qual_metric_scores_dict["Hard-Region-Ambiguity"] = None
 
     # If you're showing the predictions, also print the scores.
     if inference_cfg["log"].get("show_examples", False):
-        print(f"Ensemble-VAR: {qual_metric_scores_dict['Ensemble-VAR']}")
-        print(f"Ensemble-TOP-VAR: {qual_metric_scores_dict['Ensemble-TOP-VAR']}")
-        print(f"Avg-PW Soft-Dice: {qual_metric_scores_dict['Avg-PW Soft-Dice']}")
-        print(f"Avg-PW Hard-Dice: {qual_metric_scores_dict['Avg-PW Hard-Dice']}")
-        print(f"Ambiguity: {qual_metric_scores_dict['Ambiguity']}")
+        print(f"Pixel-Ambiguity: {qual_metric_scores_dict['Pixel-Ambiguity']}")
+        print(f"Soft-Region-Ambiguity: {qual_metric_scores_dict['Soft-Region-Ambiguity']}")
+        print(f"Hard-Region-Ambiguity: {qual_metric_scores_dict['Hard-Region-Ambiguity']}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -193,11 +195,9 @@ def get_image_stats(
                 "metric_score": metric_score
             }
             if inference_cfg["model"]["ensemble"] and met_name not in [
-                "Ensemble-VAR", 
-                "Ensemble-TOP-VAR", 
-                "Avg-PW Soft-Dice",
-                "Avg-PW Hard-Dice",
-                "Ambiguity"
+                "Pixel-Ambiguity", 
+                "Soft-Region-Ambiguity", 
+                "Hard-Region-Ambiguity",
             ]:
                 metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]

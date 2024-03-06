@@ -8,7 +8,7 @@ from typing import Optional, List
 from ionpy.metrics.util import (
     Reduction,
 )
-from ionpy.metrics.segmentation import soft_dice_score
+from ionpy.metrics.segmentation import soft_dice_score, dice_score
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -108,7 +108,7 @@ def pixel_ambiguity(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def region_ambiguity(
+def soft_region_ambiguity(
     ind_preds: Tensor, # (E, B, C, H, W)
     ens_pred: Tensor, # (B, C, H, W)
     batch_reduction: Reduction = "mean",
@@ -131,7 +131,7 @@ def region_ambiguity(
         for e_mem_idx in range(E):
             cls_mem_pred = ind_preds[e_mem_idx, :, lab:lab+1, ...] # (B, C, H, W)
             # Sum across pixels.
-            ens_mem_amb_scores[e_mem_idx, :] = soft_dice_score(
+            ens_mem_amb_scores[e_mem_idx, :] = 1 - soft_dice_score(
                 y_pred=cls_mem_pred, 
                 y_true=cls_ens_pred, 
                 reduction="mean", 
@@ -148,6 +148,41 @@ def region_ambiguity(
         # Normalize the weights so that they sum to 1.
         weights = weights / weights.sum(dim=1, keepdim=True)
         amb_scores = (amb_scores * weights).sum(dim=1)
+    # Return the ambiguity score for the image.
+    if batch_reduction == "mean":
+        return amb_scores.mean()
+    else:
+        return amb_scores 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def hard_region_ambiguity(
+    ind_preds: Tensor, # (E, B, C, H, W)
+    ens_pred: Tensor, # (B, C, H, W)
+    batch_reduction: Reduction = "mean",
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None,
+):
+    assert len(ind_preds.shape) == 5 and len(ens_pred.shape) == 4,\
+        "y_pred and y_true must be 5D and 4D tensors."
+    # If the input is multi-channel for confidence, take the max across channels.
+    if from_logits:
+        ind_preds = torch.softmax(ind_preds, dim=2)
+        ens_pred = torch.softmax(ens_pred, dim=1)
+
+    E, B = ind_preds.shape[:2]
+    ens_mem_amb_scores = torch.zeros((E, B), device=ens_pred.device)
+    for e_mem_idx in range(E):
+        mem_pred = ind_preds[e_mem_idx, ...] # (B, C, H, W)
+        # Sum across pixels.
+        ens_mem_amb_scores[e_mem_idx, :] = 1 - dice_score(
+            y_pred=mem_pred, 
+            y_true=ens_pred, 
+            batch_reduction=None,
+            ignore_index=ignore_index
+        ) 
+    # Average over ensemble members.
+    amb_scores = ens_mem_amb_scores.mean(dim=0)
     # Return the ambiguity score for the image.
     if batch_reduction == "mean":
         return amb_scores.mean()
