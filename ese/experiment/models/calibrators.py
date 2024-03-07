@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import math
 import matplotlib.pyplot as plt
 # local imports
+from .unet import UNet
 from ..metrics.utils import agg_neighbors_preds
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
@@ -88,96 +89,52 @@ class Dirichlet_Scaling(nn.Module):
 
         
 class LTS(nn.Module):
-    def __init__(self, num_classes, image_channels, eps=1e-8, **kwargs):
+    def __init__(
+        self, 
+        img_channels: int,
+        num_classes: int, 
+        filters: list[int],
+        convs_per_block: int,
+        use_image: bool,
+        use_logits: bool, 
+        eps=1e-12, 
+        **kwargs
+    ):
         super(LTS, self).__init__()
+
         self.num_classes = num_classes
-
-        self.temperature_level_2_conv1 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_conv2 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_conv3 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_conv4 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-
-        self.temperature_level_2_param1 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_param2 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_param3 = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-
-        self.temperature_level_2_conv_img = nn.Conv2d(image_channels, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-        self.temperature_level_2_param_img = nn.Conv2d(num_classes, 1, kernel_size=5, stride=1, padding=4, padding_mode='reflect', dilation=2, bias=True)
-
+        self.calibrator_unet = UNet(
+            in_channels=(num_classes + img_channels if use_image else num_classes), 
+            out_channels=1, # For the temp map.
+            filters=filters,
+            convs_per_block=convs_per_block,
+        )
+        self.use_image = use_image
+        self.use_logits = use_logits
         self.eps = eps 
 
     def weights_init(self):
         pass
 
-    def forward(self, logits, image, label=None):
-        temperature_1 = self.temperature_level_2_conv1(logits)
-        temperature_1 += (torch.ones(1)).cuda()
-        temperature_2 = self.temperature_level_2_conv2(logits)
-        temperature_2 += (torch.ones(1)).cuda()
-        temperature_3 = self.temperature_level_2_conv3(logits)
-        temperature_3 += (torch.ones(1)).cuda()
-        temperature_4 = self.temperature_level_2_conv4(logits)
-        temperature_4 += (torch.ones(1)).cuda()
-        temperature_param_1 = self.temperature_level_2_param1(logits)
-        temperature_param_2 = self.temperature_level_2_param2(logits)
-        temperature_param_3 = self.temperature_level_2_param3(logits)
-
-        temp_level_11 = temperature_1 * torch.sigmoid(temperature_param_1) + temperature_2 * (1.0 - torch.sigmoid(temperature_param_1))
-        temp_level_num_class = temperature_3 * torch.sigmoid(temperature_param_2) + temperature_4 * (1.0 - torch.sigmoid(temperature_param_2))
-
-        temp_1 = temp_level_11 * torch.sigmoid(temperature_param_3) + temp_level_num_class * (1.0 - torch.sigmoid(temperature_param_3))
-        temp_2 = self.temperature_level_2_conv_img(image) + torch.ones(1).cuda()
-
-        temp_param = self.temperature_level_2_param_img(logits)
-
-        temperature = temp_1 * torch.sigmoid(temp_param) + temp_2 * (1.0 - torch.sigmoid(temp_param))
-        temperature = F.relu(temperature + torch.ones(1).cuda()) + self.eps # + 1 is done because the temperature starts near 0.
-        temperature = temperature.repeat(1, self.num_classes, 1, 1)
-        return logits / temperature
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-class Selective_Scaling(nn.Module):
-    def __init__(self, num_classes, **kwargs):
-        super(Selective_Scaling, self).__init__()
-        self.dirichlet_linear = nn.Linear(num_classes, num_classes)
-        self.binary_linear = nn.Linear(num_classes, 2)
-        
-        self.bn0 = nn.BatchNorm2d(num_classes)
-        self.linear_1 = nn.Linear(num_classes, num_classes*2)
-        self.bn1 = nn.BatchNorm2d(num_classes*2)
-        self.linear_2 = nn.Linear(num_classes*2, num_classes)
-        self.bn2 = nn.BatchNorm2d(num_classes)
-
-        self.relu = nn.ReLU()        
-
-    def weights_init(self):
-        self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
-        self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
-
-    def forward(self, logits, images=None, labels=None):
-        logits = logits.permute(0,2,3,1)   
-        probs = torch.softmax(logits)
-        ln_probs = torch.log(probs + 1e-16)
-
-        out = self.dirichlet_linear(ln_probs)
-        out = self.bn0(out.permute(0,3,1,2))
-        out = self.relu(out)
-        
-        out = self.linear_1(out.permute(0,2,3,1))
-        out = self.bn1(out.permute(0,3,1,2))
-        out = self.relu(out)
-        
-        out = self.linear_2(out.permute(0,2,3,1))
-        out = self.bn2(out.permute(0,3,1,2))
-        out = self.relu(out)       
-
-        tf_positive = self.binary_linear(out.permute(0,2,3,1))
-        
-        return  tf_positive.permute(0,3,1,2)
+    def forward(self, logits, image, **kwargs):
+        # Either passing into probs or logits into UNet, can affect optimization.
+        if not self.use_logits:
+            cal_input = torch.softmax(logits, dim=1)
+        else:
+            cal_input = logits
+        # Concatenate the image if we are using it.
+        if self.use_image:
+            cal_input = torch.cat([cal_input, image], dim=1)
+        # Pass through the UNet.
+        unnorm_temp_map = self.calibrator_unet(cal_input)
+        # Add ones so the temperature starts near 1.
+        unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
+        # Clip the values to be positive and add epsilon for smoothing.
+        temp_map = F.relu(unnorm_temp_map) + self.eps
+        # Repeat the temperature map for all classes.
+        temp_map = temp_map.repeat(1, self.num_classes, 1, 1)
+        # Finally, scale the logits by the temperatures.
+        return logits / temp_map
 
     @property
     def device(self):
@@ -217,8 +174,6 @@ class NECTAR_Scaling(nn.Module):
             self.neighborhood_temps.data.fill_(1)
 
     def forward(self, logits, **kwargs):
-        # print("Neighborhood Temps: ", self.neighborhood_temps)
-        # print()
         # Softmax the logits to get probabilities
         y_probs = torch.softmax(logits, dim=1) # B C H W
         # Argnax over the channel dimension to get the current prediction

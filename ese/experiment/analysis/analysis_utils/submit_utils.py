@@ -105,6 +105,8 @@ def get_ese_inference_configs(
 def get_ese_calibration_configs(
     group_dict: dict,
     calibrators: List[str], 
+    cal_base_cfgs: dict,
+    cal_model_opts: dict,
     additional_args: Optional[dict] = None,
     subsplit_dict: Optional[dict] = None
 ):
@@ -119,8 +121,16 @@ def get_ese_calibration_configs(
             calibration_options = {
                 'log.root': [str(log_root)],
                 'train.pretrained_dir': [pt_dir],
-                'model._class': [get_calibrator_cls(calibrator)],
             }
+            for model_key in cal_base_cfgs[calibrator]:
+                if model_key in cal_model_opts[calibrator]:
+                    assert isinstance(cal_model_opts[calibrator][model_key], list), "Calibration model options must be a list."
+                    calibration_options[f"model.{model_key}"] = cal_model_opts[calibrator][model_key]
+                else:
+                    base_cal_val = cal_base_cfgs[calibrator][model_key]
+                    assert base_cal_val != "?", "Base calibration model value is not set."
+                    calibration_options[f"model.{model_key}"] = [cal_base_cfgs[calibrator][model_key]]
+
             if subsplit_dict is not None:
                 pt_dir_id = pt_dir.split('/')[-1]
                 calibration_options['data.subsplit'] = [subsplit_dict[pt_dir_id]]
