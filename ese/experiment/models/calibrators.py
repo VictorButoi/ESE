@@ -36,9 +36,19 @@ class Temperature_Scaling(nn.Module):
 
     def weights_init(self):
         self.temp.data.fill_(1)
+    
+    def get_temp_map(self, logits):
+        B, _, H, W = logits.shape
+        temp_map = self.temp.repeat(B, H, W)
+        return temp_map
 
     def forward(self, logits, **kwargs):
-        return logits / self.temp 
+        _, C, _, _ = logits.shape
+        temp_map = self.get_temp_map(logits)
+        # Expand the shape of temp map to match the shape of the logits
+        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1)
+        # Finally, scale the logits by the temperatures.
+        return logits / temp_map
 
     @property
     def device(self):
@@ -102,7 +112,6 @@ class LTS(nn.Module):
     ):
         super(LTS, self).__init__()
 
-        self.num_classes = num_classes
         self.calibrator_unet = UNet(
             in_channels=(num_classes + img_channels if use_image else num_classes), 
             out_channels=1, # For the temp map.
@@ -116,7 +125,7 @@ class LTS(nn.Module):
     def weights_init(self):
         pass
 
-    def forward(self, logits, image, **kwargs):
+    def get_temp_map(self, logits, image):
         # Either passing into probs or logits into UNet, can affect optimization.
         if not self.use_logits:
             cal_input = torch.softmax(logits, dim=1)
@@ -126,13 +135,20 @@ class LTS(nn.Module):
         if self.use_image:
             cal_input = torch.cat([cal_input, image], dim=1)
         # Pass through the UNet.
-        unnorm_temp_map = self.calibrator_unet(cal_input)
+        unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x H x W
         # Add ones so the temperature starts near 1.
         unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
         # Clip the values to be positive and add epsilon for smoothing.
         temp_map = F.relu(unnorm_temp_map) + self.eps
+        # Return the temp map.
+        return temp_map
+
+    def forward(self, logits, image, **kwargs):
+        _, C, _, _ = logits.shape
+        # Get the temperature map.
+        temp_map = self.get_temp_map(logits, image)
         # Repeat the temperature map for all classes.
-        temp_map = temp_map.repeat(1, self.num_classes, 1, 1)
+        temp_map = temp_map.repeat(1, C, 1, 1)
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
