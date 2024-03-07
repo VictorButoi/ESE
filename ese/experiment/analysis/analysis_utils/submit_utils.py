@@ -123,7 +123,7 @@ def get_ese_calibration_configs(
                 'train.pretrained_dir': [pt_dir],
             }
             for model_key in cal_base_cfgs[calibrator]:
-                if model_key in cal_model_opts[calibrator]:
+                if (calibrator in cal_model_opts) and (model_key in cal_model_opts[calibrator]):
                     assert isinstance(cal_model_opts[calibrator][model_key], list), "Calibration model options must be a list."
                     calibration_options[f"model.{model_key}"] = cal_model_opts[calibrator][model_key]
                 else:
