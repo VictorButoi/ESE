@@ -177,7 +177,10 @@ class PostHocExperiment(TrainExperiment):
         else:
             yhat_cal = self.model(yhat, image=x)
         # Calculate the loss between the pred and original preds.
-        loss = self.loss_func(yhat_cal, y)
+        if "BWPixelCELoss" in str(self.loss_func):
+            loss = self.loss_func(yhat_cal, y, dist_to_boundary=batch["dist_to_boundary"])
+        else:
+            loss = self.loss_func(yhat_cal, y)
         # If backward then backprop the gradients.
         if backward:
             loss.backward()

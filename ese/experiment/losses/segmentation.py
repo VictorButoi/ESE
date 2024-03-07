@@ -3,8 +3,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 # misc imports
-import numpy as np
-from scipy import ndimage
+import math
 import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Optional, Union
@@ -14,14 +13,14 @@ from ionpy.metrics.util import (
     InputMode,
     Reduction
 )
-# local imports
-from ..metrics.utils import agg_neighbors_preds
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bw_pixel_crossentropy_loss(
     y_pred: Tensor,
     y_true: Tensor,
+    dist_to_boundary: Tensor,
+    sigma: float = 8.0,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
@@ -98,39 +97,15 @@ def bw_pixel_crossentropy_loss(
                 ignore_index=ignore_index,
             )
     
-    # Get the distance transform of the label.
-    viz_y = y_true.cpu().numpy().squeeze()
+    def rbf_kernel(dist_tfm, sigma):
+        constant = 1 / (sigma * torch.sqrt(2 * torch.tensor(math.pi, dtype=torch.float64)))
+        return constant * torch.exp(-0.5 * (dist_tfm / sigma**2))
 
-    f, axarr = plt.subplots(1, 2, figsize=(16, 8))
-    dist_to_boundary = ndimage.distance_transform_edt(viz_y)
-    background_dist_to_boundary = ndimage.distance_transform_edt(1 - viz_y)
-    combined_dist_to_boundary = (dist_to_boundary + background_dist_to_boundary)/2
+    # Calculate pixel weights, based on distance to boundary and smoothing factor.
+    pixel_weights = rbf_kernel(dist_to_boundary, sigma)    
 
-    im1 = axarr[0].imshow(viz_y, interpolation='None')
-    axarr[0].set_title('Label')
-    axarr[0].grid(False)
-    f.colorbar(im1, ax=axarr[0])
-
-    # im2 = axarr[1].imshow(dist_to_boundary, interpolation='None', cmap='rocket_r')
-    im2 = axarr[1].imshow(combined_dist_to_boundary, interpolation='None', cmap='rocket_r')
-    axarr[1].set_title('Distance to Boundary')
-    axarr[1].grid(False)
-    f.colorbar(im2, ax=axarr[1])
-    plt.show()
-
-    def brb_w(dist_tfm, sigma):
-        return (1/(sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(dist_tfm/sigma**2))
-    
-    f, axarr = plt.subplots(1, 5, figsize=(20, 4))
-    for s_idx, sig in enumerate([1, 4, 8, 16, 32]):
-        sig_im = axarr[s_idx].imshow(brb_w(combined_dist_to_boundary, sig), interpolation='None', cmap='rocket_r')
-        axarr[s_idx].set_title(f'BRB Weight, sigma={sig}')
-        axarr[s_idx].grid(False)
-        f.colorbar(sig_im, ax=axarr[s_idx])
-    plt.show()
-    
-    print(loss.shape)
-    raise ValueError
+    # Weight the loss by the pixel weights.
+    loss = loss * pixel_weights
 
     # Channels have been collapsed
     spatial_dims = list(range(1, len(y_pred.shape) - 1))

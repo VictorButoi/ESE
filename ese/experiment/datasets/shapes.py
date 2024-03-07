@@ -74,7 +74,7 @@ class Shapes(ThunderDataset, DatapathMixin):
         if self.return_data_subsplit:
             return_dict["data_subsplit"] = self.subsplit
         if self.return_dst_to_bdry:
-            return_dict["dst_to_bdry"] = sample_dict["dst_to_bdry"]
+            return_dict["dist_to_boundary"] = sample_dict["dst_to_bdry"]
 
         return return_dict
 
