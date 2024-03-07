@@ -58,6 +58,9 @@ def proc_exp_name(
         if key not in ["log.root", "train.pretrained_dir"]:
             key_name = key.split(".")[-1]
             short_value = str(value).replace(" ", "")
-            params.append(f"{key_name}:{short_value}")
+            if key_name == "exp_name":
+                params.append(str(short_value))
+            else:
+                params.append(f"{key_name}:{short_value}")
     wandb_string = "-".join(params)
     return {"log.wandb_string": wandb_string}

@@ -94,9 +94,9 @@ class LTS(nn.Module):
         img_channels: int,
         num_classes: int, 
         filters: list[int],
-        convs_per_block: int,
         use_image: bool,
         use_logits: bool, 
+        convs_per_block: int = 1,
         eps=1e-12, 
         **kwargs
     ):
