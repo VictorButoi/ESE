@@ -49,26 +49,25 @@ class Shapes(ThunderDataset, DatapathMixin):
         # Get the stuff out of the sample dictionary.
         img = sample_dict["img"]
         mask = sample_dict["seg"]
-
         # Zero out all labels that are not in the list.
         if self.labels is not None:
             mask = np.where(np.isin(mask, self.labels), mask, 0)
         if self.binarize:
             mask = np.where(mask > 0, 1, 0)
-
         # Apply the transforms to the numpy images.
         if self.transforms:
-            img = img.transpose(1, 2, 0) # (C, H, W) -> (H, W, C)
-            transformed = self.transforms(image=img, mask=mask)
-            img = transformed['image'].transpose(2, 0, 1) # (H, W, C) -> (C, H, W)
-            mask = transformed['mask'] # (H, W)
-        
+            img, mask = self.transforms(image=img, mask=mask)
+        # If the img is still a numpy array, convert it to a tensor.
+        if isinstance(img, np.ndarray):
+            img = torch.from_numpy(img)
+        if isinstance(mask, np.ndarray):
+            mask = torch.from_numpy(mask)
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img)[None],
-            "label": torch.from_numpy(mask)[None], # Add a channel dimension 
+            "img": img[None],
+            "label": mask[None], # Add a channel dimension 
         }
-
+        # Add information if necessary.
         if self.return_data_id:
             return_dict["data_id"] = example_name 
         if self.return_data_subsplit:

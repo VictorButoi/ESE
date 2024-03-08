@@ -42,8 +42,8 @@ class PostHocExperiment(TrainExperiment):
 
             # Build the augmentation pipeline.
             if "augmentations" in total_config and (total_config["augmentations"] is not None):
-                val_transforms = augmentations_from_config(total_config["augmentations"]["train"])
-                cal_transforms = augmentations_from_config(total_config["augmentations"]["val"])
+                val_transforms = augmentations_from_config(total_config["augmentations"]["val"])
+                cal_transforms = augmentations_from_config(total_config["augmentations"]["cal"])
                 self.properties["aug_digest"] = json_digest(self.config["augmentations"].to_dict())[
                     :8
                 ]

@@ -26,3 +26,24 @@ log:
       from_logits: True
       num_prob_bins: 15
       neighborhood_width: 3
+  
+
+# AUGMNENTATIONS USED FOR BETTER CALIBRATION (Should these be the same as training?)
+augmentations:
+    val:
+      - HorizontalFlip:
+          p: 0.5
+      - Rotate:
+          limit: 10
+          p: 0.5
+      - RandomScale:
+          scale_limit: [0.5, 2]
+          p: 0.5
+      - GaussianBlur:
+          blur_limit: [3, 7]
+          p: 0.5
+      - RandomBrightnessContrast:
+          p: 0.5
+      - ToFloat
+    cal:
+      - ToFloat
