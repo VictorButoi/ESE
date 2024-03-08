@@ -12,4 +12,4 @@ def build_aug(aug_obj):
         aug_key = list(aug_obj.keys())[0]
         return absolute_import(f'albumentations.{aug_key}')(**aug_obj[aug_key])
     else:
-        return absolute_import(f'albumentations.{aug_obj}')
+        return absolute_import(f'albumentations.{aug_obj}')()

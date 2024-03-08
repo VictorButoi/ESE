@@ -56,7 +56,9 @@ class Shapes(ThunderDataset, DatapathMixin):
             mask = np.where(mask > 0, 1, 0)
         # Apply the transforms to the numpy images.
         if self.transforms:
-            img, mask = self.transforms(image=img, mask=mask)
+            transform_obj = self.transforms(image=img, mask=mask)
+            img = transform_obj["image"]
+            mask = transform_obj["mask"]
         # If the img is still a numpy array, convert it to a tensor.
         if isinstance(img, np.ndarray):
             img = torch.from_numpy(img)

@@ -44,6 +44,9 @@ augmentations:
           p: 0.5
       - RandomBrightnessContrast:
           p: 0.5
+      - Resize:
+          height: 256
+          width: 256
       - ToFloat
     cal:
       - ToFloat
