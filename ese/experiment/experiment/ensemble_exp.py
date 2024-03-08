@@ -169,7 +169,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         combine_quantity: Optional[Literal["probs", "logits"]] = None
     ):
         # Get the label predictions for each model.
-        ensemble_model_outputs = {}
+        ensemble_model_outputs = []
         return_logits = None
         for exp_path in self.ens_exp_paths:
             # Multi-class needs to be true here so that we can combine the outputs.
@@ -179,10 +179,10 @@ class EnsembleInferenceExperiment(BaseExperiment):
             )
             if 'y_logits' in member_pred:
                 return_logits = True
-                ensemble_model_outputs[exp_path] = member_pred['y_logits']
+                ensemble_model_outputs.append(member_pred['y_logits'])
             else:
                 return_logits = False
-                ensemble_model_outputs[exp_path] = member_pred['y_probs']
+                ensemble_model_outputs.append(member_pred['y_probs'])
 
         # Combine the outputs of the models.
         if combine_fn is None:

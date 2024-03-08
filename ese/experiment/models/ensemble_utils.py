@@ -21,12 +21,10 @@ def get_combine_fn(combine_fn: str):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def batch_ensemble_preds(
-    model_outputs: dict,
+    model_outputs: list,
 ):
-    sorted_paths = sorted(list(model_outputs.keys()))
-    preds = [model_outputs[model_path] for model_path in sorted_paths]
     # Convert to tensors.
-    raw_pred_tensor = torch.stack(preds) # E, B, C, H, W
+    raw_pred_tensor = torch.stack(model_outputs) # E, B, C, H, W
     # Reshape to allow for broadcasting.
     pred_tensor = raw_pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
     # Return the reshaped tensors.
@@ -35,7 +33,7 @@ def batch_ensemble_preds(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def identity_combine_fn(
-    ensemble_logits: dict, 
+    ensemble_logits, 
     **kwargs
 ):
     return batch_ensemble_preds(ensemble_logits)
