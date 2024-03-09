@@ -39,9 +39,14 @@ class PostHocExperiment(TrainExperiment):
         if load_data:
             # Get the dataset class and build the transforms
             dataset_cls = absolute_import(pretrained_data_cfg.pop("_class"))
-
             # Build the augmentation pipeline.
-            if "augmentations" in total_config and (total_config["augmentations"] is not None):
+            aug_exists = "augmentations" in total_config and (total_config["augmentations"] is not None)
+            if "add_aug" in pretrained_data_cfg:
+                add_aug = pretrained_data_cfg.pop("add_aug")
+            else:
+                add_aug = True
+            # If there are augmentations to add and we want to add them, then add them.
+            if aug_exists and add_aug:
                 val_transforms = augmentations_from_config(total_config["augmentations"]["val"])
                 cal_transforms = augmentations_from_config(total_config["augmentations"]["cal"])
                 self.properties["aug_digest"] = json_digest(self.config["augmentations"].to_dict())[
