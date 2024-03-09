@@ -146,9 +146,9 @@ class LTS(nn.Module):
     def forward(self, logits, image, **kwargs):
         _, C, _, _ = logits.shape
         # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image)
+        temp_map = self.get_temp_map(logits, image) # B x H x W
         # Repeat the temperature map for all classes.
-        temp_map = temp_map.repeat(1, C, 1, 1)
+        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
