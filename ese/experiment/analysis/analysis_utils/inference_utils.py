@@ -324,7 +324,14 @@ def dataloader_from_exp(
     # Get the dataset class and build the transforms
     dataset_cls = inference_data_cfg.pop('_class')
     # Drop auxiliary information used for making the models.
-    for drop_key in ['in_channels', 'out_channels', 'iters_per_epoch', 'input_type']:
+    for drop_key in [
+        'in_channels', 
+        'out_channels', 
+        'iters_per_epoch', 
+        'input_type',
+        'add_aug',
+        'return_dst_to_bdry'
+    ]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
@@ -334,7 +341,6 @@ def dataloader_from_exp(
         inference_transforms = augmentations_from_config(aug_cfg_list)
     else:
         inference_transforms = None
-
     dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
     dataloaders = {}
     for split in dset_splits:
