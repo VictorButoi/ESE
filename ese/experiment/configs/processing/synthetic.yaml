@@ -50,12 +50,12 @@ aug_opts:
         - 5 
         - 5 
     circle_x_range:
-        - 10 
-        - 64 
+        - 0 
+        - 128 
     circle_y_range:
         - 0 
         - 128 
     circle_rad_range:
-        - 8 
-        - 128 
+        - 24 
+        - 48 
     
