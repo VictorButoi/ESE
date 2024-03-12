@@ -6,8 +6,7 @@ data:
   out_channels: 2 
   version: '?'
   subsplit: '?'
-  # labels:
-  #   - 9 # THis is the Circle label.
+  iters_per_epoch: 250 
 
 dataloader:
   batch_size: 4
