@@ -68,7 +68,6 @@ def load_cal_inference_stats(
                 verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                 # Check to make sure that this log wasn't the result of a crash.
                 all_inference_log_paths.append(sub_exp_log_path)
-            raise ValueError
         # Add the inference paths if they exist.
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
@@ -87,6 +86,11 @@ def load_cal_inference_stats(
                         cfg = HDict(cfg_yaml)
                         flat_cfg = valmap(list2tuple, cfg.flatten())
                         flat_cfg["log_set"] = log_set.name
+                        # Count the number of ensemble members.
+                        if "ensemble.member_paths" in flat_cfg and flat_cfg["ensemble.member_paths"] != "None":
+                            flat_cfg["num_ensemble_members"] = len(flat_cfg["ensemble.member_paths"])
+                        else:
+                            flat_cfg["num_ensemble_members"] = "None"
                         # Remove some columns we don't care about.
                         for drop_key in [
                             "augmentations",
