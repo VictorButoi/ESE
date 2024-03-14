@@ -35,7 +35,7 @@ def get_ese_inference_configs(
     calibrator_option_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for (calibrator, do_ensemble, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
-        ens_cfg_options = [('mean', 'probs'), ('product', 'probs')] if do_ensemble else [None]
+        ens_cfg_options = [('mean', 'probs')] if do_ensemble else [None]
         # For each ensemble option, we want to run inference.
         for ens_cfg in ens_cfg_options:
             ##################################################
