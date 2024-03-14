@@ -12,6 +12,7 @@ from ionpy.util.config import HDict, valmap
 # local imports
 from .analysis_utils.inference_utils import (
     add_dice_loss_rows,
+    verify_graceful_exit,
     get_average_unet_baselines,
     preload_calibration_metrics,
 )
@@ -61,7 +62,14 @@ def load_cal_inference_stats(
             if "ensemble_upper_bounds" in sub_exp_names:
                 sub_exp_names.remove("ensemble_upper_bounds")
             # Combine the inference group with the sub experiment names.
-            all_inference_log_paths += [log_cfg["inference_group"] + "/" + sub_exp for sub_exp in sub_exp_names]
+            for sub_exp in sub_exp_names:
+                sub_exp_log_path = log_cfg["inference_group"] + "/" + sub_exp
+                # Check to make sure this log wasn't the result of a crash.
+                verify_graceful_exit(sub_exp_log_path, log_root=log_root)
+                # Check to make sure that this log wasn't the result of a crash.
+                all_inference_log_paths.append(sub_exp_log_path)
+            raise ValueError
+        # Add the inference paths if they exist.
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
                 all_inference_log_paths.append(inf_path)

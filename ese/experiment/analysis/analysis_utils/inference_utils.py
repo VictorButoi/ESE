@@ -20,6 +20,20 @@ from ...augmentation.gather import augmentations_from_config
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 
 
+def verify_graceful_exit(log_path: str, log_root: str):
+    submitit_dir = os.path.join(log_root, log_path, "submitit")
+    unique_logs = list(set([logfile.split("_")[0] for logfile in os.listdir(submitit_dir)]))
+    for log_name in unique_logs:
+        result_log_file = os.path.join(submitit_dir, f"{log_name}_0_result.pkl")
+        try:
+            with open(result_log_file, 'rb') as f:
+                result = pickle.load(f)[0]
+            if result != 'success':
+                raise ValueError(f"Found non-success result in {log_name} job: {result}.")
+        except Exception as e:
+            print(f"Error loading result log file: {e}")
+
+
 def add_dice_loss_rows(inference_df, opts_cfg):
     # Get the rows corresponding to the Dice metric.
     dice_rows = inference_df[inference_df['image_metric'] == 'Dice']
