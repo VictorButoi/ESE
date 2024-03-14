@@ -10,10 +10,11 @@ from ese.experiment.models.utils import get_calibrator_cls
 def get_ese_inference_configs(
     group_dict: dict,
     calibrators_list: List[str], 
+    ensemble_opts: List[bool],
     log_image_stats: bool = True,
     log_pixel_stats: bool = True,
-    ensemble_opts: bool = False, 
     ensemble_upper_bound: bool = False,
+    num_ens_members_opts: Optional[List[int]] = [None],
     norm_ens_opts: Optional[List[bool]] = [False],
     norm_binning_opts: Optional[List[bool]] = [False],
     cal_stats_splits: Optional[List[str]] = [None],
@@ -24,6 +25,7 @@ def get_ese_inference_configs(
     run_cfg_options = list(itertools.product(
         calibrators_list, 
         ensemble_opts, 
+        num_ens_members_opts,
         norm_ens_opts,
         norm_binning_opts,
         cal_stats_splits,
@@ -31,7 +33,7 @@ def get_ese_inference_configs(
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, do_ensemble, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
+    for (calibrator, do_ensemble, num_ens_members, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
         ens_cfg_options = [('mean', 'probs'), ('product', 'probs')] if do_ensemble else [None]
         # For each ensemble option, we want to run inference.
         for ens_cfg in ens_cfg_options:

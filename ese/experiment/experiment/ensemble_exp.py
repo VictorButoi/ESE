@@ -38,23 +38,31 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Get the configs of the experiment
         rs = ResultsLoader()
         # Load ALL the configs in the directory.
-        dfc = rs.load_configs(
-            model_cfg["pretrained_exp_root"],
-            properties=False,
-        )
-        def verify_ensemble_configs(dfc):
-            seed_values = dfc["seed"].unique()
-            unique_runs = dfc["path"].unique()
-            if len(seed_values) < len(unique_runs):
-                raise ValueError("Duplicate seeds found in ensemble.")
-            for column in dfc.columns:
-                if column not in ["seed", "subsplit", "path", "pretrained_dir"] and\
-                    len(dfc[column].unique()) > 1:
-                    raise ValueError(f"The only difference between the configs should be the seed, "\
-                                      + f"but found different values in column '{column}'."\
-                                        + f"Unique values: {dfc[column].unique()}")
-        # Verify that the configs are valid.
-        verify_ensemble_configs(dfc)
+        if "pretrained_exp_root" in model_cfg:
+            dfc = rs.load_configs(
+                model_cfg["pretrained_exp_root"],
+                properties=False,
+            )
+            def verify_ensemble_configs(dfc):
+                seed_values = dfc["seed"].unique()
+                unique_runs = dfc["path"].unique()
+                if len(seed_values) < len(unique_runs):
+                    raise ValueError("Duplicate seeds found in ensemble.")
+                for column in dfc.columns:
+                    if column not in ["seed", "subsplit", "path", "pretrained_dir"] and\
+                        len(dfc[column].unique()) > 1:
+                        raise ValueError(f"The only difference between the configs should be the seed, "\
+                                        + f"but found different values in column '{column}'."\
+                                            + f"Unique values: {dfc[column].unique()}")
+            # Verify that the configs are valid.
+            verify_ensemble_configs(dfc)
+            # Gather the unique ensemble paths.
+            member_exp_path_list = dfc["path"].unique()
+        elif "member_paths" in ensemble_cfg:
+            member_exp_path_list = ensemble_cfg["member_paths"]
+        else:
+            raise ValueError("No pretrained ensemble root or member paths found in config.")
+
         # Loop through each config and build the experiment, placing it in a dictionary.
         self.normalize = ensemble_cfg["normalize"]
         self.combine_fn = ensemble_cfg["combine_fn"]
@@ -65,7 +73,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.ens_exps = {}
         self.num_params = 0
         # Loop through each member of the ensemble.
-        for exp_idx, exp_path in enumerate(dfc["path"].unique()):
+        for exp_idx, exp_path in enumerate(member_exp_path_list):
             # Special case where we want to use the binning calibrator.
             if "Binning" in model_cfg["calibrator"]:  
                 # Construct the cfg for this binning member
@@ -101,7 +109,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
             self.ens_exps[str(exp_path)] = loaded_exp
             self.num_params += loaded_exp.properties["num_params"]
             self.ens_exp_paths.append(str(exp_path))
-            self.ens_exp_seeds.append(dfc[dfc['path'] == exp_path]["seed"].values[0])
 
             # Set the pretrained data config from the first model.
             if exp_idx == 0:
@@ -125,13 +132,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Sort the ensemble paths by their seeds.
         self.ens_exp_paths = [x for _, x in sorted(zip(self.ens_exp_seeds, self.ens_exp_paths))]
 
-        ################################################
-        # Get the weights per ensemble member.
-        ################################################
-        self.ens_mem_weights = get_ensemble_member_weights(
-            results_df=rs.load_metrics(dfc),
-            metric=ensemble_cfg["member_w_metric"]
-        )
         ####################################################
         # Add other auxilliary information to the config.
         ####################################################
