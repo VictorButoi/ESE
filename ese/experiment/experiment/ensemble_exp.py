@@ -68,8 +68,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.combine_fn = ensemble_cfg["combine_fn"]
         self.combine_quantity = ensemble_cfg["combine_quantity"]
         self.ens_exp_paths = []
-        self.ens_exp_seeds = []
-
         self.ens_exps = {}
         self.num_params = 0
         # Loop through each member of the ensemble.
@@ -129,8 +127,6 @@ class EnsembleInferenceExperiment(BaseExperiment):
                 # Add the model class to the config.
                 model_cfg["_class"] = main_model_name
                 model_cfg["_pretrained_class"] = pretrained_model_name
-        # Sort the ensemble paths by their seeds.
-        self.ens_exp_paths = [x for _, x in sorted(zip(self.ens_exp_seeds, self.ens_exp_paths))]
 
         ####################################################
         # Add other auxilliary information to the config.
