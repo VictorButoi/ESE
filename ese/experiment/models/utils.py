@@ -5,11 +5,12 @@ def get_calibrator_cls(calibrator: str):
         "TempScaling": "ese.experiment.models.calibrators.Temperature_Scaling",
         "VectorScaling": "ese.experiment.models.calibrators.Vector_Scaling",
         "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
+        "IBTS": "ese.experiment.models.calibrators.IBTS",
         "LTS": "ese.experiment.models.calibrators.LTS",
-        "NectarScaling": "ese.experiment.models.calibrators.NECTAR_Scaling",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
         "LocalHistogramBinning": "ese.experiment.models.binning.Local_Histogram_Binning",
         "NectarBinning": "ese.experiment.models.binning.NECTAR_Binning",
+        "NectarScaling": "ese.experiment.models.nectar.NECTAR_Scaling",
         "SoftNectarBinning": "ese.experiment.models.binning.Soft_NECTAR_Binning",
     }
     if calibrator in calibrator_class_name_map:

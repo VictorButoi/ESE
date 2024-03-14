@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.models import resnet18
 # misc imports
 import math
 import matplotlib.pyplot as plt
@@ -97,6 +98,66 @@ class Dirichlet_Scaling(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
+
+class IBTS(nn.Module):
+    def __init__(
+        self, 
+        img_channels: int,
+        num_classes: int, 
+        use_image: bool = True,
+        use_logits: bool = True, 
+        eps=1e-12, 
+        **kwargs
+    ):
+        super(IBTS, self).__init__()
+
+        self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
+        self.temp_predictor = resnet18(progress=False).eval()
+        self.output_projection = nn.Linear(10, 1)
+        self.use_image = use_image
+        self.use_logits = use_logits
+        self.eps = eps 
+
+    def weights_init(self):
+        pass
+
+    def get_temp_map(self, logits, image):
+        # Either passing into probs or logits into UNet, can affect optimization.
+        if not self.use_logits:
+            cal_input = torch.softmax(logits, dim=1)
+        else:
+            cal_input = logits
+        # Concatenate the image if we are using it.
+        if self.use_image:
+            cal_input = torch.cat([cal_input, image], dim=1)
+        # Pass through the in conv
+        x = self.in_conv(cal_input)
+        # Pass through the UNet
+        x = self.temp_predictor(x)
+        # Project this to one number.
+        temp = self.output_projection(x) # B x 1
+        print(temp.shape)
+        raise ValueError
+        # Add ones so the temperature starts near 1.
+        unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
+        # Clip the values to be positive and add epsilon for smoothing.
+        temp_map = F.relu(unnorm_temp_map) + self.eps
+        # Return the temp map.
+        return temp_map
+
+    def forward(self, logits, image, **kwargs):
+        _, C, _, _ = logits.shape
+        # Get the temperature map.
+        temp_map = self.get_temp_map(logits, image) # B x H x W
+        # Repeat the temperature map for all classes.
+        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+        # Finally, scale the logits by the temperatures.
+        return logits / temp_map
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
         
 class LTS(nn.Module):
     def __init__(
@@ -151,139 +212,6 @@ class LTS(nn.Module):
         temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-# NEighborhood-Conditional TemperAtuRe Scaling
-class NECTAR_Scaling(nn.Module):
-    def __init__(
-        self, 
-        num_classes: int,
-        neighborhood_width: int, 
-        class_wise: bool = False,
-        eps: float = 1e-12,
-        threshold: float = 0.5, 
-        positive_constraint: bool = True,
-        **kwargs
-    ):
-        super(NECTAR_Scaling, self).__init__()
-        self.eps = eps
-        self.threshold = threshold
-        self.class_wise = class_wise
-        self.num_classes = num_classes
-        self.neighborhood_width = neighborhood_width
-        self.positive_constraint = positive_constraint
-        # Define the parameters per neighborhood class
-        num_neighbor_classes = neighborhood_width**2
-        if class_wise:
-            self.class_wise_nt = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
-        else:
-            self.neighborhood_temps = nn.Parameter(torch.ones(num_neighbor_classes))
-
-    def weights_init(self):
-        if self.class_wise:
-            self.class_wise_nt.data.fill_(1)
-        else:
-            self.neighborhood_temps.data.fill_(1)
-
-    def forward(self, logits, **kwargs):
-        # Softmax the logits to get probabilities
-        y_probs = torch.softmax(logits, dim=1) # B C H W
-        # Argnax over the channel dimension to get the current prediction
-        if y_probs.shape[1] == 1:
-            y_hard = (y_probs > self.threshold).float().squeeze(1) # B H W
-        else:
-            y_hard = torch.argmax(y_probs, dim=1) # B H W
-        # Get the per-pixel num neighborhood class
-        neighbor_agg_map = agg_neighbors_preds(
-            pred_map=y_hard, 
-            neighborhood_width=self.neighborhood_width,
-            class_wise=False,
-            discrete=True,
-            binary=False
-        ) # B 1 H W
-        if self.class_wise:
-            # Place the temperatures in the correct positions
-            neighborhood_temp_map = torch.zeros_like(y_probs)
-            for class_idx in range(self.num_classes):
-                # Get the mask for the current class
-                neighborhood_temp_map[y_hard==class_idx] = self.class_wise_nt[class_idx][neighbor_agg_map][y_hard==class_idx]
-        else:
-            # Place the temperatures in the correct positions
-            neighborhood_temp_map = self.neighborhood_temps[neighbor_agg_map]
-        # Apply this to all classes.
-        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B C H W
-        # If we are constrained to have a positive temperature, then we need to guide
-        # the optimization to picking a parameterization that is positive.
-        if self.positive_constraint:
-            temps = F.relu(temps)
-        # Add an epsilon to avoid dividing by zero
-        temps = temps + self.eps
-        # Finally, scale the logits by the temperatures
-        return logits / temps 
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-# NEighborhood-Conditional TemperAtuRe Scaling
-class NS_V2(nn.Module):
-    def __init__(
-        self, 
-        num_classes: int,
-        neighborhood_width: int, 
-        eps: float = 1e-12,
-        threshold: float = 0.5, 
-        positive_constraint: bool = True,
-        **kwargs
-    ):
-        super(NS_V2, self).__init__()
-        self.eps = eps
-        self.threshold = threshold
-        self.num_classes = num_classes
-        self.neighborhood_width = neighborhood_width
-        self.positive_constraint = positive_constraint
-        # Define the parameters per neighborhood class
-        num_neighbor_classes = neighborhood_width**2
-        self.class_wise_nt = nn.Parameter(torch.ones(num_classes, num_neighbor_classes))
-
-    def weights_init(self):
-        self.class_wise_nt.data.fill_(1)
-
-    def forward(self, logits, **kwargs):
-        # Softmax the logits to get probabilities
-        y_probs = torch.softmax(logits, dim=1) # B C H W
-        # Argnax over the channel dimension to get the current prediction
-        if y_probs.shape[1] == 1:
-            y_hard = (y_probs > self.threshold).float().squeeze(1) # B H W
-        else:
-            y_hard = torch.argmax(y_probs, dim=1) # B H W
-        # Get the per-pixel num neighborhood class
-        neighbor_agg_map = agg_neighbors_preds(
-            pred_map=y_hard, 
-            neighborhood_width=self.neighborhood_width,
-            class_wise=False,
-            discrete=True,
-            binary=False
-        ) # B 1 H W
-        # Place the temperatures in the correct positions
-        neighborhood_temp_map = torch.zeros((y_hard.shape), device=y_probs.device, dtype=y_probs.dtype)
-        for class_idx in range(self.num_classes):
-            # Get the mask for the current class
-            neighborhood_temp_map[y_hard==class_idx] = self.class_wise_nt[class_idx][neighbor_agg_map][y_hard==class_idx]
-        # Apply this to all classes.
-        temps = neighborhood_temp_map.unsqueeze(1).repeat(1, self.num_classes, 1, 1) # B x C x H x W
-        # If we are constrained to have a positive temperature, then we need to guide
-        # the optimization to picking a parameterization that is positive.
-        if self.positive_constraint:
-            temps = F.relu(temps)
-        # Add an epsilon to avoid dividing by zero
-        temps = temps + self.eps
-        # Finally, scale the logits by the temperatures
-        return logits / temps 
 
     @property
     def device(self):

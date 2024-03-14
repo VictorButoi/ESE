@@ -1,4 +1,5 @@
 # misc imports
+import random
 import itertools
 from pathlib import Path
 from typing import List, Optional
@@ -15,6 +16,7 @@ def get_ese_inference_configs(
     log_pixel_stats: bool = True,
     ensemble_upper_bound: bool = False,
     num_ens_members_opts: Optional[List[int]] = [None],
+    max_ensemble_samples: Optional[int] = None,
     norm_ens_opts: Optional[List[bool]] = [False],
     norm_binning_opts: Optional[List[bool]] = [False],
     cal_stats_splits: Optional[List[str]] = [None],
@@ -81,6 +83,11 @@ def get_ese_inference_configs(
                 for num_ens_members in num_ens_members_opts:
                     # Get all unique subsets of total_ens_members of size num_+ens_members.
                     unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
+                    # We need to subsample the unique ensembles or else we will be here forever.
+                    if len(unique_ensembles) > max_ensemble_samples:
+                        # Subsample the unique ensembles
+                        unique_ensembles = random.sample(unique_ensembles, k=max_ensemble_samples)
+                    # Iterate through each unique ensemble.
                     for ens_group in unique_ensembles:
                         # Define where the set of base models come from.
                         advanced_args = {
