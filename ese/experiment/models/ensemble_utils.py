@@ -115,7 +115,6 @@ def upperbound_combine_fn(
     ensemble_preds,
     y_true: Tensor,
     from_logits: bool,
-    normalize: bool,
     **kwargs
 ):
     if isinstance(ensemble_preds, dict):

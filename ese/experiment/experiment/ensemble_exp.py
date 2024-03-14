@@ -155,15 +155,12 @@ class EnsembleInferenceExperiment(BaseExperiment):
     def to_device(self):
         for exp_path in self.ens_exp_paths:
             self.ens_exps[exp_path].to_device()
-        # Move the weights to the device.
-        self.ens_mem_weights = self.ens_mem_weights.to(self.device)
 
     def predict(
         self, 
         x: torch.Tensor, 
         multi_class: bool, 
         threshold: float = 0.5, 
-        weights: Optional[Tensor] = None,
         normalize: Optional[bool] = None,
         combine_fn: Optional[str] = None,
         combine_quantity: Optional[Literal["probs", "logits"]] = None
@@ -194,15 +191,11 @@ class EnsembleInferenceExperiment(BaseExperiment):
         if normalize is None:
             assert self.normalize is not None, "No normalization value provided."
             normalize = self.normalize
-        if weights is None:
-            assert self.ens_mem_weights is not None, "No weights provided."   
-            weights = self.ens_mem_weights
 
         # Combine the outputs of the models.
         combined_outputs = get_combine_fn(combine_fn)(
             ensemble_model_outputs, 
             combine_quantity=combine_quantity,
-            weights=weights,
             normalize=normalize,
             from_logits=return_logits 
         )

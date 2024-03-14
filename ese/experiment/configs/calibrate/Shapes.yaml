@@ -1,5 +1,5 @@
 data:
-  return_dst_to_bdry: True
+  return_dst_to_bdry: False 
   iters_per_epoch: 250 
 
 log:
