@@ -112,8 +112,10 @@ class IBTS(nn.Module):
         super(IBTS, self).__init__()
 
         self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
-        self.temp_predictor = resnet18(progress=False).eval()
-        self.output_projection = nn.Linear(10, 1)
+        self.temp_predictor = resnet18()
+        # Replace the last fully-connected layer to output a single number.
+        self.temp_predictor.fc = nn.Linear(512, 1)
+        # Track some info about this calibrator.
         self.use_image = use_image
         self.use_logits = use_logits
         self.eps = eps 
@@ -122,6 +124,7 @@ class IBTS(nn.Module):
         pass
 
     def get_temp_map(self, logits, image):
+        _, _, H, W = logits.shape
         # Either passing into probs or logits into UNet, can affect optimization.
         if not self.use_logits:
             cal_input = torch.softmax(logits, dim=1)
@@ -133,15 +136,13 @@ class IBTS(nn.Module):
         # Pass through the in conv
         x = self.in_conv(cal_input)
         # Pass through the UNet
-        x = self.temp_predictor(x)
-        # Project this to one number.
-        temp = self.output_projection(x) # B x 1
-        print(temp.shape)
-        raise ValueError
+        unnorm_temp = self.temp_predictor(x) # B x 1
         # Add ones so the temperature starts near 1.
-        unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
+        unnorm_temp += torch.ones(1, device=unnorm_temp.device)
+        # Finally normalize it to be positive and add epsilon for smoothing.
+        temp = F.relu(unnorm_temp) + self.eps
         # Clip the values to be positive and add epsilon for smoothing.
-        temp_map = F.relu(unnorm_temp_map) + self.eps
+        temp_map = temp.unsqueeze(1).repeat(1, H, W)
         # Return the temp map.
         return temp_map
 
