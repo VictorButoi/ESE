@@ -90,15 +90,10 @@ def load_cal_inference_stats(
                             "calibration.bin_weightings", 
                             "calibration.conf_interval",
                             "model.filters",
+                            "ensemble.member_paths"
                         ]:
                             if drop_key in flat_cfg:
                                 flat_cfg.pop(drop_key)
-                        # If the column 'model.ensemble_cfg' is in the columns,
-                        # we need to make two new columns for the combine function and quantity.
-                        if 'model.ensemble_cfg' in flat_cfg.keys() and flat_cfg['model.ensemble_cfg'] is not None:
-                            flat_cfg['model.ensemble_combine_fn'] = flat_cfg['model.ensemble_cfg'][0]
-                            flat_cfg['model.ensemble_combine_quantity'] = flat_cfg['model.ensemble_cfg'][1]
-                            flat_cfg.pop('model.ensemble_cfg')
                         # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                         cfg_df = pd.DataFrame(flat_cfg, index=[0])
                         metadata_df = pd.concat([metadata_df, cfg_df])
