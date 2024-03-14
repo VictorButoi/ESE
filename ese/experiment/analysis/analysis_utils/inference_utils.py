@@ -264,17 +264,17 @@ def load_inference_exp_from_cfg(
     inference_cfg: dict
 ): 
     model_cfg = inference_cfg['model']
-    pretrained_exp_root = model_cfg['pretrained_exp_root']
-    is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
     # Get the configs of the experiment
     if model_cfg['ensemble']:
-        assert is_exp_group, "Ensemble inference only works with experiment groups."
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     elif "Binning" in model_cfg['calibrator']:
         inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:
+        pretrained_exp_root = model_cfg['pretrained_exp_root']
+        is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
+        # Load the results loader
         rs = ResultsLoader()
         # If the experiment is a group, then load the configs and build the experiment.
         if is_exp_group: 

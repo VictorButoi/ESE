@@ -25,7 +25,6 @@ def get_ese_inference_configs(
     run_cfg_options = list(itertools.product(
         calibrators_list, 
         ensemble_opts, 
-        num_ens_members_opts,
         norm_ens_opts,
         norm_binning_opts,
         cal_stats_splits,
@@ -33,7 +32,7 @@ def get_ese_inference_configs(
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, do_ensemble, num_ens_members, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
+    for (calibrator, do_ensemble, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
         ens_cfg_options = [('mean', 'probs'), ('product', 'probs')] if do_ensemble else [None]
         # For each ensemble option, we want to run inference.
         for ens_cfg in ens_cfg_options:
@@ -76,15 +75,26 @@ def get_ese_inference_configs(
                     inf_log_root = exp_root / f"ensemble_upper_bounds"
                 else:
                     inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
-                # Define where the set of base models come from.
-                advanced_args = {
-                    'log.root': [str(inf_log_root)],
-                    'model.pretrained_exp_root': [str(inf_group_dir)],
-                    'model.ensemble': [True],
-                    'ensemble.normalize': [norm_ensemble],
-                    'ensemble.combine_fn': [ens_cfg[0]],
-                    'ensemble.combine_quantity': [ens_cfg[1]],
-                }
+                # Subselect the model names in inf_grou_dir
+                total_ens_members = gather_exp_paths(str(inf_group_dir))
+                # For each num_ens_members, we subselect that num of the total_ens_members.
+                for num_ens_members in num_ens_members_opts:
+                    # Get all unique subsets of total_ens_members of size num_+ens_members.
+                    unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
+                    for ens_group in unique_ensembles:
+                        # Define where the set of base models come from.
+                        advanced_args = {
+                            'log.root': [str(inf_log_root)],
+                            'model.ensemble': [True],
+                            'ensemble.normalize': [norm_ensemble],
+                            'ensemble.combine_fn': [ens_cfg[0]],
+                            'ensemble.combine_quantity': [ens_cfg[1]],
+                            'ensemble.member_paths': [list(ens_group)],
+                        }
+                        # Combine the default and advanced arguments.
+                        default_config_options.update(advanced_args)
+                        # Append these to the list of configs and roots.
+                        calibrator_option_list.append(default_config_options)
             # If you want to run inference on individual networks, use this.
             else:
                 advanced_args = {
@@ -95,10 +105,10 @@ def get_ese_inference_configs(
                     'ensemble.combine_fn': [None],
                     'ensemble.combine_quantity': [None],
                 }
-            # Combine the default and advanced arguments.
-            default_config_options.update(advanced_args)
-            # Append these to the list of configs and roots.
-            calibrator_option_list.append(default_config_options)
+                # Combine the default and advanced arguments.
+                default_config_options.update(advanced_args)
+                # Append these to the list of configs and roots.
+                calibrator_option_list.append(default_config_options)
 
     # Return the list of different configs.
     return calibrator_option_list

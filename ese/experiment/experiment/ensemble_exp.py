@@ -38,7 +38,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Get the configs of the experiment
         rs = ResultsLoader()
         # Load ALL the configs in the directory.
-        if "pretrained_exp_root" in model_cfg:
+        if "pretrained_exp_root" in model_cfg and model_cfg["pretrained_exp_root"] != "None":
             dfc = rs.load_configs(
                 model_cfg["pretrained_exp_root"],
                 properties=False,
