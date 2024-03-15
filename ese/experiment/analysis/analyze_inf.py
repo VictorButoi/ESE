@@ -89,6 +89,7 @@ def load_cal_inference_stats(
                         # Count the number of ensemble members.
                         if "ensemble.member_paths" in flat_cfg and flat_cfg["ensemble.member_paths"] != "None":
                             flat_cfg["num_ensemble_members"] = len(flat_cfg["ensemble.member_paths"])
+                            print(flat_cfg["num_ensemble_members"])
                         else:
                             flat_cfg["num_ensemble_members"] = "None"
                         # Remove some columns we don't care about.
@@ -318,7 +319,6 @@ def load_cal_inference_stats(
         if options_cfg['add_baseline_rows']:
             unet_avg = get_average_unet_baselines(
                 inference_df, 
-                num_seeds=4, # Used as a sanity check.
                 group_metrics=list(cal_metrics.keys())
             )
             inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)

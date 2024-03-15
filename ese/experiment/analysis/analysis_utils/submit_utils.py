@@ -89,6 +89,8 @@ def get_ese_inference_configs(
                         unique_ensembles = random.sample(unique_ensembles, k=max_ensemble_samples)
                     # Iterate through each unique ensemble.
                     for ens_group in unique_ensembles:
+                        # Make a copy of our default config options.
+                        dupe_def_cfg_opts = default_config_options.copy()
                         # Define where the set of base models come from.
                         advanced_args = {
                             'log.root': [str(inf_log_root)],
@@ -99,9 +101,9 @@ def get_ese_inference_configs(
                             'ensemble.member_paths': [list(ens_group)],
                         }
                         # Combine the default and advanced arguments.
-                        default_config_options.update(advanced_args)
+                        dupe_def_cfg_opts.update(advanced_args)
                         # Append these to the list of configs and roots.
-                        calibrator_option_list.append(default_config_options)
+                        calibrator_option_list.append(dupe_def_cfg_opts)
             # If you want to run inference on individual networks, use this.
             else:
                 advanced_args = {

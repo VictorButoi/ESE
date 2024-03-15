@@ -127,26 +127,27 @@ def save_inference_metadata(
 
 def get_average_unet_baselines(
     total_df: pd.DataFrame,
-    num_seeds: int,
+    num_seeds: Optional[int] = None,
     group_metrics: Optional[List[str]] = None
 ) -> pd.DataFrame:
     # Collect all the individual networks.
     unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
     # These are the keys we want to group by.
     unet_group_keys = [
-        'data_id',
-        'slice_idx',
-        'split',
-        'normalize',
-        'cal_stats_split',
-        'joint_data_slice_id',
-        'ensemble',
-        'model_class',
-        'model_type',
-        'calibrator',
-        '_pretrained_class',
-        'image_metric',
-        'metric_type',
+       'num_ensemble_members',
+       'data_id',
+       'slice_idx',
+       'split',
+       'normalize',
+       'cal_stats_split',
+       'joint_data_slice_id',
+       'ensemble',
+       'model_class',
+       'model_type',
+       'calibrator',
+       '_pretrained_class',
+       'image_metric',
+       'metric_type',
        'groupavg_image_metric',
     ]
     # Only keep the keys that are actually in the columns of unet_info_df.
@@ -156,10 +157,11 @@ def get_average_unet_baselines(
         assert unet_info_df[unet_key].isna().sum() == 0, f"Found NaNs in {unet_key} column."
     # Run a check, that when you group by these keys, you get a unique row.
     num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
-    # They should have exactly 4, for four seeds.
-    assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
-        f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})."\
-             + f" Got max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Rows look like: {num_rows_per_group}."
+    # If num seeds is provided then we need to match it exactly (sanity check).
+    if num_seeds is not None:
+        assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
+            f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})."\
+                + f" Got max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Rows look like: {num_rows_per_group}."
     # Group everything we need. 
     total_group_metrics = ['metric_score', 'groupavg_metric_score']
     if group_metrics is not None:
