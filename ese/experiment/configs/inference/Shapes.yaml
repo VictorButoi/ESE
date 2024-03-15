@@ -36,3 +36,15 @@ qual_metrics:
         from_logits: True
         batch_reduction: 'mean' 
         metric_type: quality
+    - Accuracy:
+        _fn: ionpy.metrics.segmentation.pixel_accuracy
+        from_logits: True
+        metric_type: quality
+    - Recall:
+        _fn: ionpy.metrics.segmentation.pixel_recall
+        from_logits: True
+        metric_type: quality
+    - Precision:
+        _fn: ionpy.metrics.segmentation.pixel_precision
+        from_logits: True
+        metric_type: quality

@@ -36,6 +36,18 @@ def hash_dictionary(dictionary):
     return hash_hex
 
 
+def hash_list(input_list):
+    # Convert the list to a JSON string
+    json_str = json.dumps(input_list, sort_keys=True)
+    # Create a hash object
+    hash_object = hashlib.sha256()
+    # Update the hash object with the JSON string encoded as bytes
+    hash_object.update(json_str.encode('utf-8'))
+    # Get the hexadecimal representation of the hash
+    hash_hex = hash_object.hexdigest()
+    return hash_hex
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
     results_cfg: dict,
@@ -89,9 +101,10 @@ def load_cal_inference_stats(
                         # Count the number of ensemble members.
                         if "ensemble.member_paths" in flat_cfg and flat_cfg["ensemble.member_paths"] != "None":
                             flat_cfg["num_ensemble_members"] = len(flat_cfg["ensemble.member_paths"])
-                            print(flat_cfg["num_ensemble_members"])
+                            flat_cfg["ensemble_hash"] = hash_list(flat_cfg["ensemble.member_paths"])
                         else:
                             flat_cfg["num_ensemble_members"] = "None"
+                            flat_cfg["ensemble_hash"] = "None"
                         # Remove some columns we don't care about.
                         for drop_key in [
                             "augmentations",
