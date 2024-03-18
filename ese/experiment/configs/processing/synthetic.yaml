@@ -47,8 +47,8 @@ aug_opts:
         - 0.3 
         - 0.3
     blur_std_range: 
-        - 5 
-        - 5 
+        - 8 
+        - 8 
     circle_x_range:
         - 0 
         - 128 
@@ -56,6 +56,6 @@ aug_opts:
         - 0 
         - 128 
     circle_rad_range:
-        - 16
         - 24 
+        - 32 
     

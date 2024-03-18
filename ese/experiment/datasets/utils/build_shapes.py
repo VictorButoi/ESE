@@ -258,7 +258,7 @@ def perlin_generation(
                                                                   visualize=False)
     # Add a noise to each image
     for i in range(len(images)):
-        images[i] = images[i] + np.random.normal(0, 0.1, images[i].shape) 
+        images[i] = images[i] + np.random.normal(0, 0.3, images[i].shape) 
         label_maps[i] = label_maps[i].argmax(axis=-1)
     # If rot_k is not 0, rotate the image
     if rot_k is not None:
