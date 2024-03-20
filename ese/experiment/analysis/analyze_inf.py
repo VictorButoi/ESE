@@ -66,8 +66,8 @@ def load_cal_inference_stats(
         metadata_df = pd.DataFrame([])
         # Gather inference log paths.
         all_inference_log_paths = []
-        if "inference_group" in log_cfg:
-            sub_exp_names = os.listdir(log_root + "/" + log_cfg["inference_group"])
+        for inf_group in log_cfg["inference_groups"]:
+            sub_exp_names = os.listdir(log_root + "/" + inf_group) 
             # Remove the 'debug' or upper bounds folders if they exists.
             if "debug" in sub_exp_names:
                 sub_exp_names.remove("debug")
@@ -75,7 +75,7 @@ def load_cal_inference_stats(
                 sub_exp_names.remove("ensemble_upper_bounds")
             # Combine the inference group with the sub experiment names.
             for sub_exp in sub_exp_names:
-                sub_exp_log_path = log_cfg["inference_group"] + "/" + sub_exp
+                sub_exp_log_path = inf_group + "/" + sub_exp
                 # Check to make sure this log wasn't the result of a crash.
                 verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                 # Check to make sure that this log wasn't the result of a crash.
@@ -195,9 +195,6 @@ def load_cal_inference_stats(
             original_row_amount = len(inference_df)
             inference_df = inference_df[inference_df['num_fg_pixels'] >= options_cfg["min_fg_pixels"]]
             print(f"Dropping rows that don't meet minimum foreground pixel requirements. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
-        else:
-            assert "WMH" not in results_cfg['log']['inference_group'],\
-                "You must specify a min_fg_pixels value for WMH experiments." 
 
         # Drop the rows corresponding to NaNs in metric_score
         if options_cfg['drop_nan_metric_rows']:
