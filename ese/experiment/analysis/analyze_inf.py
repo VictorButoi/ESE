@@ -105,6 +105,11 @@ def load_cal_inference_stats(
                         else:
                             flat_cfg["num_ensemble_members"] = "None"
                             flat_cfg["ensemble_hash"] = "None"
+                        # If there are additional log attributes, add them here:
+                        inf_group = log_path.split("/")[0]
+                        if ("log_attributes" in results_cfg) and (inf_group in results_cfg["log_attributes"]):
+                            for log_attr in results_cfg["log_attributes"][inf_group]:
+                                flat_cfg[log_attr] = results_cfg["log_attributes"][inf_group][log_attr]
                         # Remove some columns we don't care about.
                         for drop_key in [
                             "augmentations",

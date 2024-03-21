@@ -264,13 +264,9 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             pixel_level_records=trackers["cw_pixel_meter_dict"][split]
         )
-    # end = time.time()
-    # print("Finished Pixel Records. Took", end - start, "seconds.")
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
-    # start = time.time()
-    # print("Started Sanity Check")
     if "image_level_records" in trackers and\
         "tl_pixel_meter_dict" in trackers and\
          "cw_pixel_meter_dict" in trackers: 
@@ -282,9 +278,6 @@ def get_calibration_item_info(
             image_tl_pixel_meter_dict=image_tl_pixel_meter_dict,
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
-    # end = time.time()
-    # print("Finished Sanity Check. Took", end - start, "seconds.")
-
 
 
 def global_cal_sanity_check(
