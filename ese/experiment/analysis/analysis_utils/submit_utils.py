@@ -11,64 +11,66 @@ from ese.experiment.models.utils import get_calibrator_cls
 def get_ese_inference_configs(
     group_dict: dict,
     inf_cfg_opts: dict,
-    additional_args: Optional[dict] = None,
+    base_cfg_args: dict
 ):
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
+
     # Gather the different config options.
-    run_cfg_options = list(itertools.product(
-        inf_cfg_opts['calibrator_list'], 
-        inf_cfg_opts['ensemble_opts'], 
-    ))
+    keys = list(inf_cfg_opts.keys())
+    # Generate product tuples
+    product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in keys]))
+    # Convert product tuples to dictionaries
+    total_run_cfg_options = [{keys[i]: item[i] for i in range(len(keys))} for item in product_tuples]
+
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, do_ensemble) in run_cfg_options: 
-        ens_cfg_options = [('mean', 'probs')] if do_ensemble else [None]
+    for run_opt_dict in total_run_cfg_options: 
+        ens_cfg_options = [('mean', 'probs')] if run_opt_dict['do_ensemble'] else [None]
         # For each ensemble option, we want to run inference.
         for ens_cfg in ens_cfg_options:
             ##################################################
             # Set a few things that will be consistent for all runs.
             ##################################################
             exp_root = scratch_root / "inference" / group_dict['exp_group']
-            use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
+            use_uncalibrated_models = (run_opt_dict['calibrator'] == "Uncalibrated") or ("Binning" in run_opt_dict['calibrator'])
             # Define the set of default config options.
             default_config_options = {
                 'experiment.exp_root': [str(exp_root)],
                 'experiment.dataset_name': [group_dict['dataset']],
                 'model.checkpoint': ["max-val-dice_score" if use_uncalibrated_models else "min-val-ece_loss"],
-                'model.calibrator': [calibrator],
-                'model.calibrator_cls': [get_calibrator_cls(calibrator)],
+                'model.calibrator': [run_opt_dict['calibrator']],
+                'model.calibrator_cls': [get_calibrator_cls(run_opt_dict['calibrator'])],
             }
             if 'preload' in group_dict:
                 default_config_options['data.preload'] = [group_dict['preload']]
 
             # If additional args are provided, update the default config options.
-            if additional_args is not None:
-                default_config_options.update(additional_args)
+            default_config_options.update(base_cfg_args['exp_opts'])
 
             # Define where we get the base models from.
             if use_uncalibrated_models:
                 inf_group_dir = scratch_root / "training" / group_dict['base_models_group']
             else:
-                inf_group_dir = scratch_root / "calibration" / group_dict['calibrated_models_group'] / f"Individual_{calibrator}"
+                inf_group_dir = scratch_root / "calibration" / group_dict['calibrated_models_group'] / f"Individual_{run_opt_dict['calibrator']}"
 
             # If you want to run inference on ensembles, use this.
-            if do_ensemble:
+            if run_opt_dict['do_ensemble']:
                 # Define where we want to save the results.
-                if inf_cfg_opts.get('ensemble_upper_bound', False):
+                if base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
                     inf_log_root = exp_root / f"ensemble_upper_bounds"
                 else:
-                    inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
+                    inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{run_opt_dict['calibrator']}"
                 # Subselect the model names in inf_grou_dir
                 total_ens_members = gather_exp_paths(str(inf_group_dir))
                 # For each num_ens_members, we subselect that num of the total_ens_members.
-                for num_ens_members in inf_cfg_opts['num_ens_members_opts']:
+                for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
                     # Get all unique subsets of total_ens_members of size num_+ens_members.
                     unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
                     # We need to subsample the unique ensembles or else we will be here forever.
-                    if len(unique_ensembles) > inf_cfg_opts['max_ensemble_samples']:
+                    if len(unique_ensembles) > base_cfg_args['submit_opts']['max_ensemble_samples']:
                         # Subsample the unique ensembles
-                        unique_ensembles = random.sample(unique_ensembles, k=inf_cfg_opts['max_ensemble_samples'])
+                        unique_ensembles = random.sample(unique_ensembles, k=base_cfg_args['submit_opts']['max_ensemble_samples'])
                     # Iterate through each unique ensemble.
                     for ens_group in unique_ensembles:
                         # Make a copy of our default config options.
@@ -88,7 +90,7 @@ def get_ese_inference_configs(
             # If you want to run inference on individual networks, use this.
             else:
                 advanced_args = {
-                    'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
+                    'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{run_opt_dict['calibrator']}")],
                     'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
                     'model.ensemble': [False],
                     'ensemble.normalize': [None],
