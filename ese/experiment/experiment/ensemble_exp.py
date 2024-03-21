@@ -12,6 +12,7 @@ from ionpy.analysis import ResultsLoader
 from ionpy.experiment import BaseExperiment
 from ionpy.experiment.util import absolute_import
 # misc imports
+import ast
 import json
 from pathlib import Path
 from typing import Optional, Literal
@@ -64,9 +65,13 @@ class EnsembleInferenceExperiment(BaseExperiment):
             raise ValueError("No pretrained ensemble root or member paths found in config.")
 
         # Loop through each config and build the experiment, placing it in a dictionary.
-        self.normalize = ensemble_cfg["normalize"]
-        self.combine_fn = ensemble_cfg["combine_fn"]
-        self.combine_quantity = ensemble_cfg["combine_quantity"]
+        self.normalize = ensemble_cfg['normalize']
+        self.combine_fn = ensemble_cfg['combine_fn']
+        self.combine_quantity = ensemble_cfg['combine_quantity']
+        if ensemble_cfg['member_temps'] is not None:
+            self.member_temps = list(ast.literal_eval(ensemble_cfg['member_temps']))
+        else:
+            self.member_temps = None
         self.ens_exp_paths = []
         self.ens_exps = {}
         self.num_params = 0
@@ -164,15 +169,19 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # Get the label predictions for each model.
         ensemble_model_outputs = []
         return_logits = None
-        for exp_path in self.ens_exp_paths:
+        for mem_idx, exp_path in enumerate(self.ens_exp_paths):
             # Multi-class needs to be true here so that we can combine the outputs.
             member_pred = self.ens_exps[exp_path].predict(
                 x=x, 
                 multi_class=True
             )
             if 'y_logits' in member_pred:
+                if self.member_temps is not None:
+                   output_logits = member_pred['y_logits'] / self.member_temps[mem_idx]
+                else:
+                   output_logits = member_pred['y_logits']
                 return_logits = True
-                ensemble_model_outputs.append(member_pred['y_logits'])
+                ensemble_model_outputs.append(output_logits)
             else:
                 return_logits = False
                 ensemble_model_outputs.append(member_pred['y_probs'])

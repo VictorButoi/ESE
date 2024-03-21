@@ -82,6 +82,7 @@ def get_ese_inference_configs(
                             'ensemble.combine_fn': [ens_cfg[0]],
                             'ensemble.combine_quantity': [ens_cfg[1]],
                             'ensemble.member_paths': [list(ens_group)],
+                            'ensemble.member_temps': [run_opt_dict.get('member_temps', None)],
                         }
                         # Combine the default and advanced arguments.
                         dupe_def_cfg_opts.update(advanced_args)
