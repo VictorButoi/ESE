@@ -240,6 +240,7 @@ def load_cal_inference_stats(
             "ensemble.combine_fn",
             "ensemble.combine_quantity",
             "ensemble.member_w_metric",
+            "ensemble.member_temps",
             "groupavg_image_metric",
             "groupavg_metric_score"
         ]:
