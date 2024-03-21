@@ -10,31 +10,19 @@ from ese.experiment.models.utils import get_calibrator_cls
 
 def get_ese_inference_configs(
     group_dict: dict,
-    calibrators_list: List[str], 
-    ensemble_opts: List[bool],
-    log_image_stats: bool = True,
-    log_pixel_stats: bool = True,
-    ensemble_upper_bound: bool = False,
-    num_ens_members_opts: Optional[List[int]] = [None],
-    max_ensemble_samples: Optional[int] = None,
-    norm_ens_opts: Optional[List[bool]] = [False],
-    norm_binning_opts: Optional[List[bool]] = [False],
-    cal_stats_splits: Optional[List[str]] = [None],
+    inf_cfg_opts: dict,
     additional_args: Optional[dict] = None,
 ):
     scratch_root = Path("/storage/vbutoi/scratch/ESE")
     # Gather the different config options.
     run_cfg_options = list(itertools.product(
-        calibrators_list, 
-        ensemble_opts, 
-        norm_ens_opts,
-        norm_binning_opts,
-        cal_stats_splits,
+        inf_cfg_opts['calibrator_list'], 
+        inf_cfg_opts['ensemble_opts'], 
     ))
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for (calibrator, do_ensemble, norm_ensemble, norm_binning, cal_stats_split) in run_cfg_options: 
+    for (calibrator, do_ensemble) in run_cfg_options: 
         ens_cfg_options = [('mean', 'probs')] if do_ensemble else [None]
         # For each ensemble option, we want to run inference.
         for ens_cfg in ens_cfg_options:
@@ -50,16 +38,10 @@ def get_ese_inference_configs(
                 'model.checkpoint': ["max-val-dice_score" if use_uncalibrated_models else "min-val-ece_loss"],
                 'model.calibrator': [calibrator],
                 'model.calibrator_cls': [get_calibrator_cls(calibrator)],
-                'log.log_image_stats': [log_image_stats],
-                'log.log_pixel_stats': [log_pixel_stats],
             }
             if 'preload' in group_dict:
                 default_config_options['data.preload'] = [group_dict['preload']]
 
-            # Add the unique arguments for the binning calibrator.
-            if "Binning" in calibrator:
-                default_config_options['model.normalize'] = [norm_binning]
-                default_config_options['model.cal_stats_split'] = [cal_stats_split]
             # If additional args are provided, update the default config options.
             if additional_args is not None:
                 default_config_options.update(additional_args)
@@ -73,20 +55,20 @@ def get_ese_inference_configs(
             # If you want to run inference on ensembles, use this.
             if do_ensemble:
                 # Define where we want to save the results.
-                if ensemble_upper_bound:
+                if inf_cfg_opts.get('ensemble_upper_bound', False):
                     inf_log_root = exp_root / f"ensemble_upper_bounds"
                 else:
                     inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
                 # Subselect the model names in inf_grou_dir
                 total_ens_members = gather_exp_paths(str(inf_group_dir))
                 # For each num_ens_members, we subselect that num of the total_ens_members.
-                for num_ens_members in num_ens_members_opts:
+                for num_ens_members in inf_cfg_opts['num_ens_members_opts']:
                     # Get all unique subsets of total_ens_members of size num_+ens_members.
                     unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
                     # We need to subsample the unique ensembles or else we will be here forever.
-                    if len(unique_ensembles) > max_ensemble_samples:
+                    if len(unique_ensembles) > inf_cfg_opts['max_ensemble_samples']:
                         # Subsample the unique ensembles
-                        unique_ensembles = random.sample(unique_ensembles, k=max_ensemble_samples)
+                        unique_ensembles = random.sample(unique_ensembles, k=inf_cfg_opts['max_ensemble_samples'])
                     # Iterate through each unique ensemble.
                     for ens_group in unique_ensembles:
                         # Make a copy of our default config options.
@@ -95,7 +77,6 @@ def get_ese_inference_configs(
                         advanced_args = {
                             'log.root': [str(inf_log_root)],
                             'model.ensemble': [True],
-                            'ensemble.normalize': [norm_ensemble],
                             'ensemble.combine_fn': [ens_cfg[0]],
                             'ensemble.combine_quantity': [ens_cfg[1]],
                             'ensemble.member_paths': [list(ens_group)],
