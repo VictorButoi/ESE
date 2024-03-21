@@ -1,6 +1,7 @@
 # misc imports
 import random
 import itertools
+import numpy as np
 from pathlib import Path
 from typing import List, Optional
 # ESE imports
@@ -94,8 +95,20 @@ def get_ese_inference_configs(
                                 'ensemble.combine_fn': [ens_cfg[0]],
                                 'ensemble.combine_quantity': [ens_cfg[1]],
                                 'ensemble.member_paths': [list(ens_group)],
-                                'ensemble.member_temps': [run_opt_dict.get('member_temps', None)],
                             }
+                            if 'member_temps' in run_opt_dict:
+                                advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
+                            elif 'member_temps_upper_bound' in base_cfg_args['submit_opts']:
+                                # Flip a coin to see if we are going to use the upper bound or lower bound, per member.
+                                # This equates to randomly sampling num_ens_members many bernoullis.
+                                under_vs_over_conf = np.random.binomial(n=1, p=0.5, size=num_ens_members)
+                                # Get the overconfident temps.
+                                over_conf_temps = np.random.uniform(0.01, 1.0, size=num_ens_members)
+                                # Get the underconfident tempts.
+                                under_conf_temps = np.random.uniform(1.0, base_cfg_args['submit_opts']['member_temps_upper_bound'], size=num_ens_members)
+                                # Build the temps vector accordingly
+                                members_temps = [over_conf_temps[i] if under_vs_over_conf[i] else under_conf_temps[i] for i in range(num_ens_members)]
+                                advanced_args['ensemble.member_temps'] = [str(tuple(members_temps))]
                             # Combine the default and advanced arguments.
                             dupe_def_cfg_opts.update(advanced_args)
                             # Append these to the list of configs and roots.
