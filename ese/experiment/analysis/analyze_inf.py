@@ -337,7 +337,12 @@ def load_cal_inference_stats(
                 inference_df, 
                 group_metrics=list(cal_metrics.keys())
             )
-            inference_df = pd.concat([inference_df, unet_avg], axis=0, ignore_index=True)
+            # For every num_ensembles, we need to add the average UNet baseline.
+            for num_ensembles in inference_df['num_ensemble_members'].unique():
+                if num_ensembles != 'None':
+                    unet_avg_copy = unet_avg.copy()
+                    unet_avg_copy['num_ensemble_members'] = num_ensembles
+                    inference_df = pd.concat([inference_df, unet_avg_copy], axis=0, ignore_index=True)
 
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.

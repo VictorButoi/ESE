@@ -134,7 +134,6 @@ def get_average_unet_baselines(
     unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
     # These are the keys we want to group by.
     unet_group_keys = [
-       'num_ensemble_members',
        'data_id',
        'slice_idx',
        'split',
@@ -171,6 +170,7 @@ def get_average_unet_baselines(
     average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({met_name: 'mean' for met_name in total_group_metrics}).reset_index()
     # Set some useful variables.
     average_seed_unet['experiment.pretrained_seed'] = 'Average'
+    average_seed_unet['ensemble_hash'] = 'Average' # Now this is a group of results
     average_seed_unet['pretrained_seed'] = 'Average'
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
     average_seed_unet['method_name'] = 'Average UNet' # Now this is a group of results
