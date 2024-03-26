@@ -11,6 +11,8 @@ def get_combine_fn(combine_fn: str):
         return identity_combine_fn
     elif combine_fn == "mean":
         return mean_combine_fn
+    elif combine_fn == "max":
+        return max_combine_fn
     elif combine_fn == "product":
         return product_combine_fn
     elif combine_fn == "upperbound":
@@ -73,6 +75,36 @@ def mean_combine_fn(
         ensemble_mean_tensor = ensemble_mean_tensor / classwise_sum
 
     return ensemble_mean_tensor
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def max_combine_fn(
+    ensemble_preds,
+    combine_quantity: Literal["probs", "logits"],
+    from_logits: bool,
+    normalize: bool,
+    **kwargs
+):
+    if isinstance(ensemble_preds, dict):
+        ensemble_preds = batch_ensemble_preds(ensemble_preds) # B, C, E, H, W
+
+    if combine_quantity == "probs" and from_logits:
+        ensemble_preds = torch.softmax(ensemble_preds, dim=1)
+
+    # Multiply the logits by the weights.
+    ensemble_max_tensor = torch.max(ensemble_preds, dim=2)[0] # B, C, H, W
+
+    if (combine_quantity == "logits") and from_logits:
+        ensemble_max_tensor = torch.softmax(ensemble_max_tensor, dim=1) # B, C, H, W
+    
+    # Make the output distribution a valid probability distribution.
+    if normalize:
+        # Get the sum across classes
+        classwise_sum = ensemble_max_tensor.sum(dim=1, keepdim=True) # B, 1, H, W
+        classwise_sum[classwise_sum == 0] = 1
+        ensemble_max_tensor = ensemble_max_tensor / classwise_sum
+
+    return ensemble_max_tensor
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
