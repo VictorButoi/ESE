@@ -179,7 +179,7 @@ def load_cal_inference_stats(
                         # Add this log to the dataframe.
                         inference_df = pd.concat([inference_df, log_image_df])
                     except Exception as e:
-                        print(f"Error loading image stats file for {log_set}. {e}. Skipping.")
+                        print(f"{e}. Skipping.")
         #########################################
         # POST-PROCESSING STEPS
         #########################################

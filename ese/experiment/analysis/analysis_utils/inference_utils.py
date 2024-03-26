@@ -29,7 +29,7 @@ def verify_graceful_exit(log_path: str, log_root: str):
             with open(result_log_file, 'rb') as f:
                 result = pickle.load(f)[0]
             if result != 'success':
-                raise ValueError(f"Found non-success result in {log_name} job: {result}.")
+                raise ValueError(f"Found non-success result in file {result_log_file}: {result}.")
         except Exception as e:
             print(f"Error loading result log file: {e}")
 
