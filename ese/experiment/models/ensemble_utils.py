@@ -64,7 +64,8 @@ def mean_combine_fn(
         w_ensemble_logits = weights * ensemble_preds # B, C, E, H, W
         ensemble_mean_tensor = torch.sum(w_ensemble_logits, dim=2) # B, C, H, W
 
-    if (combine_quantity == "logits") and from_logits:
+    if combine_quantity == "logits":
+        assert from_logits, "Cannot combine logits if the input is probabilities."
         ensemble_mean_tensor = torch.softmax(ensemble_mean_tensor, dim=1) # B, C, H, W
     
     # Make the output distribution a valid probability distribution.
@@ -94,7 +95,8 @@ def max_combine_fn(
     # Multiply the logits by the weights.
     ensemble_max_tensor = torch.max(ensemble_preds, dim=2)[0] # B, C, H, W
 
-    if (combine_quantity == "logits") and from_logits:
+    if combine_quantity == "logits":
+        assert from_logits, "Cannot combine logits if the input is probabilities."
         ensemble_max_tensor = torch.softmax(ensemble_max_tensor, dim=1) # B, C, H, W
     
     # Make the output distribution a valid probability distribution.

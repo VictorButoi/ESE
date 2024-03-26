@@ -208,13 +208,9 @@ class EnsembleInferenceExperiment(BaseExperiment):
         # then we don't want to return probs.
         if combine_fn == "identity":
             if return_logits:
-                return {
-                    'y_logits': combined_outputs,
-                }
+                return {'y_logits': combined_outputs}
             else:
-                return {
-                    'y_probs': combined_outputs,
-                }
+                return {'y_probs': combined_outputs}
         else:
             prob_map, pred_map = process_pred_map(
                 combined_outputs, 

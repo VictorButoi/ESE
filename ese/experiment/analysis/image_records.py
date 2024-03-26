@@ -25,9 +25,8 @@ def get_image_stats(
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
         # Gather the individual predictions
-        if output_dict['y_logits'] is not None:
+        if output_dict['y_logits'] is not None and output_dict['y_probs'] is None:
             output_dict['y_probs'] = torch.softmax(output_dict['y_logits'], dim=1)
-            output_dict.pop('y_logits')
         # Get the individual predictions.
         ensemble_member_preds = [
             output_dict['y_probs'][:, :, ens_mem_idx, ...]\

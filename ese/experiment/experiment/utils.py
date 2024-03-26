@@ -50,29 +50,41 @@ def reduce_ensemble_preds(
 ) -> dict:
     if "ens_weights" in output_dict:
         ens_weights = output_dict["ens_weights"]
-
+    # Get a few variables from the ensemble config.
     combine_fn = inference_cfg['ensemble']['combine_fn']
-    combine_quantity = inference_cfg['ensemble']['combine_quantity']
     norm_ensemble = inference_cfg['ensemble']['normalize']
-    if output_dict["y_probs"] is not None:
-        # Combine the outputs of the models.
-        ensemble_prob_map = get_combine_fn(combine_fn)(
-            output_dict["y_probs"], 
-            combine_quantity=combine_quantity,
-            weights=ens_weights,
-            normalize=norm_ensemble,
-            from_logits=False
-        )
-    else:
-        assert output_dict["y_logits"] is not None, "No logits or probs provided."
+    combine_quantity = inference_cfg['ensemble']['combine_quantity']
+    # If the probs are provided, then we don't need to convert the logits to probs.
+    if combine_quantity == "logits":
         # Combine the outputs of the models.
         ensemble_prob_map = get_combine_fn(combine_fn)(
             output_dict["y_logits"], 
-            combine_quantity=combine_quantity,
+            combine_quantity="logits",
             weights=ens_weights,
             normalize=norm_ensemble,
             from_logits=True
         )
+    else:
+        prob_args = {
+            "combine_quantity": "probs",
+            "weights": ens_weights,
+            "normalize": norm_ensemble,
+        }
+        if output_dict["y_probs"] is not None:
+            # Combine the outputs of the models.
+            ensemble_prob_map = get_combine_fn(combine_fn)(
+                output_dict["y_probs"], 
+                from_logits=False,
+                **prob_args
+            )
+        else:
+            assert output_dict["y_logits"] is not None, "No logits or probs provided."
+            # Combine the outputs of the models.
+            ensemble_prob_map = get_combine_fn(combine_fn)(
+                output_dict["y_logits"], 
+                from_logits=True,
+                **prob_args
+            )
     # Get the hard prediction and probabilities, if we are doing identity,
     # then we don't want to return probs.
     ensemble_prob_map, ensemble_pred_map = process_pred_map(
