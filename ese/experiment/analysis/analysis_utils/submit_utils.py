@@ -1,4 +1,5 @@
 # misc imports
+import ast
 import random
 import itertools
 import numpy as np
@@ -73,11 +74,12 @@ def get_ese_inference_configs(
                 ensemble_groups[num_ens_members] = unique_ensembles
 
         for run_opt_dict in total_run_cfg_options: 
-            ens_cfg_options = [('mean', 'probs')] if run_opt_dict['do_ensemble'] else [None]
-            # For each ensemble option, we want to run inference.
-            for ens_cfg in ens_cfg_options:
-                # If you want to run inference on ensembles, use this.
-                if run_opt_dict['do_ensemble']:
+            # If you want to run inference on ensembles, use this.
+            if run_opt_dict['do_ensemble']:
+                # For each ensemble option, we want to run inference.
+                for ens_cfg in base_cfg_args['submit_opts']['ens_cfg_options']:
+                    # Make the ens_cfg a tuple.
+                    ens_cfg = ast.literal_eval(ens_cfg)
                     # Define where we want to save the results.
                     if base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
                         inf_log_root = exp_root / f"ensemble_upper_bounds"
@@ -113,20 +115,20 @@ def get_ese_inference_configs(
                             dupe_def_cfg_opts.update(advanced_args)
                             # Append these to the list of configs and roots.
                             calibrator_option_list.append(dupe_def_cfg_opts)
-                # If you want to run inference on individual networks, use this.
-                else:
-                    advanced_args = {
-                        'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
-                        'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
-                        'model.ensemble': [False],
-                        'ensemble.normalize': [None],
-                        'ensemble.combine_fn': [None],
-                        'ensemble.combine_quantity': [None],
-                    }
-                    # Combine the default and advanced arguments.
-                    default_config_options.update(advanced_args)
-                    # Append these to the list of configs and roots.
-                    calibrator_option_list.append(default_config_options)
+            # If you want to run inference on individual networks, use this.
+            else:
+                advanced_args = {
+                    'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
+                    'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
+                    'model.ensemble': [False],
+                    'ensemble.normalize': [None],
+                    'ensemble.combine_fn': [None],
+                    'ensemble.combine_quantity': [None],
+                }
+                # Combine the default and advanced arguments.
+                default_config_options.update(advanced_args)
+                # Append these to the list of configs and roots.
+                calibrator_option_list.append(default_config_options)
 
     # Return the list of different configs.
     return calibrator_option_list

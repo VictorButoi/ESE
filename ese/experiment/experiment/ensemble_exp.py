@@ -68,7 +68,7 @@ class EnsembleInferenceExperiment(BaseExperiment):
         self.normalize = ensemble_cfg['normalize']
         self.combine_fn = ensemble_cfg['combine_fn']
         self.combine_quantity = ensemble_cfg['combine_quantity']
-        if ensemble_cfg['member_temps'] is not None:
+        if ('member_temps' in ensemble_cfg) and (ensemble_cfg['member_temps'] != "None"):
             self.member_temps = list(ast.literal_eval(ensemble_cfg['member_temps']))
         else:
             self.member_temps = None
