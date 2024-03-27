@@ -127,6 +127,7 @@ def save_inference_metadata(
 
 def get_average_unet_baselines(
     total_df: pd.DataFrame,
+    per_calibrator: bool = True,
     num_seeds: Optional[int] = None,
     group_metrics: Optional[List[str]] = None
 ) -> pd.DataFrame:
@@ -174,6 +175,8 @@ def get_average_unet_baselines(
     average_seed_unet['pretrained_seed'] = 'Average'
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
     average_seed_unet['method_name'] = 'Average UNet' # Now this is a group of results
+    if not per_calibrator:
+        average_seed_unet['calibrator'] = 'Average'
 
     def configuration(method_name, calibrator):
         return f"{method_name}_{calibrator}"

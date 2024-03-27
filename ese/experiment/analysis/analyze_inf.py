@@ -333,12 +333,14 @@ def load_cal_inference_stats(
 
         # Load the average unet baseline results.
         if options_cfg['add_baseline_rows']:
+            unique_num_ensemble_mem = inference_df['num_ensemble_members'].unique()
             unet_avg = get_average_unet_baselines(
                 inference_df, 
+                per_calibrator=(len(unique_num_ensemble_mem) == 1),
                 group_metrics=list(cal_metrics.keys())
             )
             # For every num_ensembles, we need to add the average UNet baseline.
-            for num_ensembles in inference_df['num_ensemble_members'].unique():
+            for num_ensembles in unique_num_ensemble_mem:
                 if num_ensembles != 'None':
                     unet_avg_copy = unet_avg.copy()
                     unet_avg_copy['num_ensemble_members'] = num_ensembles
