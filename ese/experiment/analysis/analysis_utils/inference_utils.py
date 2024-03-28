@@ -176,7 +176,7 @@ def get_average_unet_baselines(
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
     average_seed_unet['method_name'] = 'Average UNet' # Now this is a group of results
     if not per_calibrator:
-        average_seed_unet['calibrator'] = 'Average'
+        average_seed_unet['calibrator'] = 'None'
 
     def configuration(method_name, calibrator):
         return f"{method_name}_{calibrator}"

@@ -29,28 +29,6 @@ image_cal_metrics:
         cal_type: 'classwise'
         class_weighting: 'uniform'
 
-    # ELM Metrics
-    #########################################################
-    - Image_ELM:
-        _fn: ese.experiment.metrics.elm.image_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'proportional'
-
-    - Image_Edge-ELM:
-        _fn: ese.experiment.metrics.elm.image_edge_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'proportional'
-
-    - Image_Uniform-ELM:
-        _fn: ese.experiment.metrics.elm.image_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'uniform'
-
-    - Image_Uniform-Edge-ELM:
-        _fn: ese.experiment.metrics.elm.image_edge_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'uniform'
-
 # Define global metrics when you want to verify that these are the same as the image
 # based metrics, per image.
 global_cal_metrics:
@@ -83,25 +61,3 @@ global_cal_metrics:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
         class_weighting: 'uniform'
         cal_type: 'classwise'
-
-    # ELM Metrics
-    #########################################################
-    - ELM:
-        _fn: ese.experiment.metrics.elm.elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'proportional'
-
-    - Edge-ELM:
-        _fn: ese.experiment.metrics.elm.edge_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'proportional'
-
-    - Uniform-ELM:
-        _fn: ese.experiment.metrics.elm.elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'uniform'
-
-    - Uniform-Edge-ELM:
-        _fn: ese.experiment.metrics.elm.edge_elm_loss
-        cal_type: 'toplabel'
-        class_weighting: 'uniform'
