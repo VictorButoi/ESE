@@ -72,6 +72,7 @@ def dice_weights(
 
 def hausdorff_weights(
     y_true: torch.Tensor,
+    normalize: bool = False,
     distance_map: Optional[torch.Tensor] = None
 ):
     """
@@ -104,7 +105,8 @@ def hausdorff_weights(
         distance_map = torch.from_numpy(distance_map).to(y_true.device)
 
     # Normalize the distance map (per item in the batch)
-    weights = distance_map / distance_map.sum(dim=(1, 2))[..., None, None]
+    if normalize:
+        distance_map = distance_map / distance_map.max(dim=(1, 2))[0][..., None, None]
 
-    return weights
+    return distance_map 
     
