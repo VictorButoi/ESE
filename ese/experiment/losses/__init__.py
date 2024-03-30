@@ -1,1 +1,1 @@
-from .segmentation import BWPixelCELoss
+from .segmentation import PixelCELoss 

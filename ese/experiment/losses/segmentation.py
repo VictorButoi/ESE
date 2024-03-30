@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Optional, Union
 # local imports
+from .weights import get_pixel_weights
 from ionpy.loss.util import _loss_module_from_func
 from ionpy.metrics.util import (
     InputMode,
@@ -16,14 +17,13 @@ from ionpy.metrics.util import (
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def bw_pixel_crossentropy_loss(
+def pixel_crossentropy_loss(
     y_pred: Tensor,
     y_true: Tensor,
-    dist_to_boundary: Tensor,
-    sigma: float = 8.0,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
+    loss_pix_weights: Optional[str] = None,
     weights: Optional[Union[Tensor, list]] = None,
     ignore_index: Optional[int] = -100,
     from_logits: bool = False,
@@ -97,15 +97,13 @@ def bw_pixel_crossentropy_loss(
                 ignore_index=ignore_index,
             )
     
-    def rbf_kernel(dist_tfm, sigma):
-        constant = 1 / (sigma * torch.sqrt(2 * torch.tensor(math.pi, dtype=torch.float64)))
-        return constant * torch.exp(-0.5 * (dist_tfm / sigma**2))
-
-    # Calculate pixel weights, based on distance to boundary and smoothing factor.
-    pixel_weights = rbf_kernel(dist_to_boundary, sigma)    
-
-    # Weight the loss by the pixel weights.
-    loss = loss * pixel_weights
+    if loss_pix_weights is not None:
+        pix_weights = get_pixel_weights(
+            y_true,
+            loss_func=loss_pix_weights
+        )
+        # Multiply the loss by the pixel weights
+        loss = loss * pix_weights 
 
     # Channels have been collapsed
     spatial_dims = list(range(1, len(y_pred.shape) - 1))
@@ -122,4 +120,4 @@ def bw_pixel_crossentropy_loss(
     return loss
 
 
-BWPixelCELoss = _loss_module_from_func("BWPixelCELoss", bw_pixel_crossentropy_loss)
+PixelCELoss = _loss_module_from_func("PixelCELoss", pixel_crossentropy_loss)

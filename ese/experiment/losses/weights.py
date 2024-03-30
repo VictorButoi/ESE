@@ -9,6 +9,20 @@ from typing import Optional
 # - Weighted Calibration Scores
 
 
+def get_pixel_weights(
+    y_true: torch.Tensor,
+    loss_func: Optional[str] = None,
+):
+    if loss_func is None:
+        return accuracy_weights(y_true)
+    elif loss_func == "dice":
+        return dice_weights(y_true)
+    elif loss_func == "hausdorff":
+        return hausdorff_weights(y_true)
+    else:
+        raise ValueError(f"Loss function {loss_func} not supported for pixel weights.")
+
+
 def accuracy_weights(
     y_true
 ):

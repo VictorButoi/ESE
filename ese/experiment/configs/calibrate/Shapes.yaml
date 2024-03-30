@@ -20,13 +20,6 @@ log:
       from_logits: True
       num_prob_bins: 15
       neighborhood_width: 3
-    elm_loss:
-      _fn: ese.experiment.metrics.image_elm_loss
-      class_weighting: 'proportional'
-      from_logits: True
-      num_prob_bins: 15
-      neighborhood_width: 3
-  
 
 # AUGMNENTATIONS USED FOR BETTER CALIBRATION (Should these be the same as training?)
 augmentations:
