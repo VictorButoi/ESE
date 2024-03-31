@@ -3,7 +3,7 @@ import torch
 # random imports
 import numpy as np
 from dataclasses import dataclass
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Literal, Optional, Union
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
@@ -14,7 +14,7 @@ from ionpy.util.validation import validate_arguments_init
 @dataclass
 class Shapes(ThunderDataset, DatapathMixin):
 
-    split: Literal["train", "cal", "val", "test"]
+    split: Union[List[str], Literal["train", "cal", "val", "test"]]
     subsplit: int # These corresponds to different versions of the dataset for the same split.
     version: float
     preload: bool = False
@@ -31,7 +31,12 @@ class Shapes(ThunderDataset, DatapathMixin):
         super().__init__(self.path, preload=self.preload)
         super().supress_readonly_warning()
         # Get the subjects from the splits
-        samples = self._db["_splits"][self.split]
+        if isinstance(self.split, list):
+            samples = []
+            for s in self.split:
+                samples.extend(self._db["_splits"][s])
+        else:
+            samples = self._db["_splits"][self.split]
         self.samples = samples 
         # Limit the number of examples available if necessary.
         if self.num_examples is not None:
