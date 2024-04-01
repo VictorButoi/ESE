@@ -62,10 +62,13 @@ def update_toplabel_pixel_meters(
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
 
     # Get the importance per pixel with respect to the loss.
+    # NOTE: Top label prob map honestly doesn't make much sense here if the loss is region based like dice.
+    # this only works for pixel-wise losses.
     pixel_importance_map = get_pixel_weights(
-        y_probs=y_probs,
+        y_pred=toplabel_prob_map,
         y_true=y_true,
-        loss_type=calibration_cfg['loss_type'],
+        loss_func=calibration_cfg['loss_weights'],
+        from_logits=False
     ).cpu().numpy()
 
     # Place all necessary tensors on the CPU as numpy arrays.
@@ -195,6 +198,13 @@ def update_cw_pixel_meters(
         # Get the region of image corresponding to the confidence
         lab_true_nn_map = true_nn_map[:, lab_idx, ...]
         lab_pred_nn_map = pred_nn_map[:, lab_idx, ...]
+        # Get the importance per pixel with respect to the loss.
+        lab_pixel_importance_map = get_pixel_weights(
+            y_pred=lab_conf_map,
+            y_true=lab_freq_map,
+            loss_func=calibration_cfg['loss_weights'],
+            from_logits=False
+        )
         lab_bin_ownership_map = conf_bin_map[:, lab_idx, ...]
         lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
         # Calculate the unique combinations.
