@@ -1,7 +1,10 @@
+# misc imports
 import torch
 import numpy as np
 from scipy import ndimage
 from typing import Optional
+# ionpy imports
+from ionpy.loss.segmentation import soft_dice_loss
 
 # This file describes unique per loss weights that will be used for a few purposes:
 # - Weighted loss functions
@@ -11,12 +14,18 @@ from typing import Optional
 
 def get_pixel_weights(
     y_true: torch.Tensor,
+    y_pred: Optional[torch.Tensor] = None,
     loss_func: Optional[str] = None,
+    from_logits: bool = False,
 ):
     if loss_func is None:
         return accuracy_weights(y_true)
     elif loss_func == "dice":
-        return dice_weights(y_true)
+        return dice_weights(
+            y_pred=y_pred, 
+            y_true=y_true,
+            from_logits=from_logits,
+        )
     elif loss_func == "hausdorff":
         return hausdorff_weights(y_true)
     else:
@@ -32,13 +41,14 @@ def accuracy_weights(
     score does not require any weights.
     """
     assert len(y_true.shape) == 3, "Inputs mut be (B, H, W)"
-    ones_map = torch.ones_like(y_true)
     # Normalize by the number of samples
-    return ones_map / ones_map.sum()
+    return torch.ones_like(y_true)
 
 
 def dice_weights(
-    y_true: torch.Tensor
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    from_logits: bool,
 ):
     """
     This function returns a tensor that is the same shape as
@@ -54,26 +64,28 @@ def dice_weights(
         torch.Tensor: The weights for each class, shape (B, H, W)
     """
     assert len(y_true.shape) == 3, "Inputs mut be (B, H, W)"
-    B, H, W = y_true.shape
-    unique_classes = torch.unique(y_true)
-    assert unique_classes.size(0) <= 2, "Weights currently only support binary segmentation"
-    # Initialize the weights tensor, which is the same shape as y_true
-    weights = torch.zeros_like(y_true)
-    for c in unique_classes:
-        # Get per item in the batch how much of the class is present
-        class_freq = (y_true == c).sum(dim=(1, 2)) / (H * W)
-        # Invert the class frequency
-        class_freq = 1 / class_freq
-        # Set the positions of the class to the class frequency per batch item.
-        for batch_idx in range(B):
-            weights[batch_idx][y_true[batch_idx] == c] = class_freq[batch_idx]
-    return weights
+    # Unsqueeze the channel dimension from y_true
+    y_true_exp = y_true.unsqueeze(1)
+    # Calculate the hard dice score between the true and predicted labels
+    dice_scores = soft_dice_loss(
+        y_pred=y_pred, 
+        y_true=y_true_exp, 
+        from_logits=from_logits,
+        ignore_index=0, # Ignore the background class.
+        ignore_empty_labels=False,
+        batch_reduction=None,
+    )
+    # Expand the size of the dice scores from B -> B x H x W 
+    dice_weights = dice_scores.view(-1, 1, 1)
+    # Broadcast the tensor to the desired shape [B, H, W]
+    output_dice_weights = dice_weights.expand_as(y_true)
+    return output_dice_weights 
 
 
 def hausdorff_weights(
     y_true: torch.Tensor,
     normalize: bool = False,
-    distance_map: Optional[torch.Tensor] = None
+    distance_map: Optional[torch.Tensor] = None,
 ):
     """
     This function returns a tensor that is the same shape as

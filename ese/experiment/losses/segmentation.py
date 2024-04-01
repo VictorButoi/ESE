@@ -99,10 +99,13 @@ def pixel_crossentropy_loss(
     
     if loss_pix_weights is not None:
         pix_weights = get_pixel_weights(
-            y_true,
-            loss_func=loss_pix_weights
+            y_true=y_true,
+            y_pred=y_pred,
+            loss_func=loss_pix_weights,
+            from_logits=from_logits
         )
         # Multiply the loss by the pixel weights
+        # print the range the loss tensor before and after
         loss = loss * pix_weights 
 
     # Channels have been collapsed
