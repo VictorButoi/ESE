@@ -62,16 +62,17 @@ def get_ese_inference_configs(
         #####################################
         # Choose the ensembles ahead of time.
         #####################################
-        total_ens_members = gather_exp_paths(str(inf_group_dir))
-        ensemble_groups = {}
-        for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
-            # Get all unique subsets of total_ens_members of size num_+ens_members.
-            unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
-            # We need to subsample the unique ensembles or else we will be here forever.
-            if len(unique_ensembles) > base_cfg_args['submit_opts']['max_ensemble_samples']:
-                ensemble_groups[num_ens_members] = random.sample(unique_ensembles, k=base_cfg_args['submit_opts']['max_ensemble_samples'])
-            else:
-                ensemble_groups[num_ens_members] = unique_ensembles
+        if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]):
+            total_ens_members = gather_exp_paths(str(inf_group_dir))
+            ensemble_groups = {}
+            for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
+                # Get all unique subsets of total_ens_members of size num_+ens_members.
+                unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
+                # We need to subsample the unique ensembles or else we will be here forever.
+                if len(unique_ensembles) > base_cfg_args['submit_opts']['max_ensemble_samples']:
+                    ensemble_groups[num_ens_members] = random.sample(unique_ensembles, k=base_cfg_args['submit_opts']['max_ensemble_samples'])
+                else:
+                    ensemble_groups[num_ens_members] = unique_ensembles
 
         for run_opt_dict in total_run_cfg_options: 
             # If you want to run inference on ensembles, use this.

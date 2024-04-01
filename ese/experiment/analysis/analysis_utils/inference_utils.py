@@ -349,7 +349,9 @@ def dataloader_from_exp(
         'iters_per_epoch', 
         'input_type',
         'add_aug',
-        'return_dst_to_bdry'
+        'return_dst_to_bdry',
+        'train_splits',
+        'val_splits',
     ]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
