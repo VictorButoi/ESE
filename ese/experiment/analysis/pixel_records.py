@@ -7,6 +7,7 @@ import torch
 # ionpy imports
 from ionpy.util import StatsMeter
 # local imports
+from ..losses.weights import get_pixel_weights
 from ..metrics.utils import (
     get_bin_per_sample, 
     get_conf_region_np,
@@ -60,6 +61,13 @@ def update_toplabel_pixel_meters(
     toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
 
+    # Get the importance per pixel with respect to the loss.
+    pixel_importance_map = get_pixel_weights(
+        y_probs=y_probs,
+        y_true=y_true,
+        loss_type=calibration_cfg['loss_type'],
+    ).cpu().numpy()
+
     # Place all necessary tensors on the CPU as numpy arrays.
     y_true = y_true.cpu().numpy() # Remove the channel dimension. B x H x W
     y_hard = y_hard.cpu().numpy() # Remove the channel dimension. B x H x W
@@ -69,6 +77,7 @@ def update_toplabel_pixel_meters(
         y_hard,
         true_num_neighb_map,
         pred_num_neighb_map,
+        pixel_importance_map,
         toplabel_bin_ownership_map,
     ]) # 5 x B x H x W
     # Reshape the numpy array to be 5 x (B x H x W)
@@ -79,13 +88,14 @@ def update_toplabel_pixel_meters(
     image_tl_meter_dict = {}
     for bin_combo in unique_combinations:
         bin_combo = tuple(bin_combo)
-        true_lab, pred_lab, true_nn, pred_nn, bin_idx = bin_combo
+        true_lab, pred_lab, true_nn, pred_nn, pix_importance, bin_idx = bin_combo
         # Get the region of image corresponding to the confidence
         bin_conf_region = get_conf_region_np(
             conditional_region_dict={
-                "bin_idx": (bin_idx, toplabel_bin_ownership_map),
                 "true_label": (true_lab, y_true),
                 "pred_label": (pred_lab, y_hard),
+                "pix_importance": (pix_importance, pixel_importance_map),
+                "bin_idx": (bin_idx, toplabel_bin_ownership_map),
                 "true_num_neighbors": (true_nn, true_num_neighb_map),
                 "pred_num_neighbors": (pred_nn, pred_num_neighb_map)
             }
@@ -191,8 +201,9 @@ def update_cw_pixel_meters(
         lab_combo_array = np.stack([
             lab_true_nn_map,
             lab_pred_nn_map,
-            lab_loc_bin_ownership_map,
             lab_bin_ownership_map,
+            lab_pixel_importance_map,
+            lab_loc_bin_ownership_map,
         ]) # 4 x B x H x W
         # Reshape the numpy array to be 4 x (B x H x W)
         lab_combo_array = lab_combo_array.reshape(lab_combo_array.shape[0], -1)
@@ -201,13 +212,14 @@ def update_cw_pixel_meters(
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
-            true_nn, pred_nn, loc_conf_bin_idx, bin_idx = bin_combo
+            true_nn, pred_nn, bin_idx, pix_importance, loc_conf_bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, lab_bin_ownership_map),
                     "true_num_neighbors": (true_nn, lab_true_nn_map),
                     "pred_num_neighbors": (pred_nn, lab_pred_nn_map),
+                    "pix_importance": (pix_importance, lab_pixel_importance_map),
                     "loc_conf_bin_idx": (loc_conf_bin_idx, lab_loc_bin_ownership_map)
                 }
             )
