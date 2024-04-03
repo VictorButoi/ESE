@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 from scipy import ndimage
-from typing import Optional
+from typing import Any, Optional
 # ionpy imports
 from ionpy.loss.segmentation import soft_dice_loss
 
@@ -13,11 +13,19 @@ from ionpy.loss.segmentation import soft_dice_loss
 
 
 def get_pixel_weights(
-    y_true: torch.Tensor,
-    y_pred: Optional[torch.Tensor] = None,
+    y_true: Any,
+    y_pred: Optional[Any] = None,
     loss_func: Optional[str] = None,
     from_logits: bool = False,
 ):
+    # if y_true is a np.ndarray, convert to torch.Tensor
+    if isinstance(y_true, np.ndarray):
+        y_true = torch.from_numpy(y_true)
+    # if y_pred is a np.ndarray, convert to torch.Tensor
+    if isinstance(y_pred, np.ndarray):
+        y_pred = torch.from_numpy(y_pred)
+    # Assert both are torch.Tensor
+    assert isinstance(y_true, torch.Tensor) and (y_pred is None or isinstance(y_pred, torch.Tensor)), "Inputs must be np.ndarrays or torch.Tensors."
     if loss_func is None:
         return accuracy_weights(y_true)
     elif loss_func == "dice":

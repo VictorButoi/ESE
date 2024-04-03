@@ -143,7 +143,7 @@ def update_cw_pixel_meters(
     C = y_probs.shape[1]
     # BIN CONFIDENCE, both the actual bins and the smoothed local conf bins.
     ############################################################################3
-    bin_args = {
+    conf_bin_args = {
         "int_start": 0.0,
         "int_end": 1.0,
         "class_wise": True,
@@ -152,7 +152,7 @@ def update_cw_pixel_meters(
     # Figure out where each pixel belongs (in confidence)
     conf_bin_map = get_bin_per_sample(
         pred_map=y_probs,
-        **bin_args
+        **conf_bin_args
     ).cpu().numpy()
     # Figure out where each group of pixels belongs (in confidence)
     local_conf_bin_map = get_bin_per_sample(
@@ -163,7 +163,7 @@ def update_cw_pixel_meters(
                     class_wise=True,
                     num_classes=C
                 ),
-        **bin_args
+        **conf_bin_args
     ).cpu().numpy()
     # NEIGHBORHOOD INFO. Get the predicted and actual number of label neighbors.
     ###########################################################################3
@@ -205,6 +205,7 @@ def update_cw_pixel_meters(
             loss_func=calibration_cfg['loss_weights'],
             from_logits=False
         )
+        print(np.unique(lab_pixel_importance_map))
         lab_bin_ownership_map = conf_bin_map[:, lab_idx, ...]
         lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
         # Calculate the unique combinations.
@@ -214,11 +215,12 @@ def update_cw_pixel_meters(
             lab_bin_ownership_map,
             lab_pixel_importance_map,
             lab_loc_bin_ownership_map,
-        ]) # 4 x B x H x W
-        # Reshape the numpy array to be 4 x (B x H x W)
+        ]) # D x B x H x W
+        # Reshape the numpy array to be F x (B x H x W)
         lab_combo_array = lab_combo_array.reshape(lab_combo_array.shape[0], -1)
         # Get the unique vectors along the pixel dimensions.
         unique_lab_combinations = np.unique(lab_combo_array, axis=1).T
+        print(len(unique_lab_combinations))
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
