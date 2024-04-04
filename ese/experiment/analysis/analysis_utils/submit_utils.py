@@ -120,12 +120,15 @@ def get_ese_inference_configs(
             else:
                 advanced_args = {
                     'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
-                    'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
                     'model.ensemble': [False],
                     'ensemble.normalize': [None],
                     'ensemble.combine_fn': [None],
                     'ensemble.combine_quantity': [None],
                 }
+                if base_cfg_args['submit_opts']['gather_sub_runs']:
+                    advanced_args['model.pretrained_exp_root'] = gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
+                else:
+                    advanced_args['model.pretrained_exp_root'] = [str(inf_group_dir)]
                 # Combine the default and advanced arguments.
                 default_config_options.update(advanced_args)
                 # Append these to the list of configs and roots.
