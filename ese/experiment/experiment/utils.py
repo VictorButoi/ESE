@@ -3,6 +3,7 @@ import torch
 # ionpy imports
 from ionpy.experiment.util import absolute_import
 # misc imports
+import ast
 import json
 import einops
 from pathlib import Path
@@ -105,16 +106,20 @@ def load_experiment(
     load_data: bool = True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
+    attr_dict: Optional[dict] = None,
+    exp_class: Optional[str] = None,
     selection_metric: Optional[str] = None,
-    exp_class: Optional[str] = None
 ):
     if path is None:
-        assert selection_metric is not None, "Must provide a selection metric if no path is provided."
         assert df is not None, "Must provide a dataframe if no path is provided."
-        phase, score = selection_metric.split("-")
-        subdf = df.select(phase=phase)
-        sorted_df = subdf.sort_values(score, ascending=False)
-        exp_path = sorted_df.iloc[0].path
+        if attr_dict is not None:
+            for attr_key in attr_dict:
+                df = df.select(attr_key=ast.literal_eval(attr_dict[attr_key]))
+        if selection_metric is not None:
+            phase, score = selection_metric.split("-")
+            df = df.select(phase=phase)
+            df = df.sort_values(score, ascending=False)
+        exp_path = df.iloc[0].path
     else:
         exp_path = path
 
