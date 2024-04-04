@@ -175,6 +175,7 @@ def get_average_unet_baselines(
     average_seed_unet['pretrained_seed'] = 'Average'
     average_seed_unet['model_type'] = 'group' # Now this is a group of results
     average_seed_unet['method_name'] = 'Average UNet' # Now this is a group of results
+
     if not per_calibrator:
         average_seed_unet['calibrator'] = 'None'
 
@@ -314,7 +315,7 @@ def load_inference_exp_from_cfg(
             **inf_exp_args
         }
         if "_attr" in model_cfg:
-            load_exp_args['attr'] = model_cfg['_attr']
+            load_exp_args['attr_dict'] = model_cfg['_attr']
         # Load the experiment directly if you give a sub-path.
         inference_exp = load_experiment(**load_exp_args)
         save_root = None

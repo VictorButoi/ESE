@@ -43,7 +43,6 @@ def get_ese_inference_configs(
         default_config_options = {
             'experiment.exp_root': [str(exp_root)],
             'experiment.dataset_name': [group_dict['dataset']],
-            'model.checkpoint': ["max-val-dice_score" if use_uncalibrated_models else "min-val-ece_loss"],
             'model.calibrator': [calibrator],
             'model.calibrator_cls': [get_calibrator_cls(calibrator)],
         }

@@ -101,8 +101,8 @@ def reduce_ensemble_preds(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_experiment(
+    checkpoint: Optional[str] = None,
     device: str = "cuda",
-    checkpoint: str = "max-val-dice_score",
     load_data: bool = True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
@@ -114,7 +114,10 @@ def load_experiment(
         assert df is not None, "Must provide a dataframe if no path is provided."
         if attr_dict is not None:
             for attr_key in attr_dict:
-                df = df.select(attr_key=ast.literal_eval(attr_dict[attr_key]))
+                select_arg = {attr_key: attr_dict[attr_key]}
+                if attr_key in ["mix_filters"]:
+                    select_arg = {attr_key: ast.literal_eval(attr_dict[attr_key])}
+                df = df.select(**select_arg)
         if selection_metric is not None:
             phase, score = selection_metric.split("-")
             df = df.select(phase=phase)
@@ -131,8 +134,12 @@ def load_experiment(
             props = json.loads(prop_file.read())
         exp_class = props["experiment"]["class"]
     # Load the class
-    exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
-    loaded_exp = exp_class(exp_path, load_data=load_data)
+    if "universeg" in exp_class.lower():
+        exp_class = absolute_import(f'universeg.experiment.experiment.{exp_class}')
+        loaded_exp = exp_class(exp_path)
+    else:
+        exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
+        loaded_exp = exp_class(exp_path, load_data=load_data)
 
     # Load the experiment
     if checkpoint is not None:
