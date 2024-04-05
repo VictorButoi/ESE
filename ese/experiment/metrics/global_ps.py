@@ -17,7 +17,6 @@ def prob_bin_stats(
     **kwargs
 ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
-        class_wise=False,
         pixel_meters_dict=pixel_meters_dict,
         key_1="prob_bin",
         edge_only=edge_only,
@@ -229,7 +228,7 @@ def classwise_neighbor_prob_bin_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def accumulate_pixel_preds(
-    class_wise: bool,
+    pix_dict_key_list: list,
     pixel_meters_dict: dict,
     key_1: str,
     key_2: Optional[str] = None,
@@ -239,33 +238,40 @@ def accumulate_pixel_preds(
 ) -> dict:
     assert (not edge_only) or (edge_only and neighborhood_width is not None),\
         "If edge_only is True, neighborhood_width must be defined."
+
     # Accumulate the dictionaries corresponding to a single bin.
     accumulated_meters_dict = {}
     unique_key_1 = []
     unique_key_2 = []
     unique_key_3 = []
+
     # Iterate through the meters.
     for pix_dict_key, value in pixel_meters_dict.items():
-        if class_wise:
-            true_label, true_num_neighb, pred_num_neighb, loc_conf_bin, prob_bin, measure = pix_dict_key
-        else:
-            true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
+        # if class_wise:
+        #     true_label, true_num_neighb, pred_num_neighb, loc_conf_bin, prob_bin, measure = pix_dict_key
+        # else:
+        #     true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
+        item = {
+            pix_key: pix_dict_key[i] for i, pix_key in enumerate(pix_dict_key_list)
+        } 
         # Get the total number of pixel classes for this neighborhood size.
         if neighborhood_width is not None:
             total_nearby_pixels = (neighborhood_width**2 - 1)
+
         # We track pixels if they are not edge pixels or if they are edge pixels and the edge_only flag is False.
-        if (not edge_only) or (true_num_neighb < total_nearby_pixels):
-            item = {
-                "true_label": true_label,
-                "true_num_neighb": true_num_neighb,
-                "pred_num_neighb": pred_num_neighb,
-                "prob_bin": prob_bin,
-                "measure": measure,
-            }
-            if class_wise:
-                item["local_prob_bin"] = loc_conf_bin
-            else:
-                item["pred_label"] = pred_label
+        if (not edge_only) or (item['true_num_neighb'] < total_nearby_pixels):
+            # item = {
+            #     "true_label": true_label,
+            #     "true_num_neighb": true_num_neighb,
+            #     "pred_num_neighb": pred_num_neighb,
+            #     "prob_bin": prob_bin,
+            #     "measure": measure,
+            # }
+            # if class_wise:
+            #     item["local_prob_bin"] = loc_conf_bin
+            # else:
+            #     item["pred_label"] = pred_label
+
             # Keep track of unique values.
             if item[key_1] not in unique_key_1:
                 unique_key_1.append(item[key_1])
@@ -280,27 +286,27 @@ def accumulate_pixel_preds(
                 accumulated_meters_dict[item[key_1]] = {}
             level1_dict = accumulated_meters_dict[item[key_1]]
             if key_2 is None:
-                if measure not in level1_dict:
-                    level1_dict[measure] = value
+                if item['measure'] not in level1_dict:
+                    level1_dict[item['measure']] = value
                 else:
-                    level1_dict[measure] += value
+                    level1_dict[item['measure']] += value
             else:
                 if item[key_2] not in level1_dict:
                     level1_dict[item[key_2]] = {}
                 level2_dict = level1_dict[item[key_2]]
                 if key_3 is None:                
-                    if measure not in level2_dict:
-                        level2_dict[measure] = value
+                    if item['measure'] not in level2_dict:
+                        level2_dict[item['measure']] = value
                     else:
-                        level2_dict[measure] += value
+                        level2_dict[item['measure']] += value
                 else:
                     if item[key_3] not in level2_dict:
                         level2_dict[item[key_3]] = {}
                     level3_dict = level2_dict[item[key_3]]
-                    if measure not in level3_dict:
-                        level3_dict[measure] = value
+                    if item['measure'] not in level3_dict:
+                        level3_dict[item['measure']] = value
                     else:
-                        level3_dict[measure] += value
+                        level3_dict[item['measure']] += value
     # Wrap the unique values into a dictionary.
     unique_values_dict = {
         key_1: sorted(unique_key_1)

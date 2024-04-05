@@ -60,7 +60,6 @@ def update_toplabel_pixel_meters(
     ############################################################################3
     toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
-
     # Get the importance per pixel with respect to the loss.
     # NOTE: Top label prob map honestly doesn't make much sense here if the loss is region based like dice.
     # this only works for pixel-wise losses.
@@ -70,7 +69,6 @@ def update_toplabel_pixel_meters(
         loss_func=calibration_cfg['loss_weights'],
         from_logits=False
     ).cpu().numpy()
-
     # Place all necessary tensors on the CPU as numpy arrays.
     y_true = y_true.cpu().numpy() # Remove the channel dimension. B x H x W
     y_hard = y_hard.cpu().numpy() # Remove the channel dimension. B x H x W
@@ -195,9 +193,6 @@ def update_cw_pixel_meters(
     for lab_idx in range(C):
         lab_conf_map = classwise_prob_map[:, lab_idx, ...]
         lab_freq_map = classwise_freq_map[:, lab_idx, ...]
-        # Get the region of image corresponding to the confidence
-        lab_true_nn_map = true_nn_map[:, lab_idx, ...]
-        lab_pred_nn_map = pred_nn_map[:, lab_idx, ...]
         # Get the importance per pixel with respect to the loss.
         lab_pixel_importance_map = get_pixel_weights(
             y_pred=lab_conf_map,
@@ -205,33 +200,35 @@ def update_cw_pixel_meters(
             loss_func=calibration_cfg['loss_weights'],
             from_logits=False
         )
-        print(np.unique(lab_pixel_importance_map))
+        # Get the region of image corresponding to the confidence (pixelwise and locally)
         lab_bin_ownership_map = conf_bin_map[:, lab_idx, ...]
         lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
+        # Get information about the number of neighbors.
+        lab_true_nn_map = true_nn_map[:, lab_idx, ...]
+        lab_pred_nn_map = pred_nn_map[:, lab_idx, ...]
         # Calculate the unique combinations.
         lab_combo_array = np.stack([
             lab_true_nn_map,
             lab_pred_nn_map,
             lab_bin_ownership_map,
-            lab_pixel_importance_map,
+            # lab_pixel_importance_map,
             lab_loc_bin_ownership_map,
-        ]) # D x B x H x W
+        ]) # F x B x H x W
         # Reshape the numpy array to be F x (B x H x W)
         lab_combo_array = lab_combo_array.reshape(lab_combo_array.shape[0], -1)
         # Get the unique vectors along the pixel dimensions.
         unique_lab_combinations = np.unique(lab_combo_array, axis=1).T
-        print(len(unique_lab_combinations))
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
-            true_nn, pred_nn, bin_idx, pix_importance, loc_conf_bin_idx = bin_combo
+            true_nn, pred_nn, bin_idx, loc_conf_bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, lab_bin_ownership_map),
                     "true_num_neighbors": (true_nn, lab_true_nn_map),
                     "pred_num_neighbors": (pred_nn, lab_pred_nn_map),
-                    "pix_importance": (pix_importance, lab_pixel_importance_map),
+                    # "pix_importance": (pix_importance, lab_pixel_importance_map),
                     "loc_conf_bin_idx": (loc_conf_bin_idx, lab_loc_bin_ownership_map)
                 }
             )
