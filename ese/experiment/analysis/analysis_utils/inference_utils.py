@@ -205,7 +205,7 @@ def cal_stats_init(cfg_dict):
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = cfg_dict['data']
+    new_dset_options = cfg_dict['data'].copy()
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
@@ -220,6 +220,16 @@ def cal_stats_init(cfg_dict):
         num_workers=cfg_dict['dataloader']['num_workers']
         )
     cfg_dict['dataset'] = modified_cfg 
+    #############################
+    trackers = {
+        "image_level_records": [],
+        "tl_pixel_meter_dict": {},
+        "cw_pixel_meter_dict": {}
+    }
+    # Add trackers per split
+    for data_split in data_objs['dataloaders']:
+        trackers['tl_pixel_meter_dict'][data_split] = {}
+        trackers['cw_pixel_meter_dict'][data_split] = {}
 
     #####################
     # SAVE THE METADATA #
@@ -245,38 +255,30 @@ def cal_stats_init(cfg_dict):
                 "_fn": eval_config(quality_metric_options),
                 "_type": metric_type
             }
+    # Place these dictionaries into the config dictionary.
+    cfg_dict['qual_metrics'] = qual_metrics 
+    
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
     # Image level metrics.
     if cfg_dict.get('image_cal_metrics', None) is not None:
-        cfg_dict["image_cal_metrics"] = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["local_calibration"],
-            cal_metrics_dict=cfg_dict["image_cal_metrics"]
+        cfg_dict['image_cal_metrics'] = preload_calibration_metrics(
+            base_cal_cfg=cfg_dict['local_calibration'],
+            cal_metrics_dict=cfg_dict['image_cal_metrics']
         )
     # Global dataset level metrics. (Used for validation)
     if cfg_dict.get('global_cal_metrics', None) is not None:
-        cfg_dict["global_cal_metrics"] = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict["global_calibration"],
-            cal_metrics_dict=cfg_dict["global_cal_metrics"]
+        cfg_dict['global_cal_metrics'] = preload_calibration_metrics(
+            base_cal_cfg=cfg_dict['global_calibration'],
+            cal_metrics_dict=cfg_dict['global_cal_metrics']
         )
-    #############################
-    trackers = {
-        "image_level_records": [],
-        "tl_pixel_meter_dict": {},
-        "cw_pixel_meter_dict": {}
-    }
-    # Add trackers per split
-    for data_split in dataloaders:
-        trackers["tl_pixel_meter_dict"][data_split] = {}
-        trackers["cw_pixel_meter_dict"][data_split] = {}
-    # Place these dictionaries into the config dictionary.
-    cfg_dict["qual_metrics"] = qual_metrics 
+        
     # Return a dictionary of the components needed for the calibration statistics.
     return {
         "inference_exp": inference_exp,
-        "input_type": input_type,
-        "dataloaders": dataloaders,
+        "dataloaders": data_objs['dataloaders'],
+        "supports": data_objs['supports'],
         "trackers": trackers,
         "output_root": task_root
     }

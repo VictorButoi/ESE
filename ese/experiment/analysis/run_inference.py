@@ -55,6 +55,7 @@ def get_cal_stats(
     trackers = cal_stats_components["trackers"]
     output_root = cal_stats_components["output_root"]
     all_dataloaders = cal_stats_components["dataloaders"]
+    all_supports = cal_stats_components["supports"] # Optional, None if not dealing with incontext data.
 
     # Loop through the data, gather your stats!
     if cfg_dict["log"]["gether_inference_stats"]:
@@ -66,7 +67,13 @@ def get_cal_stats(
                     # if batch["data_id"][0] == "114":
                     # if batch["data_id"][0] == "munster_000143_000019":
                     print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
+                    if isinstance(batch, list):
+                        batch = {
+                            "img": batch[0],
+                            "label": batch[1]
+                        }
                     batch["split"] = split
+                    batch["batch_idx"] = batch_idx
                     # Gather the forward item.
                     forward_item = {
                         "exp": cal_stats_components["inference_exp"],
@@ -77,10 +84,14 @@ def get_cal_stats(
                         "output_root": output_root
                     }
                     # Run the forward loop
-                    if cal_stats_components["input_type"] == "volume":
+                    input_type = cfg_dict['data']['input_type']
+                    if input_type == 'volume':
                         volume_forward_loop(**forward_item)
-                    elif cal_stats_components["input_type"] == "image":
-                        image_forward_loop(**forward_item)
+                    elif input_type == 'image':
+                        if cfg_dict['data']['dset_type'] == 'incontext':
+                            incontext_image_forward_loop(support=all_supports[split], **forward_item)
+                        else:
+                            standard_image_forward_loop(**forward_item)
                     else:
                         raise ValueError(f"Input type {cal_stats_components['input_type']} not recognized.")
         # Save the records at the end too
@@ -142,7 +153,7 @@ def volume_forward_loop(
             "data_id": batch["data_id"],
             "split": batch["split"]
         } 
-        image_forward_loop(
+        standard_image_forward_loop(
             exp=exp,
             batch=slice_batch,
             inference_cfg=inference_cfg,
@@ -154,7 +165,7 @@ def volume_forward_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def default_image_forward_loop(
+def standard_image_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
@@ -207,6 +218,7 @@ def default_image_forward_loop(
 def incontext_image_forward_loop(
     exp: Any,
     batch: Any,
+    support: Any,
     inference_cfg: dict,
     trackers,
     data_counter: int,
@@ -233,14 +245,11 @@ def incontext_image_forward_loop(
             for j in range(n_predictions):
                 # Note: different subjects will use different support sets
                 # but different models will use the same support sets
-                rng = base_seed * (j + 1) + i
-                sx, sy = batch['support'][rng]
+                rng = inference_cfg['experiment']['seed'] * (j + 1) + batch['batch_idx'] 
+                sx, sy = support[rng]
                 # the support set
-                exp_output = exp.model(sx[None], sy[None], x[None])
+                exp_pred = exp.model(sx[None], sy[None], image[None])
 
-        # Do a forward pass.
-        with torch.no_grad():
-            exp_output =  exp.predict(image, **predict_args)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
