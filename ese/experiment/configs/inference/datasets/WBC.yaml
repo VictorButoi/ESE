@@ -3,6 +3,8 @@ log:
 
 data:
   input_type: image 
+  task: WBC/CV/EM/0
+  resolution: 128
 
 global_calibration:
     num_classes: 1

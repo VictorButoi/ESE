@@ -14,6 +14,9 @@ from ionpy.util.ioutil import autosave
 from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
+# UniverSeg imports
+from universeg.experiment.datasets import Segment2D
+from universeg.experiment.datasets.support import RandomSupport
 # local imports
 from ...experiment.utils import load_experiment
 from ...augmentation.gather import augmentations_from_config
@@ -209,7 +212,7 @@ def cal_stats_init(cfg_dict):
     # Get the inference augmentation options.
     aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
     # Build the dataloaders.
-    dataloaders, modified_cfg = dataloader_from_exp( 
+    data_objs, modified_cfg = dataloader_from_exp( 
         inference_exp,
         new_dset_options=new_dset_options, 
         aug_cfg_list=aug_cfg_list,
@@ -367,14 +370,22 @@ def dataloader_from_exp(
         inference_transforms = None
     dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
     dataloaders = {}
+    supports = {} # use for ICL
     for split in dset_splits:
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
         # Load the dataset with modified arguments.
-        split_dataset_obj = absolute_import(dataset_cls)(
-            transforms=inference_transforms, 
-            **split_data_cfg
-        )
+        if inference_data_cfg['dset_type'] == 'incontext':
+            split_dataset_obj, split_support = get_incontext_dataset(
+                data_cfg=inference_data_cfg, 
+                split=split,
+            )
+        else: 
+            split_dataset_obj = absolute_import(dataset_cls)(
+                transforms=inference_transforms, 
+                **split_data_cfg
+            )
+            split_support = None
         # Build the dataset and dataloader.
         dataloaders[split] = DataLoader(
             split_dataset_obj, 
@@ -382,11 +393,35 @@ def dataloader_from_exp(
             num_workers=num_workers,
             shuffle=False
         )
+        supports[split] = split_support
     # Add the augmentation information.
     inference_data_cfg['augmentations'] = aug_cfg_list
     inference_data_cfg['_class'] = dataset_cls        
+    # Build a dictionary of our data objs
+    data_obj_dict = {
+        "dataloaders": dataloaders,
+        "supports": supports,
+    }
     # Return the dataloaders and the modified data cfg.
-    return dataloaders, inference_data_cfg
+    return data_obj_dict, inference_data_cfg
+
+
+def get_incontext_dataset(
+    data_cfg: dict, 
+    split: str,
+):
+    target_dataset = Segment2D(
+        task=data_cfg['task'],
+        resolution=data_cfg['resolution'],
+        split=split,
+        min_label_density=0,
+        preload=True
+    )
+    context_dataset = target_dataset.other_split("train")
+    support = RandomSupport(
+        context_dataset, data_cfg['support_size'], replacement=True
+    )
+    return target_dataset, support
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

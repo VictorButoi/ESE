@@ -154,7 +154,7 @@ def volume_forward_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def image_forward_loop(
+def default_image_forward_loop(
     exp: Any,
     batch: Any,
     inference_cfg: dict,
@@ -174,6 +174,70 @@ def image_forward_loop(
         predict_args = {'multi_class': True}
         if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
+        # Do a forward pass.
+        with torch.no_grad():
+            exp_output =  exp.predict(image, **predict_args)
+        # Wrap the outputs into a dictionary.
+        output_dict = {
+            "x": image,
+            "y_true": label_map.long(),
+            "y_logits": exp_output.get("y_logits", None),
+            "y_probs": exp_output.get("y_probs", None),
+            "y_hard": exp_output.get("y_hard", None),
+            "data_id": batch["data_id"][0], # Works because batchsize = 1
+            "split": batch["split"],
+            "slice_idx": slice_idx
+        }
+        # Get the calibration item info.  
+        get_calibration_item_info(
+            output_dict=output_dict,
+            inference_cfg=inference_cfg,
+            trackers=trackers,
+        )
+
+        # Save the records every so often, to get intermediate results. Note, because of data_ids
+        # this can contain fewer than 'log interval' many items.
+        if inference_cfg["log"]["log_image_stats"] and (data_counter % inference_cfg['log']['log_interval'] == 0):
+            save_trackers(output_root, trackers=trackers)
+
+        data_counter += 1
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def incontext_image_forward_loop(
+    exp: Any,
+    batch: Any,
+    inference_cfg: dict,
+    trackers,
+    data_counter: int,
+    output_root: Path,
+    slice_idx: Optional[int] = None,
+):
+    # Get the batch info
+    image, label_map  = batch["img"], batch["label"]
+    # If we have don't have a minimum number of foreground pixels, then we skip this image.
+    if torch.sum(label_map != 0) >= inference_cfg["log"].get("min_fg_pixels", 0):
+
+        # Get your image label pair and define some regions.
+        if image.device != exp.device:
+            image, label_map = to_device((image, label_map), exp.device)
+
+        # Get the prediction with no gradient accumulation.
+        predict_args = {'multi_class': True}
+        if inference_cfg["model"]["ensemble"]:
+            predict_args["combine_fn"] = "identity"
+
+        preds = []
+
+        with torch.no_grad():
+            for j in range(n_predictions):
+                # Note: different subjects will use different support sets
+                # but different models will use the same support sets
+                rng = base_seed * (j + 1) + i
+                sx, sy = batch['support'][rng]
+                # the support set
+                exp_output = exp.model(sx[None], sy[None], x[None])
+
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
