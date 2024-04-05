@@ -17,11 +17,21 @@ def prob_bin_stats(
     **kwargs
 ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+        pix_dict_key_list=[
+            "true_label", 
+            "pred_label", 
+            "true_num_neighb", 
+            "pred_num_neighb", 
+            "pix_importance",
+            "prob_bin", 
+            "measure"
+        ],
         pixel_meters_dict=pixel_meters_dict,
         key_1="prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
+    raise ValueError("Ensure the key list order is correct.")
     unique_bins = unique_values_dict["prob_bin"]
     # Keep track of different things for each bin.
     cal_info = {
@@ -70,13 +80,22 @@ def classwise_prob_bin_stats(
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(
-        class_wise=class_wise,
+        pix_dict_key_list=[
+            "true_label", 
+            "true_num_neighb", 
+            "pred_num_neighb", 
+            "loc_conf_bin", 
+            "pix_importance",
+            "prob_bin", 
+            "measure"
+        ],
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_label",
         key_2="local_prob_bin" if local else "prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
+    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_classes, num_prob_bins, dtype=torch.float64),
@@ -124,13 +143,22 @@ def neighbor_wise_bin_stats(
 ) -> dict:
     stat_type = "true" if class_wise else "pred"
     accumulated_meters_dict, _ = accumulate_pixel_preds(
-        class_wise=class_wise,
+        pix_dict_key_list=[
+            "true_label", 
+            "pred_label", 
+            "true_num_neighb", 
+            "pred_num_neighb", 
+            "pix_importance",
+            "prob_bin", 
+            "measure"
+        ],
         pixel_meters_dict=pixel_meters_dict,
         key_1=f"{stat_type}_num_neighb",
         key_2="prob_bin",
         edge_only=edge_only,
         neighborhood_width=neighborhood_width,
     )
+    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     num_neighb_classes = neighborhood_width**2
     cal_info = {
@@ -181,7 +209,15 @@ def classwise_neighbor_prob_bin_stats(
     **kwargs
 ) -> dict:
     accumulated_meters_dict, _ = accumulate_pixel_preds(
-        class_wise=class_wise,
+        pix_dict_key_list=[
+            "true_label", 
+            "true_num_neighb", 
+            "pred_num_neighb", 
+            "loc_conf_bin", 
+            "pix_importance",
+            "prob_bin", 
+            "measure"
+        ],
         pixel_meters_dict=pixel_meters_dict,
         key_1="true_label" if class_wise else "pred_label",
         key_2="pred_num_neighb" if discrete else "local_prob_bin",
@@ -189,6 +225,7 @@ def classwise_neighbor_prob_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
+    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
@@ -238,40 +275,21 @@ def accumulate_pixel_preds(
 ) -> dict:
     assert (not edge_only) or (edge_only and neighborhood_width is not None),\
         "If edge_only is True, neighborhood_width must be defined."
-
     # Accumulate the dictionaries corresponding to a single bin.
     accumulated_meters_dict = {}
     unique_key_1 = []
     unique_key_2 = []
     unique_key_3 = []
-
     # Iterate through the meters.
-    for pix_dict_key, value in pixel_meters_dict.items():
-        # if class_wise:
-        #     true_label, true_num_neighb, pred_num_neighb, loc_conf_bin, prob_bin, measure = pix_dict_key
-        # else:
-        #     true_label, pred_label, true_num_neighb, pred_num_neighb, prob_bin, measure = pix_dict_key
-        item = {
-            pix_key: pix_dict_key[i] for i, pix_key in enumerate(pix_dict_key_list)
-        } 
+    for pix_key_tuple, value in pixel_meters_dict.items():
+        assert len(pix_dict_key_list) == len(pix_key_tuple),\
+            "pix_dict_key_list and pix_dict_key must have the same length."
+        item = {pix_key: pix_key_tuple[i] for i, pix_key in enumerate(pix_dict_key_list)} 
         # Get the total number of pixel classes for this neighborhood size.
         if neighborhood_width is not None:
             total_nearby_pixels = (neighborhood_width**2 - 1)
-
         # We track pixels if they are not edge pixels or if they are edge pixels and the edge_only flag is False.
         if (not edge_only) or (item['true_num_neighb'] < total_nearby_pixels):
-            # item = {
-            #     "true_label": true_label,
-            #     "true_num_neighb": true_num_neighb,
-            #     "pred_num_neighb": pred_num_neighb,
-            #     "prob_bin": prob_bin,
-            #     "measure": measure,
-            # }
-            # if class_wise:
-            #     item["local_prob_bin"] = loc_conf_bin
-            # else:
-            #     item["pred_label"] = pred_label
-
             # Keep track of unique values.
             if item[key_1] not in unique_key_1:
                 unique_key_1.append(item[key_1])

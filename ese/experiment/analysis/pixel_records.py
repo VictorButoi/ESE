@@ -95,10 +95,10 @@ def update_toplabel_pixel_meters(
             conditional_region_dict={
                 "true_label": (true_lab, y_true),
                 "pred_label": (pred_lab, y_hard),
+                "true_num_neighbors": (true_nn, true_num_neighb_map),
+                "pred_num_neighbors": (pred_nn, pred_num_neighb_map),
                 "pix_importance": (pix_importance, pixel_importance_map),
                 "bin_idx": (bin_idx, toplabel_bin_ownership_map),
-                "true_num_neighbors": (true_nn, true_num_neighb_map),
-                "pred_num_neighbors": (pred_nn, pred_num_neighb_map)
             }
         )
         if bin_conf_region.sum() > 0:
@@ -199,7 +199,7 @@ def update_cw_pixel_meters(
             y_true=lab_freq_map,
             loss_func=calibration_cfg['loss_weights'],
             from_logits=False
-        )
+        ).numpy()
         # Get the region of image corresponding to the confidence (pixelwise and locally)
         lab_bin_ownership_map = conf_bin_map[:, lab_idx, ...]
         lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
@@ -211,7 +211,7 @@ def update_cw_pixel_meters(
             lab_true_nn_map,
             lab_pred_nn_map,
             lab_bin_ownership_map,
-            # lab_pixel_importance_map,
+            lab_pixel_importance_map,
             lab_loc_bin_ownership_map,
         ]) # F x B x H x W
         # Reshape the numpy array to be F x (B x H x W)
@@ -221,14 +221,14 @@ def update_cw_pixel_meters(
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
-            true_nn, pred_nn, bin_idx, loc_conf_bin_idx = bin_combo
+            true_nn, pred_nn, bin_idx, pix_importance, loc_conf_bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, lab_bin_ownership_map),
                     "true_num_neighbors": (true_nn, lab_true_nn_map),
                     "pred_num_neighbors": (pred_nn, lab_pred_nn_map),
-                    # "pix_importance": (pix_importance, lab_pixel_importance_map),
+                    "pix_importance": (pix_importance, lab_pixel_importance_map),
                     "loc_conf_bin_idx": (loc_conf_bin_idx, lab_loc_bin_ownership_map)
                 }
             )
@@ -236,20 +236,17 @@ def update_cw_pixel_meters(
                 # Add bin specific keys to the dictionary if they don't exist.
                 freq_key = (lab_idx,) + bin_combo + ("accuracy",)
                 conf_key = (lab_idx,) + bin_combo + ("confidence",)
-
                 # If this key doesn't exist in the dictionary, add it
                 if conf_key not in pixel_level_records:
                     for meter_key in [freq_key, conf_key]:
                         pixel_level_records[meter_key] = StatsMeter()
-
                 # Add the keys for the image level tracker.
                 if conf_key not in image_cw_meter_dict:
                     for meter_key in [freq_key, conf_key]:
                         image_cw_meter_dict[meter_key] = StatsMeter()
-
                 # (acc , conf)
-                cw_freq = lab_freq_map[lab_bin_conf_region]
                 cw_conf = lab_conf_map[lab_bin_conf_region]
+                cw_freq = lab_freq_map[lab_bin_conf_region]
                 # Finally, add the points to the meters.
                 pixel_level_records[freq_key].addN(cw_freq, batch=True) 
                 pixel_level_records[conf_key].addN(cw_conf, batch=True)

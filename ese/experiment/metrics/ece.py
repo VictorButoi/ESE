@@ -35,7 +35,7 @@ def image_ece_loss(
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
-    ) -> Union[dict, Tensor]:
+) -> Union[dict, Tensor]:
     cal_info = bin_stats(
         y_pred=y_pred,
         y_true=y_true,
