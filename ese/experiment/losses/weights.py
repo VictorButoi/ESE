@@ -37,7 +37,8 @@ def get_pixel_weights(
     elif loss_func == "hausdorff":
         return hausdorff_weights(y_true)
     else:
-        raise ValueError(f"Loss function {loss_func} not supported for pixel weights.")
+        # Just default to uniform weights.
+        return torch.ones_like(y_true)
 
 
 def accuracy_weights(

@@ -101,7 +101,7 @@ def reduce_ensemble_preds(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_experiment(
-    checkpoint: Optional[str] = None,
+    checkpoint: str,
     device: str = "cuda",
     load_data: bool = True,
     df: Optional[Any] = None, 

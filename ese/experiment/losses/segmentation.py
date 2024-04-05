@@ -97,7 +97,7 @@ def pixel_crossentropy_loss(
                 ignore_index=ignore_index,
             )
     
-    if loss_pix_weights is not None:
+    if loss_pix_weights is not None and loss_pix_weights.lower() != "none":
         pix_weights = get_pixel_weights(
             y_true=y_true,
             y_pred=y_pred,

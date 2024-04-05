@@ -55,9 +55,10 @@ class PostHocExperiment(TrainExperiment):
             else:
                 val_transforms, cal_transforms = None, None
             # Build the datasets, apply the transforms
-            self.train_dataset = dataset_cls(split="val", transforms=val_transforms, **pretrained_data_cfg)
-            self.val_dataset = dataset_cls(split="cal", transforms=cal_transforms, **pretrained_data_cfg)
-
+            train_splits = pretrained_data_cfg.pop("train_splits")
+            val_splits = pretrained_data_cfg.pop("val_splits")
+            self.train_dataset = dataset_cls(split=train_splits, transforms=val_transforms, **pretrained_data_cfg)
+            self.val_dataset = dataset_cls(split=val_splits, transforms=cal_transforms, **pretrained_data_cfg)
             # Check if we want to cache the dataset on the GPU.
             if "cuda" in pretrained_data_cfg:
                 assert pretrained_data_cfg["preload"], "If you want to cache the dataset on the GPU, you must preload it."
@@ -98,6 +99,7 @@ class PostHocExperiment(TrainExperiment):
         if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
             self.pretrained_exp = load_experiment(
                 path=total_config['train']['pretrained_dir'],
+                checkpoint=total_config['train']['checkpoint'],
                 **load_exp_cfg
             )
         else:
@@ -108,6 +110,7 @@ class PostHocExperiment(TrainExperiment):
             )
             self.pretrained_exp = load_experiment(
                 df=rs.load_metrics(dfc),
+                checkpoint=total_config['train']['checkpoint'],
                 selection_metric=total_config['train']['pretrained_select_metric'],
                 **load_exp_cfg
             )

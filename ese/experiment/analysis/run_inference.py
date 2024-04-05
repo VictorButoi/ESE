@@ -178,16 +178,20 @@ def standard_image_forward_loop(
     image, label_map  = batch["img"], batch["label"]
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
     if torch.sum(label_map != 0) >= inference_cfg["log"].get("min_fg_pixels", 0):
+
         # Get your image label pair and define some regions.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
+
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
         if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
+
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
+
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
@@ -240,7 +244,6 @@ def incontext_image_forward_loop(
             predict_args["combine_fn"] = "identity"
 
         preds = []
-
         with torch.no_grad():
             for j in range(n_predictions):
                 # Note: different subjects will use different support sets

@@ -374,13 +374,13 @@ def dataloader_from_exp(
     dataloaders = {}
     supports = {} # use for ICL
     for split in dset_splits:
+        # Load the dataset with modified arguments.
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
-        # Load the dataset with modified arguments.
-        if inference_data_cfg['dset_type'] == 'incontext':
+        dset_type = split_data_cfg.pop('dset_type')
+        if dset_type == 'incontext':
             split_dataset_obj, split_support = get_incontext_dataset(
-                data_cfg=inference_data_cfg, 
-                split=split,
+                data_cfg=split_data_cfg, 
             )
         else: 
             split_dataset_obj = absolute_import(dataset_cls)(
@@ -409,13 +409,12 @@ def dataloader_from_exp(
 
 
 def get_incontext_dataset(
-    data_cfg: dict, 
-    split: str,
+    data_cfg: dict
 ):
     target_dataset = Segment2D(
         task=data_cfg['task'],
         resolution=data_cfg['resolution'],
-        split=split,
+        split=data_cfg['split'],
         min_label_density=0,
         preload=True
     )
