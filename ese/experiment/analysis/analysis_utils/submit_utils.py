@@ -16,7 +16,7 @@ def get_ese_inference_configs(
     inf_cfg_opts: dict,
     base_cfg_args: dict
 ):
-    scratch_root = Path(base_cfg_args['submit_opts']['scratch_root'])
+    scratch_root = Path(group_dict['scratch_root'])
 
     # Set the seed if it is provided.
     if "seed" in base_cfg_args['submit_opts']:

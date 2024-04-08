@@ -70,7 +70,8 @@ def get_cal_stats(
                     if isinstance(batch, list):
                         batch = {
                             "img": batch[0],
-                            "label": batch[1]
+                            "label": batch[1],
+                            "data_id": batch[2],
                         }
                     batch["split"] = split
                     batch["batch_idx"] = batch_idx
@@ -245,13 +246,17 @@ def incontext_image_forward_loop(
 
         preds = []
         with torch.no_grad():
-            for j in range(n_predictions):
+            for j in range(inference_cfg['ensemble']['num_members']):
                 # Note: different subjects will use different support sets
                 # but different models will use the same support sets
                 rng = inference_cfg['experiment']['seed'] * (j + 1) + batch['batch_idx'] 
                 sx, sy = support[rng]
+                # Send the support set to the device
+                sx, sy = to_device((sx, sy), exp.device)
                 # the support set
-                exp_pred = exp.model(sx[None], sy[None], image[None])
+                y_logits = exp.model(sx[None], sy[None], image)
+                preds.append(y_logits)
+        preds = torch.stack(preds, dim=0)
 
         # Wrap the outputs into a dictionary.
         output_dict = {

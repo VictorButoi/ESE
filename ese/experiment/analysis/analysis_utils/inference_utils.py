@@ -359,7 +359,9 @@ def dataloader_from_exp(
         'add_aug',
         'return_dst_to_bdry',
         'train_splits',
+        'train_datasets',
         'val_splits',
+        'val_datasets'
     ]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
@@ -411,16 +413,13 @@ def dataloader_from_exp(
 def get_incontext_dataset(
     data_cfg: dict
 ):
-    target_dataset = Segment2D(
-        task=data_cfg['task'],
-        resolution=data_cfg['resolution'],
-        split=data_cfg['split'],
-        min_label_density=0,
-        preload=True
-    )
+    support_size = data_cfg.pop('support_size')
+    # Build the target and support datasets.
+    target_dataset = Segment2D(**data_cfg)
     context_dataset = target_dataset.other_split("train")
+    # Construct the support of examples to use.
     support = RandomSupport(
-        context_dataset, data_cfg['support_size'], replacement=True
+        context_dataset, support_size=support_size, replacement=True
     )
     return target_dataset, support
 
