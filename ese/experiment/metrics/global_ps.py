@@ -31,7 +31,6 @@ def prob_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
-    raise ValueError("Ensure the key list order is correct.")
     unique_bins = unique_values_dict["prob_bin"]
     # Keep track of different things for each bin.
     cal_info = {
@@ -84,9 +83,9 @@ def classwise_prob_bin_stats(
             "true_label", 
             "true_num_neighb", 
             "pred_num_neighb", 
-            "loc_conf_bin", 
-            "pix_importance",
             "prob_bin", 
+            "pix_importance",
+            "loc_conf_bin", 
             "measure"
         ],
         pixel_meters_dict=pixel_meters_dict,
@@ -95,7 +94,6 @@ def classwise_prob_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
-    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_classes, num_prob_bins, dtype=torch.float64),
@@ -158,7 +156,6 @@ def neighbor_wise_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width,
     )
-    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     num_neighb_classes = neighborhood_width**2
     cal_info = {
@@ -213,9 +210,9 @@ def classwise_neighbor_prob_bin_stats(
             "true_label", 
             "true_num_neighb", 
             "pred_num_neighb", 
-            "loc_conf_bin", 
-            "pix_importance",
             "prob_bin", 
+            "pix_importance",
+            "loc_conf_bin", 
             "measure"
         ],
         pixel_meters_dict=pixel_meters_dict,
@@ -225,7 +222,6 @@ def classwise_neighbor_prob_bin_stats(
         edge_only=edge_only,
         neighborhood_width=neighborhood_width
     )
-    raise ValueError("Ensure the key list order is correct.")
     # Keep track of different things for each bin.
     cal_info = {
         "bin_confs": torch.zeros(num_classes, num_neighbor_bins, num_prob_bins, dtype=torch.float64),
