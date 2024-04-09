@@ -16,6 +16,49 @@ from ..metrics.utils import (
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def update_prob_pixel_meters(
+    output_dict,
+    calibration_cfg,
+    pixel_level_records 
+):
+    y_probs = output_dict["y_probs"].squeeze(1) # Remove the channel dimension.
+    # Figure out where each pixel belongs (in confidence)
+    toplabel_bin_ownership_map = get_bin_per_sample(
+        pred_map=y_probs,
+        class_wise=False,
+        num_prob_bins=calibration_cfg['num_prob_bins'], 
+        int_start=0.0,
+        int_end=1.0
+    ).cpu().numpy()
+    # Calculate the accuracy map.
+    ############################################################################3
+    prob_map = y_probs.cpu().numpy()
+    y_true = output_dict["y_true"].squeeze(1).cpu().numpy() # Remove the channel dimension.
+    # Make a version of pixel meter dict for this image (for error checking)
+    for bin_idx in range(calibration_cfg['num_prob_bins']):
+        # Get the region of image corresponding to the confidence
+        bin_conf_region = get_conf_region_np(
+            conditional_region_dict={
+                "bin_idx": (bin_idx, toplabel_bin_ownership_map),
+            }
+        )
+        if bin_conf_region.sum() > 0:
+            # Add bin specific keys to the dictionary if they don't exist.
+            freq_key = ("bin_idx", "accuracy")
+            conf_key = ("bin_idx", "confidence")
+            # If this key doesn't exist in the dictionary, add it
+            if conf_key not in pixel_level_records:
+                for meter_key in [freq_key, conf_key]:
+                    pixel_level_records[meter_key] = StatsMeter()
+            # (acc , conf)
+            bin_freq = y_true[bin_conf_region]
+            bin_conf = prob_map[bin_conf_region]
+            # Finally, add the points to the meters.
+            pixel_level_records[freq_key].addN(bin_freq, batch=True) 
+            pixel_level_records[conf_key].addN(bin_conf, batch=True)
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_toplabel_pixel_meters(
     output_dict,
     calibration_cfg,

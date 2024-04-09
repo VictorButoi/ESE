@@ -5,10 +5,8 @@ import torch.nn.functional as F
 from torchvision.models import resnet18
 # misc imports
 import math
-import matplotlib.pyplot as plt
 # local imports
 from .unet import UNet
-from ..metrics.utils import agg_neighbors_preds
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
     

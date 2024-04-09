@@ -18,6 +18,59 @@ def prob_bin_stats(
 ) -> dict:
     accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
         pix_dict_key_list=[
+            "prob_bin", 
+            "measure"
+        ],
+        pixel_meters_dict=pixel_meters_dict,
+        key_1="prob_bin",
+        edge_only=edge_only,
+        neighborhood_width=neighborhood_width
+    )
+    unique_bins = unique_values_dict["prob_bin"]
+    # Keep track of different things for each bin.
+    cal_info = {
+        "bin_confs": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(num_prob_bins, dtype=torch.float64),
+    }
+    # Get the regions of the prediction corresponding to each bin of confidence.
+    for prob_bin_idx in range(num_prob_bins):
+        if prob_bin_idx in unique_bins:
+            # Get the meter for the bin.
+            bin_meter = accumulated_meters_dict[prob_bin_idx]
+            # Choose what key to use.
+            bin_conf = bin_meter["confidence"].mean
+            bin_freq = bin_meter["accuracy"].mean
+            num_samples = bin_meter["accuracy"].n
+            # Calculate the average calibration error for the regions in the bin.
+            cal_info["bin_confs"][prob_bin_idx] = bin_conf
+            cal_info["bin_freqs"][prob_bin_idx] = bin_freq
+            cal_info["bin_amounts"][prob_bin_idx] = num_samples
+            # Choose whether or not to square for the cal error.
+            if square_diff:
+                cal_info["bin_cal_errors"][prob_bin_idx] = np.power(bin_conf - bin_freq, 2)
+            else:
+                cal_info["bin_cal_errors"][prob_bin_idx] = np.abs(bin_conf - bin_freq)
+    if device is not None:
+        for key, value in cal_info.items():
+            cal_info[key] = value.to(device)
+    # Return the calibration information.
+    return cal_info
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def tl_prob_bin_stats(
+    pixel_meters_dict: dict,
+    num_prob_bins: int,
+    square_diff: bool = False,
+    edge_only: bool = False,
+    neighborhood_width: Optional[int] = None,
+    device: Optional[Literal["cpu", "cuda"]] = None,
+    **kwargs
+) -> dict:
+    accumulated_meters_dict, unique_values_dict = accumulate_pixel_preds(
+        pix_dict_key_list=[
             "true_label", 
             "pred_label", 
             "true_num_neighb", 

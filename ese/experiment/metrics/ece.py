@@ -19,7 +19,7 @@ from .local_ps import (
 )
 # - global statistics
 from .global_ps import (
-    prob_bin_stats,
+    tl_prob_bin_stats,
     classwise_prob_bin_stats
 )
 
@@ -139,7 +139,7 @@ def ece_loss(
     neighborhood_width: Optional[int] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
-    cal_info = prob_bin_stats(
+    cal_info = tl_prob_bin_stats(
         pixel_meters_dict=pixel_meters_dict,
         num_prob_bins=num_prob_bins,
         square_diff=square_diff,
