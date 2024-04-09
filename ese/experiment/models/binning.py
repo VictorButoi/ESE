@@ -128,17 +128,17 @@ class Contextual_Histogram_Binning(nn.Module):
             pixel_meters_dict=support_pred_meter_dict, # Use the validation set stats.
             num_prob_bins=self.calibration_cfg['num_prob_bins'], # Use 15 bins
             device="cuda"
-        )['bin_freqs'] # C x Bins
+        )['bin_freqs'] # Bins
         # Softmax the logits to get probabilities
-        target_probs = torch.sigmoid(target_logits)
+        uncal_target_probs = torch.sigmoid(target_logits)
         # Calculate the bin ownership map and transform the probs.
         prob_bin_ownership_map = get_bin_per_sample(
-            pred_map=target_probs,
+            pred_map=uncal_target_probs.squeeze(1),
             bin_starts=self.conf_bins,
             bin_widths=self.conf_bin_widths
-        ) # B x H x W
-        # If we are normalizing then we need to make sure the probabilities sum to 1.
-        return val_freqs[prob_bin_ownership_map] # B x H x W 
+        ).unsqueeze(1) # B x 1 x H x W
+        # Get the new prob map by applying the calibration.
+        return val_freqs[prob_bin_ownership_map]
 
     @property
     def device(self):

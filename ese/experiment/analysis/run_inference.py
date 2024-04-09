@@ -259,16 +259,13 @@ def incontext_image_forward_loop(
                     "context_labels": sy[None],
                 }
                 if hasattr(exp, "predict"):
-                    ensemble_predictions.append(exp.predict(**support_args, x=image, multi_class=True)['y_probs'])
+                    y_probs = exp.predict(**support_args, x=image, multi_class=True)['y_probs']
                 else:
-                    y_logits = exp.model(**support_args, target_image=image)
-                    if y_logits.shape[1] == 1:
-                        y_probs = torch.cat([1 - torch.sigmoid(y_logits), torch.sigmoid(y_logits)], dim=1)
-                    else:
-                        y_probs = torch.softmax(y_logits, dim=1)
-                    ensemble_predictions.append(y_probs)
+                    y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
+                # Append the predictions to the ensemble predictions.
+                ensemble_predictions.append(torch.cat([1 - y_probs, y_probs], dim=1))
         # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-        ensembled_probs = torch.stack(ensemble_predictions, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
+        ensembled_probs = torch.stack(ensemble_predictions, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,

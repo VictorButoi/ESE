@@ -187,7 +187,7 @@ def show_inference_examples(
         if "y_probs" in output_dict and output_dict["y_probs"] is not None:
             show_dict["y_probs"] = einops.rearrange(output_dict["y_probs"], "1 C E H W -> E C H W")
         elif "y_logits" in output_dict and output_dict["y_logits"] is not None:
-            show_dict["y_probs"] = einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
+            show_dict["y_logits"] = einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
     else:
         show_dict = output_dict
     # Show the individual predictions.
