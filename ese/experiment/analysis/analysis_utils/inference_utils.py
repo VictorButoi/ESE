@@ -405,6 +405,8 @@ def dataloader_from_exp(
 def get_incontext_dataset(data_cfg):
     support_size = data_cfg.pop('support_size')
     # Build the target and support datasets.
+    if "samples_per_epoch" in data_cfg.keys():
+        data_cfg.pop("samples_per_epoch")
     target_dataset = Segment2D(**data_cfg)
     context_dataset = target_dataset.other_split("train")
     # Construct the support of examples to use.
