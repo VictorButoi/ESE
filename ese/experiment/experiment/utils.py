@@ -183,14 +183,16 @@ def show_inference_examples(
         show_dict = {
             "x": output_dict["x"],
             "y_true": output_dict["y_true"],
-            "y_logits": einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
         }
+        if "y_probs" in output_dict and output_dict["y_probs"] is not None:
+            show_dict["y_probs"] = einops.rearrange(output_dict["y_probs"], "1 C E H W -> E C H W")
+        elif "y_logits" in output_dict and output_dict["y_logits"] is not None:
+            show_dict["y_probs"] = einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
     else:
         show_dict = output_dict
     # Show the individual predictions.
     ShowPredictionsCallback(show_dict)
-    # If we are showing examples with an ensemble, then we
-    # returned initially the individual predictions.
+    # If we are showing examples with an ensemble, then we show initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
         ensemble_outputs = reduce_ensemble_preds(

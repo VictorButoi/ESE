@@ -129,7 +129,7 @@ def ShowPredictionsCallback(
             if len(y_hat.shape) == 4:
                 max_probs = torch.max(y_hat, dim=1)[0]
             else:
-                assert len(y_hat.shape()) == 3, "Soft prediction must be 2D if not 3D."
+                assert len(y_hat.shape) == 3, "Soft prediction must be 2D if not 3D."
                 max_probs = y_hat
 
             axarr[b_idx, 3].set_title("Max Probs")
