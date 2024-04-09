@@ -244,8 +244,7 @@ def incontext_image_forward_loop(
         if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
 
-        logit_list = []
-        support_list = []
+        ensemble_predictions = [] 
         with torch.no_grad():
             for j in range(inference_cfg['ensemble']['num_members']):
                 # Note: different subjects will use different support sets
@@ -260,26 +259,26 @@ def incontext_image_forward_loop(
                     "context_labels": sy[None],
                 }
                 if hasattr(exp, "predict"):
-                    y_logits = exp.predict(**support_args, x=image, multi_class=True)
+                    ensemble_predictions.append(exp.predict(**support_args, x=image, multi_class=True)['y_probs'])
                 else:
                     y_logits = exp.model(**support_args, image=image)
-                logit_list.append(y_logits)
-                support_list.append((sx, sy))
-
-        logit_ensemble_tensor = torch.stack(logit_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
+                    if y_logits.shape[1] == 1:
+                        y_probs = torch.cat([1 - torch.sigmoid(y_logits), torch.sigmoid(y_logits)], dim=1)
+                    else:
+                        y_probs = torch.softmax(y_logits, dim=1)
+                    ensemble_predictions.append(y_probs)
         # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-        logit_ensemble_tensor = torch.cat([1 - logit_ensemble_tensor, logit_ensemble_tensor], dim=1) # (B, 2, E, H, W) 
+        ensembled_probs = torch.stack(ensemble_predictions, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
             "y_true": label_map.long(),
-            "y_logits": logit_ensemble_tensor,
-            "y_probs": None,
+            "y_logits": None,
+            "y_probs": ensembled_probs,
             "y_hard": None,
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "split": batch["split"],
             "slice_idx": slice_idx,
-            "support_list": support_list
         }
         # Get the calibration item info.  
         get_calibration_item_info(

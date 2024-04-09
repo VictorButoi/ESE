@@ -173,11 +173,6 @@ def update_cw_pixel_meters(
                     pred_map=output_dict["y_true"].squeeze(1), # B x H x W
                     **agg_neighbor_args
                 ).cpu().numpy()
-
-    pred_nn_map = agg_neighbors_preds(
-                    pred_map=output_dict["y_hard"].long().squeeze(1), # B x H x W
-                    **agg_neighbor_args
-                ).cpu().numpy() 
     # CALIBRATION VARS.
     ###########################################################################3
     classwise_freq_map = torch.nn.functional.one_hot(
@@ -203,11 +198,9 @@ def update_cw_pixel_meters(
         lab_loc_bin_ownership_map = local_conf_bin_map[:, lab_idx, ...]
         # Get information about the number of neighbors.
         lab_true_nn_map = true_nn_map[:, lab_idx, ...]
-        lab_pred_nn_map = pred_nn_map[:, lab_idx, ...]
         # Calculate the unique combinations.
         lab_combo_array = np.stack([
             lab_true_nn_map,
-            lab_pred_nn_map,
             lab_bin_ownership_map,
             lab_pixel_importance_map,
             lab_loc_bin_ownership_map,
@@ -219,13 +212,12 @@ def update_cw_pixel_meters(
         # Iterate through the unique combinations of the bin ownership map.
         for bin_combo in unique_lab_combinations:
             bin_combo = tuple(bin_combo)
-            true_nn, pred_nn, bin_idx, pix_importance, loc_conf_bin_idx = bin_combo
+            true_nn, bin_idx, pix_importance, loc_conf_bin_idx = bin_combo
             # Get the region of image corresponding to the confidence
             lab_bin_conf_region = get_conf_region_np(
                 conditional_region_dict={
                     "bin_idx": (bin_idx, lab_bin_ownership_map),
                     "true_num_neighbors": (true_nn, lab_true_nn_map),
-                    "pred_num_neighbors": (pred_nn, lab_pred_nn_map),
                     "pix_importance": (pix_importance, lab_pixel_importance_map),
                     "loc_conf_bin_idx": (loc_conf_bin_idx, lab_loc_bin_ownership_map)
                 }

@@ -82,7 +82,6 @@ def classwise_prob_bin_stats(
         pix_dict_key_list=[
             "true_label", 
             "true_num_neighb", 
-            "pred_num_neighb", 
             "prob_bin", 
             "pix_importance",
             "loc_conf_bin", 
@@ -209,7 +208,6 @@ def classwise_neighbor_prob_bin_stats(
         pix_dict_key_list=[
             "true_label", 
             "true_num_neighb", 
-            "pred_num_neighb", 
             "prob_bin", 
             "pix_importance",
             "loc_conf_bin", 

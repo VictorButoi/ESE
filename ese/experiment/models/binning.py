@@ -115,15 +115,17 @@ class Contextual_Histogram_Binning(nn.Module):
                 context_labels=new_context_labels, 
                 target_image=new_target_image
             )
+            # If we only predict one class, we need to add a chanel for background
             if support_target_logits.shape[1] == 1:
-                support_target_probs = torch.sigmoid(support_target_logits)
+                support_foreground_probs = torch.sigmoid(support_target_logits)
+                support_target_probs = torch.cat([1 - support_foreground_probs, support_foreground_probs], dim=1)
             else:
                 support_target_probs = torch.softmax(support_target_logits, dim=1)
             # Update the pixel meters dict with the new support prediction.
             update_cw_pixel_meters(
                 output_dict={
                     "y_probs": support_target_probs,
-                    "y_true": context_labels[:, i, ...]
+                    "y_true": context_labels[:, i, ...].long()
                 },
                 calibration_cfg=self.calibration_cfg,
                 pixel_level_records=support_pred_meter_dict 
@@ -145,9 +147,8 @@ class Contextual_Histogram_Binning(nn.Module):
             bin_widths=self.conf_bin_widths
         ) # B x H x W
         for lab_idx in range(target_probs.shape[1]):
-            calibrated_lab_prob_map = val_freqs[lab_idx][prob_bin_ownership_map[:, lab_idx, ...]] # B x H x W
             # Inserted the calibrated prob map back into the original prob map.
-            target_probs[:, lab_idx, :, :] = calibrated_lab_prob_map
+            target_probs[:, lab_idx, :, :] = val_freqs[lab_idx][prob_bin_ownership_map[:, lab_idx, ...]] # B x H x W
         # If we are normalizing then we need to make sure the probabilities sum to 1.
         if self.normalize:
             sum_tensor = target_probs.sum(dim=1, keepdim=True)
