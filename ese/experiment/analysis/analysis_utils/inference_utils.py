@@ -290,7 +290,7 @@ def load_inference_exp_from_cfg(
 ): 
     model_cfg = inference_cfg['model']
     # Get the configs of the experiment
-    if model_cfg['ensemble']:
+    if model_cfg['ensemble'] and model_cfg['_type'] != "incontext":
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     elif "Binning" in model_cfg['calibrator']:

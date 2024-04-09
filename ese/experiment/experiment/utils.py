@@ -167,10 +167,7 @@ def show_inference_examples(
     else:
         show_dict = output_dict
     # Show the individual predictions.
-    ShowPredictionsCallback(
-        show_dict, 
-        softpred_dim=1
-    )
+    ShowPredictionsCallback(show_dict)
     # If we are showing examples with an ensemble, then we
     # returned initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:

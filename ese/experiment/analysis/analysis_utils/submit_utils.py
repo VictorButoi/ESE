@@ -50,7 +50,8 @@ def get_ese_inference_configs(
             default_config_options['data.preload'] = [group_dict['preload']]
 
         # If additional args are provided, update the default config options.
-        default_config_options.update(base_cfg_args['exp_opts'])
+        if 'exp_opts' in base_cfg_args:
+            default_config_options.update(base_cfg_args['exp_opts'])
 
         # Define where we get the base models from.
         if use_uncalibrated_models:
@@ -61,7 +62,7 @@ def get_ese_inference_configs(
         #####################################
         # Choose the ensembles ahead of time.
         #####################################
-        if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]):
+        if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and group_dict['model_type'] != "incontext":
             total_ens_members = gather_exp_paths(str(inf_group_dir))
             ensemble_groups = {}
             for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
@@ -85,38 +86,49 @@ def get_ese_inference_configs(
                         inf_log_root = exp_root / f"ensemble_upper_bounds"
                     else:
                         inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
+                    # Define where the set of base models come from.
+                    advanced_args = {
+                        'log.root': [str(inf_log_root)],
+                        'model.ensemble': [True],
+                        'ensemble.combine_fn': [ens_cfg[0]],
+                        'ensemble.combine_quantity': [ens_cfg[1]],
+                    }
                     # For each num_ens_members, we subselect that num of the total_ens_members.
-                    for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
-                        for ens_group in ensemble_groups[num_ens_members]:
-                            # Make a copy of our default config options.
-                            dupe_def_cfg_opts = default_config_options.copy()
-                            # Define where the set of base models come from.
-                            advanced_args = {
-                                'log.root': [str(inf_log_root)],
-                                'model.ensemble': [True],
-                                'ensemble.combine_fn': [ens_cfg[0]],
-                                'ensemble.combine_quantity': [ens_cfg[1]],
-                                'ensemble.member_paths': [list(ens_group)],
-                            }
-                            if 'member_temps' in run_opt_dict:
-                                advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
-                            elif 'member_temps_upper_bound' in base_cfg_args['submit_opts']:
-                                # Flip a coin to see if we are going to use the upper bound or lower bound, per member.
-                                # This equates to randomly sampling num_ens_members many bernoullis.
-                                under_vs_over_conf = np.random.binomial(n=1, p=0.5, size=num_ens_members)
-                                # Get the overconfident temps.
-                                over_conf_temps = np.random.uniform(0.01, 1.0, size=num_ens_members)
-                                # Get the underconfident tempts.
-                                under_conf_temps = np.random.uniform(1.0, base_cfg_args['submit_opts']['member_temps_upper_bound'], size=num_ens_members)
-                                # Build the temps vector accordingly
-                                members_temps = [over_conf_temps[i] if under_vs_over_conf[i] else under_conf_temps[i] for i in range(num_ens_members)]
-                                advanced_args['ensemble.member_temps'] = [str(tuple(members_temps))]
-                            # Combine the default and advanced arguments.
-                            dupe_def_cfg_opts.update(advanced_args)
-                            # Append these to the list of configs and roots.
-                            calibrator_option_list.append(dupe_def_cfg_opts)
+                    if group_dict['model_type'] == "incontext":
+                        # Make a copy of our default config options.
+                        dupe_def_cfg_opts = default_config_options.copy()
+                        # Combine the default and advanced arguments.
+                        dupe_def_cfg_opts.update(advanced_args)
+                        # Append these to the list of configs and roots.
+                        calibrator_option_list.append(dupe_def_cfg_opts)
+                    else:
+                        for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
+                            for ens_group in ensemble_groups[num_ens_members]:
+                                # Make a copy of our default config options.
+                                dupe_def_cfg_opts = default_config_options.copy()
+                                # Define where the set of base models come from.
+                                advanced_args['ensemble.member_paths'] = [list(ens_group)]
+                                if 'member_temps' in run_opt_dict:
+                                    advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
+                                elif 'member_temps_upper_bound' in base_cfg_args['submit_opts']:
+                                    # Flip a coin to see if we are going to use the upper bound or lower bound, per member.
+                                    # This equates to randomly sampling num_ens_members many bernoullis.
+                                    under_vs_over_conf = np.random.binomial(n=1, p=0.5, size=num_ens_members)
+                                    # Get the overconfident temps.
+                                    over_conf_temps = np.random.uniform(0.01, 1.0, size=num_ens_members)
+                                    # Get the underconfident tempts.
+                                    under_conf_temps = np.random.uniform(1.0, base_cfg_args['submit_opts']['member_temps_upper_bound'], size=num_ens_members)
+                                    # Build the temps vector accordingly
+                                    members_temps = [over_conf_temps[i] if under_vs_over_conf[i] else under_conf_temps[i] for i in range(num_ens_members)]
+                                    advanced_args['ensemble.member_temps'] = [str(tuple(members_temps))]
+                                # Combine the default and advanced arguments.
+                                dupe_def_cfg_opts.update(advanced_args)
+                                # Append these to the list of configs and roots.
+                                calibrator_option_list.append(dupe_def_cfg_opts)
             # If you want to run inference on individual networks, use this.
             else:
+                # If we aren't ensembling, then we can't do incontext models.
+                assert group_dict['model_type'] != "incontext", "Incontext models can only be used with ensembles."
                 advanced_args = {
                     'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
                     'model.ensemble': [False],
@@ -132,7 +144,6 @@ def get_ese_inference_configs(
                 default_config_options.update(advanced_args)
                 # Append these to the list of configs and roots.
                 calibrator_option_list.append(default_config_options)
-
     # Return the list of different configs.
     return calibrator_option_list
 

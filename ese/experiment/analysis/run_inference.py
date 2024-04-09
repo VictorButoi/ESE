@@ -244,7 +244,7 @@ def incontext_image_forward_loop(
         if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
 
-        preds = []
+        logit_list = []
         with torch.no_grad():
             for j in range(inference_cfg['ensemble']['num_members']):
                 # Note: different subjects will use different support sets
@@ -255,16 +255,18 @@ def incontext_image_forward_loop(
                 sx, sy = to_device((sx, sy), exp.device)
                 # the support set
                 y_logits = exp.model(sx[None], sy[None], image)
-                preds.append(y_logits)
-        preds = torch.stack(preds, dim=0)
+                logit_list.append(y_logits)
 
+        logit_ensemble_tensor = torch.stack(logit_list, dim=0) # (E, B, C, H, W)
+        # Rearrange the predictions to be (B, C, E, H, W)
+        logit_ensemble_tensor = logit_ensemble_tensor.permute(1, 2, 0, 3, 4) # (B, C, E, H, W)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
             "y_true": label_map.long(),
-            "y_logits": exp_output.get("y_logits", None),
-            "y_probs": exp_output.get("y_probs", None),
-            "y_hard": exp_output.get("y_hard", None),
+            "y_logits": logit_ensemble_tensor,
+            "y_probs": None,
+            "y_hard": None,
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "split": batch["split"],
             "slice_idx": slice_idx

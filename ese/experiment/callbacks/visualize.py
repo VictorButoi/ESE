@@ -9,7 +9,6 @@ def ShowPredictionsCallback(
     batch, 
     threshold: float = 0.5,
     size_per_iamge: int = 5,
-    softpred_dim: Optional[int] = None 
 ):
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
@@ -93,7 +92,7 @@ def ShowPredictionsCallback(
             if len(yhat.shape) == 3:
                 max_probs = torch.max(yhat, dim=0)[0]
             else:
-                assert len(yhat.shape()) == 2, "Soft prediction must be 2D if not 3D."
+                assert len(yhat.shape) == 2, "Soft prediction must be 2D if not 3D."
                 max_probs = yhat
 
             axarr[3].set_title("Max Probs")
