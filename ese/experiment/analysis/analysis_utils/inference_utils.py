@@ -253,7 +253,6 @@ def cal_stats_init(cfg_dict):
             }
     # Place these dictionaries into the config dictionary.
     inference_cfg['qual_metrics'] = qual_metrics_dict
-    print("Quality metrics:", qual_metrics_dict)
 
     ##################################
     # INITIALIZE CALIBRATION METRICS #

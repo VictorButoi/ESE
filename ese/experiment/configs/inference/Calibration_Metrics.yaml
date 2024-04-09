@@ -1,63 +1,63 @@
 image_cal_metrics:
-    # ECE Metrics
-    #########################################################
-    - Image_ECE:
-        _fn: ese.experiment.metrics.ece.image_ece_loss
-        cal_type: 'toplabel'
+    # # ECE Metrics
+    # #########################################################
+    # - Image_ECE:
+    #     _fn: ese.experiment.metrics.ece.image_ece_loss
+    #     cal_type: 'toplabel'
 
-    - Image_Edge-ECE:
-        _fn: ese.experiment.metrics.ece.image_edge_ece_loss
-        cal_type: 'toplabel'
+    # - Image_Edge-ECE:
+    #     _fn: ese.experiment.metrics.ece.image_edge_ece_loss
+    #     cal_type: 'toplabel'
 
-    - Image_CW-ECE:
-        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
+    # - Image_CW-ECE:
+    #     _fn: ese.experiment.metrics.ece.image_cw_ece_loss
+    #     cal_type: 'classwise'
+    #     class_weighting: 'proportional'
 
     - Image_ECW-ECE:
         _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
         cal_type: 'classwise'
         class_weighting: 'proportional'
 
-    - Image_Uniform-CW-ECE:
-        _fn: ese.experiment.metrics.ece.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
+    # - Image_Uniform-CW-ECE:
+    #     _fn: ese.experiment.metrics.ece.image_cw_ece_loss
+    #     cal_type: 'classwise'
+    #     class_weighting: 'uniform'
 
-    - Image_Uniform-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
+    # - Image_Uniform-ECW-ECE:
+    #     _fn: ese.experiment.metrics.ece.image_ecw_ece_loss
+    #     cal_type: 'classwise'
+    #     class_weighting: 'uniform'
 
 # Define global metrics when you want to verify that these are the same as the image
 # based metrics, per image.
 global_cal_metrics:
-    # ECE Metrics
-    ########################################################
-    - ECE:
-        _fn: ese.experiment.metrics.ece.ece_loss
-        cal_type: 'toplabel'
+    # # ECE Metrics
+    # ########################################################
+    # - ECE:
+    #     _fn: ese.experiment.metrics.ece.ece_loss
+    #     cal_type: 'toplabel'
 
-    - Edge-ECE:
-        _fn: ese.experiment.metrics.ece.edge_ece_loss
-        cal_type: 'toplabel'
+    # - Edge-ECE:
+    #     _fn: ese.experiment.metrics.ece.edge_ece_loss
+    #     cal_type: 'toplabel'
 
-    - CW-ECE:
-        _fn: ese.experiment.metrics.ece.cw_ece_loss
-        class_weighting: 'proportional'
-        cal_type: 'classwise'
+    # - CW-ECE:
+    #     _fn: ese.experiment.metrics.ece.cw_ece_loss
+    #     class_weighting: 'proportional'
+    #     cal_type: 'classwise'
 
     - ECW-ECE:
         _fn: ese.experiment.metrics.ece.ecw_ece_loss
         class_weighting: 'proportional'
         cal_type: 'classwise'
 
-    - Uniform-CW-ECE:
-        _fn: ese.experiment.metrics.ece.cw_ece_loss
-        class_weighting: 'uniform'
-        cal_type: 'classwise'
+    # - Uniform-CW-ECE:
+    #     _fn: ese.experiment.metrics.ece.cw_ece_loss
+    #     class_weighting: 'uniform'
+    #     cal_type: 'classwise'
 
-    - Uniform-ECW-ECE:
-        _fn: ese.experiment.metrics.ece.ecw_ece_loss
-        class_weighting: 'uniform'
-        cal_type: 'classwise'
+    # - Uniform-ECW-ECE:
+    #     _fn: ese.experiment.metrics.ece.ecw_ece_loss
+    #     class_weighting: 'uniform'
+    #     cal_type: 'classwise'

@@ -132,11 +132,11 @@ def get_cal_stats(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
-    exp: Any,
-    batch: Any,
+    exp,
+    batch,
     inference_cfg,
     trackers,
-    data_counter: int,
+    data_counter,
     output_root: Path 
 ):
     # Get the batch info
@@ -167,11 +167,11 @@ def volume_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def standard_image_forward_loop(
-    exp: Any,
-    batch: Any,
+    exp,
+    batch,
     inference_cfg,
     trackers,
-    data_counter: int,
+    data_counter,
     output_root: Path,
     slice_idx: Optional[int] = None,
 ):
@@ -221,12 +221,12 @@ def standard_image_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def incontext_image_forward_loop(
-    exp: Any,
-    batch: Any,
-    support: Any,
+    exp,
+    batch,
+    support,
     inference_cfg,
     trackers,
-    data_counter: int,
+    data_counter,
     output_root: Path,
     slice_idx: Optional[int] = None,
 ):
@@ -257,11 +257,9 @@ def incontext_image_forward_loop(
                 y_logits = exp.model(sx[None], sy[None], image)
                 logit_list.append(y_logits)
 
-        logit_ensemble_tensor = torch.stack(logit_list, dim=0) # (E, B, C, H, W)
-        # Rearrange the predictions to be (B, C, E, H, W)
-        logit_ensemble_tensor = logit_ensemble_tensor.permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
+        logit_ensemble_tensor = torch.stack(logit_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
         # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-        logit_ensemble_tensor = torch.cat([1 - logit_ensemble_tensor, logit_ensemble_tensor], dim=1)
+        logit_ensemble_tensor = torch.cat([1 - logit_ensemble_tensor, logit_ensemble_tensor], dim=1) # (B, 2, E, H, W) 
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
@@ -308,7 +306,6 @@ def get_calibration_item_info(
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
-    print(inference_cfg['qual_metrics'])
     if "image_level_records" in trackers:
         image_cal_metrics_dict = get_image_stats(
             output_dict=output_dict,
@@ -369,9 +366,9 @@ def get_calibration_item_info(
 
 
 def global_cal_sanity_check(
-    data_id: str,
-    slice_idx: Any,
-    inference_cfg: dict, 
+    data_id,
+    slice_idx,
+    inference_cfg,
     image_cal_metrics_dict,
     image_tl_pixel_meter_dict,
     image_cw_pixel_meter_dict
