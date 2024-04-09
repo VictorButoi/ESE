@@ -245,6 +245,7 @@ def incontext_image_forward_loop(
             predict_args["combine_fn"] = "identity"
 
         logit_list = []
+        support_list = []
         with torch.no_grad():
             for j in range(inference_cfg['ensemble']['num_members']):
                 # Note: different subjects will use different support sets
@@ -256,6 +257,7 @@ def incontext_image_forward_loop(
                 # the support set
                 y_logits = exp.model(sx[None], sy[None], image)
                 logit_list.append(y_logits)
+                support_list.append((sx, sy))
 
         logit_ensemble_tensor = torch.stack(logit_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
         # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
@@ -269,7 +271,8 @@ def incontext_image_forward_loop(
             "y_hard": None,
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "split": batch["split"],
-            "slice_idx": slice_idx
+            "slice_idx": slice_idx,
+            "support_list": support_list
         }
         # Get the calibration item info.  
         get_calibration_item_info(

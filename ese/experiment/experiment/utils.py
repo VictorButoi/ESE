@@ -154,8 +154,8 @@ def load_experiment(
 
 
 def show_inference_examples(
-    output_dict: dict,
-    inference_cfg: dict,
+    output_dict,
+    inference_cfg,
 ):
     # If ensembling, we need to make the individual predictions the batch dimension first.
     if inference_cfg["model"]["ensemble"]:
