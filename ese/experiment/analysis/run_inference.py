@@ -261,7 +261,7 @@ def incontext_image_forward_loop(
                 if hasattr(exp, "predict"):
                     ensemble_predictions.append(exp.predict(**support_args, x=image, multi_class=True)['y_probs'])
                 else:
-                    y_logits = exp.model(**support_args, image=image)
+                    y_logits = exp.model(**support_args, target_image=image)
                     if y_logits.shape[1] == 1:
                         y_probs = torch.cat([1 - torch.sigmoid(y_logits), torch.sigmoid(y_logits)], dim=1)
                     else:

@@ -5,8 +5,9 @@ import torch.nn as nn
 import pickle
 import matplotlib.pyplot as plt
 # local imports
-from ..analysis.pixel_records import update_cw_pixel_meters
+from ..analysis.pixel_records import update_toplabel_pixel_meters
 from ..metrics.global_ps import (
+    prob_bin_stats,
     classwise_prob_bin_stats, 
 )
 from ..metrics.utils import (
@@ -91,18 +92,23 @@ class Contextual_Histogram_Binning(nn.Module):
         # Set the parameters as class attributes
         self.base_model = base_model
         self.calibration_cfg = calibration_cfg
-        self.normalize = model_cfg['normalize']
         # Get the bins and bin widths
         self.conf_bins, self.conf_bin_widths = get_bins(
             num_prob_bins=self.calibration_cfg['num_prob_bins'], 
             int_start=0.0,
             int_end=1.0
         )
+    
+    def logit_to_prob(self, logits):
+        # If we only predict one class, we need to add a chanel for background
+        if logits.shape[1] == 1:
+            support_foreground_probs = torch.sigmoid(logits)
+            return torch.cat([1 - support_foreground_probs, support_foreground_probs], dim=1)
+        else:
+            return torch.softmax(logits, dim=1)
 
     def forward(self, context_images, context_labels, target_logits):
         assert target_logits.shape[0] == 1, "Batch size must be 1 for prediction for now."
-        # Softmax the logits to get probabilities
-        target_probs = torch.softmax(target_logits, dim=1) # B x C x H x W
         support_pred_meter_dict = {} 
         for i in range(context_images.shape[1]):
             # Get the new support by removing the ith image from the context set.
@@ -115,49 +121,37 @@ class Contextual_Histogram_Binning(nn.Module):
                 context_labels=new_context_labels, 
                 target_image=new_target_image
             )
-            # If we only predict one class, we need to add a chanel for background
-            if support_target_logits.shape[1] == 1:
-                support_foreground_probs = torch.sigmoid(support_target_logits)
-                support_target_probs = torch.cat([1 - support_foreground_probs, support_foreground_probs], dim=1)
-            else:
-                support_target_probs = torch.softmax(support_target_logits, dim=1)
+            y_probs = self.logit_to_prob(support_target_logits)
+            y_hard = torch.argmax(y_probs, dim=1)
             # Update the pixel meters dict with the new support prediction.
-            update_cw_pixel_meters(
+            update_toplabel_pixel_meters(
                 output_dict={
-                    "y_probs": support_target_probs,
-                    "y_true": context_labels[:, i, ...].long()
+                    "y_probs": y_probs,
+                    "y_true": context_labels[:, i, ...].long(),
+                    "y_hard": y_hard,
                 },
                 calibration_cfg=self.calibration_cfg,
                 pixel_level_records=support_pred_meter_dict 
             )
         # Get the statistics either from images or pixel meter dict.
-        val_freqs = classwise_prob_bin_stats(
+        val_freqs = prob_bin_stats(
             pixel_meters_dict=support_pred_meter_dict, # Use the validation set stats.
             num_prob_bins=self.calibration_cfg['num_prob_bins'], # Use 15 bins
             num_classes=self.calibration_cfg['num_classes'],
-            class_wise=True,
-            local=False,
             device="cuda"
         )['bin_freqs'] # C x Bins
+        # Softmax the logits to get probabilities
+        target_probs = self.logit_to_prob(target_logits)
         # Calculate the bin ownership map and transform the probs.
         prob_bin_ownership_map = get_bin_per_sample(
             pred_map=target_probs,
-            class_wise=True,
             bin_starts=self.conf_bins,
             bin_widths=self.conf_bin_widths
         ) # B x H x W
-        for lab_idx in range(target_probs.shape[1]):
-            # Inserted the calibrated prob map back into the original prob map.
-            target_probs[:, lab_idx, :, :] = val_freqs[lab_idx][prob_bin_ownership_map[:, lab_idx, ...]] # B x H x W
+        # Inserted the calibrated prob map back into the original prob map.
+        target_probs = val_freqs[prob_bin_ownership_map] # B x H x W
         # If we are normalizing then we need to make sure the probabilities sum to 1.
-        if self.normalize:
-            sum_tensor = target_probs.sum(dim=1, keepdim=True)
-            sum_tensor[sum_tensor == 0] = 1.0
-            assert (sum_tensor > 0).all(), "Sum tensor has non-positive values."
-            # Return the normalized probabilities.
-            return target_probs / sum_tensor
-        else:
-            return target_probs 
+        return target_probs 
 
     @property
     def device(self):
