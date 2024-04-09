@@ -254,8 +254,15 @@ def incontext_image_forward_loop(
                 sx, sy = support[rng]
                 # Send the support set to the device
                 sx, sy = to_device((sx, sy), exp.device)
-                # the support set
-                y_logits = exp.model(sx[None], sy[None], image)
+                # If exp has a .predict function, use it, otherwise use the forward function.
+                support_args = {
+                    "context_images": sx[None],
+                    "context_labels": sy[None],
+                }
+                if hasattr(exp, "predict"):
+                    y_logits = exp.predict(**support_args, x=image, multi_class=True)
+                else:
+                    y_logits = exp.model(**support_args, image=image)
                 logit_list.append(y_logits)
                 support_list.append((sx, sy))
 

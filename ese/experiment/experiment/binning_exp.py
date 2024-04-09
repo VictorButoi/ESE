@@ -64,7 +64,7 @@ class BinningInferenceExperiment(BaseExperiment):
         # Load the model
         binning_model_args = {
             "calibration_cfg": calibration_cfg,
-            "model_cfg_dict": model_cfg,
+            "model_cfg": model_cfg,
         }
         if model_cfg['_type'] != "incontext":
             # Get the old model seed, this will be used for matching with the inference experiment.
@@ -115,14 +115,24 @@ class BinningInferenceExperiment(BaseExperiment):
         self, 
         x, 
         multi_class,
-        threshold=0.5
+        threshold=0.5,
+        **kwargs
     ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
         # Predict with the base model.
         with torch.no_grad():
-            y_logits = self.base_model(x)
-        # Apply post-hoc calibration.
-        y_probs_raw = self.model(y_logits)
+            if 'context_images' in kwargs and 'context_labels' in kwargs:
+                support_args = {
+                    "context_images": kwargs['context_images'],
+                    "context_labels": kwargs['context_labels']
+                }
+                y_logits = self.base_model(**support_args, target_image=x)
+                # Apply post-hoc calibration.
+                y_probs_raw = self.model(**support_args, target_logits=y_logits)
+            else:
+                y_logits = self.base_model(x)
+                # Apply post-hoc calibration.
+                y_probs_raw = self.model(y_logits)
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             y_probs_raw, 
