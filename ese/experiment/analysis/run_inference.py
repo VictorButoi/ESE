@@ -347,7 +347,7 @@ def get_calibration_item_info(
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
             output_dict=output_dict,
-            inference_cfg=inference_cfg,
+            calibration_cfg=inference_cfg['global_calibration'],
             pixel_level_records=trackers["tl_pixel_meter_dict"][split]
         )
     ###########################
@@ -356,7 +356,7 @@ def get_calibration_item_info(
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
             output_dict=output_dict,
-            inference_cfg=inference_cfg,
+            calibration_cfg=inference_cfg['global_calibration'],
             pixel_level_records=trackers["cw_pixel_meter_dict"][split]
         )
     ##################################################################

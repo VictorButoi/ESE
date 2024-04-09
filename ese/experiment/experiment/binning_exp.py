@@ -66,7 +66,9 @@ class BinningInferenceExperiment(BaseExperiment):
             "calibration_cfg": calibration_cfg,
             "model_cfg": model_cfg,
         }
-        if model_cfg['_type'] != "incontext":
+        if model_cfg['_type'] == "incontext":
+            binning_model_args["base_model"] = self.base_model
+        else:
             # Get the old model seed, this will be used for matching with the inference experiment.
             stats_file_dir = None
             # Find the inference dir that had a pretrained seed that matches old_model_seed.

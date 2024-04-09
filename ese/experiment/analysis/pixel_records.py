@@ -17,11 +17,10 @@ from ..metrics.utils import (
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_toplabel_pixel_meters(
-    output_dict: dict,
-    inference_cfg: dict,
+    output_dict,
+    calibration_cfg,
     pixel_level_records 
 ):
-    calibration_cfg = inference_cfg['global_calibration']
     y_probs = output_dict["y_probs"]
     y_hard = output_dict["y_hard"].squeeze(1) # Remove the channel dimension.
     y_true = output_dict["y_true"].squeeze(1) # Remove the channel dimension.
@@ -131,11 +130,10 @@ def update_toplabel_pixel_meters(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_cw_pixel_meters(
-    output_dict: dict,
-    inference_cfg: dict,
+    output_dict,
+    calibration_cfg,
     pixel_level_records 
 ):
-    calibration_cfg = inference_cfg['global_calibration']
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
     C = y_probs.shape[1]
