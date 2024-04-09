@@ -30,15 +30,15 @@ def ShowPredictionsCallback(
         y = batch["y_true"]
     
     # Transfer image and label to the cpu.
-    x = x.detach().cpu().permute(0, 2, 3, 1).numpy() # Move channel dimension to last.
-    y = y.detach().cpu().numpy() 
+    x = x.detach().cpu().permute(0, 2, 3, 1) # Move channel dimension to last.
+    y = y.detach().cpu() 
 
     # Get the predicted label
-    yhat = batch[pred_cls].detach().cpu()
+    y_hat = batch[pred_cls].detach().cpu()
     bs = x.shape[0]
-    num_pred_classes = yhat.shape[1]
+    num_pred_classes = y_hat.shape[1]
 
-    if num_pred_classes == 2:
+    if num_pred_classes <= 2:
         label_cm = "gray"
     else:
         colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
@@ -51,28 +51,28 @@ def ShowPredictionsCallback(
 
     # If x is rgb
     if x.shape[-1] == 3:
-        x = x.astype(np.uint8)
+        x = x.int()
         img_cmap = None
     else:
         img_cmap = "gray"
 
     if num_pred_classes > 1:
         if pred_cls == "y_logits":
-            yhat = torch.softmax(yhat, dim=1)
-        y_hard = torch.argmax(yhat, dim=1).numpy()
+            y_hat = torch.softmax(y_hat, dim=1)
+        y_hard = torch.argmax(y_hat, dim=1)
     else:
         if pred_cls == "y_logits":
-            yhat = torch.sigmoid(yhat)
-        y_hard = (yhat > threshold).numpy()
+            y_hat = torch.sigmoid(y_hat)
+        y_hard = (y_hat > threshold).int()
     
+    # Squeeze all tensors in prep.
+    x = x.numpy().squeeze()
+    y = y.numpy().squeeze()
+    y_hard = y_hard.numpy().squeeze()
+    y_hat = y_hat.squeeze()
+
     # num_cols = 5 if (softpred_dim is not None) else 3
     f, axarr = plt.subplots(nrows=bs, ncols=5, figsize=(5 * size_per_iamge, bs*size_per_iamge))
-
-    # Squeeze all tensors in prep.
-    x = x.squeeze()
-    y = y.squeeze()
-    y_hard = y_hard.squeeze()
-    yhat = yhat.squeeze()
 
     # Go through each item in the batch.
     for b_idx in range(bs):
@@ -89,11 +89,11 @@ def ShowPredictionsCallback(
             im3 = axarr[2].imshow(y_hard, cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[2], orientation='vertical')
 
-            if len(yhat.shape) == 3:
-                max_probs = torch.max(yhat, dim=0)[0]
+            if len(y_hat.shape) == 3:
+                max_probs = torch.max(y_hat, dim=0)[0]
             else:
-                assert len(yhat.shape) == 2, "Soft prediction must be 2D if not 3D."
-                max_probs = yhat
+                assert len(y_hat.shape) == 2, "Soft prediction must be 2D if not 3D."
+                max_probs = y_hat
 
             axarr[3].set_title("Max Probs")
             im4 = axarr[3].imshow(max_probs, cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
@@ -126,11 +126,11 @@ def ShowPredictionsCallback(
             im3 = axarr[b_idx, 2].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
 
-            if len(yhat.shape) == 4:
-                max_probs = torch.max(yhat, dim=1)[0]
+            if len(y_hat.shape) == 4:
+                max_probs = torch.max(y_hat, dim=1)[0]
             else:
-                assert len(yhat.shape()) == 3, "Soft prediction must be 2D if not 3D."
-                max_probs = yhat
+                assert len(y_hat.shape()) == 3, "Soft prediction must be 2D if not 3D."
+                max_probs = y_hat
 
             axarr[b_idx, 3].set_title("Max Probs")
             im4 = axarr[b_idx, 3].imshow(max_probs[b_idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')

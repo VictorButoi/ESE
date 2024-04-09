@@ -107,10 +107,7 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def save_inference_metadata(
-    cfg_dict: dict,
-    save_root: Optional[Path] = None
-    ):
+def save_inference_metadata(cfg_dict, save_root: Optional[Path] = None):
     if save_root is None:
         save_root = Path(cfg_dict['log']['root'])
         # Prepare the output dir for saving the results
@@ -242,21 +239,22 @@ def cal_stats_init(cfg_dict):
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
-    qual_metrics = {}
+    qual_metrics_dict = {}
     if 'qual_metrics' in inference_cfg.keys():
         for q_met_cfg in inference_cfg['qual_metrics']:
             q_metric_name = list(q_met_cfg.keys())[0]
             quality_metric_options = q_met_cfg[q_metric_name]
             metric_type = quality_metric_options.pop("metric_type")
             # Add the quality metric to the dictionary.
-            qual_metrics[q_metric_name] = {
+            qual_metrics_dict[q_metric_name] = {
                 "name": q_metric_name,
                 "_fn": eval_config(quality_metric_options),
                 "_type": metric_type
             }
     # Place these dictionaries into the config dictionary.
-    inference_cfg['qual_metrics'] = qual_metrics 
-    
+    inference_cfg['qual_metrics'] = qual_metrics_dict
+    print("Quality metrics:", qual_metrics_dict)
+
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
@@ -284,9 +282,7 @@ def cal_stats_init(cfg_dict):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def load_inference_exp_from_cfg(
-    inference_cfg: dict
-): 
+def load_inference_exp_from_cfg(inference_cfg): 
     inf_model_cfg = inference_cfg['model']
     # Get the configs of the experiment
     if inf_model_cfg['ensemble'] and inf_model_cfg['_type'] != "incontext":
@@ -335,7 +331,7 @@ def load_inference_exp_from_cfg(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
     inference_exp, 
-    inference_cfg: dict,
+    inference_cfg,
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
@@ -407,9 +403,7 @@ def dataloader_from_exp(
     return data_obj_dict, inference_data_cfg
 
 
-def get_incontext_dataset(
-    data_cfg: dict
-):
+def get_incontext_dataset(data_cfg):
     support_size = data_cfg.pop('support_size')
     # Build the target and support datasets.
     target_dataset = Segment2D(**data_cfg)
@@ -423,7 +417,7 @@ def get_incontext_dataset(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def preload_calibration_metrics(
-    base_cal_cfg: dict, 
+    base_cal_cfg,
     cal_metrics_dict: List[dict] 
 ):
     cal_metrics = {}

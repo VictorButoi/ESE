@@ -27,6 +27,7 @@ def batch_ensemble_preds(
 ):
     # Convert to tensors.
     raw_pred_tensor = torch.stack(model_outputs) # E, B, C, H, W
+    assert raw_pred_tensor.dim() == 5, "The raw prediction tensor must have 5 dimensions."
     # Reshape to allow for broadcasting.
     pred_tensor = raw_pred_tensor.permute(1, 2, 0, 3, 4) # B, C, E, H, W
     # Return the reshaped tensors.

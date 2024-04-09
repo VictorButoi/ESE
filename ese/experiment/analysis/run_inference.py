@@ -134,7 +134,7 @@ def get_cal_stats(
 def volume_forward_loop(
     exp: Any,
     batch: Any,
-    inference_cfg: dict,
+    inference_cfg,
     trackers,
     data_counter: int,
     output_root: Path 
@@ -169,7 +169,7 @@ def volume_forward_loop(
 def standard_image_forward_loop(
     exp: Any,
     batch: Any,
-    inference_cfg: dict,
+    inference_cfg,
     trackers,
     data_counter: int,
     output_root: Path,
@@ -224,7 +224,7 @@ def incontext_image_forward_loop(
     exp: Any,
     batch: Any,
     support: Any,
-    inference_cfg: dict,
+    inference_cfg,
     trackers,
     data_counter: int,
     output_root: Path,
@@ -259,7 +259,9 @@ def incontext_image_forward_loop(
 
         logit_ensemble_tensor = torch.stack(logit_list, dim=0) # (E, B, C, H, W)
         # Rearrange the predictions to be (B, C, E, H, W)
-        logit_ensemble_tensor = logit_ensemble_tensor.permute(1, 2, 0, 3, 4) # (B, C, E, H, W)
+        logit_ensemble_tensor = logit_ensemble_tensor.permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
+        # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
+        logit_ensemble_tensor = torch.cat([1 - logit_ensemble_tensor, logit_ensemble_tensor], dim=1)
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
@@ -287,8 +289,8 @@ def incontext_image_forward_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
-    output_dict: dict,
-    inference_cfg: dict,
+    output_dict,
+    inference_cfg,
     trackers
 ):
     # Get the calibration item info.
@@ -306,6 +308,7 @@ def get_calibration_item_info(
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
+    print(inference_cfg['qual_metrics'])
     if "image_level_records" in trackers:
         image_cal_metrics_dict = get_image_stats(
             output_dict=output_dict,

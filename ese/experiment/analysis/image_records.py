@@ -14,11 +14,7 @@ from ..experiment.utils import reduce_ensemble_preds
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_image_stats(
-    output_dict: dict,
-    inference_cfg: dict,
-    image_level_records
-):
+def get_image_stats(output_dict, inference_cfg, image_level_records):
     num_prob_bins = inference_cfg["local_calibration"]["num_prob_bins"]
     neighborhood_width = inference_cfg["local_calibration"]["neighborhood_width"]
 

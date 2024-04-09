@@ -173,8 +173,8 @@ def show_inference_examples(
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
         ensemble_outputs = reduce_ensemble_preds(
-            output_dict, 
-            inference_cfg,
+            output_dict=output_dict, 
+            inference_cfg=inference_cfg
         )
         # Place the ensemble predictions in the output dict.
         ensembled_output_dict = {
