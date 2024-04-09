@@ -194,32 +194,31 @@ def cal_stats_init(cfg_dict):
     ###################
     # BUILD THE MODEL #
     ###################
-    inference_exp, save_root = load_inference_exp_from_cfg(
+    inference_exp, inference_cfg, save_root = load_inference_exp_from_cfg(
         inference_cfg=cfg_dict
-        )
+    )
     inference_exp.to_device()
     # Ensure that inference seed is the same.
-    fix_seed(cfg_dict['experiment']['seed'])
+    fix_seed(inference_cfg['experiment']['seed'])
 
     #####################
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = cfg_dict['data'].copy()
+    new_dset_options = inference_cfg['data'].copy()
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
-    assert cfg_dict['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
+    assert inference_cfg['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
     # Get the inference augmentation options.
-    aug_cfg_list = None if 'augmentations' not in cfg_dict.keys() else cfg_dict['augmentations']
+    aug_cfg_list = None if 'augmentations' not in inference_cfg.keys() else inference_cfg['augmentations']
     # Build the dataloaders.
     data_objs, modified_cfg = dataloader_from_exp( 
         inference_exp,
+        inference_cfg=inference_cfg,
         new_dset_options=new_dset_options, 
-        aug_cfg_list=aug_cfg_list,
-        batch_size=cfg_dict['dataloader']['batch_size'],
-        num_workers=cfg_dict['dataloader']['num_workers']
-        )
-    cfg_dict['dataset'] = modified_cfg 
+        aug_cfg_list=aug_cfg_list
+    )
+    inference_cfg['dataset'] = modified_cfg 
     #############################
     trackers = {
         "image_level_records": [],
@@ -235,17 +234,17 @@ def cal_stats_init(cfg_dict):
     # SAVE THE METADATA #
     #####################
     task_root = save_inference_metadata(
-        cfg_dict=cfg_dict,
+        cfg_dict=inference_cfg,
         save_root=save_root
     )
     
-    print(f"Running:\n\n{str(yaml.safe_dump(Config(cfg_dict)._data, indent=0))}")
+    print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
     qual_metrics = {}
-    if 'qual_metrics' in cfg_dict.keys():
-        for q_met_cfg in cfg_dict['qual_metrics']:
+    if 'qual_metrics' in inference_cfg.keys():
+        for q_met_cfg in inference_cfg['qual_metrics']:
             q_metric_name = list(q_met_cfg.keys())[0]
             quality_metric_options = q_met_cfg[q_metric_name]
             metric_type = quality_metric_options.pop("metric_type")
@@ -256,22 +255,22 @@ def cal_stats_init(cfg_dict):
                 "_type": metric_type
             }
     # Place these dictionaries into the config dictionary.
-    cfg_dict['qual_metrics'] = qual_metrics 
+    inference_cfg['qual_metrics'] = qual_metrics 
     
     ##################################
     # INITIALIZE CALIBRATION METRICS #
     ##################################
     # Image level metrics.
-    if cfg_dict.get('image_cal_metrics', None) is not None:
-        cfg_dict['image_cal_metrics'] = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict['local_calibration'],
-            cal_metrics_dict=cfg_dict['image_cal_metrics']
+    if inference_cfg.get('image_cal_metrics', None) is not None:
+        inference_cfg['image_cal_metrics'] = preload_calibration_metrics(
+            base_cal_cfg=inference_cfg['local_calibration'],
+            cal_metrics_dict=inference_cfg['image_cal_metrics']
         )
     # Global dataset level metrics. (Used for validation)
-    if cfg_dict.get('global_cal_metrics', None) is not None:
-        cfg_dict['global_cal_metrics'] = preload_calibration_metrics(
-            base_cal_cfg=cfg_dict['global_calibration'],
-            cal_metrics_dict=cfg_dict['global_cal_metrics']
+    if inference_cfg.get('global_cal_metrics', None) is not None:
+        inference_cfg['global_cal_metrics'] = preload_calibration_metrics(
+            base_cal_cfg=inference_cfg['global_calibration'],
+            cal_metrics_dict=inference_cfg['global_cal_metrics']
         )
         
     # Return a dictionary of the components needed for the calibration statistics.
@@ -288,16 +287,16 @@ def cal_stats_init(cfg_dict):
 def load_inference_exp_from_cfg(
     inference_cfg: dict
 ): 
-    model_cfg = inference_cfg['model']
+    inf_model_cfg = inference_cfg['model']
     # Get the configs of the experiment
-    if model_cfg['ensemble'] and model_cfg['_type'] != "incontext":
+    if inf_model_cfg['ensemble'] and inf_model_cfg['_type'] != "incontext":
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
-    elif "Binning" in model_cfg['calibrator']:
+    elif "Binning" in inf_model_cfg['calibrator']:
         inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:
-        pretrained_exp_root = model_cfg['pretrained_exp_root']
+        pretrained_exp_root = inf_model_cfg['pretrained_exp_root']
         is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
         # Load the results loader
         rs = ResultsLoader()
@@ -315,12 +314,12 @@ def load_inference_exp_from_cfg(
                 "path": pretrained_exp_root
             }
         load_exp_args = {
-            "checkpoint": model_cfg['checkpoint'],
+            "checkpoint": inf_model_cfg['checkpoint'],
             "load_data": False,
             **inf_exp_args
         }
-        if "_attr" in model_cfg:
-            load_exp_args['attr_dict'] = model_cfg['_attr']
+        if "_attr" in inf_model_cfg:
+            load_exp_args['attr_dict'] = inf_model_cfg['_attr']
         # Load the experiment directly if you give a sub-path.
         inference_exp = load_experiment(**load_exp_args)
         save_root = None
@@ -330,14 +329,13 @@ def load_inference_exp_from_cfg(
     inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
     # Update the model cfg to include old model cfg.
     inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
-    return inference_exp, save_root
+    return inference_exp, inference_cfg, save_root
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
     inference_exp, 
-    batch_size: int = 1,
-    num_workers: int = 1,
+    inference_cfg: dict,
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
@@ -379,8 +377,7 @@ def dataloader_from_exp(
         # Load the dataset with modified arguments.
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
-        dset_type = split_data_cfg.pop('dset_type')
-        if dset_type == 'incontext':
+        if inference_cfg['model']['_type'] == 'incontext':
             split_dataset_obj, split_support = get_incontext_dataset(
                 data_cfg=split_data_cfg, 
             )
@@ -393,8 +390,8 @@ def dataloader_from_exp(
         # Build the dataset and dataloader.
         dataloaders[split] = DataLoader(
             split_dataset_obj, 
-            batch_size=batch_size, 
-            num_workers=num_workers,
+            batch_size=inference_cfg['dataloader']['batch_size'], 
+            num_workers=inference_cfg['dataloader']['num_workers'],
             shuffle=False
         )
         supports[split] = split_support

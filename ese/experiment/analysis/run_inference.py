@@ -46,10 +46,10 @@ def get_cal_stats(
     cfg: Config,
 ) -> None:
     # Get the config dictionary
-    cfg_dict = cfg.to_dict()
+    inference_cfg_dict = cfg.to_dict()
 
     # initialize the calibration statistics.
-    cal_stats_components = cal_stats_init(cfg_dict)
+    cal_stats_components = cal_stats_init(inference_cfg_dict)
 
     # setup the save dir.
     trackers = cal_stats_components["trackers"]
@@ -58,7 +58,7 @@ def get_cal_stats(
     all_supports = cal_stats_components["supports"] # Optional, None if not dealing with incontext data.
 
     # Loop through the data, gather your stats!
-    if cfg_dict["log"]["gether_inference_stats"]:
+    if inference_cfg_dict["log"]["gether_inference_stats"]:
         data_counter = 0
         with torch.no_grad():
             for split in all_dataloaders:
@@ -79,34 +79,34 @@ def get_cal_stats(
                     forward_item = {
                         "exp": cal_stats_components["inference_exp"],
                         "batch": batch,
-                        "inference_cfg": cfg_dict,
+                        "inference_cfg": inference_cfg_dict,
                         "trackers": trackers,
                         "data_counter": data_counter,
                         "output_root": output_root
                     }
                     # Run the forward loop
-                    input_type = cfg_dict['data']['input_type']
+                    input_type = inference_cfg_dict['data']['input_type']
                     if input_type == 'volume':
                         volume_forward_loop(**forward_item)
                     elif input_type == 'image':
-                        if cfg_dict['data']['dset_type'] == 'incontext':
+                        if inference_cfg_dict['model']['_type'] == 'incontext':
                             incontext_image_forward_loop(support=all_supports[split], **forward_item)
                         else:
                             standard_image_forward_loop(**forward_item)
                     else:
                         raise ValueError(f"Input type {cal_stats_components['input_type']} not recognized.")
         # Save the records at the end too
-        if cfg_dict["log"]["log_image_stats"]:
+        if inference_cfg_dict["log"]["log_image_stats"]:
             save_trackers(output_root, trackers=trackers)
 
     # After the forward loop, we can calculate the global calibration metrics.
-    if cfg_dict["log"]["summary_compute_global_metrics"]:
+    if inference_cfg_dict["log"]["summary_compute_global_metrics"]:
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
         image_stats_dir = output_root / "image_stats.pkl"
         log_image_df = pd.read_pickle(image_stats_dir)
         # Loop through the calibration metrics and add them to the dataframe.
-        for cal_metric_name, cal_metric_dict in cfg_dict["global_cal_metrics"].items():
+        for cal_metric_name, cal_metric_dict in inference_cfg_dict["global_cal_metrics"].items():
             # Add a dummy column to the dataframe.
             log_image_df[cal_metric_name] = np.nan
             # Iterate through the splits, and replace the rows corresponding to the split with the cal losses.
@@ -126,7 +126,7 @@ def get_cal_stats(
                 else:
                     raise ValueError(f"Calibration type {cal_metric_dict['cal_type']} not recognized.")
         # Save the dataframe again.
-        if cfg_dict["log"]["log_pixel_stats"]:
+        if inference_cfg_dict["log"]["log_pixel_stats"]:
             log_image_df.to_pickle(image_stats_dir)
 
 

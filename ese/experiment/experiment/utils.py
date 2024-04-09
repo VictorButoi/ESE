@@ -184,7 +184,4 @@ def show_inference_examples(
             "y_hard": ensemble_outputs["y_hard"] 
         }
         # Finally, show the ensemble combination.
-        ShowPredictionsCallback(
-            ensembled_output_dict, 
-            softpred_dim=1
-        )
+        ShowPredictionsCallback(ensembled_output_dict)

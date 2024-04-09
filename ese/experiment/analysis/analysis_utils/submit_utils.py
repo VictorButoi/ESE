@@ -93,21 +93,26 @@ def get_ese_inference_configs(
                         'ensemble.combine_fn': [ens_cfg[0]],
                         'ensemble.combine_quantity': [ens_cfg[1]],
                     }
-                    # For each num_ens_members, we subselect that num of the total_ens_members.
-                    if group_dict['model_type'] == "incontext":
-                        # Make a copy of our default config options.
-                        dupe_def_cfg_opts = default_config_options.copy()
-                        # Combine the default and advanced arguments.
-                        dupe_def_cfg_opts.update(advanced_args)
-                        # Append these to the list of configs and roots.
-                        calibrator_option_list.append(dupe_def_cfg_opts)
-                    else:
-                        for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
+                    for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
+                        # For each num_ens_members, we subselect that num of the total_ens_members.
+                        if group_dict['model_type'] == "incontext":
+                            # Make a copy of our default config options.
+                            dupe_def_cfg_opts = default_config_options.copy()
+                            # If we are using incontext models, we need to use the ensemble groups.
+                            advanced_args['model.pretrained_exp_root'] = [str(inf_group_dir)]
+                            advanced_args['ensemble.num_members'] = [num_ens_members]
+                            # Combine the default and advanced arguments.
+                            dupe_def_cfg_opts.update(advanced_args)
+                            # Append these to the list of configs and roots.
+                            calibrator_option_list.append(dupe_def_cfg_opts)
+                        else:
                             for ens_group in ensemble_groups[num_ens_members]:
                                 # Make a copy of our default config options.
                                 dupe_def_cfg_opts = default_config_options.copy()
                                 # Define where the set of base models come from.
                                 advanced_args['ensemble.member_paths'] = [list(ens_group)]
+                                advanced_args['ensemble.num_members'] = [num_ens_members]
+                                # We can manually assign the member_temps if we want.
                                 if 'member_temps' in run_opt_dict:
                                     advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
                                 elif 'member_temps_upper_bound' in base_cfg_args['submit_opts']:
@@ -132,14 +137,11 @@ def get_ese_inference_configs(
                 advanced_args = {
                     'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
                     'model.ensemble': [False],
+                    'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
                     'ensemble.normalize': [None],
                     'ensemble.combine_fn': [None],
                     'ensemble.combine_quantity': [None],
                 }
-                if base_cfg_args['submit_opts']['gather_sub_runs']:
-                    advanced_args['model.pretrained_exp_root'] = gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
-                else:
-                    advanced_args['model.pretrained_exp_root'] = [str(inf_group_dir)]
                 # Combine the default and advanced arguments.
                 default_config_options.update(advanced_args)
                 # Append these to the list of configs and roots.
