@@ -18,7 +18,7 @@ from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval
 from universeg.experiment.datasets import Segment2D
 from universeg.experiment.datasets.support import RandomSupport
 # local imports
-from ...experiment.utils import load_experiment
+from ...experiment.utils import load_experiment, get_exp_load_info
 from ...augmentation.gather import augmentations_from_config
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 
@@ -291,27 +291,10 @@ def load_inference_exp_from_cfg(inference_cfg):
         inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:
-        pretrained_exp_root = inf_model_cfg['pretrained_exp_root']
-        is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
-        # Load the results loader
-        rs = ResultsLoader()
-        # If the experiment is a group, then load the configs and build the experiment.
-        if is_exp_group: 
-            dfc = rs.load_configs(
-                pretrained_exp_root,
-                properties=False,
-            )
-            inf_exp_args = {
-                "df": rs.load_metrics(dfc),
-            }
-        else:
-            inf_exp_args = {
-                "path": pretrained_exp_root
-            }
         load_exp_args = {
+            **get_exp_load_info(inf_model_cfg['pretrained_exp_root']),
             "checkpoint": inf_model_cfg['checkpoint'],
             "load_data": False,
-            **inf_exp_args
         }
         if "_attr" in inf_model_cfg:
             load_exp_args['attr_dict'] = inf_model_cfg['_attr']

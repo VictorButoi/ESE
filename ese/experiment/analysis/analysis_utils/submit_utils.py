@@ -16,8 +16,6 @@ def get_ese_inference_configs(
     inf_cfg_opts: dict,
     base_cfg_args: dict
 ):
-    scratch_root = Path(group_dict['scratch_root'])
-
     # Set the seed if it is provided.
     if "seed" in base_cfg_args['submit_opts']:
         fix_seed(base_cfg_args['submit_opts']['seed'])
@@ -37,33 +35,33 @@ def get_ese_inference_configs(
         ##################################################
         # Set a few things that will be consistent for all runs.
         ##################################################
-        exp_root = scratch_root / "inference" / group_dict['exp_group']
-        use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
+        inference_exp_root = Path(group_dict['scratch_root']) / "inference" / group_dict['exp_group']
+
         # Define the set of default config options.
         default_config_options = {
-            'experiment.exp_root': [str(exp_root)],
+            'experiment.exp_root': [str(inference_exp_root)],
             'experiment.dataset_name': [group_dict['dataset']],
             'model.calibrator': [calibrator],
             'model.calibrator_cls': [get_calibrator_cls(calibrator)],
         }
         if 'preload' in group_dict:
             default_config_options['data.preload'] = [group_dict['preload']]
-
         # If additional args are provided, update the default config options.
         if 'exp_opts' in base_cfg_args:
             default_config_options.update(base_cfg_args['exp_opts'])
 
         # Define where we get the base models from.
+        use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
         if use_uncalibrated_models:
-            inf_group_dir = scratch_root / "training" / group_dict['base_models_group']
+            model_group_dir = group_dict['base_models_group']
         else:
-            inf_group_dir = scratch_root / "calibration" / group_dict['calibrated_models_group'] / f"Individual_{calibrator}"
+            model_group_dir = group_dict['calibrated_models_group'] / f"Individual_{calibrator}"
 
         #####################################
         # Choose the ensembles ahead of time.
         #####################################
         if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and group_dict['model_type'] != "incontext":
-            total_ens_members = gather_exp_paths(str(inf_group_dir))
+            total_ens_members = gather_exp_paths(str(model_group_dir))
             ensemble_groups = {}
             for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
                 # Get all unique subsets of total_ens_members of size num_+ens_members.
@@ -83,9 +81,9 @@ def get_ese_inference_configs(
                     ens_cfg = ast.literal_eval(ens_cfg)
                     # Define where we want to save the results.
                     if base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
-                        inf_log_root = exp_root / f"ensemble_upper_bounds"
+                        inf_log_root = inference_exp_root / f"ensemble_upper_bounds"
                     else:
-                        inf_log_root = exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
+                        inf_log_root = inference_exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
                     # Define where the set of base models come from.
                     advanced_args = {
                         'log.root': [str(inf_log_root)],
@@ -99,7 +97,7 @@ def get_ese_inference_configs(
                             # Make a copy of our default config options.
                             dupe_def_cfg_opts = default_config_options.copy()
                             # If we are using incontext models, we need to use the ensemble groups.
-                            advanced_args['model.pretrained_exp_root'] = [str(inf_group_dir)]
+                            advanced_args['model.pretrained_exp_root'] = [str(model_group_dir)]
                             advanced_args['ensemble.num_members'] = [num_ens_members]
                             # Combine the default and advanced arguments.
                             dupe_def_cfg_opts.update(advanced_args)
@@ -135,9 +133,9 @@ def get_ese_inference_configs(
                 # If we aren't ensembling, then we can't do incontext models.
                 assert group_dict['model_type'] != "incontext", "Incontext models can only be used with ensembles."
                 advanced_args = {
-                    'log.root': [str(exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
+                    'log.root': [str(inference_exp_root / f"{group_dict['dataset']}_Individual_{calibrator}")],
                     'model.ensemble': [False],
-                    'model.pretrained_exp_root': gather_exp_paths(str(inf_group_dir)), # Note this is a list of train exp paths.
+                    'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
                     'ensemble.normalize': [None],
                     'ensemble.combine_fn': [None],
                     'ensemble.combine_quantity': [None],

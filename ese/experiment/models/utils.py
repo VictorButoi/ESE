@@ -8,6 +8,7 @@ def get_calibrator_cls(calibrator: str):
         "IBTS": "ese.experiment.models.calibrators.IBTS",
         "LTS": "ese.experiment.models.calibrators.LTS",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
+        "ContextualHistogramBinning": "ese.experiment.models.binning.Contextual_Histogram_Binning",
         "LocalHistogramBinning": "ese.experiment.models.binning.Local_Histogram_Binning",
         "NectarBinning": "ese.experiment.models.binning.NECTAR_Binning",
         "NectarScaling": "ese.experiment.models.nectar.NECTAR_Scaling",
@@ -16,4 +17,5 @@ def get_calibrator_cls(calibrator: str):
     if calibrator in calibrator_class_name_map:
         return calibrator_class_name_map[calibrator]
     else:
+        print("WARNING: Calibrator not found, using default calibrator.")
         return calibrator

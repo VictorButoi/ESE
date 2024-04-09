@@ -1,5 +1,10 @@
 # local imports
-from .utils import load_experiment, process_pred_map, parse_class_name
+from .utils import (
+    load_experiment, 
+    process_pred_map, 
+    parse_class_name, 
+    get_exp_load_info
+)
 # torch imports
 import torch
 # IonPy imports
@@ -27,65 +32,67 @@ class BinningInferenceExperiment(BaseExperiment):
     def build_model(self):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
-        total_config = self.config.to_dict()
+        total_cfg = self.config.to_dict()
+        # Get the subconfigs we want to use.
+        model_cfg = total_cfg['model']
+        exp_cfg = total_cfg['experiment']
+        calibration_cfg = total_cfg['global_calibration']
         ###################
         # BUILD THE MODEL #
         ###################
         # Get the configs of the experiment
         self.pretrained_exp = load_experiment(
-            path=total_config['model']['pretrained_exp_root'],
+            **get_exp_load_info(model_cfg['pretrained_exp_root']),
+            checkpoint=model_cfg['checkpoint'],
             device="cuda",
             load_data=False, # Important, we might want to modify the data construction.
         )
         #########################################
         #            Model Creation             #
         #########################################
-        model_cfg_dict = total_config['model']
-        calibration_cfg_dict = total_config['global_calibration']
         # Either keep training the network, or use a post-hoc calibrator.
-        self.model_class = model_cfg_dict['calibrator_cls']
+        self.model_class = model_cfg['calibrator_cls']
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         self.properties["num_params"] = 0
         ############################################################
         # Get the inference exp to be used for histogram matching. #
         ############################################################
-        inf_exp_root = total_config['experiment']['exp_root']
-        inference_log_dir = f"{inf_exp_root}/{total_config['experiment']['dataset_name']}_Individual_Uncalibrated"
+        inference_log_dir = total_cfg["log"]["root"]
         assert os.path.exists(inference_log_dir), f"Could not find the inference log directory at {inference_log_dir}."
-        # Get the old model seed, this will be used for matching with the inference experiment.
-        old_model_seed = self.pretrained_exp.config["experiment"]["seed"]
-        stats_file_dir = None
-        # Find the inference dir that had a pretrained seed that matches old_model_seed.
-        for inference_exp_dir in os.listdir(inference_log_dir):
-            if inference_exp_dir != "submitit":
-                cfg_file = f"{inference_log_dir}/{inference_exp_dir}/config.yml"
-                # Load the cfg file.
-                cfg = Config.from_file(cfg_file)
-                # Check if the pretrained seed matches the old_model_seed.
-                if cfg["experiment"]["pretrained_seed"] == old_model_seed:
-                    if stats_file_dir is not None:
-                        raise ValueError("Found more than one inference experiment with the same pretrained seed.")
-                    stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
+
         # Load the model
-        self.model = absolute_import(self.model_class)(
-            num_prob_bins=calibration_cfg_dict['num_prob_bins'],
-            num_classes=calibration_cfg_dict['num_classes'],
-            neighborhood_width=calibration_cfg_dict['neighborhood_width'],
-            stats_file=stats_file_dir,            
-            cal_stats_split=model_cfg_dict['cal_stats_split'],
-            normalize=model_cfg_dict['normalize']
-        )
+        binning_model_args = {
+            "calibration_cfg": calibration_cfg,
+            "model_cfg_dict": model_cfg,
+        }
+        if model_cfg['_type'] != "incontext":
+            # Get the old model seed, this will be used for matching with the inference experiment.
+            stats_file_dir = None
+            # Find the inference dir that had a pretrained seed that matches old_model_seed.
+            for inference_exp_dir in os.listdir(inference_log_dir):
+                if inference_exp_dir != "submitit":
+                    cfg_file = f"{inference_log_dir}/{inference_exp_dir}/config.yml"
+                    # Load the cfg file.
+                    cfg = Config.from_file(cfg_file)
+                    # Check if the pretrained seed matches the old_model_seed.
+                    if cfg["experiment"]["pretrained_seed"] == self.pretrained_exp.config["experiment"]["seed"]:
+                        if stats_file_dir is not None:
+                            raise ValueError("Found more than one inference experiment with the same pretrained seed.")
+                        stats_file_dir = f"{inference_log_dir}/{inference_exp_dir}/cw_pixel_meter_dict.pkl" 
+            binning_model_args["stats_file"] = stats_file_dir
+        # Import the in context calibrator
+        self.model = absolute_import(self.model_class)(**binning_model_args)
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
         ########################################################################
         old_exp_config = self.pretrained_exp.config.to_dict() 
-        total_config['experiment'] = old_exp_config['experiment']
-        model_cfg_dict['_class'] = self.model_class
-        model_cfg_dict['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
-        self.config = Config(total_config)
+        total_cfg['experiment'] = old_exp_config['experiment']
+        model_cfg['_class'] = self.model_class
+        model_cfg['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
+        self.config = Config(total_cfg)
         # Save the config because we've modified it.
-        autosave(total_config, self.path / "config.yml") # Save the new config because we edited it.
+        autosave(total_cfg, self.path / "config.yml") # Save the new config because we edited it.
     
     def build_data(self):
         # Move the information about channels to the model config.

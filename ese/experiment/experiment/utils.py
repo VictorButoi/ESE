@@ -1,6 +1,8 @@
 # torch imports
+import os
 import torch
 # ionpy imports
+from ionpy.analysis import ResultsLoader
 from ionpy.experiment.util import absolute_import
 # misc imports
 import ast
@@ -151,6 +153,25 @@ def load_experiment(
         loaded_exp.to_device()
     
     return loaded_exp
+
+
+def get_exp_load_info(pretrained_exp_root):
+    is_exp_group = not ("config.yml" in os.listdir(pretrained_exp_root)) 
+    # Load the results loader
+    rs = ResultsLoader()
+    # If the experiment is a group, then load the configs and build the experiment.
+    if is_exp_group: 
+        dfc = rs.load_configs(
+            pretrained_exp_root,
+            properties=False,
+        )
+        return {
+            "df": rs.load_metrics(dfc),
+        }
+    else:
+        return {
+            "path": pretrained_exp_root
+        }
 
 
 def show_inference_examples(
