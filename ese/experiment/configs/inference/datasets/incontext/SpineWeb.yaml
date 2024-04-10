@@ -1,0 +1,36 @@
+log:
+  track_label_amounts: True 
+
+data:
+  input_type: image 
+  task: SpineWeb/Dataset7/MR/0
+  resolution: 128
+  slicing: 'midslice'
+  label: 1
+
+global_calibration:
+    num_classes: 2
+
+qual_metrics:
+    - Dice:
+        _fn: ese.experiment.metrics.dice_score
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        ignore_index: 0
+        metric_type: quality
+    - HD95:
+        _fn: ese.experiment.metrics.hd95
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        ignore_index: 0
+        metric_type: quality
+    - BoundaryIOU:
+        _fn: ese.experiment.metrics.boundary_iou
+        boundary_width: 4
+        from_logits: True
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False 
+        ignore_index: 0
+        metric_type: quality
