@@ -22,7 +22,7 @@ class Histogram_Binning(nn.Module):
 
     def __init__(
         self,
-        model_cfg,
+        cal_model_cfg,
         calibration_cfg,
         stats_file: str,
         **kwargs
@@ -31,14 +31,14 @@ class Histogram_Binning(nn.Module):
         # Set the parameters as class attributes
         self.num_prob_bins = calibration_cfg['num_prob_bins']
         self.num_classes = calibration_cfg['num_classes']
-        self.normalize = model_cfg['normalize']
+        self.normalize = cal_model_cfg['normalize']
         self.stats_file = stats_file
         # Load the data from the .pkl file
         with open(self.stats_file, "rb") as f:
             pixel_meters_dict = pickle.load(f)
         # Get the statistics either from images or pixel meter dict.
         gbs = classwise_prob_bin_stats(
-            pixel_meters_dict=pixel_meters_dict[model_cfg['cal_stats_split']], # Use the validation set stats.
+            pixel_meters_dict=pixel_meters_dict[cal_model_cfg['cal_stats_split']], # Use the validation set stats.
             num_prob_bins=self.num_prob_bins, # Use 15 bins
             num_classes=self.num_classes,
             class_wise=True,
@@ -84,7 +84,6 @@ class Contextual_Histogram_Binning(nn.Module):
     def __init__(
         self,
         base_model,
-        model_cfg,
         calibration_cfg,
         **kwargs
     ):

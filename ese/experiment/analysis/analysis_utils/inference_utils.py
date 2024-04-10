@@ -287,7 +287,7 @@ def load_inference_exp_from_cfg(inference_cfg):
     if inf_model_cfg['ensemble'] and inf_model_cfg['_type'] != "incontext":
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
-    elif "Binning" in inf_model_cfg['calibrator']:
+    elif "Binning" in inference_cfg['calibrator']['_name']:
         inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
         save_root = Path(inference_exp.path)
     else:

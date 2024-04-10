@@ -36,7 +36,7 @@ class BinningInferenceExperiment(BaseExperiment):
         total_cfg = self.config.to_dict()
         # Get the subconfigs we want to use.
         model_cfg = total_cfg['model']
-        exp_cfg = total_cfg['experiment']
+        calibrator_cfg = total_cfg['calibrator']
         calibration_cfg = total_cfg['global_calibration']
         ###################
         # BUILD THE MODEL #
@@ -52,7 +52,7 @@ class BinningInferenceExperiment(BaseExperiment):
         #            Model Creation             #
         #########################################
         # Either keep training the network, or use a post-hoc calibrator.
-        self.model_class = model_cfg['calibrator_cls']
+        self.model_class = calibrator_cfg['_class']
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         self.properties["num_params"] = 0

@@ -41,8 +41,8 @@ def get_ese_inference_configs(
         default_config_options = {
             'experiment.exp_root': [str(inference_exp_root)],
             'experiment.dataset_name': [group_dict['dataset']],
-            'model.calibrator': [calibrator],
-            'model.calibrator_cls': [get_calibrator_cls(calibrator)],
+            'calibrator._name': [calibrator],
+            'calibrator._class': [get_calibrator_cls(calibrator)],
         }
         if 'preload' in group_dict:
             default_config_options['data.preload'] = [group_dict['preload']]
