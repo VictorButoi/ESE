@@ -179,7 +179,9 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         "quality": qual_metric_scores_dict,
         "calibration": cal_metric_errors_dict
     }
-
+    exclude_keys = ['x', 'y_true', 'y_logits', 'y_probs', 'y_hard']
+    info_dict = {k: v for k, v in output_dict.items() if k not in exclude_keys}
+    # Iterate through all of the collected metrics and add them to the records.
     for dict_type, metric_score_dict in metrics_collection.items():
         for met_name in list(metric_score_dict.keys()):
             metric_score = metric_score_dict[met_name]
@@ -198,9 +200,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
                 metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
             # Add the dataset info to the record
             record = {
-                "data_id": output_dict["data_id"],
-                "split": output_dict["split"],
-                "slice_idx": output_dict["slice_idx"],
+                **info_dict,
                 **metrics_record
             }
             if inference_cfg["log"]["track_label_amounts"]:

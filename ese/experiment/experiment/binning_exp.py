@@ -133,24 +133,17 @@ class BinningInferenceExperiment(BaseExperiment):
                 y_logits = self.base_model(**support_args, target_image=x)
                 # Apply post-hoc calibration.
                 y_probs_raw = self.model(**support_args, target_logits=y_logits)
-                # Get the hard prediction and probabilities
-                prob_map, pred_map = process_pred_map(
-                    y_probs_raw, 
-                    threshold=threshold,
-                    multi_class=False, 
-                    from_logits=False # We are using the empirical frequencies already.
-                )
             else:
                 y_logits = self.base_model(x)
                 # Apply post-hoc calibration.
                 y_probs_raw = self.model(y_logits)
-                # Get the hard prediction and probabilities
-                prob_map, pred_map = process_pred_map(
-                    y_probs_raw, 
-                    multi_class=multi_class, 
-                    threshold=threshold,
-                    from_logits=False # We are using the empirical frequencies already.
-                )
+        # Get the hard prediction and probabilities
+        prob_map, pred_map = process_pred_map(
+            y_probs_raw, 
+            multi_class=multi_class, 
+            threshold=threshold,
+            from_logits=False # We are using the empirical frequencies already.
+        )
         # Return the outputs
         return {
             'y_probs': prob_map, 
