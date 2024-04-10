@@ -126,6 +126,7 @@ def load_experiment(
             df = df.sort_values(score, ascending=False)
         exp_path = df.iloc[0].path
     else:
+        assert attr_dict is None, "Cannot provide both a path and an attribute dictionary."
         exp_path = path
 
     # Load the experiment
