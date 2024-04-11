@@ -3,10 +3,10 @@ log:
 
 data:
   input_type: image 
-  task: SpineWeb/Dataset7/MR/0
+  task: ACDC/Challenge2017/MRI/2
   resolution: 128
   slicing: 'midslice'
-  label: 0
+  label: 2
 
 global_calibration:
     num_classes: 2
