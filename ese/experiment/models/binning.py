@@ -13,6 +13,7 @@ from ..metrics.global_ps import (
 from ..metrics.utils import (
     get_bins, 
     get_bin_per_sample,
+    agg_neighbors_preds
 )
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
@@ -113,11 +114,20 @@ class Contextual_Histogram_Binning(nn.Module):
                 target_image=new_target_image
             )
             y_probs = torch.sigmoid(support_target_logits)
+            # Optionally smooth the probs.
+            if self.calibration_cfg['conf_pool_width'] > 1:
+                y_probs = agg_neighbors_preds(
+                    pred_map=y_probs, # B x H x W
+                    neighborhood_width=self.calibration_cfg['conf_pool_width'],
+                    discrete=False
+                )
+            # Get the label for the ith image.
+            y_true = (context_labels[:, i, ...] > 0.5).long()
             # Update the pixel meters dict with the new support prediction.
             update_prob_pixel_meters(
                 output_dict={
                     "y_probs": y_probs,
-                    "y_true": context_labels[:, i, ...].long(),
+                    "y_true": y_true
                 },
                 calibration_cfg=self.calibration_cfg,
                 pixel_level_records=support_pred_meter_dict 

@@ -52,7 +52,7 @@ class BinningInferenceExperiment(BaseExperiment):
         #            Model Creation             #
         #########################################
         # Either keep training the network, or use a post-hoc calibrator.
-        self.model_class = calibrator_cfg['_class']
+        self.model_class = calibrator_cfg.pop('_class')
         self.base_model = self.pretrained_exp.model
         self.base_model.eval()
         self.properties["num_params"] = 0
@@ -61,10 +61,9 @@ class BinningInferenceExperiment(BaseExperiment):
         ############################################################
         inference_log_dir = total_cfg["log"]["root"]
         assert os.path.exists(inference_log_dir), f"Could not find the inference log directory at {inference_log_dir}."
-
         # Load the model
         binning_model_args = {
-            "calibration_cfg": calibration_cfg,
+            "calibration_cfg": {**calibration_cfg, **calibrator_cfg},
             "model_cfg": model_cfg,
         }
         if model_cfg['_type'] == "incontext":
