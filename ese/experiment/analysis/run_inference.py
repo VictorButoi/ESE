@@ -238,6 +238,10 @@ def incontext_image_forward_loop(
         # Get your image label pair and define some regions.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
+        
+        plt.imshow(label_map.squeeze().cpu().numpy(), interpolation='none', cmap='gray')
+        plt.grid(False)
+        plt.show()
 
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
