@@ -247,27 +247,27 @@ def incontext_image_forward_loop(
         if inference_cfg["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
 
-        ensemble_predictions = [] 
         for sup_idx in range(inference_cfg['experiment']['supports_per_target']):
-            with torch.no_grad():
-                for ens_mem_idx in range(inference_cfg['ensemble']['num_members']):
-                    # Note: different subjects will use different support sets
-                    # but different models will use the same support sets
-                    rng = inference_cfg['experiment']['seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
-                    sx, sy = support[rng]
-                    # Send the support set to the device
-                    sx, sy = to_device((sx, sy), exp.device)
-                    # If exp has a .predict function, use it, otherwise use the forward function.
-                    support_args = {
-                        "context_images": sx[None],
-                        "context_labels": sy[None],
-                    }
+            ensemble_predictions = [] 
+            for ens_mem_idx in range(inference_cfg['ensemble']['num_members']):
+                # Note: different subjects will use different support sets
+                # but different models will use the same support sets
+                rng = inference_cfg['experiment']['seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
+                sx, sy = support[rng]
+                # Send the support set to the device
+                sx, sy = to_device((sx, sy), exp.device)
+                # If exp has a .predict function, use it, otherwise use the forward function.
+                support_args = {
+                    "context_images": sx[None],
+                    "context_labels": sy[None],
+                }
+                with torch.no_grad():
                     if hasattr(exp, "predict"):
                         y_probs = exp.predict(**support_args, x=image, multi_class=False)['y_probs']
                     else:
                         y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
-                    # Append the predictions to the ensemble predictions.
-                    ensemble_predictions.append(torch.cat([1 - y_probs, y_probs], dim=1))
+                # Append the predictions to the ensemble predictions.
+                ensemble_predictions.append(torch.cat([1 - y_probs, y_probs], dim=1))
             # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
             ensembled_probs = torch.stack(ensemble_predictions, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
             ensembled_hard_pred = torch.argmax(ensembled_probs, dim=1) # (B, E, H, W)
