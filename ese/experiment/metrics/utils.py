@@ -319,9 +319,9 @@ def _bin_per_val(pred_map, bin_starts, bin_widths, device=None):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def agg_neighbors_preds(
     pred_map: Tensor,
-    class_wise: bool,
     neighborhood_width: int,
     discrete: bool,
+    class_wise: bool = False,
     binary: bool = True,
     kernel: Literal['mean', 'gaussian'] = 'mean',
     num_classes: Optional[int] = None

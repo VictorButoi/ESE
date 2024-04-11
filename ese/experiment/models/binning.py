@@ -114,15 +114,27 @@ class Contextual_Histogram_Binning(nn.Module):
                 target_image=new_target_image
             )
             y_probs = torch.sigmoid(support_target_logits)
+            plt.imshow(y_probs.squeeze().cpu().numpy())
+            plt.grid(False)
+            plt.title("Predicted Probs")
+            plt.show()
             # Optionally smooth the probs.
             if self.calibration_cfg['conf_pool_width'] > 1:
                 y_probs = agg_neighbors_preds(
-                    pred_map=y_probs, # B x H x W
+                    pred_map=y_probs.squeeze(1), # B x H x W
                     neighborhood_width=self.calibration_cfg['conf_pool_width'],
                     discrete=False
-                )
+                ).unsqueeze(1) # B x 1 x H x W
+            plt.imshow(y_probs.squeeze().cpu().numpy())
+            plt.grid(False)
+            plt.title("Smoothed Predicted Probs")
+            plt.show()
             # Get the label for the ith image.
             y_true = (context_labels[:, i, ...] > 0.5).long()
+            plt.imshow(y_true.squeeze().cpu().numpy())
+            plt.grid(False)
+            plt.title("True Label")
+            plt.show()
             # Update the pixel meters dict with the new support prediction.
             update_prob_pixel_meters(
                 output_dict={
