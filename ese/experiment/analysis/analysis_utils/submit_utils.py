@@ -26,7 +26,7 @@ def get_ese_inference_configs(
     # Generate product tuples
     product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in keys]))
     # Convert product tuples to dictionaries
-    total_run_cfg_options = [{keys[i]: item[i] for i in range(len(keys))} for item in product_tuples]
+    total_run_cfg_options = [{keys[i]: [item[i]] for i in range(len(keys))} for item in product_tuples]
 
     # Keep a list of all the run configuration options.
     calibrator_option_list = []
@@ -74,7 +74,7 @@ def get_ese_inference_configs(
 
         for run_opt_dict in total_run_cfg_options: 
             # If you want to run inference on ensembles, use this.
-            if run_opt_dict['do_ensemble']:
+            if run_opt_dict.get('model.ensemble', False) or group_dict['model_type'] == "incontext":
                 # For each ensemble option, we want to run inference.
                 for ens_cfg in base_cfg_args['submit_opts']['ens_cfg_options']:
                     # Make the ens_cfg a tuple.
@@ -86,10 +86,11 @@ def get_ese_inference_configs(
                         inf_log_root = inference_exp_root / f"{group_dict['dataset']}_Ensemble_{calibrator}"
                     # Define where the set of base models come from.
                     advanced_args = {
-                        'log.root': [str(inf_log_root)],
-                        'model.ensemble': [True],
-                        'ensemble.combine_fn': [ens_cfg[0]],
-                        'ensemble.combine_quantity': [ens_cfg[1]],
+                        "log.root": [str(inf_log_root)],
+                        "model.ensemble": [True],
+                        "ensemble.combine_fn": [ens_cfg[0]],
+                        "ensemble.combine_quantity": [ens_cfg[1]],
+                        **run_opt_dict
                     }
                     for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
                         # For each num_ens_members, we subselect that num of the total_ens_members.
@@ -111,20 +112,6 @@ def get_ese_inference_configs(
                                 # Define where the set of base models come from.
                                 advanced_args['ensemble.num_members'] = [num_ens_members]
                                 advanced_args['ensemble.member_paths'] = [list(ens_group)]
-                                # We can manually assign the member_temps if we want.
-                                if 'member_temps' in run_opt_dict:
-                                    advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
-                                elif 'member_temps_upper_bound' in base_cfg_args['submit_opts']:
-                                    # Flip a coin to see if we are going to use the upper bound or lower bound, per member.
-                                    # This equates to randomly sampling num_ens_members many bernoullis.
-                                    under_vs_over_conf = np.random.binomial(n=1, p=0.5, size=num_ens_members)
-                                    # Get the overconfident temps.
-                                    over_conf_temps = np.random.uniform(0.01, 1.0, size=num_ens_members)
-                                    # Get the underconfident tempts.
-                                    under_conf_temps = np.random.uniform(1.0, base_cfg_args['submit_opts']['member_temps_upper_bound'], size=num_ens_members)
-                                    # Build the temps vector accordingly
-                                    members_temps = [over_conf_temps[i] if under_vs_over_conf[i] else under_conf_temps[i] for i in range(num_ens_members)]
-                                    advanced_args['ensemble.member_temps'] = [str(tuple(members_temps))]
                                 # Combine the default and advanced arguments.
                                 dupe_def_cfg_opts.update(advanced_args)
                                 # Append these to the list of configs and roots.
@@ -140,6 +127,7 @@ def get_ese_inference_configs(
                     'ensemble.normalize': [None],
                     'ensemble.combine_fn': [None],
                     'ensemble.combine_quantity': [None],
+                    **run_opt_dict
                 }
                 # Combine the default and advanced arguments.
                 default_config_options.update(advanced_args)

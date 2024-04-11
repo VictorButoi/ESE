@@ -239,10 +239,9 @@ def incontext_image_forward_loop(
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
         
-        plt.imshow(label_map.squeeze().cpu().numpy(), interpolation='none', cmap='gray')
-        plt.grid(False)
-        plt.show()
-
+        # Label maps are soft labels so we need to convert them to hard labels.
+        label_map = (label_map > 0.5).long()
+        
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
         if inference_cfg["model"]["ensemble"]:
@@ -275,7 +274,7 @@ def incontext_image_forward_loop(
             # Wrap the outputs into a dictionary.
             output_dict = {
                 "x": image,
-                "y_true": label_map.long(),
+                "y_true": label_map,
                 "y_logits": None,
                 "y_probs": ensembled_probs,
                 "y_hard": ensembled_hard_pred,
