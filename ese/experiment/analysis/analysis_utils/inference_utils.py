@@ -47,11 +47,11 @@ def add_dice_loss_rows(inference_df, opts_cfg):
     # Change the image metric to Dice Loss.
     dice_loss_rows['image_metric'] = 'Dice Loss'
     # If groupavg metrics are present, then change those as well.
-    if 'groupavg_image_metric' in dice_loss_rows.keys() and opts_cfg['load_groupavg_metrics']:
-        # First replace Dice in the groupavg metric with 'Dice Loss'
-        dice_loss_rows['groupavg_image_metric'] = dice_loss_rows['groupavg_image_metric'].str.replace('Dice', 'Dice_Loss')
-        # Then flip the groupavg metric score.
-        dice_loss_rows['groupavg_metric_score'] = 1 - dice_loss_rows['groupavg_metric_score']
+    if 'groupavg_image_metric' in dice_loss_rows.keys():
+        if opts_cfg.get('load_groupavg_metrics', False):
+            # First replace Dice in the groupavg metric with 'Dice Loss'
+            dice_loss_rows['groupavg_image_metric'] = dice_loss_rows['groupavg_image_metric'].str.replace('Dice', 'Dice_Loss')
+            dice_loss_rows['groupavg_metric_score'] = 1 - dice_loss_rows['groupavg_metric_score']
     # Add the new rows to the inference df.
     return pd.concat([inference_df, dice_loss_rows], axis=0, ignore_index=True)
 

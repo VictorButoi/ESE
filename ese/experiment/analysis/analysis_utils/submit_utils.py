@@ -109,8 +109,8 @@ def get_ese_inference_configs(
                                 # Make a copy of our default config options.
                                 dupe_def_cfg_opts = default_config_options.copy()
                                 # Define where the set of base models come from.
-                                advanced_args['ensemble.member_paths'] = [list(ens_group)]
                                 advanced_args['ensemble.num_members'] = [num_ens_members]
+                                advanced_args['ensemble.member_paths'] = [list(ens_group)]
                                 # We can manually assign the member_temps if we want.
                                 if 'member_temps' in run_opt_dict:
                                     advanced_args['ensemble.member_temps'] = [run_opt_dict['member_temps']]
