@@ -17,5 +17,5 @@ def get_calibrator_cls(calibrator: str):
     if calibrator in calibrator_class_name_map:
         return calibrator_class_name_map[calibrator]
     else:
-        print("WARNING: Calibrator not found, using default calibrator.")
+        print(f"WARNING! Calibrator not found, using default calibrator name: {calibrator}.")
         return calibrator

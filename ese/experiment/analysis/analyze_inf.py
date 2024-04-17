@@ -229,6 +229,7 @@ def load_cal_inference_stats(
         for optional_key in [
             "model._pretrained_class",
             "calibrator._name",
+            "calibrator.conf_pool_width",
             "model.cal_stats_split",
             "ensemble.combine_fn",
             "ensemble.combine_quantity",
