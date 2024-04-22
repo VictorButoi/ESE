@@ -6,7 +6,7 @@ data:
   task: ACDC/Challenge2017/MRI/2
   resolution: 128
   slicing: 'midslice'
-  label: 2
+  label: '?' 
 
 global_calibration:
     num_classes: 2

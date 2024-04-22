@@ -3,7 +3,7 @@ log:
 
 data:
   input_type: image 
-  task: SpineWeb/Dataset7/MR/0
+  task: PanDental/v2/XRay/0
   resolution: 128
   slicing: 'midslice'
   label: '?'
