@@ -110,7 +110,6 @@ def get_ese_inference_configs(
                                 # If we are using incontext models, we need to use the ensemble groups.
                                 advanced_args['ensemble.num_members'] = [num_ens_members]
                                 advanced_args['model.pretrained_exp_root'] = [str(model_group_dir)]
-                                advanced_args['experiment.supports_per_target'] = [base_cfg_args['submit_opts']['supports_per_target']]
                                 # Combine the default and advanced arguments
                                 dupe_def_cfg_opts.update(advanced_args)
                                 # Append these to the list of configs and roots.

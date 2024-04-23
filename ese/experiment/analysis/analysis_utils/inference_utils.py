@@ -272,8 +272,8 @@ def cal_stats_init(cfg_dict):
         
     # Return a dictionary of the components needed for the calibration statistics.
     return {
-        "inference_exp": inference_exp,
-        "dataloaders": data_objs['dataloaders'],
+        "exp": inference_exp,
+        "dloaders": data_objs['dataloaders'],
         "supports": data_objs['supports'],
         "trackers": trackers,
         "output_root": task_root
@@ -355,24 +355,31 @@ def dataloader_from_exp(
         # Load the dataset with modified arguments.
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
-        # if inference_cfg['model']['_type'] == 'incontext':
-        lab_split_dataset_dict, lab_split_support_dict = get_incontext_dataset(
-            data_cfg=split_data_cfg, 
-        )
-        # else: 
-        #     split_dataset_obj = absolute_import(dataset_cls)(
-        #         transforms=inference_transforms, 
-        #         **split_data_cfg
-        #     )
-        #     split_support = None
-        # Build the dataset and dataloader.
-        dataloaders[split] = DataLoader(
-            split_dataset_obj, 
-            batch_size=inference_cfg['dataloader']['batch_size'], 
-            num_workers=inference_cfg['dataloader']['num_workers'],
-            shuffle=False
-        )
-        supports[split] = split_support
+        if inference_cfg['model']['_type'] == 'incontext':
+            lab_split_dataset_dict, lab_split_support_dict = get_incontext_dataset(
+                data_cfg=split_data_cfg, 
+            )
+        else: 
+            split_dataset_obj = absolute_import(dataset_cls)(
+                transforms=inference_transforms, 
+                **split_data_cfg
+            )
+            lab_split_support_dict = None
+            # Package these into dummy dictionaries. Not great, but it works.
+            lab_split_dataset_dict = {
+                -1 : split_dataset_obj
+            }
+        # Iterate through the labels and put in the dataloaders
+        supports[split] = lab_split_support_dict
+        dataloaders[split] = {}
+        for lab in lab_split_dataset_dict.keys():
+            # Build the dataloader for this split and label.
+            dataloaders[split][lab] = DataLoader(
+                lab_split_dataset_dict[lab], 
+                batch_size=inference_cfg['dataloader']['batch_size'], 
+                num_workers=inference_cfg['dataloader']['num_workers'],
+                shuffle=False
+            )
     # Add the augmentation information.
     inference_data_cfg['augmentations'] = aug_cfg_list
     inference_data_cfg['_class'] = dataset_cls        
