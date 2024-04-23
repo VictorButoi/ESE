@@ -54,31 +54,37 @@ def get_cal_stats(
     # setup the save dir.
     trackers = cal_stats_components["trackers"]
     output_root = cal_stats_components["output_root"]
-    all_dataloaders = cal_stats_components["dataloaders"]
+    dataloaders_dict = cal_stats_components["dataloaders"]
     all_supports = cal_stats_components["supports"] # Optional, None if not dealing with incontext data.
 
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
         data_counter = 0
-        with torch.no_grad():
-            for split in all_dataloaders:
-                split_dataloader = all_dataloaders[split]
-                for batch_idx, batch in enumerate(split_dataloader):
+        for split in dataloaders_dict.keys():
+            label_dataloaders_dict = dataloaders_dict[split]
+            for label in label_dataloaders_dict.keys():
+                task_dataloader = label_dataloaders_dict[label]
+                for batch_idx, batch in enumerate(task_dataloader):
                     # if batch["data_id"][0] == "114":
                     # if batch["data_id"][0] == "munster_000143_000019":
-                    print(f"Split: {split} | Working on batch #{batch_idx} out of", len(split_dataloader), "({:.2f}%)".format(batch_idx / len(split_dataloader) * 100), end="\r")
+                    print(f"Split: {split}, Label: {label} | Working on batch #{batch_idx} out of",\
+                          len(task_dataloader), "({:.2f}%)".format(batch_idx / len(task_dataloader) * 100), end="\r")
                     if isinstance(batch, list):
                         batch = {
                             "img": batch[0],
                             "label": batch[1],
                             "data_id": batch[2],
                         }
-                    batch["split"] = split
-                    batch["batch_idx"] = batch_idx
+                    forward_batch = {
+                        "split": split,
+                        "label": label,
+                        "batch_idx": batch_idx,
+                        **batch
+                    }
                     # Gather the forward item.
                     forward_item = {
                         "exp": cal_stats_components["inference_exp"],
-                        "batch": batch,
+                        "batch": forward_batch,
                         "inference_cfg": inference_cfg_dict,
                         "trackers": trackers,
                         "data_counter": data_counter,

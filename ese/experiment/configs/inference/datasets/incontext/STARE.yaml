@@ -6,7 +6,8 @@ data:
   task: STARE/retrieved_2021_12_06/Retinal/0
   resolution: 128
   slicing: 'midslice'
-  label: '?'
+  labels:
+    - 0
 
 global_calibration:
     num_classes: 2

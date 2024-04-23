@@ -355,16 +355,16 @@ def dataloader_from_exp(
         # Load the dataset with modified arguments.
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
-        if inference_cfg['model']['_type'] == 'incontext':
-            split_dataset_obj, split_support = get_incontext_dataset(
-                data_cfg=split_data_cfg, 
-            )
-        else: 
-            split_dataset_obj = absolute_import(dataset_cls)(
-                transforms=inference_transforms, 
-                **split_data_cfg
-            )
-            split_support = None
+        # if inference_cfg['model']['_type'] == 'incontext':
+        lab_split_dataset_dict, lab_split_support_dict = get_incontext_dataset(
+            data_cfg=split_data_cfg, 
+        )
+        # else: 
+        #     split_dataset_obj = absolute_import(dataset_cls)(
+        #         transforms=inference_transforms, 
+        #         **split_data_cfg
+        #     )
+        #     split_support = None
         # Build the dataset and dataloader.
         dataloaders[split] = DataLoader(
             split_dataset_obj, 
@@ -390,13 +390,20 @@ def get_incontext_dataset(data_cfg):
     # Build the target and support datasets.
     if "samples_per_epoch" in data_cfg.keys():
         data_cfg.pop("samples_per_epoch")
-    target_dataset = Segment2D(**data_cfg)
-    context_dataset = target_dataset.other_split("train")
-    # Construct the support of examples to use.
-    support = RandomSupport(
-        context_dataset, support_size=support_size, replacement=True
-    )
-    return target_dataset, support
+    # Make a target dataset for each label provided.
+    target_dset_lab_dict = {}
+    support_lab_dict = {}
+    for label in data_cfg.pop('labels'):
+        target_lab_dataset = Segment2D(label=label, **data_cfg)
+        context_lab_dataset = target_lab_dataset.other_split("train")
+        # Construct the support of examples to use.
+        lab_support = RandomSupport(
+            context_lab_dataset, support_size=support_size, replacement=True
+        )
+        # Place them in the dictionary
+        target_dset_lab_dict[label] = target_lab_dataset
+        support_lab_dict[label] = lab_support
+    return target_dset_lab_dict, support_lab_dict 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

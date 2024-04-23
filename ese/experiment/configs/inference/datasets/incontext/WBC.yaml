@@ -6,7 +6,9 @@ data:
   task: WBC/CV/EM/0
   resolution: 128
   slicing: 'midslice'
-  label: '?'
+  labels:
+    - 0
+    - 1
 
 global_calibration:
     num_classes: 2

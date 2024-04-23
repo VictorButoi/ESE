@@ -6,7 +6,8 @@ data:
   task: SpineWeb/Dataset7/MR/0
   resolution: 128
   slicing: 'midslice'
-  label: '?'
+  labels:
+    - 0
 
 global_calibration:
     num_classes: 2
