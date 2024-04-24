@@ -192,7 +192,7 @@ def show_inference_examples(
     else:
         show_dict = output_dict
     # Show the individual predictions.
-    ShowPredictionsCallback(show_dict)
+    ShowPredictionsCallback(show_dict, threshold=inference_cfg['experiment']['threshold'])
     # If we are showing examples with an ensemble, then we show initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
@@ -208,4 +208,4 @@ def show_inference_examples(
             "y_hard": ensemble_outputs["y_hard"] 
         }
         # Finally, show the ensemble combination.
-        ShowPredictionsCallback(ensembled_output_dict)
+        ShowPredictionsCallback(ensembled_output_dict, threshold=inference_cfg['experiment']['threshold'])

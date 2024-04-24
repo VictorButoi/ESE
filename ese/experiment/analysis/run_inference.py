@@ -299,8 +299,8 @@ def incontext_image_forward_loop(
             image, label_map = to_device((image, label_map), exp.device)
         
         # Label maps are soft labels so we need to convert them to hard labels.
-        label_map = (label_map > 0.5).long()
-        
+        label_map = (label_map > 0.5).long() # TODO: Should this be a modifiable threshold?
+       
         # Get the prediction with no gradient accumulation.
         predict_args = {'multi_class': True}
         if inf_cfg_dict["model"]["ensemble"]:
@@ -318,8 +318,10 @@ def incontext_image_forward_loop(
                 else:
                     y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
             # Append the predictions to the ensemble predictions.
+            y_hard = (y_probs > inf_cfg_dict['experiment']['threshold']).long() # (B, 1, H, W)
+            plt.imshow(y_hard[0, 0].cpu().numpy())
+            plt.show()
             y_probs = torch.cat([1 - y_probs, y_probs], dim=1).unsqueeze(2) # B, 2, 1, H, W
-            y_hard = torch.argmax(y_probs, dim=1) # (B, E, H, W)
             # Wrap the outputs into a dictionary.
             output_dict = {
                 "x": image,
@@ -340,7 +342,8 @@ def incontext_image_forward_loop(
             )
         else:
             for sup_idx in range(inf_cfg_dict['experiment']['supports_per_target']):
-                ensemble_predictions = [] 
+                ensemble_probs_list = [] 
+                ensemble_hards_list = []
                 for ens_mem_idx in range(inf_cfg_dict['ensemble']['num_members']):
                     # Note: different subjects will use different support sets
                     # but different models will use the same support sets
@@ -357,10 +360,12 @@ def incontext_image_forward_loop(
                         else:
                             y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
                     # Append the predictions to the ensemble predictions.
-                    ensemble_predictions.append(torch.cat([1 - y_probs, y_probs], dim=1))
+                    ensemble_probs_list.append(torch.cat([1 - y_probs, y_probs], dim=1)) # (B, 2, H, W)
+                    # Get the hard predictions.
+                    ensemble_hards_list.append((y_probs > inf_cfg_dict['experiment']['threshold']).long()) # (B, 1, H, W)
                 # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-                ensembled_probs = torch.stack(ensemble_predictions, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
-                ensembled_hard_pred = torch.argmax(ensembled_probs, dim=1) # (B, E, H, W)
+                ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
+                ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)
                 # Wrap the outputs into a dictionary.
                 output_dict = {
                     "x": image,

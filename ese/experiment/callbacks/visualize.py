@@ -7,8 +7,8 @@ import matplotlib.colors as mcolors
 
 def ShowPredictionsCallback(
     batch, 
-    threshold: float = 0.5,
-    size_per_iamge: int = 5,
+    threshold: float,
+    size_per_iamge: int = 5
 ):
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
@@ -59,7 +59,10 @@ def ShowPredictionsCallback(
     if num_pred_classes > 1:
         if pred_cls == "y_logits":
             y_hat = torch.softmax(y_hat, dim=1)
-        y_hard = torch.argmax(y_hat, dim=1)
+        if num_pred_classes == 2 and threshold != 0.5:
+            y_hard = (y_hat[:, 1, :, :] > threshold).int()
+        else:
+            y_hard = torch.argmax(y_hat, dim=1)
     else:
         if pred_cls == "y_logits":
             y_hat = torch.sigmoid(y_hat)
