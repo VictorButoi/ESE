@@ -319,8 +319,6 @@ def incontext_image_forward_loop(
                     y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
             # Append the predictions to the ensemble predictions.
             y_hard = (y_probs > inf_cfg_dict['experiment']['threshold']).long() # (B, 1, H, W)
-            plt.imshow(y_hard[0, 0].cpu().numpy())
-            plt.show()
             y_probs = torch.cat([1 - y_probs, y_probs], dim=1).unsqueeze(2) # B, 2, 1, H, W
             # Wrap the outputs into a dictionary.
             output_dict = {

@@ -56,7 +56,8 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
                         output_dict, 
                         inference_cfg=inference_cfg,
                     )['y_probs'],
-            'y_true': output_dict['y_true']
+            'y_true': output_dict['y_true'],
+            'threshold': inference_cfg['experiment']['threshold'],
         }
         # Get the reduced predictions
         cal_input_config = {
@@ -73,6 +74,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         qual_input_config = {
             "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
             "y_true": output_dict["y_true"], # (B, C, H, W)
+            'threshold': inference_cfg['experiment']['threshold'],
         }
         cal_input_config = {
             **qual_input_config,

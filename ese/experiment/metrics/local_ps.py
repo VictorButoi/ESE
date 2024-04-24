@@ -41,6 +41,7 @@ def bin_stats_init(
     y_pred: Tensor,
     y_true: Tensor,
     num_prob_bins: int,
+    threshold: float = 0.5,
     from_logits: bool = False,
     neighborhood_width: Optional[int] = None
 ):
@@ -58,7 +59,13 @@ def bin_stats_init(
         f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
 
     # Get the hard predictions and the max confidences.
-    y_hard = y_pred.argmax(dim=1) # B x H x W
+    if y_pred.shape[1] > 1:
+        if y_pred.shape[1] == 2 and threshold != 0.5:
+            y_hard = (y_pred[:, 1, ...] > threshold).long() # B x H x W
+        else:
+            y_hard = y_pred.argmax(dim=1) # B x H x W
+    else:
+        y_hard = (y_pred > threshold).long().squeeze(1) # B x H x W Remove the channel dimension.
     y_max_prob_map = y_pred.max(dim=1).values # B x H x W
 
     conf_bin_args = {
