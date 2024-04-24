@@ -22,15 +22,16 @@ from .utils import agg_neighbors_preds
 def dice_score(
     y_pred: Tensor,
     y_true: Tensor,
-    mode: InputMode = "auto",
-    smooth: float = 1e-7,
     eps: float = 1e-7,
+    smooth: float = 1e-7,
+    threshold: float = 0.5,
+    mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
-    weights: Optional[Union[Tensor, List]] = None,
-    ignore_empty_labels: bool = True,
     from_logits: bool = False,
+    ignore_empty_labels: bool = True,
     ignore_index: Optional[int] = None,
+    weights: Optional[Union[Tensor, List]] = None,
 ) -> Tensor:
 
     y_pred, y_true = _inputs_as_onehot(
@@ -38,7 +39,8 @@ def dice_score(
         y_true, 
         mode=mode, 
         from_logits=from_logits, 
-        discretize=True
+        discretize=True,
+        threshold=threshold
     )
 
     intersection = torch.logical_and(y_pred == 1.0, y_true == 1.0).sum(dim=-1)
@@ -68,11 +70,12 @@ def dice_score(
 def hd95(
     y_pred: Tensor,
     y_true: Tensor,
+    threshold: float = 0.5,
+    from_logits: bool = False,
+    ignore_empty_labels: bool = False,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
-    ignore_empty_labels: bool = False,
-    from_logits: bool = False,
     ignore_index: Optional[int] = None
 ):
     """
@@ -86,7 +89,13 @@ def hd95(
         y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
     
     # Get the preds with highest probs and the label map.
-    y_pred = y_pred.argmax(dim=1)
+    if y_pred.shape[1] > 1:
+        if y_pred.shape[1] == 2 and threshold != 0.5:
+            y_pred = (y_pred[:, 1, ...] > threshold).long()
+        else:
+            y_pred = y_pred.argmax(dim=1)
+    else:
+        y_pred = (y_pred > threshold).long()
     y_true = y_true.squeeze(dim=1)
 
     # Convert these to one hot tensors.
