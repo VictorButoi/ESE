@@ -259,6 +259,7 @@ def standard_image_forward_loop(
             "y_hard": exp_output.get("y_hard", None),
             "data_id": batch["data_id"][0], # Works because batchsize = 1
             "split": batch["split"],
+            "label_idx": batch["label_idx"],
             "slice_idx": slice_idx
         }
         # Get the calibration item info.  
@@ -329,6 +330,7 @@ def incontext_image_forward_loop(
                 "y_hard": y_hard,
                 "sup_idx": batch['sup_idx'],
                 "data_id": batch['data_id'][0], # Works because batchsize = 1
+                "label_idx": batch["label_idx"],
                 "split": batch['split'],
                 "slice_idx": slice_idx,
             }
@@ -373,6 +375,7 @@ def incontext_image_forward_loop(
                     "y_hard": ensembled_hard_pred,
                     "sup_idx": sup_idx,
                     "data_id": batch["data_id"][0], # Works because batchsize = 1
+                    "label_idx": batch["label_idx"],
                     "split": batch["split"],
                     "slice_idx": slice_idx,
                 }
