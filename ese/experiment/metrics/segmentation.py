@@ -152,6 +152,7 @@ def boundary_iou(
     mode: InputMode = "auto",
     smooth: float = 1e-7,
     eps: float = 1e-7,
+    threshold: float = 0.5,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
@@ -167,7 +168,7 @@ def boundary_iou(
 
     y_true = y_true.squeeze(1) # B x H x W
     if C == 1:
-        y_hard = (y_pred > 0.5).squeeze(1) # B x H x W
+        y_hard = (y_pred > threshold).squeeze(1) # B x H x W
     else:
         y_hard = y_pred.argmax(dim=1) # B x H x W
 
