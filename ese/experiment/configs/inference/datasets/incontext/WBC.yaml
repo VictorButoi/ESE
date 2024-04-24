@@ -36,3 +36,7 @@ qual_metrics:
         ignore_empty_labels: False 
         ignore_index: 0
         metric_type: quality
+    - Accuracy:
+        _fn: ese.experiment.metrics.pixel_accuracy
+        from_logits: True
+        metric_type: quality

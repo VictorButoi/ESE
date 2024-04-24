@@ -181,7 +181,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         "quality": qual_metric_scores_dict,
         "calibration": cal_metric_errors_dict
     }
-    exclude_keys = ['x', 'y_true', 'y_logits', 'y_probs', 'y_hard']
+    exclude_keys = ['x', 'y_true', 'y_logits', 'y_probs', 'y_hard', 'support_set']
     info_dict = {k: v for k, v in output_dict.items() if k not in exclude_keys}
     # Iterate through all of the collected metrics and add them to the records.
     for dict_type, metric_score_dict in metrics_collection.items():

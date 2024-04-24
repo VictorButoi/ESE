@@ -1,6 +1,7 @@
 from .ece import * 
 from .segmentation import (
-    dice_score,
     hd95,
-    boundary_iou
+    dice_score,
+    boundary_iou,
+    pixel_accuracy
 )

@@ -328,6 +328,7 @@ def incontext_image_forward_loop(
                 "y_logits": None,
                 "y_probs": y_probs,
                 "y_hard": y_hard,
+                "support_set": support_args,
                 "sup_idx": batch['sup_idx'],
                 "data_id": batch['data_id'][0], # Works because batchsize = 1
                 "label_idx": batch["label_idx"],

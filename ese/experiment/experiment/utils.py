@@ -9,6 +9,7 @@ import ast
 import json
 import einops
 from pathlib import Path
+import matplotlib.pyplot as plt
 from typing import Any, Optional
 from pydantic import validate_arguments
 # local imports
@@ -187,12 +188,16 @@ def show_inference_examples(
         }
         if "y_probs" in output_dict and output_dict["y_probs"] is not None:
             show_dict["y_probs"] = einops.rearrange(output_dict["y_probs"], "1 C E H W -> E C H W")
+            show_first_pred = False if show_dict["y_probs"].shape[0] == 1 else True
         elif "y_logits" in output_dict and output_dict["y_logits"] is not None:
             show_dict["y_logits"] = einops.rearrange(output_dict["y_logits"], "1 C E H W -> E C H W"),
+            show_first_pred = False if show_dict["logits"].shape[0] == 1 else True
     else:
+        show_first_pred = True
         show_dict = output_dict
-    # Show the individual predictions.
-    ShowPredictionsCallback(show_dict, threshold=inference_cfg['experiment']['threshold'])
+    # Show the individual predictions of the ensemble, or just the prediction if no ensemble.
+    if show_first_pred:
+        ShowPredictionsCallback(show_dict, threshold=inference_cfg['experiment']['threshold'])
     # If we are showing examples with an ensemble, then we show initially the individual predictions.
     if inference_cfg["model"]["ensemble"]:
         # Combine the outputs of the models.
@@ -209,3 +214,16 @@ def show_inference_examples(
         }
         # Finally, show the ensemble combination.
         ShowPredictionsCallback(ensembled_output_dict, threshold=inference_cfg['experiment']['threshold'])
+    # Show the support examples if they are provided.
+    if "support_set" in output_dict:
+        support_images = output_dict["support_set"]["context_images"]
+        support_labels = output_dict["support_set"]["context_labels"]
+        support_size = support_images.shape[1]
+        assert support_images.shape[0] == 1, "Support set must have a batch size of 1."
+        f, axarr = plt.subplots(2, support_size, figsize=(support_size * 3, 6))
+        for supp_idx in range(support_size):
+            axarr[0, supp_idx].imshow(support_images[:, supp_idx, ...].squeeze().cpu().numpy(), cmap="gray", interpolation="none")
+            axarr[1, supp_idx].imshow(support_labels[:, supp_idx, ...].squeeze().cpu().numpy(), cmap="gray", interpolation="none")
+            axarr[0, supp_idx].axis("off")
+            axarr[1, supp_idx].axis("off")
+        plt.show()

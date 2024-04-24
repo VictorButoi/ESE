@@ -11,11 +11,37 @@ from medpy.metric.binary import hd95 as HausdorffDist95
 from ionpy.metrics.util import (
     _metric_reduction,
     _inputs_as_onehot,
+    _inputs_as_longlabels,
     InputMode,
     Reduction
 )
 # local imports
 from .utils import agg_neighbors_preds
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def pixel_accuracy(
+    y_pred: Tensor,
+    y_true: Tensor,
+    threshold: float = 0.5,
+    mode: InputMode = "auto",
+    from_logits: bool = False,
+    ignore_index: Optional[int] = None
+):
+    y_pred_long, y_true_long = _inputs_as_longlabels(
+        y_pred=y_pred, 
+        y_true=y_true, 
+        mode=mode, 
+        from_logits=from_logits, 
+        threshold=threshold,
+        discretize=True
+    )
+    # Note this only really makes sense in non-binary contexts.
+    if ignore_index is not None:
+        y_pred_long = y_pred_long[y_true_long != ignore_index] 
+        y_true_long = y_true_long[y_true_long != ignore_index]
+
+    return (y_pred_long == y_true_long).float().mean()
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
