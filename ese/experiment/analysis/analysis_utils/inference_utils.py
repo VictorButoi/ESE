@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 # ionpy imports
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
-from ionpy.analysis import ResultsLoader
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
 # UniverSeg imports
