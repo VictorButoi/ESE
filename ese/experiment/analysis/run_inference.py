@@ -12,14 +12,11 @@ from .pixel_records import (
     update_cw_pixel_meters
 )
 # Misc imports
-import time
 import pickle
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from typing import Any, Optional
 from pydantic import validate_arguments
-import matplotlib.pyplot as plt
     
 
 def save_records(records, log_dir):
@@ -73,13 +70,14 @@ def get_cal_stats(
                             # Ensure that all subjects of the same label have the same support set.
                             rng = inference_cfg_dict['experiment']['seed'] * (sup_idx + 1)
                             # Send the support set to the device
-                            sx, sy = to_device(support_gen[rng], inference_init_obj["exp"].device)
+                            sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
+                            sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
                             # Run the dataloader loop with this particular support of images and labels.
                             dataloader_loop(
                                 dloader=split_dataloader_obj[label_idx],
                                 label_idx=label_idx,
                                 sup_idx=sup_idx,
-                                support_dict={'images': sx[None], 'labels': sy[None]},
+                                support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
                                 **loop_args
                             )
                     else:
@@ -331,6 +329,7 @@ def incontext_image_forward_loop(
                 "support_set": support_args,
                 "sup_idx": batch['sup_idx'],
                 "data_id": batch['data_id'][0], # Works because batchsize = 1
+                "support_data_ids": support_dict['data_ids'],
                 "label_idx": batch["label_idx"],
                 "split": batch['split'],
                 "slice_idx": slice_idx,
@@ -349,7 +348,8 @@ def incontext_image_forward_loop(
                     # Note: different subjects will use different support sets
                     # but different models will use the same support sets
                     rng = inf_cfg_dict['experiment']['seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
-                    sx, sy = to_device(support_generator[rng], exp.device)
+                    sx_cpu, sy_cpu, support_data_ids = support_generator[rng]
+                    sx, sy = to_device((sx_cpu, sy_cpu), exp.device)
                     # Package it into a dictionary.
                     support_args = {
                         "context_images": sx[None],
@@ -376,6 +376,7 @@ def incontext_image_forward_loop(
                     "y_hard": ensembled_hard_pred,
                     "sup_idx": sup_idx,
                     "data_id": batch["data_id"][0], # Works because batchsize = 1
+                    "support_data_ids": support_data_ids,
                     "label_idx": batch["label_idx"],
                     "split": batch["split"],
                     "slice_idx": slice_idx,

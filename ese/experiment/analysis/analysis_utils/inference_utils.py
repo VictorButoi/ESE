@@ -394,17 +394,25 @@ def dataloader_from_exp(
 def get_incontext_dataset(data_cfg):
     support_size = data_cfg.pop('support_size')
     # Build the target and support datasets.
-    if "samples_per_epoch" in data_cfg.keys():
-        data_cfg.pop("samples_per_epoch")
+    for del_key in ["samples_per_epoch", "return_data_id"]:
+        if del_key in data_cfg.keys():
+            data_cfg.pop(del_key)
     # Make a target dataset for each label provided.
     target_dset_lab_dict = {}
     support_lab_dict = {}
     for label in data_cfg.pop('labels'):
-        target_lab_dataset = Segment2D(label=label, **data_cfg)
+        target_lab_dataset = Segment2D(
+            label=label, 
+            return_data_id=True,
+            **data_cfg
+        )
         context_lab_dataset = target_lab_dataset.other_split("train")
         # Construct the support of examples to use.
         lab_support = RandomSupport(
-            context_lab_dataset, support_size=support_size, replacement=True
+            context_lab_dataset, 
+            support_size=support_size, 
+            replacement=True, 
+            return_data_ids=True
         )
         # Place them in the dictionary
         target_dset_lab_dict[label] = target_lab_dataset
