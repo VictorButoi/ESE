@@ -186,7 +186,10 @@ def get_average_unet_baselines(
     return average_seed_unet
 
 
-def cal_stats_init(cfg_dict):
+def cal_stats_init(
+    cfg_dict,
+    yaml_cfg_dir: Optional[str] = None
+):
     cal_init_obj_dict = {}
     ###################
     # BUILD THE MODEL #
@@ -244,8 +247,19 @@ def cal_stats_init(cfg_dict):
     }
 
     # We can also add augmentation at inference to boost performance.
-    if 'support_augmentations' in inference_cfg.keys():
-        cal_init_obj_dict['support_transforms'] = augmentations_from_config(inference_cfg['support_augmentations']) 
+    support_aug_cfg = inference_cfg['experiment'].get('support_augs', None)
+    if support_aug_cfg is not None:
+        if len(support_aug_cfg) > 0:
+            # Open the yaml file corresponding to the augmentations
+            with open(f"{yaml_cfg_dir}/ese/experiment/configs/inference/aug_cfg_bank.yaml", 'r') as f:
+                aug_cfg_almanac = yaml.safe_load(f)
+            aug_dict_list = []
+            for sup_aug in support_aug_cfg:
+                assert sup_aug in aug_cfg_almanac.keys(), "Augmentation must be defined in the yaml file."   
+                aug_dict_list.append(aug_cfg_almanac[sup_aug])
+            cal_init_obj_dict['support_transforms'] = augmentations_from_config(aug_dict_list)
+        else:
+            cal_init_obj_dict['support_transforms'] = None
     
     print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
     ##################################

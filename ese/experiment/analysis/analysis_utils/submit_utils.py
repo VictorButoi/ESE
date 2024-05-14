@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 from pathlib import Path
 from typing import List, Optional
+from itertools import chain, combinations
 # ESE imports
 from ese.scripts.utils import gather_exp_paths
 from ese.experiment.models.utils import get_calibrator_cls
@@ -15,21 +16,35 @@ from ionpy.util import dict_product
 from ionpy.experiment.util import fix_seed
 from ionpy.util.config import check_missing
 
+def power_set(in_set):
+    return list(chain.from_iterable(combinations(in_set, r) for r in range(len(in_set)+1)))
+
 def get_ese_inference_configs(
     group_dict: dict,
     inf_cfg_opts: dict,
     base_cfg: Config,
-    base_cfg_args: dict
+    base_cfg_args: dict,
+    power_set_keys: Optional[List[str]] = None
 ):
     # Set the seed if it is provided.
     if "seed" in base_cfg_args['submit_opts']:
         fix_seed(base_cfg_args['submit_opts']['seed'])
+    
+    # for each power set key, we replace the list of options with its power set.
+    if power_set_keys is not None:
+        for key in power_set_keys:
+            inf_cfg_opts[key] = power_set(inf_cfg_opts[key])
 
     # Gather the different config options.
     keys = list(inf_cfg_opts.keys())
-    keys.remove('calibrator') # We need to handle calibrator separately.
+    if 'calibrator' in keys:
+        keys.remove('calibrator') # We need to handle calibrator separately.
+    else:
+        inf_cfg_opts['calibrator'] = ['Uncalibrated']
+
     # Generate product tuples
     product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in keys]))
+    
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{keys[i]: [item[i]] for i in range(len(keys))} for item in product_tuples]
 

@@ -38,6 +38,29 @@ def save_trackers(output_root, trackers):
     save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
 
 
+def aug_support(sx_cpu, sy_cpu, inference_init_obj):
+    sx_cpu_np = sx_cpu.numpy() # S 1 H W
+    sy_cpu_np = sy_cpu.numpy() # S 1 H W
+    # Augment each member of the support set individually.
+    aug_sx = []    
+    aug_sy = []
+    for sup_idx in range(sx_cpu_np.shape[0]):
+        aug_pair = inference_init_obj['support_transforms'](
+            image=sx_cpu_np[sup_idx, 0, ...], 
+            mask=sy_cpu_np[sup_idx, 0, ...]
+        )
+        aug_sx.append(aug_pair['image'][np.newaxis, ...])
+        aug_sy.append(aug_pair['mask'][np.newaxis, ...])
+    # Concatenate the augmented support set.
+    sx_cpu_np = np.stack(aug_sx, axis=0)
+    sy_cpu_np = np.stack(aug_sy, axis=0)
+    # Convert to torch tensors.
+    sx_cpu = torch.from_numpy(sx_cpu_np)
+    sy_cpu = torch.from_numpy(sy_cpu_np)
+    # Return the augmented support sets.
+    return sx_cpu, sy_cpu
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
     cfg: Config,
@@ -45,7 +68,7 @@ def get_cal_stats(
     # Get the config dictionary
     inference_cfg_dict = cfg.to_dict()
     # initialize the calibration statistics.
-    inference_init_obj = cal_stats_init(inference_cfg_dict)
+    inference_init_obj = cal_stats_init(inference_cfg_dict, yaml_cfg_dir="/storage/vbutoi/projects/ESE")
     # Get the accumulators and the splits we are running inference over.
     trackers = inference_init_obj["trackers"]
     inference_splits = inference_init_obj["dloaders"].keys()
@@ -72,10 +95,8 @@ def get_cal_stats(
                             # Send the support set to the device
                             sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
                             # Apply augmentation to the support set if defined.
-                            if "support_transforms" in inference_init_obj:
-                                transform_obj = inference_init_obj['support_transforms'](image=sx_cpu, mask=sy_cpu)
-                                sx_cpu = transform_obj["image"]
-                                sy_cpu = transform_obj["mask"]
+                            if inference_init_obj['support_transforms'] is not None:
+                                sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inference_init_obj)
                             # if "Subject11" not in support_data_ids:
                             sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
                             # Run the dataloader loop with this particular support of images and labels.
@@ -84,6 +105,7 @@ def get_cal_stats(
                                 label_idx=label_idx,
                                 sup_idx=sup_idx,
                                 support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
+                                support_augs=inference_cfg_dict['experiment']['support_augs'],
                                 **loop_args
                             )
                     else:
@@ -143,6 +165,7 @@ def dataloader_loop(
     data_counter: int,
     sup_idx: Optional[int] = None,
     label_idx: Optional[int] = None,
+    support_augs: Optional[Any] = None,
     support_dict: Optional[dict] = None,
     support_generator: Optional[Any] = None,
 ):
@@ -158,10 +181,15 @@ def dataloader_loop(
         forward_batch = {
             "split": split,
             "batch_idx": batch_idx,
-            "sup_idx": sup_idx,
             "label_idx": label_idx,
             **batch
         }
+        if inf_cfg_dict['model']['_type'] == 'incontext':
+            forward_batch = {
+                "sup_idx": sup_idx,
+                "support_augs": support_augs,
+                **forward_batch
+            }
         # if forward_batch['data_id'][0] == 'Subject14':
         # Gather the forward item.
         forward_item = {
@@ -309,6 +337,18 @@ def incontext_image_forward_loop(
         predict_args = {'multi_class': True}
         if inf_cfg_dict["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
+        
+        # Define the arguments that are shared by fixed supports and variable supports.
+        common_forward_args = {
+            "x": image,
+            "y_true": label_map,
+            "y_logits": None,
+            "slice_idx": slice_idx,
+            "split": batch['split'],
+            "data_id": batch['data_id'][0], # Works because batchsize = 1
+            "label_idx": batch["label_idx"],
+            'support_augs': batch['support_augs'], # 'support_augs' is a dictionary of augmentations for the support set.
+        }
 
         if support_dict is not None:
             assert inf_cfg_dict['ensemble']['num_members'] == 1, "Ensemble members must be 1 for fixed support sets."
@@ -326,18 +366,12 @@ def incontext_image_forward_loop(
             y_probs = torch.cat([1 - y_probs, y_probs], dim=1).unsqueeze(2) # B, 2, 1, H, W
             # Wrap the outputs into a dictionary.
             output_dict = {
-                "x": image,
-                "y_true": label_map,
-                "y_logits": None,
-                "y_probs": y_probs,
                 "y_hard": y_hard,
-                "support_set": support_args,
+                "y_probs": y_probs,
                 "sup_idx": batch['sup_idx'],
-                "data_id": batch['data_id'][0], # Works because batchsize = 1
+                "support_set": support_args,
                 "support_data_ids": support_dict['data_ids'],
-                "label_idx": batch["label_idx"],
-                "split": batch['split'],
-                "slice_idx": slice_idx,
+                **common_forward_args
             }
             # Get the calibration item info.  
             get_calibration_item_info(
@@ -353,7 +387,10 @@ def incontext_image_forward_loop(
                     # Note: different subjects will use different support sets
                     # but different models will use the same support sets
                     rng = inf_cfg_dict['experiment']['seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
-                    sx_cpu, sy_cpu, support_data_ids = support_generator[rng]
+                    sx_cpu, sy_cpu, _ = support_generator[rng]
+                    # Apply augmentation to the support set if defined.
+                    if inf_init_obj['support_transforms'] is not None:
+                        sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
                     sx, sy = to_device((sx_cpu, sy_cpu), exp.device)
                     # Package it into a dictionary.
                     support_args = {
@@ -372,19 +409,14 @@ def incontext_image_forward_loop(
                 # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
                 ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
                 ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)
+                # NOTE: In this mode, we can't visualize our supports because it's unclear what the support set is (in an ensemble).
                 # Wrap the outputs into a dictionary.
                 output_dict = {
-                    "x": image,
-                    "y_true": label_map,
-                    "y_logits": None,
+                    "sup_idx": sup_idx,
                     "y_probs": ensembled_probs,
                     "y_hard": ensembled_hard_pred,
-                    "sup_idx": sup_idx,
                     "data_id": batch["data_id"][0], # Works because batchsize = 1
-                    "support_data_ids": support_data_ids,
-                    "label_idx": batch["label_idx"],
-                    "split": batch["split"],
-                    "slice_idx": slice_idx,
+                    **common_forward_args
                 }
                 # Get the calibration item info.  
                 get_calibration_item_info(

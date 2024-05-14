@@ -1,0 +1,14 @@
+Affine:
+  albumentations.augmentations.geometric.transforms.Affine:
+    p: 0.5
+    translate_percent: [0, 0.1]
+
+Elastic:
+  albumentations.augmentations.geometric.transforms.ElasticTransform:
+    p: 0.5 
+    alpha: [1, 2.5]
+    sigma: [7, 9]
+
+HorizontalFlip:
+  albumentations.augmentations.geometric.transforms.HorizontalFlip:
+    p: 0.5
