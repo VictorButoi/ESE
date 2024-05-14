@@ -187,6 +187,7 @@ def get_average_unet_baselines(
 
 
 def cal_stats_init(cfg_dict):
+    cal_init_obj_dict = {}
     ###################
     # BUILD THE MODEL #
     ###################
@@ -196,6 +197,7 @@ def cal_stats_init(cfg_dict):
     inference_exp.to_device()
     # Ensure that inference seed is the same.
     fix_seed(inference_cfg['experiment']['seed'])
+    cal_init_obj_dict['exp'] = inference_exp
 
     #####################
     # BUILD THE DATASET #
@@ -205,14 +207,12 @@ def cal_stats_init(cfg_dict):
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     assert inference_cfg['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
-    # Get the inference augmentation options.
-    aug_cfg_list = None if 'augmentations' not in inference_cfg.keys() else inference_cfg['augmentations']
     # Build the dataloaders.
     data_objs, modified_cfg = dataloader_from_exp( 
         inference_exp,
         inference_cfg=inference_cfg,
         new_dset_options=new_dset_options, 
-        aug_cfg_list=aug_cfg_list
+        aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
     inference_cfg['dataset'] = modified_cfg 
     #############################
@@ -233,6 +233,19 @@ def cal_stats_init(cfg_dict):
         cfg_dict=inference_cfg,
         save_root=save_root
     )
+
+    # Compile everything into a dictionary.
+    cal_init_obj_dict = {
+        "dloaders": data_objs['dataloaders'],
+        "supports": data_objs['supports'],
+        "trackers": trackers,
+        "output_root": task_root,
+        **cal_init_obj_dict
+    }
+
+    # We can also add augmentation at inference to boost performance.
+    if 'support_augmentations' in inference_cfg.keys():
+        cal_init_obj_dict['support_transforms'] = augmentations_from_config(inference_cfg['support_augmentations']) 
     
     print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
     ##################################
@@ -270,13 +283,7 @@ def cal_stats_init(cfg_dict):
         )
         
     # Return a dictionary of the components needed for the calibration statistics.
-    return {
-        "exp": inference_exp,
-        "dloaders": data_objs['dataloaders'],
-        "supports": data_objs['supports'],
-        "trackers": trackers,
-        "output_root": task_root
-    }
+    return cal_init_obj_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

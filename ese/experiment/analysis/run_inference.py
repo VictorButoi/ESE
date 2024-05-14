@@ -71,17 +71,21 @@ def get_cal_stats(
                             rng = inference_cfg_dict['experiment']['seed'] * (sup_idx + 1)
                             # Send the support set to the device
                             sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
-                            print(support_data_ids)
-                            if "Subject11" not in support_data_ids:
-                                sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
-                                # Run the dataloader loop with this particular support of images and labels.
-                                dataloader_loop(
-                                    dloader=split_dataloader_obj[label_idx],
-                                    label_idx=label_idx,
-                                    sup_idx=sup_idx,
-                                    support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
-                                    **loop_args
-                                )
+                            # Apply augmentation to the support set if defined.
+                            if "support_transforms" in inference_init_obj:
+                                transform_obj = inference_init_obj['support_transforms'](image=sx_cpu, mask=sy_cpu)
+                                sx_cpu = transform_obj["image"]
+                                sy_cpu = transform_obj["mask"]
+                            # if "Subject11" not in support_data_ids:
+                            sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
+                            # Run the dataloader loop with this particular support of images and labels.
+                            dataloader_loop(
+                                dloader=split_dataloader_obj[label_idx],
+                                label_idx=label_idx,
+                                sup_idx=sup_idx,
+                                support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
+                                **loop_args
+                            )
                     else:
                         dataloader_loop(
                             dloader=split_dataloader_obj[label_idx],
@@ -143,8 +147,6 @@ def dataloader_loop(
     support_generator: Optional[Any] = None,
 ):
     for batch_idx, batch in enumerate(dloader):
-        # if batch["data_id"][0] == "114":
-        # if batch["data_id"][0] == "munster_000143_000019":
         print(f"Split: {split}, Label: {label_idx} | Working on batch #{batch_idx} out of",\
             len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
         if isinstance(batch, list):
@@ -160,31 +162,31 @@ def dataloader_loop(
             "label_idx": label_idx,
             **batch
         }
-        if forward_batch['data_id'][0] == 'Subject14':
-            # Gather the forward item.
-            forward_item = {
-                "inf_cfg_dict": inf_cfg_dict,
-                "inf_init_obj": inf_init_obj,
-                "batch": forward_batch,
-                "trackers": trackers,
-                "data_counter": data_counter,
-            }
-            # Run the forward loop
-            input_type = inf_cfg_dict['data']['input_type']
-            if input_type == 'volume':
-                volume_forward_loop(**forward_item)
-            elif input_type == 'image':
-                if inf_cfg_dict['model']['_type'] == 'incontext':
-                    if support_dict is not None:
-                        incontext_image_forward_loop(support_dict=support_dict, **forward_item)
-                    elif support_generator is not None:
-                        incontext_image_forward_loop(support_generator=support_generator, **forward_item)
-                    else:
-                        raise ValueError("Support set method not found.")
+        # if forward_batch['data_id'][0] == 'Subject14':
+        # Gather the forward item.
+        forward_item = {
+            "inf_cfg_dict": inf_cfg_dict,
+            "inf_init_obj": inf_init_obj,
+            "batch": forward_batch,
+            "trackers": trackers,
+            "data_counter": data_counter,
+        }
+        # Run the forward loop
+        input_type = inf_cfg_dict['data']['input_type']
+        if input_type == 'volume':
+            volume_forward_loop(**forward_item)
+        elif input_type == 'image':
+            if inf_cfg_dict['model']['_type'] == 'incontext':
+                if support_dict is not None:
+                    incontext_image_forward_loop(support_dict=support_dict, **forward_item)
+                elif support_generator is not None:
+                    incontext_image_forward_loop(support_generator=support_generator, **forward_item)
                 else:
-                    standard_image_forward_loop(**forward_item)
+                    raise ValueError("Support set method not found.")
             else:
-                raise ValueError(f"Input type {input_type} not recognized.")
+                standard_image_forward_loop(**forward_item)
+        else:
+            raise ValueError(f"Input type {input_type} not recognized.")
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
