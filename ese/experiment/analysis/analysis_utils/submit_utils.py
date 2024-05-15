@@ -23,11 +23,11 @@ def get_ese_inference_configs(
     group_dict: dict,
     inf_cfg_opts: dict,
     base_cfg: Config,
-    base_cfg_args: dict,
+    base_cfg_args: Optional[dict] = {},
     power_set_keys: Optional[List[str]] = None
 ):
     # Set the seed if it is provided.
-    if "seed" in base_cfg_args['submit_opts']:
+    if "seed" in base_cfg_args.get('submit_opts', {}):
         fix_seed(base_cfg_args['submit_opts']['seed'])
     
     # for each power set key, we replace the list of options with its power set.
@@ -101,46 +101,41 @@ def get_ese_inference_configs(
             for run_opt_dict in total_run_cfg_options: 
                 # If you want to run inference on ensembles, use this.
                 if run_opt_dict.get('model.ensemble', False) or group_dict['model_type'] == "incontext":
-                    # For each ensemble option, we want to run inference.
-                    for ens_cfg in base_cfg_args['submit_opts']['ens_cfg_options']:
-                        # Make the ens_cfg a tuple.
-                        ens_cfg = ast.literal_eval(ens_cfg)
-                        # Define where we want to save the results.
-                        if base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
-                            inf_log_root = inference_exp_root / f"ensemble_upper_bounds"
+                    # Define where we want to save the results.
+                    if base_cfg_args != {} and base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
+                        inf_log_root = inference_exp_root / f"ensemble_upper_bounds"
+                    else:
+                        inf_log_root = inference_exp_root / f"{dataset}_Ensemble_{calibrator}"
+                    # Define where the set of base models come from.
+                    advanced_args = {
+                        "log.root": [str(inf_log_root)],
+                        "model.ensemble": [True],
+                        **run_opt_dict
+                    }
+                    num_ens_mem_opts = [1] if base_cfg_args == {} else base_cfg_args['submit_opts']['num_ens_membs']
+                    for num_ens_members in num_ens_mem_opts:
+                        # For each num_ens_members, we subselect that num of the total_ens_members.
+                        if group_dict['model_type'] == "incontext":
+                            # Make a copy of our default config options.
+                            dupe_def_cfg_opts = default_config_options.copy()
+                            # If we are using incontext models, we need to use the ensemble groups.
+                            advanced_args['ensemble.num_members'] = [num_ens_members]
+                            advanced_args['model.pretrained_exp_root'] = [str(model_group_dir)]
+                            # Combine the default and advanced arguments
+                            dupe_def_cfg_opts.update(advanced_args)
+                            # Append these to the list of configs and roots.
+                            dataset_cfgs.append(dupe_def_cfg_opts)
                         else:
-                            inf_log_root = inference_exp_root / f"{dataset}_Ensemble_{calibrator}"
-                        # Define where the set of base models come from.
-                        advanced_args = {
-                            "log.root": [str(inf_log_root)],
-                            "model.ensemble": [True],
-                            "ensemble.combine_fn": [ens_cfg[0]],
-                            "ensemble.combine_quantity": [ens_cfg[1]],
-                            **run_opt_dict
-                        }
-                        for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
-                            # For each num_ens_members, we subselect that num of the total_ens_members.
-                            if group_dict['model_type'] == "incontext":
+                            for ens_group in ensemble_groups[num_ens_members]:
                                 # Make a copy of our default config options.
                                 dupe_def_cfg_opts = default_config_options.copy()
-                                # If we are using incontext models, we need to use the ensemble groups.
+                                # Define where the set of base models come from.
                                 advanced_args['ensemble.num_members'] = [num_ens_members]
-                                advanced_args['model.pretrained_exp_root'] = [str(model_group_dir)]
-                                # Combine the default and advanced arguments
+                                advanced_args['ensemble.member_paths'] = [list(ens_group)]
+                                # Combine the default and advanced arguments.
                                 dupe_def_cfg_opts.update(advanced_args)
                                 # Append these to the list of configs and roots.
                                 dataset_cfgs.append(dupe_def_cfg_opts)
-                            else:
-                                for ens_group in ensemble_groups[num_ens_members]:
-                                    # Make a copy of our default config options.
-                                    dupe_def_cfg_opts = default_config_options.copy()
-                                    # Define where the set of base models come from.
-                                    advanced_args['ensemble.num_members'] = [num_ens_members]
-                                    advanced_args['ensemble.member_paths'] = [list(ens_group)]
-                                    # Combine the default and advanced arguments.
-                                    dupe_def_cfg_opts.update(advanced_args)
-                                    # Append these to the list of configs and roots.
-                                    dataset_cfgs.append(dupe_def_cfg_opts)
                 # If you want to run inference on individual networks, use this.
                 else:
                     # If we aren't ensembling, then we can't do incontext models.

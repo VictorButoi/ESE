@@ -1,6 +1,6 @@
 Affine:
   albumentations.Affine:
-    translate_percent: [-0.2, 0.2]
+    translate_percent: [-0.1, 0.1]
     p: 0.5 
 
 Elastic:
