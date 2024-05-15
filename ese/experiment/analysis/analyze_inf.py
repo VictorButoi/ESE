@@ -231,6 +231,7 @@ def load_cal_inference_stats(
             "calibrator._name",
             "calibrator.conf_pool_width",
             "model.cal_stats_split",
+            "experiment.exp_root",
             "experiment.support_augs",
             "experiment.dataset_name",
             "experiment.threshold",

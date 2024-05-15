@@ -65,6 +65,7 @@ def get_ese_inference_configs(
 
             # Define the set of default config options.
             default_config_options = {
+                'experiment.exp_name': [group_dict['exp_group']],
                 'experiment.exp_root': [str(inference_exp_root)],
                 'experiment.dataset_name': [dataset],
                 'calibrator._name': [calibrator],
