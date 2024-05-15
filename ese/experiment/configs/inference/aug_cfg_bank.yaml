@@ -5,8 +5,9 @@ Affine:
 
 Elastic:
   albumentations.ElasticTransform:
-    alpha: 2.5
-    sigma: 7
+    alpha: 20
+    sigma: 3 
+    alpha_affine: 0.5
     p: 0.5 
 
 HorizontalFlip:
