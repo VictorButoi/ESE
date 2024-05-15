@@ -248,18 +248,19 @@ def cal_stats_init(
 
     # We can also add augmentation at inference to boost performance.
     support_aug_cfg = inference_cfg['experiment'].get('support_augs', None)
-    if support_aug_cfg is not None:
-        if len(support_aug_cfg) > 0:
-            # Open the yaml file corresponding to the augmentations
-            with open(f"{yaml_cfg_dir}/ese/experiment/configs/inference/aug_cfg_bank.yaml", 'r') as f:
-                aug_cfg_almanac = yaml.safe_load(f)
-            aug_dict_list = []
-            for sup_aug in support_aug_cfg:
-                assert sup_aug in aug_cfg_almanac.keys(), "Augmentation must be defined in the yaml file."   
-                aug_dict_list.append(aug_cfg_almanac[sup_aug])
-            cal_init_obj_dict['support_transforms'] = augmentations_from_config(aug_dict_list)
-        else:
-            cal_init_obj_dict['support_transforms'] = None
+    print(support_aug_cfg)
+    if support_aug_cfg is not None and len(support_aug_cfg) > 0:
+        # Open the yaml file corresponding to the augmentations
+        with open(f"{yaml_cfg_dir}/ese/experiment/configs/inference/aug_cfg_bank.yaml", 'r') as f:
+            aug_cfg_almanac = yaml.safe_load(f)
+        aug_dict_list = []
+        for sup_aug in support_aug_cfg:
+            assert sup_aug in aug_cfg_almanac.keys(),\
+                f"Augmentation must be defined in the yaml file. Got target aug: {sup_aug} and support is for keys: {aug_cfg_almanac.keys()}."   
+            aug_dict_list.append(aug_cfg_almanac[sup_aug])
+        cal_init_obj_dict['support_transforms'] = augmentations_from_config(aug_dict_list)
+    else:
+        cal_init_obj_dict['support_transforms'] = None
     
     print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
     ##################################

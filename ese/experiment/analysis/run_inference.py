@@ -105,7 +105,7 @@ def get_cal_stats(
                                 label_idx=label_idx,
                                 sup_idx=sup_idx,
                                 support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
-                                support_augs=inference_cfg_dict['experiment']['support_augs'],
+                                support_augs=inference_cfg_dict['experiment'].get('support_augs', None),
                                 **loop_args
                             )
                     else:

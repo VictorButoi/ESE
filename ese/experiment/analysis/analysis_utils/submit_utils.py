@@ -33,7 +33,8 @@ def get_ese_inference_configs(
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
-            inf_cfg_opts[key] = power_set(inf_cfg_opts[key])
+            if key in inf_cfg_opts:
+                inf_cfg_opts[key] = power_set(inf_cfg_opts[key])
 
     # Gather the different config options.
     keys = list(inf_cfg_opts.keys())
