@@ -47,7 +47,6 @@ def aug_support(sx_cpu, sy_cpu, inference_init_obj):
     for sup_idx in range(sx_cpu_np.shape[0]):
         img_slice = sx_cpu_np[sup_idx, 0, ...]
         lab_slice = sy_cpu_np[sup_idx, 0, ...]
-        print(img_slice.shape, lab_slice.shape)
         # Apply the augmentation to the support set.
         aug_pair = inference_init_obj['support_transforms'](
             image=img_slice,
