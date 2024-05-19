@@ -1,13 +1,16 @@
 import torch
 import numpy as np
-from typing import Optional
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from ..metrics.utils import (
+    get_bin_per_sample, 
+)
 
 
 def ShowPredictionsCallback(
     batch, 
     threshold: float,
+    num_prob_bins: int = 15,
     size_per_iamge: int = 5
 ):
     # If our pred has a different batchsize than our inputs, we
@@ -75,7 +78,7 @@ def ShowPredictionsCallback(
     y_hat = y_hat.squeeze()
 
     # num_cols = 5 if (softpred_dim is not None) else 3
-    f, axarr = plt.subplots(nrows=bs, ncols=5, figsize=(5 * size_per_iamge, bs*size_per_iamge))
+    f, axarr = plt.subplots(nrows=bs, ncols=6, figsize=(5 * size_per_iamge, bs*size_per_iamge))
 
     # Go through each item in the batch.
     for b_idx in range(bs):
@@ -103,7 +106,8 @@ def ShowPredictionsCallback(
             f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
             pix_accuracy = (y_hard == y)
-            axarr[4].set_title("Pixel Miscalibration")
+
+            axarr[4].set_title("Brier Map")
             im5 = axarr[4].imshow(
                 (max_probs - pix_accuracy), 
                 cmap='RdBu_r', 
@@ -111,6 +115,33 @@ def ShowPredictionsCallback(
                 vmin=-1.0, 
                 interpolation='None')
             f.colorbar(im5, ax=axarr[4], orientation='vertical')
+
+            miscal_map = np.zeros_like(max_probs)
+            # Figure out where each pixel belongs (in confidence)
+            toplabel_bin_ownership_map = get_bin_per_sample(
+                pred_map=max_probs[None],
+                class_wise=False,
+                num_prob_bins=num_prob_bins,
+                int_start=0.0,
+                int_end=1.0,
+                device='cpu'
+            ).squeeze()
+            # Fill the bin regions with the miscalibration.
+            max_probs = max_probs.numpy()
+            for bin_idx in range(num_prob_bins):
+                bin_mask = (toplabel_bin_ownership_map == bin_idx)
+                if bin_mask.sum() > 0:
+                    miscal_map[bin_mask] = (max_probs[bin_mask] - pix_accuracy[bin_mask]).mean()
+
+            # Plot the miscalibration
+            axarr[5].set_title("Miscalibration Map")
+            im6 = axarr[5].imshow(
+                miscal_map, 
+                cmap='RdBu_r', 
+                vmax=0.2, 
+                vmin=-0.2, 
+                interpolation='None')
+            f.colorbar(im6, ax=axarr[5], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr:
