@@ -39,3 +39,14 @@ qual_metrics:
         _fn: ese.experiment.metrics.pixel_accuracy
         from_logits: True
         metric_type: quality
+    - SoftVolumeError:
+        _fn: ese.experiment.metrics.volume_error
+        from_logits: True
+        batch_reduction: 'mean' 
+        metric_type: quality
+    - HardVolumeError:
+        _fn: ese.experiment.metrics.volume_error
+        from_logits: True
+        batch_reduction: 'mean' 
+        threshold: 0.5
+        metric_type: quality
