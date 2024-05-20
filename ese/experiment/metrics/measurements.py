@@ -14,7 +14,8 @@ def volume_error(
     y_pred: Tensor,
     y_true: Tensor,
     from_logits: bool = False,
-    threshold: Optional[float] = None,
+    do_threshold: bool = False,
+    threshold: Optional[float] = 0.5,
     batch_reduction: Reduction = "mean",
 ):
     # Note this only really makes sense in non-binary contexts.
@@ -25,7 +26,7 @@ def volume_error(
     y_pred = y_pred.view(y_pred.size(0), -1)
     y_true = y_true.view(y_true.size(0), -1)
     
-    if threshold is not None:
+    if do_threshold:
         y_pred = (y_pred > threshold).float()
     
     # Compute the volume error

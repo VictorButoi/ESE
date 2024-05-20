@@ -42,11 +42,13 @@ qual_metrics:
     - SoftVolumeError:
         _fn: ese.experiment.metrics.volume_error
         from_logits: True
+        do_threshold: False 
         batch_reduction: 'mean' 
         metric_type: quality
     - HardVolumeError:
         _fn: ese.experiment.metrics.volume_error
         from_logits: True
-        batch_reduction: 'mean' 
+        do_threshold: True
         threshold: 0.5
+        batch_reduction: 'mean' 
         metric_type: quality
