@@ -272,6 +272,8 @@ def cal_stats_init(
             q_metric_name = list(q_met_cfg.keys())[0]
             quality_metric_options = q_met_cfg[q_metric_name]
             metric_type = quality_metric_options.pop("metric_type")
+            if 'from_logits' in quality_metric_options.keys():
+                assert not quality_metric_options['from_logits'], "Quality metrics must be computed on probabilities."
             # Add the quality metric to the dictionary.
             qual_metrics_dict[q_metric_name] = {
                 "name": q_metric_name,
