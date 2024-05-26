@@ -3,12 +3,6 @@ import torch
 from torch.nn import functional as F
 # Misc imports
 from pydantic import validate_arguments
-# local imports
-from ..metrics.scoring import (
-    pixel_ambiguity, 
-    soft_region_ambiguity, 
-    hard_region_ambiguity
-)
 from ..metrics.local_ps import bin_stats_init
 from ..experiment.utils import reduce_ensemble_preds
     
@@ -115,30 +109,6 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
-    # If we are ensembling, then we also want to calculate the variance of the ensemble predictions.
-    if inference_cfg["model"]["ensemble"]:
-        # Calculate the variance of the ensemble predictions.
-        soft_ensemble_preds = torch.stack(ensemble_member_preds, dim=0) # E x B x C x H x W
-        amb_args = {
-            "ind_preds": soft_ensemble_preds,
-            "ens_pred": qual_input_config["y_pred"],
-            "batch_reduction": "mean",
-            "from_logits": False
-        }
-        qual_metric_scores_dict["Pixel-Ambiguity"] = pixel_ambiguity(**amb_args)
-        qual_metric_scores_dict["Soft-Region-Ambiguity"] = soft_region_ambiguity(**amb_args)
-        qual_metric_scores_dict["Hard-Region-Ambiguity"] = hard_region_ambiguity(**amb_args)
-    else:
-        qual_metric_scores_dict["Pixel-Ambiguity"] = None
-        qual_metric_scores_dict["Soft-Region-Ambiguity"] = None
-        qual_metric_scores_dict["Hard-Region-Ambiguity"] = None
-
-    # If you're showing the predictions, also print the scores.
-    if inference_cfg["log"].get("show_examples", False):
-        print(f"Pixel-Ambiguity: {qual_metric_scores_dict['Pixel-Ambiguity']}")
-        print(f"Soft-Region-Ambiguity: {qual_metric_scores_dict['Soft-Region-Ambiguity']}")
-        print(f"Hard-Region-Ambiguity: {qual_metric_scores_dict['Hard-Region-Ambiguity']}")
-
     #############################################################
     # CALCULATE CALIBRATION METRICS
     #############################################################
@@ -154,7 +124,6 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
                 for ens_mem_input_cfg in ens_member_cal_input_cfgs:
                     member_cal_score = cal_metric_dict['_fn'](**ens_mem_input_cfg)
                     individual_cal_scores.append(member_cal_score)
-                # print("Ignoring Ensemble member preds~!")
                 # Now place it in the dictionary.
                 grouped_scores_dict['calibration'][cal_metric_name] = torch.mean(torch.Tensor(individual_cal_scores))
             else:
@@ -176,38 +145,29 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
         label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
-    # Add our scores to the image level records.
-    metrics_collection ={
-        "quality": qual_metric_scores_dict,
-        "calibration": cal_metric_errors_dict
-    }
-    exclude_keys = ['x', 'y_true', 'y_logits', 'y_probs', 'y_hard', 'support_set']
+    # We wants to remove the keys corresponding to the image data.
+    exclude_keys = [
+        'x', 
+        'y_true', 
+        'y_logits', 
+        'y_probs', 
+        'y_hard', 
+        'support_set'
+    ]
     info_dict = {k: v for k, v in output_dict.items() if k not in exclude_keys}
     # Iterate through all of the collected metrics and add them to the records.
-    for dict_type, metric_score_dict in metrics_collection.items():
-        for met_name in list(metric_score_dict.keys()):
-            metric_score = metric_score_dict[met_name]
-            if metric_score is not None:
-                metric_score = metric_score.item()
-            metrics_record = {
-                "image_metric": met_name,
-                "metric_score": metric_score
-            }
-            if inference_cfg["model"]["ensemble"] and met_name not in [
-                "Pixel-Ambiguity", 
-                "Soft-Region-Ambiguity", 
-                "Hard-Region-Ambiguity",
-            ]:
-                metrics_record["groupavg_image_metric"] = f"GroupAvg_{met_name}"
-                metrics_record["groupavg_metric_score"] = grouped_scores_dict[dict_type][met_name]
-            # Add the dataset info to the record
-            record = {
-                **info_dict,
-                **metrics_record
-            }
-            if inference_cfg["log"]["track_label_amounts"]:
-                record = {**record, **label_amounts_dict}
-            # Add the record to the list.
-            image_level_records.append(record)
+    for met_name, met_score in {**qual_metric_scores_dict, **cal_metric_errors_dict}.items():
+        if met_score is not None:
+            met_score = met_score.item()
+        metrics_record = {
+            "image_metric": met_name,
+            "metric_score": met_score
+        }
+        # Add the dataset info to the record
+        record = {**info_dict, **metrics_record}
+        if inference_cfg["log"]["track_label_amounts"]:
+            record = {**record, **label_amounts_dict}
+        # Add the record to the list.
+        image_level_records.append(record)
     
     return cal_metric_errors_dict

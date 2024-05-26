@@ -109,17 +109,6 @@ def load_cal_inference_stats(
                     if ("log_attributes" in results_cfg) and (inf_group in results_cfg["log_attributes"]):
                         for log_attr in results_cfg["log_attributes"][inf_group]:
                             flat_cfg[log_attr] = results_cfg["log_attributes"][inf_group][log_attr]
-                    # Remove some columns we don't care about and clutter the dataframe.
-                    for drop_key in [
-                        "augmentations",
-                        "dataset.augmentations",
-                        "ensemble.member_paths",
-                        "global_cal_metrics", 
-                        "image_cal_metrics", 
-                        "qual_metrics", 
-                    ]:
-                        if drop_key in flat_cfg:
-                            flat_cfg.pop(drop_key)
                     # For the rest of the keys, if the length of the value is more than 1, convert it to a string.
                     for key in flat_cfg:
                         if isinstance(flat_cfg[key], list) or isinstance(flat_cfg[key], tuple):
@@ -176,12 +165,6 @@ def load_cal_inference_stats(
         #########################################
         # POST-PROCESSING STEPS
         #########################################
-        # Remove any final columns we don't want
-        for drop_key in ["conf_interval"]:
-            # If the key is in the dataframe, remove the column.
-            if drop_key in inference_df.columns:
-                inference_df = inference_df.drop(drop_key, axis=1)
-
         # Only choose rows with some minimal amount of foreground pixels.
         if options_cfg.get("min_fg_pixels", False):
             # Get the names of all columns that have "num_lab" in them.
@@ -218,50 +201,18 @@ def load_cal_inference_stats(
         else:
             if len(num_rows_per_log_set.unique()) != 1:
                 print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
-        
-        # Add new names for keys (helps with augment)
-        inference_df["slice_idx"] = inference_df["slice_idx"].fillna("None")
-        inference_df["model_class"] = inference_df["model._class"]
-        inference_df["ensemble"] = inference_df["model.ensemble"]
-        inference_df["pretrained_seed"] = inference_df["experiment.pretrained_seed"]
 
         # Go through several optional keys, and add them if they don't exist
-        for optional_key in [
-            "model._pretrained_class",
-            "calibrator._name",
-            "calibrator.conf_pool_width",
-            "model.cal_stats_split",
-            "experiment.exp_root",
-            "experiment.support_augs",
-            "experiment.dataset_name",
-            "experiment.threshold",
-            "ensemble.combine_fn",
-            "ensemble.combine_quantity",
-            "ensemble.member_w_metric",
-            "ensemble.member_temps",
-            "groupavg_image_metric",
-            "groupavg_metric_score"
-        ]:
-            if optional_key == "calibrator._name":
+        for raw_key in inference_df.columns:
+            if raw_key == "calibrator._name":
                 new_key = "calibrator"
+            elif raw_key == "model._class":
+                new_key = "model_class"
             else:
-                new_key = optional_key.split(".")[-1]
-
-            if optional_key in inference_df.columns:
-                inference_df[new_key] = inference_df[optional_key].fillna("None")
-            else:
-                inference_df[new_key] = "None"
+                new_key = raw_key.split(".")[-1]
+            # Fill the key with "None" if it is NaN.
+            inference_df[new_key] = inference_df[raw_key].fillna("None")
         
-        if "model.normalize" in inference_df.columns:
-            inference_df["model_norm"] = inference_df["model.normalize"].fillna("None")
-        else:
-            inference_df["model_norm"] = "None"
-
-        if "ensemble.normalize" in inference_df.columns:
-            inference_df["ensemble_norm"] = inference_df["ensemble.normalize"].fillna("None")
-        else:
-            inference_df["ensemble_norm"] = "None"
-
         # Here are a few common columns that we will always want in the dataframe.    
         def method_name(
             model_class, 

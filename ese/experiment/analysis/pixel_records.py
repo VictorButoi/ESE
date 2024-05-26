@@ -19,7 +19,7 @@ from ..metrics.utils import (
 def update_prob_pixel_meters(
     output_dict,
     calibration_cfg,
-    pixel_level_records 
+    record_dict 
 ):
     y_probs = output_dict["y_probs"].squeeze(1) # Remove the channel dimension.
     # Figure out where each pixel belongs (in confidence)
@@ -46,22 +46,22 @@ def update_prob_pixel_meters(
             freq_key = (prob_bin_idx, "accuracy")
             conf_key = (prob_bin_idx, "confidence")
             # If this key doesn't exist in the dictionary, add it
-            if conf_key not in pixel_level_records:
+            if conf_key not in record_dict:
                 for meter_key in [freq_key, conf_key]:
-                    pixel_level_records[meter_key] = StatsMeter()
+                    record_dict[meter_key] = StatsMeter()
             # (acc , conf)
             bin_freq = y_true[bin_conf_region]
             bin_conf = prob_map[bin_conf_region]
             # Finally, add the points to the meters.
-            pixel_level_records[freq_key].addN(bin_freq, batch=True) 
-            pixel_level_records[conf_key].addN(bin_conf, batch=True)
+            record_dict[freq_key].addN(bin_freq, batch=True) 
+            record_dict[conf_key].addN(bin_conf, batch=True)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def update_toplabel_pixel_meters(
     output_dict,
     calibration_cfg,
-    pixel_level_records 
+    record_dict 
 ):
     y_probs = output_dict["y_probs"]
     y_hard = output_dict["y_hard"].squeeze(1) # Remove the channel dimension.
@@ -81,24 +81,23 @@ def update_toplabel_pixel_meters(
         int_start=0.0,
         int_end=1.0
     ).cpu().numpy()
-    # Get the pixel-wise number of PREDICTED matching neighbors.
-    pred_num_neighb_map = agg_neighbors_preds(
-        pred_map=y_hard, # Remove the channel dimension. 
-        class_wise=False,
-        binary=False,
-        neighborhood_width=calibration_cfg["neighborhood_width"],
-        discrete=True,
-    ).cpu().numpy()
-    # Get the pixel-wise number of PREDICTED matching neighbors.
-    true_num_neighb_map = agg_neighbors_preds(
-        pred_map=y_true, # Remove the channel dimension. 
-        class_wise=False,
-        binary=False,
-        neighborhood_width=calibration_cfg["neighborhood_width"],
-        discrete=True,
-    ).cpu().numpy()
-    # Calculate the accuracy map.
+
     ############################################################################3
+    # NEIGHBORHOOD INFO. Get the predicted and actual number of label neighbors.
+    neighb_args = {
+        "class_wise": False,
+        "binary": False,
+        "neighborhood_width": calibration_cfg["neighborhood_width"],
+        "discrete": True
+    }
+
+    # Get the pixel-wise number of PREDICTED matching neighbors.
+    pred_num_neighb_map = agg_neighbors_preds(y_hard, **neighb_args).cpu().numpy()
+    # Get the pixel-wise number of PREDICTED matching neighbors.
+    true_num_neighb_map = agg_neighbors_preds(y_true, **neighb_args).cpu().numpy()
+
+    ############################################################################3
+    # Calculate the accuracy map.
     toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
     # Get the importance per pixel with respect to the loss.
@@ -111,8 +110,8 @@ def update_toplabel_pixel_meters(
         from_logits=False
     ).cpu().numpy()
     # Place all necessary tensors on the CPU as numpy arrays.
-    y_true = y_true.cpu().numpy() # Remove the channel dimension. B x H x W
-    y_hard = y_hard.cpu().numpy() # Remove the channel dimension. B x H x W
+    y_true = y_true.cpu().numpy()
+    y_hard = y_hard.cpu().numpy()
     # Make a cross product of the unique iterators using itertools
     combo_array = np.stack([
         y_true,
@@ -148,9 +147,9 @@ def update_toplabel_pixel_meters(
             conf_key = bin_combo + ("confidence",)
 
             # If this key doesn't exist in the dictionary, add it
-            if conf_key not in pixel_level_records:
+            if conf_key not in record_dict:
                 for meter_key in [freq_key, conf_key]:
-                    pixel_level_records[meter_key] = StatsMeter()
+                    record_dict[meter_key] = StatsMeter()
 
             # Add the keys for the image level tracker.
             if conf_key not in image_tl_meter_dict:
@@ -161,8 +160,8 @@ def update_toplabel_pixel_meters(
             tl_freq = toplabel_freq_map[bin_conf_region]
             tl_conf = toplabel_prob_map[bin_conf_region]
             # Finally, add the points to the meters.
-            pixel_level_records[freq_key].addN(tl_freq, batch=True) 
-            pixel_level_records[conf_key].addN(tl_conf, batch=True)
+            record_dict[freq_key].addN(tl_freq, batch=True) 
+            record_dict[conf_key].addN(tl_conf, batch=True)
             # Add to the local image meter dict.
             image_tl_meter_dict[freq_key].addN(tl_freq, batch=True)
             image_tl_meter_dict[conf_key].addN(tl_conf, batch=True)

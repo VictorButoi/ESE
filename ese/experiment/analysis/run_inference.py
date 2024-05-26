@@ -141,14 +141,11 @@ def get_cal_stats(
             for split in inference_splits:
                 cal_type = cal_metric_dict['cal_type']
                 if cal_type in ["classwise", "toplabel"]:
-                    if cal_type == 'classwise':
-                        cal_loss = cal_metric_dict['_fn'](
-                            pixel_meters_dict=trackers["cw_pixel_meter_dict"][split]
-                        ).item() 
-                    else:
-                        cal_loss = cal_metric_dict['_fn'](
-                            pixel_meters_dict=trackers["tl_pixel_meter_dict"][split]
-                        ).item() 
+                    tracker_key = "cw_pixel_meter_dict" if cal_type == "classwise" else "tl_pixel_meter_dict"
+                    # Calculate the loss.
+                    cal_loss = cal_metric_dict['_fn'](
+                        pixel_meters_dict=trackers[tracker_key][split]
+                    ).item() 
                     # Replace the rows of log_image_df with column 'split' 
                     log_image_df.loc[log_image_df["split"] == split, cal_metric_name] = cal_loss
                 else:
@@ -193,7 +190,6 @@ def dataloader_loop(
                 "support_augs": support_augs,
                 **forward_batch
             }
-        # if forward_batch['data_id'][0] == 'Subject14':
         # Gather the forward item.
         forward_item = {
             "inf_cfg_dict": inf_cfg_dict,
@@ -209,11 +205,13 @@ def dataloader_loop(
         elif input_type == 'image':
             if inf_cfg_dict['model']['_type'] == 'incontext':
                 if support_dict is not None:
-                    incontext_image_forward_loop(support_dict=support_dict, **forward_item)
+                    forward_item['support_dict'] = support_dict
                 elif support_generator is not None:
-                    incontext_image_forward_loop(support_generator=support_generator, **forward_item)
+                    forward_item['support_generator'] = support_generator
                 else:
                     raise ValueError("Support set method not found.")
+                # Run the forward loop.
+                incontext_image_forward_loop(**forward_item)
             else:
                 standard_image_forward_loop(**forward_item)
         else:
@@ -236,7 +234,6 @@ def volume_forward_loop(
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
-        # if slice_idx == 10:
         print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
         # Get the prediction with no gradient accumulation.
         slice_batch = {
@@ -441,8 +438,6 @@ def get_calibration_item_info(
     inference_cfg,
     trackers
 ):
-    # Get the calibration item info.
-    split = output_dict["split"]
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################
@@ -451,8 +446,6 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
-    # start = time.time()
-    # print("Started Image Level Records")
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -462,8 +455,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=trackers["image_level_records"]
         ) 
-    # end = time.time()
-    # print("Finished Image Level Records. Took", end - start, "seconds.")
     ###############################################################################################
     # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
     ###############################################################################################
@@ -479,25 +470,24 @@ def get_calibration_item_info(
             "split": output_dict["split"],
             "slice_idx": output_dict["slice_idx"]
         }
-    ########################
-    # PIXEL LEVEL TRACKING #
-    ########################
-    # start = time.time()
-    # print("Started Pixel Records")
+    #################################################################
+    # CALIBRATION METRICS FOR THIS IMAGE (TOP-LABEL AND CLASS-WISE) #
+    #################################################################
+    cal_args = {
+        "output_dict": output_dict,
+        "calibration_cfg": inference_cfg['global_calibration'],
+    }
+    # Top-label 
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
-            output_dict=output_dict,
-            calibration_cfg=inference_cfg['global_calibration'],
-            pixel_level_records=trackers["tl_pixel_meter_dict"][split]
+            record_dict=trackers["tl_pixel_meter_dict"][output_dict["split"]]
+            **cal_args
         )
-    ###########################
-    # CW PIXEL LEVEL TRACKING #
-    ###########################
+    # Class-wise 
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
-            output_dict=output_dict,
-            calibration_cfg=inference_cfg['global_calibration'],
-            pixel_level_records=trackers["cw_pixel_meter_dict"][split]
+            record_dict=trackers["cw_pixel_meter_dict"][output_dict["split"]]
+            **cal_args
         )
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
