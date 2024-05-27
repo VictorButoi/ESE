@@ -173,7 +173,7 @@ def update_toplabel_pixel_meters(
 def update_cw_pixel_meters(
     output_dict,
     calibration_cfg,
-    pixel_level_records 
+    record_dict 
 ):
     y_probs = output_dict["y_probs"]
     y_true = output_dict["y_true"]
@@ -268,9 +268,9 @@ def update_cw_pixel_meters(
                 freq_key = (lab_idx,) + bin_combo + ("accuracy",)
                 conf_key = (lab_idx,) + bin_combo + ("confidence",)
                 # If this key doesn't exist in the dictionary, add it
-                if conf_key not in pixel_level_records:
+                if conf_key not in record_dict:
                     for meter_key in [freq_key, conf_key]:
-                        pixel_level_records[meter_key] = StatsMeter()
+                        record_dict[meter_key] = StatsMeter()
                 # Add the keys for the image level tracker.
                 if conf_key not in image_cw_meter_dict:
                     for meter_key in [freq_key, conf_key]:
@@ -279,8 +279,8 @@ def update_cw_pixel_meters(
                 cw_conf = lab_conf_map[lab_bin_conf_region]
                 cw_freq = lab_freq_map[lab_bin_conf_region]
                 # Finally, add the points to the meters.
-                pixel_level_records[freq_key].addN(cw_freq, batch=True) 
-                pixel_level_records[conf_key].addN(cw_conf, batch=True)
+                record_dict[freq_key].addN(cw_freq, batch=True) 
+                record_dict[conf_key].addN(cw_conf, batch=True)
                 # Add to the local image meter dict.
                 image_cw_meter_dict[freq_key].addN(cw_freq, batch=True)
                 image_cw_meter_dict[conf_key].addN(cw_conf, batch=True)

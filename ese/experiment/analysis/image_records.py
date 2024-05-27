@@ -138,12 +138,11 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         "No metrics were specified in the config file."
     
     # Calculate the amount of present ground-truth there is in the image per label.
-    if inference_cfg["log"]["track_label_amounts"]:
-        pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
-        num_classes = output_dict[pred_cls].shape[1]
-        y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
-        label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
-        label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+    pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
+    num_classes = output_dict[pred_cls].shape[1]
+    y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
+    label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
+    label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
     
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
@@ -159,14 +158,13 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
     for met_name, met_score in {**qual_metric_scores_dict, **cal_metric_errors_dict}.items():
         if met_score is not None:
             met_score = met_score.item()
-        metrics_record = {
-            "image_metric": met_name,
-            "metric_score": met_score
-        }
         # Add the dataset info to the record
-        record = {**info_dict, **metrics_record}
-        if inference_cfg["log"]["track_label_amounts"]:
-            record = {**record, **label_amounts_dict}
+        record = {
+            "image_metric": met_name,
+            "metric_score": met_score,
+            **label_amounts_dict,
+            **info_dict
+        }
         # Add the record to the list.
         image_level_records.append(record)
     

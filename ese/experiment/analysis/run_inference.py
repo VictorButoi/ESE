@@ -480,13 +480,13 @@ def get_calibration_item_info(
     # Top-label 
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
-            record_dict=trackers["tl_pixel_meter_dict"][output_dict["split"]]
+            record_dict=trackers["tl_pixel_meter_dict"][output_dict["split"]],
             **cal_args
         )
     # Class-wise 
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
-            record_dict=trackers["cw_pixel_meter_dict"][output_dict["split"]]
+            record_dict=trackers["cw_pixel_meter_dict"][output_dict["split"]],
             **cal_args
         )
     ##################################################################
