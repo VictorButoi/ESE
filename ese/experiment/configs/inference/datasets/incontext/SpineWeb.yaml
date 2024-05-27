@@ -15,14 +15,12 @@ global_calibration:
 qual_metrics:
     - Dice:
         _fn: ese.experiment.metrics.dice_score
-        from_logits: False 
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         ignore_index: 0
         metric_type: quality
     - HD95:
         _fn: ese.experiment.metrics.hd95
-        from_logits: False 
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         ignore_index: 0
@@ -30,24 +28,20 @@ qual_metrics:
     - BoundaryIOU:
         _fn: ese.experiment.metrics.boundary_iou
         boundary_width: 4
-        from_logits: False 
         batch_reduction: 'mean' 
         ignore_empty_labels: False 
         ignore_index: 0
         metric_type: quality
     - Accuracy:
         _fn: ese.experiment.metrics.pixel_accuracy
-        from_logits: False 
         metric_type: quality
     - SoftVolumeError:
         _fn: ese.experiment.metrics.volume_error
-        from_logits: False 
         do_threshold: False 
         batch_reduction: 'mean' 
         metric_type: quality
     - HardVolumeError:
         _fn: ese.experiment.metrics.volume_error
-        from_logits: False 
         do_threshold: True
         threshold: 0.5
         batch_reduction: 'mean' 

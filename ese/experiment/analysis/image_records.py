@@ -133,19 +133,18 @@ def get_image_stats(
 
     # If the label_idx is defined, we are dealing with a binary problem and we want to get the amount of pixels.
     volume_dict = {}
-    if output_dict.get('label_idx', None) is not None:
-        # Get groundtruth label amount
-        gt_volume = output_dict['y_true'].sum().item()
-        # Get the soft prediction volume, this only works for binary problems.
-        pred_volume = output_dict['y_probs'][:, 1, ...].sum().item()
-        # Get thresholded prediction volume
-        hard_volume = output_dict['y_hard'].sum().item()
-        # Define a dictionary of the volumes.
-        volume_dict.update({
-            "gt_volume": gt_volume,
-            "soft_volume": pred_volume,
-            "hard_volume": hard_volume
-        })
+    # Get groundtruth label amount
+    gt_volume = output_dict['y_true'].sum().item()
+    # Get the soft prediction volume, this only works for binary problems.
+    pred_volume = output_dict['y_probs'][:, 1, ...].sum().item()
+    # Get thresholded prediction volume
+    hard_volume = output_dict['y_hard'].sum().item()
+    # Define a dictionary of the volumes.
+    volume_dict.update({
+        "gt_volume": gt_volume,
+        "soft_volume": pred_volume,
+        "hard_volume": hard_volume
+    })
     
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
