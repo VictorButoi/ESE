@@ -1,17 +1,27 @@
-# torch imports
+# Torch imports
 import torch
 from torch.nn import functional as F
-# Misc imports
-from pydantic import validate_arguments
+# Local imports
 from ..metrics.local_ps import bin_stats_init
 from ..experiment.utils import reduce_ensemble_preds
+from ..utils.general import save_dict 
+# Misc imports
+from pydantic import validate_arguments
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_image_stats(output_dict, inference_cfg, image_level_records):
-    num_prob_bins = inference_cfg["local_calibration"]["num_prob_bins"]
-    neighborhood_width = inference_cfg["local_calibration"]["neighborhood_width"]
-
+def get_image_stats(
+    output_dict, 
+    inference_cfg, 
+    image_level_records
+):
+    # Define some common bin stat args
+    bin_stat_args = {
+        "y_true": output_dict["y_true"],
+        "from_logits": False,
+        "num_prob_bins": inference_cfg["local_calibration"]["num_prob_bins"],
+        "neighborhood_width": inference_cfg["local_calibration"]["neighborhood_width"]
+    }
     # (Both individual and reduced)
     if inference_cfg["model"]["ensemble"]:
         # Gather the individual predictions
@@ -35,13 +45,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
                 "y_pred": member_pred, 
                 "y_true": output_dict["y_true"],
                 "from_logits": False,
-                "preloaded_obj_dict": bin_stats_init(
-                                        y_pred=member_pred,
-                                        y_true=output_dict["y_true"],
-                                        from_logits=False,
-                                        num_prob_bins=num_prob_bins,
-                                        neighborhood_width=neighborhood_width
-                                    )
+                "preloaded_obj_dict": bin_stats_init(member_pred, **bin_stat_args)
             } for member_pred in ensemble_member_preds
         ]
         # Get the reduced predictions
@@ -55,13 +59,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         }
         # Get the reduced predictions
         cal_input_config = {
-            "preloaded_obj_dict": bin_stats_init(
-                                    y_pred=qual_input_config['y_pred'],
-                                    y_true=qual_input_config['y_true'],
-                                    from_logits=False,
-                                    num_prob_bins=num_prob_bins,
-                                    neighborhood_width=neighborhood_width
-                                ),
+            "preloaded_obj_dict": bin_stats_init(qual_input_config['y_pred'], **bin_stat_args),
             **qual_input_config
         }
     else:
@@ -72,19 +70,14 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         }
         cal_input_config = {
             **qual_input_config,
-            "preloaded_obj_dict": bin_stats_init(
-                                    y_pred=qual_input_config['y_pred'],
-                                    y_true=qual_input_config['y_true'],
-                                    from_logits=False,
-                                    num_prob_bins=num_prob_bins,
-                                    neighborhood_width=neighborhood_width
-                                )
+            "preloaded_obj_dict": bin_stats_init(qual_input_config['y_pred'], **bin_stat_args)
         }
     # Dicts for storing ensemble scores.
     grouped_scores_dict = {
         "calibration": {},
         "quality": {}
     }
+
     #############################################################
     # CALCULATE QUALITY METRICS
     #############################################################
@@ -109,6 +102,7 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+
     #############################################################
     # CALCULATE CALIBRATION METRICS
     #############################################################
@@ -136,13 +130,13 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
     
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
-    
-    # Calculate the amount of present ground-truth there is in the image per label.
+
+    # Get the num pix per label
     pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
-    num_classes = output_dict[pred_cls].shape[1]
-    y_true_one_hot = F.one_hot(output_dict["y_true"], num_classes=num_classes) # B x 1 x H x W x C
-    label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
-    label_amounts_dict = {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+    label_amounts_dict = get_num_pix_per_lab(
+        y_pred=output_dict[pred_cls],
+        y_true=output_dict["y_true"]
+    )
     
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
@@ -153,19 +147,50 @@ def get_image_stats(output_dict, inference_cfg, image_level_records):
         'y_hard', 
         'support_set'
     ]
-    info_dict = {k: v for k, v in output_dict.items() if k not in exclude_keys}
+    output_metadata = {k: v for k, v in output_dict.items() if k not in exclude_keys}
+
+    # We want to generate a hash of this metadata, useful for accesing saved predictions.
+    pred_hash = hash(str(output_metadata))
     # Iterate through all of the collected metrics and add them to the records.
     for met_name, met_score in {**qual_metric_scores_dict, **cal_metric_errors_dict}.items():
         if met_score is not None:
             met_score = met_score.item()
         # Add the dataset info to the record
         record = {
+            "pred_hash": pred_hash,
             "image_metric": met_name,
             "metric_score": met_score,
             **label_amounts_dict,
-            **info_dict
+            **output_metadata
         }
         # Add the record to the list.
         image_level_records.append(record)
+
+    # If we are logging the predictions, then we need to do that here.
+    if inference_cfg['log'].get("save_preds", False):
+        # Make a copy of the output dict.
+        output_dict_copy = output_dict.copy()
+        remove_keys = [
+            'x', 
+            'y_true', 
+            'y_hard', 
+            'support_set'
+        ]
+        for key in remove_keys:
+            output_dict_copy.pop(key, None)
+        save_dict(
+            dict=output_dict_copy,
+            log_dir=inference_cfg['output_root'] / "preds" / f"{pred_hash}.pkl"
+        )
     
     return cal_metric_errors_dict
+
+
+def get_num_pix_per_lab(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor
+):
+    num_classes = y_pred.shape[1]
+    y_true_one_hot = F.one_hot(y_true, num_classes=num_classes) # B x 1 x H x W x C
+    label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
+    return {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}

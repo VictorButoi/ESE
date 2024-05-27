@@ -7,6 +7,7 @@ from ionpy.util.torchutils import to_device
 from .analysis_utils.inference_utils import cal_stats_init 
 from ..experiment.utils import show_inference_examples, reduce_ensemble_preds
 from .image_records import get_image_stats
+from ..utils.general import save_records, save_dict
 from .pixel_records import (
     update_toplabel_pixel_meters,
     update_cw_pixel_meters
@@ -18,19 +19,6 @@ import pandas as pd
 from typing import Any, Optional
 from pydantic import validate_arguments
     
-
-def save_records(records, log_dir):
-    # Save the items in a pickle file.  
-    df = pd.DataFrame(records)
-    # Save or overwrite the file.
-    df.to_pickle(log_dir)
-
-
-def save_dict(dict, log_dir):
-    # save the dictionary to a pickl file at logdir
-    with open(log_dir, 'wb') as f:
-        pickle.dump(dict, f, pickle.HIGHEST_PROTOCOL)
-
 
 def save_trackers(output_root, trackers):
     save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
@@ -139,17 +127,15 @@ def get_cal_stats(
             log_image_df[cal_metric_name] = np.nan
             # Iterate through the splits, and replace the rows corresponding to the split with the cal losses.
             for split in inference_splits:
-                cal_type = cal_metric_dict['cal_type']
-                if cal_type in ["classwise", "toplabel"]:
-                    tracker_key = "cw_pixel_meter_dict" if cal_type == "classwise" else "tl_pixel_meter_dict"
-                    # Calculate the loss.
-                    cal_loss = cal_metric_dict['_fn'](
-                        pixel_meters_dict=trackers[tracker_key][split]
-                    ).item() 
-                    # Replace the rows of log_image_df with column 'split' 
-                    log_image_df.loc[log_image_df["split"] == split, cal_metric_name] = cal_loss
-                else:
-                    raise ValueError(f"Calibration type {cal_metric_dict['cal_type']} not recognized.")
+                assert cal_metric_dict['cal_type'] in ["classwise", "toplabel"],\
+                    f"Calibration type {cal_metric_dict['cal_type']} not recognized."
+                tracker_key = "cw_pixel_meter_dict" if cal_metric_dict['cal_type'] == "classwise" else "tl_pixel_meter_dict"
+                # Calculate the loss.
+                cal_loss = cal_metric_dict['_fn'](
+                    pixel_meters_dict=trackers[tracker_key][split]
+                ).item() 
+                # Replace the rows of log_image_df with column 'split' 
+                log_image_df.loc[log_image_df["split"] == split, cal_metric_name] = cal_loss
         # Save the dataframe again.
         if inference_cfg_dict["log"]["log_pixel_stats"]:
             log_image_df.to_pickle(image_stats_dir)
@@ -190,6 +176,8 @@ def dataloader_loop(
                 "support_augs": support_augs,
                 **forward_batch
             }
+        # Place the output dir in the inf_cfg_dict
+        inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
         # Gather the forward item.
         forward_item = {
             "inf_cfg_dict": inf_cfg_dict,

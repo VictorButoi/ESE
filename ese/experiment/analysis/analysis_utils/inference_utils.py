@@ -240,9 +240,10 @@ def cal_stats_init(
     # Compile everything into a dictionary.
     cal_init_obj_dict = {
         "dloaders": data_objs['dataloaders'],
-        "supports": data_objs['supports'],
-        "trackers": trackers,
         "output_root": task_root,
+        "supports": data_objs['supports'],
+        "support_transforms": None, # This is set later.
+        "trackers": trackers,
         **cal_init_obj_dict
     }
 
@@ -259,8 +260,6 @@ def cal_stats_init(
                 f"Augmentation must be defined in the yaml file. Got target aug: {sup_aug} and support is for keys: {aug_cfg_almanac.keys()}."   
             aug_dict_list.append(aug_cfg_almanac[sup_aug])
         cal_init_obj_dict['support_transforms'] = augmentations_from_config(aug_dict_list)
-    else:
-        cal_init_obj_dict['support_transforms'] = None
     
     print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
     ##################################
