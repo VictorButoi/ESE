@@ -131,12 +131,21 @@ def get_image_stats(
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
 
-    # Get the num pix per label
-    pred_cls = "y_probs" if (output_dict["y_probs"] is not None) else "y_logits"
-    label_amounts_dict = get_num_pix_per_lab(
-        y_pred=output_dict[pred_cls],
-        y_true=output_dict["y_true"]
-    )
+    # If the label_idx is defined, we are dealing with a binary problem and we want to get the amount of pixels.
+    volume_dict = {}
+    if output_dict.get('label_idx', None) is not None:
+        # Get groundtruth label amount
+        gt_volume = output_dict['y_true'].sum().item()
+        # Get the soft prediction volume, this only works for binary problems.
+        pred_volume = output_dict['y_probs'][:, 1, ...].sum().item()
+        # Get thresholded prediction volume
+        hard_volume = output_dict['y_hard'].sum().item()
+        # Define a dictionary of the volumes.
+        volume_dict.update({
+            "gt_volume": gt_volume,
+            "soft_volume": pred_volume,
+            "hard_volume": hard_volume
+        })
     
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
@@ -160,8 +169,8 @@ def get_image_stats(
             "pred_hash": pred_hash,
             "image_metric": met_name,
             "metric_score": met_score,
-            **label_amounts_dict,
-            **output_metadata
+            **output_metadata,
+            **volume_dict,
         }
         # Add the record to the list.
         image_level_records.append(record)
@@ -186,7 +195,7 @@ def get_image_stats(
     return cal_metric_errors_dict
 
 
-def get_num_pix_per_lab(
+def get_groundtruth_amount(
     y_pred: torch.Tensor,
     y_true: torch.Tensor
 ):
