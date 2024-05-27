@@ -24,7 +24,13 @@ from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperimen
 
 def verify_graceful_exit(log_path: str, log_root: str):
     submitit_dir = os.path.join(log_root, log_path, "submitit")
-    unique_logs = list(set([logfile.split("_")[0] for logfile in os.listdir(submitit_dir)]))
+    # Check that the submitit directory exists if it doesnt then return.
+    try:
+        unique_logs = list(set([logfile.split("_")[0] for logfile in os.listdir(submitit_dir)]))
+    except:
+        print(f"Error loading submitit directory: {submitit_dir}")
+        return
+    # Check that all the logs have a success result.
     for log_name in unique_logs:
         result_log_file = os.path.join(submitit_dir, f"{log_name}_0_result.pkl")
         try:
