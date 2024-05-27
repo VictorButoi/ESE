@@ -176,22 +176,38 @@ def get_image_stats(
 
     # If we are logging the predictions, then we need to do that here.
     if inference_cfg['log'].get("save_preds", False):
-        # Make a copy of the output dict.
-        output_dict_copy = output_dict.copy()
-        remove_keys = [
-            'x', 
-            'y_true', 
-            'y_hard', 
-            'support_set'
-        ]
-        for key in remove_keys:
-            output_dict_copy.pop(key, None)
-        save_dict(
-            dict=output_dict_copy,
-            log_dir=inference_cfg['output_root'] / "preds" / f"{pred_hash}.pkl"
+        save_preds(
+            output_dict=output_dict,
+            pred_hash=pred_hash,
+            output_root=inference_cfg['output_root']
         )
     
     return cal_metric_errors_dict
+
+
+def save_preds(
+    output_dict, 
+    pred_hash, 
+    output_root
+):
+    # Make a copy of the output dict.
+    output_dict_copy = output_dict.copy()
+    remove_keys = [
+        'x', 
+        'y_true', 
+        'y_hard', 
+        'support_set'
+    ]
+    for key in remove_keys:
+        output_dict_copy.pop(key, None)
+    # We need to move all the GPU tensors to the CPU.
+    for key, value in output_dict_copy.items():
+        if isinstance(value, torch.Tensor):
+            output_dict_copy[key] = value.cpu()
+    save_dict(
+        dict=output_dict_copy,
+        log_dir=output_root / "preds" / f"{pred_hash}.pkl"
+    )
 
 
 def get_groundtruth_amount(
