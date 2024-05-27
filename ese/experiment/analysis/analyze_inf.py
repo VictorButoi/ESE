@@ -127,12 +127,13 @@ def load_cal_inference_stats(
         ##################################
         # INITIALIZE CALIBRATION METRICS #
         ##################################
-        cal_metric_dict = yaml.safe_load(open(results_cfg["calibration"]["metric_cfg_file"], 'r'))
-        compute_cal_mets = results_cfg["log"].get("compute_cal_metrics", False)
-        cal_metrics = preload_calibration_metrics(
-            base_cal_cfg=results_cfg["calibration"],
-            cal_metrics_dict=cal_metric_dict["global_cal_metrics"]
-        )
+        if "calibration" in results_cfg:
+            cal_metric_dict = yaml.safe_load(open(results_cfg["calibration"]["metric_cfg_file"], 'r'))
+            compute_cal_mets = results_cfg["log"].get("compute_cal_metrics", False)
+            cal_metrics = preload_calibration_metrics(
+                base_cal_cfg=results_cfg["calibration"],
+                cal_metrics_dict=cal_metric_dict["global_cal_metrics"]
+            )
         #############################
         inference_df = pd.DataFrame([])
         # Loop through every configuration in the log directory.
@@ -212,6 +213,11 @@ def load_cal_inference_stats(
                 new_key = raw_key.split(".")[-1]
             # Fill the key with "None" if it is NaN.
             inference_df[new_key] = inference_df[raw_key].fillna("None")
+        # Add keys that are necessary for the analysis.
+        if '_pretrained_class' not in inference_df.columns:
+            inference_df['_pretrained_class'] = "None"
+        else:
+            inference_df['_pretrained_class'] = inference_df['_pretrained_class'].fillna("None")
         
         # Here are a few common columns that we will always want in the dataframe.    
         def method_name(
@@ -221,13 +227,9 @@ def load_cal_inference_stats(
             ensemble, 
             combine_quantity, 
             combine_fn,
-            ensemble_norm
         ):
             if ensemble:
-                if ensemble_norm and not isinstance(ensemble_norm, str): 
-                    return f"Ensemble ({combine_fn}, {combine_quantity}, norm)"
-                else:
-                    return f"Ensemble ({combine_fn}, {combine_quantity})" 
+                return f"Ensemble ({combine_fn}, {combine_quantity})" 
             else:
                 if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
                     return f"UNet (seed={pretrained_seed})"
@@ -235,15 +237,6 @@ def load_cal_inference_stats(
                     return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
                 else:
                     return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
-
-        def calibrator(calibrator, model_class, model_norm, cal_stats_split):
-            # Add the normalization to the calibrator name.
-            if "Binning" in model_class:
-                if model_norm:
-                    calibrator += f" (norm,{cal_stats_split})"
-                else:
-                    calibrator += f" ({cal_stats_split})"
-            return calibrator 
 
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"
@@ -260,27 +253,10 @@ def load_cal_inference_stats(
             else:
                 return 'quality'
 
-        def groupavg_image_metric(ensemble, groupavg_image_metric, image_metric):
-            if ensemble:
-                return groupavg_image_metric
-            else:
-                return f"GroupAvg_{image_metric}"
-
-        def groupavg_metric_score(ensemble, groupavg_metric_score, metric_score):
-            if ensemble:
-                return groupavg_metric_score
-            else:
-                return metric_score
-
         # Add the new columns
-        inference_df.augment(groupavg_image_metric)
-        inference_df.augment(groupavg_metric_score)
-        inference_df.augment(calibrator)
         inference_df.augment(metric_type)
         inference_df.augment(model_type)
-        # Add some qol columns for ease of use.
         inference_df.augment(joint_data_slice_id)
-        # Get the identifiers for our df.
         inference_df.augment(method_name)
         inference_df.augment(configuration)
 
