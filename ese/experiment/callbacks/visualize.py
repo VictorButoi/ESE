@@ -1,17 +1,22 @@
+# Torch imports
 import torch
+# Misc imports
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+# Local imports
 from ..metrics.utils import (
     get_bin_per_sample, 
 )
+from ..metrics.local_ps import bin_stats
+from ..analysis.cal_plots.reliability_plots import reliability_diagram
 
 
 def ShowPredictionsCallback(
     batch, 
     threshold: float,
     num_prob_bins: int = 15,
-    size_per_iamge: int = 5
+    size_per_image: int = 5
 ):
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
@@ -78,7 +83,7 @@ def ShowPredictionsCallback(
     y_hat = y_hat.squeeze()
 
     # num_cols = 5 if (softpred_dim is not None) else 3
-    f, axarr = plt.subplots(nrows=bs, ncols=6, figsize=(5 * size_per_iamge, bs*size_per_iamge))
+    f, axarr = plt.subplots(nrows=bs, ncols=7, figsize=(8 * size_per_image, bs*size_per_image))
 
     # Go through each item in the batch.
     for b_idx in range(bs):
@@ -123,8 +128,7 @@ def ShowPredictionsCallback(
                 class_wise=False,
                 num_prob_bins=num_prob_bins,
                 int_start=0.0,
-                int_end=1.0,
-                device='cpu'
+                int_end=1.0
             ).squeeze()
             # Fill the bin regions with the miscalibration.
             max_probs = max_probs.numpy()
@@ -143,10 +147,28 @@ def ShowPredictionsCallback(
                 interpolation='None')
             f.colorbar(im6, ax=axarr[5], orientation='vertical')
 
+            # Plot the reliability diagram for the binary case of the foreground.
+            cal_info = bin_stats(
+                y_pred=y_hat[1, ...][None, None, ...],
+                y_true=y[None, None, ...],
+                num_prob_bins=num_prob_bins
+            )
+            reliability_diagram(
+                calibration_info=cal_info,
+                title="Test",
+                num_prob_bins=num_prob_bins,
+                class_type="Binary",
+                plot_type="bar",
+                bar_color="blue",
+                ax=axarr[6]
+            )
+
             # turn off the axis and grid
-            for ax in axarr:
-                ax.axis('off')
-                ax.grid(False)
+            for x_idx, ax in enumerate(axarr):
+                # Don't turn off the last axis
+                if x_idx != len(axarr) - 1:
+                    ax.axis('off')
+                    ax.grid(False)
         else:
             axarr[b_idx, 0].set_title("Image")
             im1 = axarr[b_idx, 0].imshow(x[b_idx], cmap=img_cmap, interpolation='None')

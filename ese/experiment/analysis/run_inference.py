@@ -426,6 +426,14 @@ def get_calibration_item_info(
     inference_cfg,
     trackers
 ):
+    ################################################################
+    # TEMPORARY ASSERT: WE ONLY HANDLE BINARY SEGMENTATION FOR NOW #
+    ################################################################
+    if "y_probs" in output_dict and output_dict["y_probs"] is not None:
+        assert output_dict["y_probs"].shape[1] == 1, "Only binary segmentation is supported for now."
+    if "y_logits" in output_dict and output_dict["y_logits"] is not None:
+        assert output_dict["y_logits"].shape[1] == 1, "Only binary segmentation is supported for now."
+
     ###########################
     # VISUALIZING IMAGE PREDS #
     ###########################

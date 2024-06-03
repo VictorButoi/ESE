@@ -2,9 +2,6 @@
 from typing import Any
 from pydantic import validate_arguments
 
-#ese imports
-from ese.experiment.augmentation import smooth_soft_pred
-
 #ionpy imports
 from ionpy.metrics.segmentation import dice_score
 
@@ -65,26 +62,3 @@ def plot_pred(
     ax.set_title(f"Prediction, Dice: {dice:.3f}")
 
     fig.colorbar(hard_im, ax=ax)
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def plot_smoothed_pred(
-    subj: dict,
-    num_bins: int,
-    fig: Any = None,
-    ax: Any = None
-):
-    # Plot the processed region-wise prediction
-    smoothed_prediction = smooth_soft_pred(subj["soft_pred"], num_bins)
-    hard_smoothed_prediction = (smoothed_prediction > 0.5).float()
-    smooth_im = ax.imshow(hard_smoothed_prediction, interpolation="None", cmap="gray")
-
-    # Expand extra dimensions for metrics
-    smoothed_pred = hard_smoothed_prediction[None, None, ...]
-    label = subj["label"][None, None, ...]
-
-    # Calculate the dice score
-    smoothed_dice = dice_score(smoothed_pred, label)
-    ax.set_title(f"Smoothed Prediction, Dice: {smoothed_dice:.3f}")
-
-    fig.colorbar(smooth_im, ax=ax)

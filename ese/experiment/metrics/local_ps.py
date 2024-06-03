@@ -3,10 +3,11 @@ import torch
 from torch import Tensor
 # misc imports
 import matplotlib.pyplot as plt
-from typing import Optional, Tuple
+from typing import Any, Optional
 from pydantic import validate_arguments
 # local imports 
 from .utils import (
+    pair_to_tensor,
     get_conf_region, 
     get_bin_per_sample,
     agg_neighbors_preds 
@@ -127,7 +128,10 @@ def bin_stats_init(
 
     # Get the pixelwise frequency.
     top_frequency_map = (y_hard == y_true).float()
-    classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
+    if C > 1:
+        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
+    else:
+        classwise_frequency_map = top_frequency_map.clone()
     
     # Wrap this into a dictionary.
     return {
@@ -148,15 +152,19 @@ def bin_stats_init(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats(
-    y_pred: Tensor,
-    y_true: Tensor,
+    y_pred: Any,
+    y_true: Any,
     num_prob_bins: int,
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
-    ) -> dict:
+) -> dict:
+    y_pred, y_true = pair_to_tensor(y_pred, y_true)
+    # Assert that both are torch tensors.
+    assert isinstance(y_pred, torch.Tensor) and isinstance(y_true, torch.Tensor),\
+        f"y_pred and y_true must be torch tensors. Got {type(y_pred)} and {type(y_true)}."
     # Init some things.
     if preloaded_obj_dict is not None:
         obj_dict = preloaded_obj_dict

@@ -1,34 +1,29 @@
-# local imports
-from .utils import build_rel_axes
-
 # misc imports
 import numpy as np
 from typing import Any, Literal
 from pydantic import validate_arguments
+# Local imports
+from ese.experiment.metrics.utils import get_bins
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def reliability_diagram(
-    title: str,
     calibration_info: dict,
+    title: str,
+    num_prob_bins: int,
     class_type: Literal["Binary", "Multi-class"],
     plot_type: Literal["bar", "line"],
-    metric_name: str, 
-    bin_weighting: str,
     ax: Any,
     bar_color: str,
 ) -> None:
-    # Add the metric to the title
-    title += f"{metric_name}: {calibration_info['cal_score']:.5f} ({bin_weighting})"
-
+    c_bins, c_bin_widths = get_bins(num_prob_bins=num_prob_bins, int_start=0.0, int_end=1.0)
     if plot_type == "bar":
-        assert not calibration_info["label-wise"], "Label-wise reliability diagrams not implemented for bar plots."
         # Create the variable width bar plot
-        for i in range(len(calibration_info["bins"])):
+        for bin_idx in range(num_prob_bins):
             # Define the bars of the plots
-            aligned_bar_position = calibration_info["bins"][i] + (calibration_info["bin_widths"][i] / 2)
-            bar_width = calibration_info["bin_widths"][i]
-            bar_height = calibration_info["bin_measures"][i]
+            aligned_bar_position = c_bins[bin_idx] + (c_bin_widths[bin_idx] / 2)
+            bar_width = c_bin_widths[bin_idx]
+            bar_height = calibration_info["bin_freqs"][bin_idx]
             # Plot the real bars
             ax.bar(
                 aligned_bar_position,
@@ -49,39 +44,36 @@ def reliability_diagram(
                 alpha=0.2, 
                 )
     elif plot_type == "line":
-        if calibration_info["label-wise"]:
-            num_labels = len(calibration_info["lab_bin_confs"])
-            for i in range(num_labels):
-                lab_bin_confs = calibration_info["lab_bin_confs"][i]
-                lab_bin_measures = calibration_info["lab_bin_measures"][i]
-                # Remove the empty bins
-                nz_lab_bin_confs = lab_bin_confs[lab_bin_confs != 0] 
-                nz_lab_bin_measures = lab_bin_measures[lab_bin_confs != 0]
-                # Plot the lines
-                ax.plot(
-                    nz_lab_bin_confs,
-                    nz_lab_bin_measures,
-                    marker='o',
-                    label=f"Label {i}"
-                )
-        else:
-            bin_confs = calibration_info["bin_confs"]
-            bin_measures = calibration_info["bin_measures"]
-            # Remove the empty bins
-            nz_bin_confs = bin_confs[bin_confs != 0]
-            nz_bin_measures = bin_measures[bin_confs != 0]
-            # Plot the lines
-            ax.plot(
-                nz_bin_confs,
-                nz_bin_measures,
-                marker='o',
-                color=bar_color,
-            )
+        bin_confs = calibration_info["bin_confs"]
+        bin_measures = calibration_info["bin_measures"]
+        # Remove the empty bins
+        nz_bin_confs = bin_confs[bin_confs != 0]
+        nz_bin_measures = bin_measures[bin_confs != 0]
+        # Plot the lines
+        ax.plot(
+            nz_bin_confs,
+            nz_bin_measures,
+            marker='o',
+            color=bar_color,
+        )
     else:
         raise NotImplementedError(f"Plot type '{plot_type}' not implemented.")
 
     # Make sure ax is on
-    build_rel_axes(title, class_type, ax)
+    # Make sure ax is on
+    ax.axis("on")
+    y_label = "Frequency" if class_type == "Binary" else "Accuracy"
+    ax.plot([0, 1], [0, 1], linestyle='dotted', linewidth=3, color='gray', alpha=0.5)
+    # Set title and axis labels
+    ax.set_title(title)
+    ax.set_ylabel(y_label)
+    ax.set_xlabel("Confidence")
+    # Set x and y limits
+    ax.set_xlim([0, 1])
+    ax.set_xticks(np.arange(0, 1.1, 0.1))
+    ax.set_ylim([0, 1]) 
+    
+
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def plot_subj_reliability_diagram(

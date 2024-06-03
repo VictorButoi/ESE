@@ -5,12 +5,25 @@ import torch.nn.functional as F
 # misc imports
 import numpy as np
 from pydantic import validate_arguments
-from typing import Optional, Union, Literal
+from typing import Any, Optional, Union, Literal, Tuple
 from scipy.ndimage import (
     distance_transform_edt, 
     binary_erosion, 
     label
 )
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def pair_to_tensor(
+    y_pred: Any, 
+    y_true: Any, 
+) -> Tuple[Tensor]:
+    # If y_pred is a numpy array convert it to a torch tensor.
+    if isinstance(y_pred, np.ndarray):
+        y_pred = torch.from_numpy(y_pred)
+    # If y_true is a numpy array convert it to a torch tensor.
+    if isinstance(y_true, np.ndarray):
+        y_true = torch.from_numpy(y_true)
+    return y_pred, y_true
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -216,7 +229,7 @@ def get_bins(
     int_end: float,
     adaptive: bool = False,
     y_pred: Optional[Tensor] = None,
-    device: Optional[str] = "cuda"
+    device: Optional[Any] = "cpu" 
 ):
     if adaptive:
         sorted_pix_values = torch.sort(y_pred.flatten())[0]
@@ -251,7 +264,6 @@ def get_bin_per_sample(
     int_end: Optional[float] = None,
     bin_starts: Optional[Tensor] = None, 
     bin_widths: Optional[Tensor] = None,
-    device: Optional[str] = "cuda"
 ):
     """
     Given an array of confidence values, bin start positions, and individual bin widths, 
@@ -267,13 +279,15 @@ def get_bin_per_sample(
     # Ensure that the bin_starts and bin_widths tensors have the same shape
     assert (num_prob_bins is not None and int_start is not None and int_end is not None)\
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
+    # Define the device by the prediction device.
+    pred_device = pred_map.device 
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
     if num_prob_bins is not None:
         bin_starts, bin_widths = get_bins(
             num_prob_bins=num_prob_bins, 
             int_start=int_start, 
             int_end=int_end, 
-            device=device
+            device=pred_device
         )
     else:
         assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
@@ -285,7 +299,7 @@ def get_bin_per_sample(
                 pred_map=pred_map[:, l_idx, ...], # B x H x W
                 bin_starts=bin_starts,
                 bin_widths=bin_widths,
-                device=device,
+                device=pred_device,
             )
         for l_idx in range(pred_map.shape[1])]).permute(1, 0, 2, 3) # B x C x H x W
     else:
@@ -294,13 +308,18 @@ def get_bin_per_sample(
             pred_map=pred_map, 
             bin_starts=bin_starts, 
             bin_widths=bin_widths,
-            device=device
+            device=pred_device
         )
 
     return bin_ownership_map
 
 
-def _bin_per_val(pred_map, bin_starts, bin_widths, device=None):
+def _bin_per_val(
+    pred_map, 
+    bin_starts, 
+    bin_widths, 
+    device=None
+):
     # Expand dimensions for broadcasting
     expanded_pred_map = pred_map.unsqueeze(-1)
     # Compare confidences against all bin ranges using broadcasting
