@@ -82,8 +82,11 @@ def ShowPredictionsCallback(
     y_hard = y_hard.numpy().squeeze()
     y_hat = y_hat.squeeze()
 
-    # num_cols = 5 if (softpred_dim is not None) else 3
-    f, axarr = plt.subplots(nrows=bs, ncols=7, figsize=(8 * size_per_image, bs*size_per_image))
+    if bs == 1:
+        ncols = 7
+    else:
+        ncols = 3
+    f, axarr = plt.subplots(nrows=bs, ncols=ncols, figsize=(ncols * size_per_image, bs*size_per_image))
 
     # Go through each item in the batch.
     for b_idx in range(bs):
@@ -102,19 +105,20 @@ def ShowPredictionsCallback(
 
             if len(y_hat.shape) == 3:
                 max_probs = torch.max(y_hat, dim=0)[0]
+                freq_map = (y_hard == y)
             else:
                 assert len(y_hat.shape) == 2, "Soft prediction must be 2D if not 3D."
                 max_probs = y_hat
+                freq_map = y
 
             axarr[3].set_title("Max Probs")
             im4 = axarr[3].imshow(max_probs, cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
             f.colorbar(im4, ax=axarr[3], orientation='vertical')
 
-            pix_accuracy = (y_hard == y)
 
             axarr[4].set_title("Brier Map")
             im5 = axarr[4].imshow(
-                (max_probs - pix_accuracy), 
+                (max_probs - freq_map), 
                 cmap='RdBu_r', 
                 vmax=1.0, 
                 vmin=-1.0, 
@@ -135,7 +139,7 @@ def ShowPredictionsCallback(
             for bin_idx in range(num_prob_bins):
                 bin_mask = (toplabel_bin_ownership_map == bin_idx)
                 if bin_mask.sum() > 0:
-                    miscal_map[bin_mask] = (max_probs[bin_mask] - pix_accuracy[bin_mask]).mean()
+                    miscal_map[bin_mask] = (max_probs[bin_mask] - freq_map[bin_mask]).mean()
 
             # Plot the miscalibration
             axarr[5].set_title("Miscalibration Map")
@@ -155,7 +159,7 @@ def ShowPredictionsCallback(
             )
             reliability_diagram(
                 calibration_info=cal_info,
-                title="Test",
+                title="Reliability Diagram",
                 num_prob_bins=num_prob_bins,
                 class_type="Binary",
                 plot_type="bar",
@@ -181,26 +185,6 @@ def ShowPredictionsCallback(
             axarr[b_idx, 2].set_title("Hard Prediction")
             im3 = axarr[b_idx, 2].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
-
-            if len(y_hat.shape) == 4:
-                max_probs = torch.max(y_hat, dim=1)[0]
-            else:
-                assert len(y_hat.shape) == 3, "Soft prediction must be 2D if not 3D."
-                max_probs = y_hat
-
-            axarr[b_idx, 3].set_title("Max Probs")
-            im4 = axarr[b_idx, 3].imshow(max_probs[b_idx], cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
-            f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
-
-            axarr[b_idx, 4].set_title("Pixel Miscalibration")
-            pix_accuracy = (y_hard == y)
-            im5 = axarr[b_idx, 4].imshow(
-                (max_probs[b_idx] - pix_accuracy[b_idx]), 
-                cmap='RdBu_r', 
-                vmax=1.0, 
-                vmin=-1.0, 
-                interpolation='None')
-            f.colorbar(im5, ax=axarr[b_idx, 4], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr[b_idx]:
