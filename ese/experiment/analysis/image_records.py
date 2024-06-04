@@ -63,14 +63,16 @@ def get_image_stats(
             **qual_input_config
         }
     else:
+        print(output_dict['y_probs'].shape)
+        print(output_dict['y_true'].shape)
         qual_input_config = {
             "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
             "y_true": output_dict["y_true"], # (B, C, H, W)
             'threshold': inference_cfg['experiment']['threshold'],
         }
         cal_input_config = {
-            **qual_input_config,
-            "preloaded_obj_dict": bin_stats_init(qual_input_config['y_pred'], **bin_stat_args)
+            "preloaded_obj_dict": bin_stats_init(qual_input_config['y_pred'], **bin_stat_args),
+            **qual_input_config
         }
     # Dicts for storing ensemble scores.
     grouped_scores_dict = {
@@ -136,7 +138,7 @@ def get_image_stats(
     # Get groundtruth label amount
     gt_volume = output_dict['y_true'].sum().item()
     # Get the soft prediction volume, this only works for binary problems.
-    pred_volume = output_dict['y_probs'][:, 1, ...].sum().item()
+    pred_volume = output_dict['y_probs'].sum().item()
     # Get thresholded prediction volume
     hard_volume = output_dict['y_hard'].sum().item()
     # Define a dictionary of the volumes.

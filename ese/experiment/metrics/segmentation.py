@@ -112,7 +112,10 @@ def hd95(
 
     B, C = y_pred.shape[:2]
     if from_logits:
-        y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
+        if C == 1:
+            y_pred = torch.sigmoid(y_pred)
+        else:
+            y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
     
     # Get the preds with highest probs and the label map.
     if y_pred.shape[1] > 1:
@@ -122,22 +125,23 @@ def hd95(
             y_pred = y_pred.argmax(dim=1)
     else:
         y_pred = (y_pred > threshold).long()
-    y_true = y_true.squeeze(dim=1)
-
-    # Convert these to one hot tensors.
-    y_pred_one_hot = F.one_hot(y_pred, num_classes=C).permute(0, 3, 1, 2)
-    y_true_one_hot = F.one_hot(y_true, num_classes=C).permute(0, 3, 1, 2)
+    
+    # If C isn't 1, we need to convert these to one hot tensors.
+    if C != 1:
+        # Convert these to one hot tensors.
+        y_pred = F.one_hot(y_pred.squeeze(dim=1), num_classes=C).permute(0, 3, 1, 2)
+        y_true = F.one_hot(y_true.squeeze(dim=1), num_classes=C).permute(0, 3, 1, 2)
 
     # Unfortunately we have to convert these to numpy arrays to work with the medpy func.
-    y_pred_one_hot = y_pred_one_hot.cpu().numpy()
-    y_true_one_hot = y_true_one_hot.cpu().numpy()
+    y_pred_cpu = y_pred.cpu().numpy()
+    y_true_cpu = y_true.cpu().numpy()
 
     # Iterate through the labels, and set the batch scores corresponding to that label.
     hd_scores = torch.zeros(B, C) 
     for batch_idx in range(B):
         for lab_idx in range(C):
-            label_pred = y_pred_one_hot[batch_idx, lab_idx, :, :]
-            label_gt = y_true_one_hot[batch_idx, lab_idx, :, :]
+            label_pred = y_pred_cpu[batch_idx, lab_idx, :, :]
+            label_gt = y_true_cpu[batch_idx, lab_idx, :, :]
             # If they both have pixels, calculate the hausdorff distance.
             if label_pred.sum() > 0 and label_gt.sum() > 0:
                 hd_scores[batch_idx, lab_idx] = HausdorffDist95(
@@ -152,7 +156,7 @@ def hd95(
                 hd_scores[batch_idx, lab_idx] = float('nan') 
         
     if ignore_empty_labels:
-        true_amounts = torch.sum(torch.from_numpy(y_true_one_hot), dim=(-2, -1)) # B x C
+        true_amounts = torch.sum(torch.from_numpy(y_true_cpu), dim=(-2, -1)) # B x C
         existing_label = (true_amounts > 0).float()
         if weights is None:
             weights = existing_label
@@ -197,7 +201,10 @@ def boundary_iou(
 ) -> Tensor:
 
     if from_logits:
-        y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
+        if C == 1:
+            y_pred = torch.sigmoid(y_pred)
+        else:
+            y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
 
     B, C, _, _ = y_pred.shape
 
