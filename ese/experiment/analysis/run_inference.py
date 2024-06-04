@@ -5,15 +5,18 @@ from ionpy.util import Config
 from ionpy.util.torchutils import to_device
 # local imports
 from .analysis_utils.inference_utils import cal_stats_init 
-from ..experiment.utils import show_inference_examples, reduce_ensemble_preds
+from .checks import global_cal_sanity_check
 from .image_records import get_image_stats
-from ..utils.general import save_records, save_dict
 from .pixel_records import (
     update_toplabel_pixel_meters,
     update_cw_pixel_meters
 )
+from ..utils.general import save_records, save_dict
+from ..experiment.utils import (
+    show_inference_examples, 
+    reduce_ensemble_preds
+)
 # Misc imports
-import pickle
 import numpy as np
 import pandas as pd
 from typing import Any, Optional
@@ -315,10 +318,11 @@ def incontext_image_forward_loop(
     support_generator: Optional[Any] = None,
     slice_idx: Optional[int] = None,
 ):
-    # Get the experiment
+    # Get the experiment object so we can make predictions with it.
     exp = inf_init_obj["exp"]
     # Get the batch info
-    image, label_map  = batch["img"], batch["label"]
+    image = batch.pop("img")
+    label_map = batch.pop("label")
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
     if torch.sum(label_map != 0) >= inf_cfg_dict["log"].get("min_fg_pixels", 0):
 
@@ -352,9 +356,17 @@ def incontext_image_forward_loop(
 
             with torch.no_grad():
                 if hasattr(exp, "predict"):
-                    y_probs = exp.predict(**support_args, x=image, multi_class=False)['y_probs']
+                    y_probs = exp.predict(
+                        x=image, 
+                        multi_class=False,
+                        **support_args, 
+                    )['y_probs']
                 else:
-                    y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
+                    y_logits = exp.model(target_image=image, **support_args)
+                    if y_logits.shape[1] > 1:
+                        y_probs = torch.softmax(y_logits, dim=1)
+                    else:
+                        y_probs = torch.sigmoid(y_logits)
 
             # Append the predictions to the ensemble predictions.
             y_hard = (y_probs > inf_cfg_dict['experiment']['threshold']).long() # (B, 1, H, W)
@@ -405,7 +417,6 @@ def incontext_image_forward_loop(
                 # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
                 ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
                 ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)
-                # NOTE: In this mode, we can't visualize our supports because it's unclear what the support set is (in an ensemble).
                 # Wrap the outputs into a dictionary.
                 output_dict = {
                     "sup_idx": sup_idx,
@@ -510,36 +521,3 @@ def get_calibration_item_info(
             image_tl_pixel_meter_dict=image_tl_pixel_meter_dict,
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
-
-
-def global_cal_sanity_check(
-    data_id,
-    slice_idx,
-    inference_cfg,
-    image_cal_metrics_dict,
-    image_tl_pixel_meter_dict,
-    image_cw_pixel_meter_dict
-):
-    # Iterate through all the calibration metrics and check that the pixel level calibration score
-    # is the same as the image level calibration score (only true when we are working with a single
-    # image.
-    for cal_metric_name  in inference_cfg["image_cal_metrics"].keys():
-        assert len(cal_metric_name.split("_")) == 2, f"Calibration metric name {cal_metric_name} not formatted correctly."
-        metric_base = cal_metric_name.split("_")[-1]
-        assert metric_base in inference_cfg["global_cal_metrics"], f"Metric base {metric_base} not found in global calibration metrics."
-        global_metric_dict = inference_cfg["global_cal_metrics"][metric_base]
-        # Get the calibration error in two views. 
-        image_cal_score = image_cal_metrics_dict[cal_metric_name]
-        # Choose which pixel meter dict to use.
-        if global_metric_dict['cal_type'] == 'classwise':
-            # Recalculate the calibration score using the pixel meter dict.
-            meter_cal_score = global_metric_dict['_fn'](pixel_meters_dict=image_cw_pixel_meter_dict)
-        elif global_metric_dict['cal_type'] == 'toplabel':
-            # Recalculate the calibration score using the pixel meter dict.
-            meter_cal_score = global_metric_dict['_fn'](pixel_meters_dict=image_tl_pixel_meter_dict)
-        else:
-            raise ValueError(f"Calibration type {global_metric_dict['cal_type']} not recognized.")
-        if torch.abs(image_cal_score - meter_cal_score) >= 1e-3: # Allow for some numerical error.
-            raise ValueError(f"WARNING on data id {data_id}, slice {slice_idx}: CALIBRATION METRIC '{cal_metric_name}' DOES NOT MATCH FOR IMAGE AND PIXEL LEVELS."+\
-            f" Pixel level calibration score ({meter_cal_score}) does not match image level score ({image_cal_score}).")
-
