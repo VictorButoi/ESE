@@ -18,7 +18,7 @@ from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
 import os
-
+from typing import Optional
 
 class PostHocExperiment(TrainExperiment):
 
@@ -210,17 +210,21 @@ class PostHocExperiment(TrainExperiment):
         self, 
         x, 
         multi_class,
-        threshold=0.5
+        threshold = 0.5,
+        label: Optional[int] = None,
     ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
+
         # Predict with the base model.
         with torch.no_grad():
             yhat = self.base_model(x)
+
         # Apply post-hoc calibration.
         if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
+
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             yhat_cal, 
@@ -228,6 +232,12 @@ class PostHocExperiment(TrainExperiment):
             threshold=threshold,
             from_logits=True
         )
+
+        # If label is not None, then only return the predictions for that label.
+        if label is not None:
+            logit_map = logit_map[:, label, ...].unsqueeze(1)
+            prob_map = prob_map[:, label, ...].unsqueeze(1)
+
         # Return the outputs
         return {
             'y_logits': yhat_cal,

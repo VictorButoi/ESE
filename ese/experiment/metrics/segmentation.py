@@ -82,7 +82,7 @@ def dice_score(
             weights = existing_label
         else:
             weights = weights * existing_label
-        
+
     return _metric_reduction(
         dice_scores,
         reduction=reduction,
