@@ -143,7 +143,7 @@ def load_experiment(
         loaded_exp = exp_class(exp_path)
     else:
         exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
-        loaded_exp = exp_class(exp_path, load_data=load_data)
+        loaded_exp = exp_class(exp_path, init_metrics=False, load_data=load_data)
 
     # Load the experiment
     if checkpoint is not None:

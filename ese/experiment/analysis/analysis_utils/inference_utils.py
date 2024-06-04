@@ -319,9 +319,9 @@ def load_inference_exp_from_cfg(inference_cfg):
         save_root = Path(inference_exp.path)
     else:
         load_exp_args = {
-            **get_exp_load_info(inf_model_cfg['pretrained_exp_root']),
             "checkpoint": inf_model_cfg['checkpoint'],
             "load_data": False,
+            **get_exp_load_info(inf_model_cfg['pretrained_exp_root']),
         }
         if "_attr" in inf_model_cfg:
             load_exp_args['attr_dict'] = inf_model_cfg['_attr']

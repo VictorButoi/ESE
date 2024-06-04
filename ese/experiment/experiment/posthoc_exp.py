@@ -92,27 +92,26 @@ class PostHocExperiment(TrainExperiment):
         # BUILD THE MODEL #
         ###################
         # Get the configs of the experiment
-        load_exp_cfg = {
+        load_exp_args = {
             "device": "cuda",
             "load_data": False, # Important, we might want to modify the data construction.
         }
+        if "checkpoint" in total_config['train']:
+            load_exp_args["checkpoint"] = total_config['train']['checkpoint']
+        else:
+            load_exp_args["checkpoint"] = 'max-val-dice_score' 
+            
         if "config.yml" in os.listdir(total_config['train']['pretrained_dir']):
             self.pretrained_exp = load_experiment(
                 path=total_config['train']['pretrained_dir'],
-                checkpoint=total_config['train']['checkpoint'],
-                **load_exp_cfg
+                **load_exp_args
             )
         else:
             rs = ResultsLoader()
-            dfc = rs.load_configs(
-                total_config['train']['pretrained_dir'],
-                properties=False,
-            )
             self.pretrained_exp = load_experiment(
-                df=rs.load_metrics(dfc),
-                checkpoint=total_config['train']['checkpoint'],
+                df=rs.load_metrics(rs.load_configs(total_config['train']['pretrained_dir'], properties=False)),
                 selection_metric=total_config['train']['pretrained_select_metric'],
-                **load_exp_cfg
+                **load_exp_args
             )
         pretrained_cfg = self.pretrained_exp.config.to_dict()
         #########################################
@@ -221,13 +220,13 @@ class PostHocExperiment(TrainExperiment):
 
         # Apply post-hoc calibration.
         if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
-            yhat_cal = self.model(yhat)
+            logit_map = self.model(yhat)
         else:
-            yhat_cal = self.model(yhat, image=x)
+            logit_map = self.model(yhat, image=x)
 
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
-            yhat_cal, 
+            logit_map, 
             multi_class=multi_class, 
             threshold=threshold,
             from_logits=True
@@ -240,7 +239,7 @@ class PostHocExperiment(TrainExperiment):
 
         # Return the outputs
         return {
-            'y_logits': yhat_cal,
+            'y_logits': logit_map,
             'y_probs': prob_map, 
             'y_hard': pred_map 
         }
