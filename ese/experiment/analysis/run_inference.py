@@ -61,21 +61,20 @@ def get_cal_stats(
 ) -> None:
     # Get the config dictionary
     inference_cfg_dict = cfg.to_dict()
-    # initialize the calibration statistics.
-    inference_init_obj = cal_stats_init(inference_cfg_dict, yaml_cfg_dir="/storage/vbutoi/projects/ESE")
-    # Get the accumulators and the splits we are running inference over.
-    trackers = inference_init_obj["trackers"]
-    inference_splits = inference_init_obj["dloaders"].keys()
-
+    # Initialize all the objects needed for inference.
+    inference_init_obj = cal_stats_init(
+        inference_cfg_dict, 
+        yaml_cfg_dir="/storage/vbutoi/projects/ESE"
+    )
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
         data_counter = 0
-        for split in inference_splits:
+        for split in inference_init_obj["dloaders"].keys():
             split_dataloader_obj = inference_init_obj["dloaders"][split]
             loop_base_args = {
                 "inf_cfg_dict": inference_cfg_dict,
                 "inf_init_obj": inference_init_obj,
-                "trackers": trackers,
+                "trackers": inference_init_obj["trackers"],
                 "split": split,
                 "data_counter": data_counter
             }
@@ -116,7 +115,7 @@ def get_cal_stats(
                 )
         # Save the records at the end too
         if inference_cfg_dict["log"]["log_image_stats"]:
-            save_trackers(inference_init_obj["output_root"], trackers=trackers)
+            save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
 
     # After the forward loop, we can calculate the global calibration metrics.
     if inference_cfg_dict["log"]["summary_compute_global_metrics"]:
@@ -129,13 +128,13 @@ def get_cal_stats(
             # Add a dummy column to the dataframe.
             log_image_df[cal_metric_name] = np.nan
             # Iterate through the splits, and replace the rows corresponding to the split with the cal losses.
-            for split in inference_splits:
+            for split in inference_init_obj["dloaders"].keys():
                 assert cal_metric_dict['cal_type'] in ["classwise", "toplabel"],\
                     f"Calibration type {cal_metric_dict['cal_type']} not recognized."
                 tracker_key = "cw_pixel_meter_dict" if cal_metric_dict['cal_type'] == "classwise" else "tl_pixel_meter_dict"
                 # Calculate the loss.
                 cal_loss = cal_metric_dict['_fn'](
-                    pixel_meters_dict=trackers[tracker_key][split]
+                    pixel_meters_dict=inference_init_obj["trackers"][tracker_key][split]
                 ).item() 
                 # Replace the rows of log_image_df with column 'split' 
                 log_image_df.loc[log_image_df["split"] == split, cal_metric_name] = cal_loss
@@ -304,6 +303,7 @@ def standard_image_forward_loop(
         if inf_cfg_dict["log"]["log_image_stats"] and (data_counter % inf_cfg_dict['log']['log_interval'] == 0):
             save_trackers(inf_init_obj["output_root"], trackers=trackers)
 
+        print("Data counter: ", data_counter)
         data_counter += 1
 
 
