@@ -63,8 +63,6 @@ def get_image_stats(
             **qual_input_config
         }
     else:
-        print(output_dict['y_probs'].shape)
-        print(output_dict['y_true'].shape)
         qual_input_config = {
             "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
             "y_true": output_dict["y_true"], # (B, C, H, W)

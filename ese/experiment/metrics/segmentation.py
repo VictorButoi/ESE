@@ -223,11 +223,11 @@ def boundary_iou(
         "num_classes": C
     }
     true_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_true, # B x H x W
+                            pred_map=y_true.long(), # B x H x W
                             **neighb_args
                         ) # B x C x H x W
     pred_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_hard, # B x H x W
+                            pred_map=y_hard.long(), # B x H x W
                             **neighb_args
                         ) # B x C x H x W
 
@@ -236,9 +236,13 @@ def boundary_iou(
     boundary_pred = (pred_num_neighb_map < max_matching_neighbors) # B x C x H x W
     boundary_true = (true_num_neighb_map < max_matching_neighbors) # B x C x H x W
 
-    # Get the one hot tensors. 
-    y_pred = F.one_hot(y_hard, num_classes=C).permute(0, 3, 1, 2).float()
-    y_true = F.one_hot(y_true.squeeze(1), num_classes=C).permute(0, 3, 1, 2).float()
+    # Get the one hot tensors if multi-class, or just add a channel dimension if binary.
+    if C != 1:
+        y_pred = F.one_hot(y_hard, num_classes=C).permute(0, 3, 1, 2).float()
+        y_true = F.one_hot(y_true, num_classes=C).permute(0, 3, 1, 2).float()
+    else:
+        y_pred = y_hard.unsqueeze(1).float()
+        y_true = y_true.unsqueeze(1).float()
 
     # Mask the true and pred tensors by the boundary tensors and then flatten the last
     # two dimensions.

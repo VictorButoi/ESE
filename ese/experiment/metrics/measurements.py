@@ -16,7 +16,6 @@ def volume_error(
     y_true: Tensor,
     do_threshold: bool,
     from_logits: bool = False,
-    vol_dim: Optional[int] = 1, # If None, we are considering all classes
     threshold: Optional[float] = 0.5,
     batch_reduction: Reduction = "mean",
 ):
@@ -29,10 +28,6 @@ def volume_error(
         else:
             y_pred = torch.sigmoid(y_pred)
         
-    # If we have a vol_dim then we are only considering a single class
-    if vol_dim is not None:
-        y_pred = y_pred[:, vol_dim].unsqueeze(1)
-    
     if do_threshold:
         y_pred = (y_pred > threshold).float()
 

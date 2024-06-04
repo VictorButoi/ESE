@@ -126,12 +126,15 @@ def bin_stats_init(
         classwise_pred_neighbors_map = None
         classwise_true_neighbors_map = None 
 
-    # Get the pixelwise frequency.
-    top_frequency_map = (y_hard == y_true).float()
+    # For multi-class predictions, we need to one-hot both the preds and label maps.
+    # Otherwise, we use the traditional definition of calibration as frequency of actual ground truth. 
+    # (as opposed to frequency of correctness).
     if C > 1:
+        top_frequency_map = (y_hard == y_true).float()
         classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
     else:
-        classwise_frequency_map = top_frequency_map.clone()
+        top_frequency_map = y_true.float()
+        classwise_frequency_map = top_frequency_map.unsqueeze(1) # Add a channel dimension.
     
     # Wrap this into a dictionary.
     return {
@@ -303,23 +306,19 @@ def joint_label_bin_stats(
             from_logits=from_logits,
         )
     
-    # Unlike true labels we need to get the true labels.
-    max_label = y_pred.shape[1]
-    label_set = torch.arange(max_label)
-    
     # Setup the cal info tracker.
-    n_labs = len(label_set)
+    n_labs = y_pred.shape[1]
     cal_info = {
         "bin_confs": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
         "bin_freqs": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
         "bin_amounts": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64),
         "bin_cal_errors": torch.zeros((n_labs, num_prob_bins), dtype=torch.float64)
     }
-    for l_idx, lab in enumerate(label_set):
-        lab_prob_map = obj_dict["y_pred"][:, lab, ...]
-        lab_frequency_map = obj_dict["classwise_frequency_map"][:, lab, ...]
-        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, lab, ...]
-        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, lab, ...]
+    for l_idx in range(n_labs):
+        lab_prob_map = obj_dict["y_pred"][:, l_idx, ...]
+        lab_frequency_map = obj_dict["classwise_frequency_map"][:, l_idx, ...]
+        lab_bin_ownership_map = obj_dict["classwise_prob_bin_map"][:, l_idx, ...]
+        lab_true_neighbors_map = obj_dict["classwise_true_neighbors_map"][:, l_idx, ...]
         # Cycle through the probability bins.
         for bin_idx in range(num_prob_bins):
             # Get the region of image corresponding to the confidence
@@ -342,7 +341,7 @@ def joint_label_bin_stats(
                 )
                 for k, v in bi.items():
                     # Assert that v is not a torch NaN
-                    assert not torch.isnan(v).any(), f"Lab {lab}, Bin {bin_idx} has NaN in key: {k}."
+                    assert not torch.isnan(v).any(), f"Lab {l_idx}, Bin {bin_idx} has NaN in key: {k}."
                 # Calculate the average calibration error for the regions in the bin.
                 cal_info["bin_confs"][l_idx, bin_idx] = bi["avg_conf"] 
                 cal_info["bin_freqs"][l_idx, bin_idx] = bi["avg_freq"] 

@@ -216,9 +216,12 @@ def update_cw_pixel_meters(
                 ).cpu().numpy()
     # CALIBRATION VARS.
     ###########################################################################3
-    classwise_freq_map = torch.nn.functional.one_hot(
-        y_true.squeeze(1).long(), C
-    ).permute(0, 3, 1, 2).cpu().numpy() # (B x H x W x C) -> (B x C x H x W)
+    if y_probs.shape[1] > 1:
+        classwise_freq_map = torch.nn.functional.one_hot(
+            y_true.squeeze(1).long(), C
+        ).permute(0, 3, 1, 2).cpu().numpy() # (B x H x W x C) -> (B x C x H x W)
+    else:
+        classwise_freq_map = y_true.cpu().numpy()  # (B x 1 x H x W)
     # Place all necessary tensors on the CPU as numpy arrays.
     classwise_prob_map = y_probs.cpu().numpy()
 
