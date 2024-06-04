@@ -255,7 +255,6 @@ def cal_stats_init(
 
     # We can also add augmentation at inference to boost performance.
     support_aug_cfg = inference_cfg['experiment'].get('support_augs', None)
-    print(support_aug_cfg)
     if support_aug_cfg is not None and len(support_aug_cfg) > 0:
         # Open the yaml file corresponding to the augmentations
         with open(f"{yaml_cfg_dir}/ese/experiment/configs/inference/aug_cfg_bank.yaml", 'r') as f:
@@ -409,8 +408,11 @@ def dataloader_from_exp(
                 shuffle=False
             )
     # Add the augmentation information.
-    inference_data_cfg['augmentations'] = aug_cfg_list
-    inference_data_cfg['_class'] = dataset_cls        
+    inference_data_cfg = {
+        "augmentations": aug_cfg_list,
+        "_class": dataset_cls,
+        **inference_data_cfg,
+    }
     # Build a dictionary of our data objs
     data_obj_dict = {
         "dataloaders": dataloaders,

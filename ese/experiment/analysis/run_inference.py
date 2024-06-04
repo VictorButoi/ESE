@@ -69,15 +69,20 @@ def get_cal_stats(
         data_counter = 0
         for split in inference_splits:
             split_dataloader_obj = inference_init_obj["dloaders"][split]
-            loop_args = {
+            loop_base_args = {
                 "inf_cfg_dict": inference_cfg_dict,
                 "inf_init_obj": inference_init_obj,
                 "trackers": trackers,
                 "split": split,
                 "data_counter": data_counter
             }
-            if inference_cfg_dict["model"]["_type"] == "incontext":
-                for label_idx in split_dataloader_obj.keys():
+            for label_idx in split_dataloader_obj.keys():
+                dloader_loop_args = {
+                    "dloader": split_dataloader_obj[label_idx],
+                    "label_idx": label_idx,
+                    **loop_base_args
+                }
+                if inference_cfg_dict["model"]["_type"] == "incontext":
                     support_gen = inference_init_obj["supports"][split][label_idx]
                     if inference_cfg_dict["experiment"]["fixed_support_sets"]:
                         for sup_idx in range(inference_cfg_dict['experiment']['supports_per_target']):
@@ -92,24 +97,19 @@ def get_cal_stats(
                             sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
                             # Run the dataloader loop with this particular support of images and labels.
                             dataloader_loop(
-                                dloader=split_dataloader_obj[label_idx],
-                                label_idx=label_idx,
                                 sup_idx=sup_idx,
                                 support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
                                 support_augs=inference_cfg_dict['experiment'].get('support_augs', None),
-                                **loop_args
+                                **dloader_loop_args,
                             )
                     else:
                         dataloader_loop(
-                            dloader=split_dataloader_obj[label_idx],
-                            label_idx=label_idx,
                             support_generator=support_gen,
-                            **loop_args
+                            **dloader_loop_args,
                         )
             else:
                 dataloader_loop(
-                    dloader=split_dataloader_obj,
-                    **loop_args
+                    **dloader_loop_args,
                 )
         # Save the records at the end too
         if inference_cfg_dict["log"]["log_image_stats"]:
@@ -214,11 +214,10 @@ def volume_forward_loop(
     trackers,
     data_counter,
 ):
-    # Get the experiment
-    exp = inf_init_obj["exp"]
     # Get the batch info
-    image_vol_cpu, label_vol_cpu  = batch["img"], batch["label"]
-    image_vol_cuda, label_vol_cuda = to_device((image_vol_cpu, label_vol_cpu), exp.device)
+    image_vol_cpu = batch.pop("img")
+    label_vol_cpu = batch.pop("label")
+    image_vol_cuda, label_vol_cuda = to_device((image_vol_cpu, label_vol_cpu), inf_init_obj["exp"].device)
     # Go through each slice and predict the metrics.
     num_slices = image_vol_cuda.shape[1]
     for slice_idx in range(num_slices):
@@ -227,13 +226,12 @@ def volume_forward_loop(
         slice_batch = {
             "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
             "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
-            "data_id": batch["data_id"],
-            "split": batch["split"]
+            **batch
         } 
         standard_image_forward_loop(
-            exp=exp,
+            inf_cfg_dict=inf_cfg_dict,
+            inf_init_obj=inf_init_obj,
             batch=slice_batch,
-            inference_cfg=inf_cfg_dict,
             slice_idx=slice_idx,
             trackers=trackers,
             data_counter=data_counter
@@ -251,8 +249,10 @@ def standard_image_forward_loop(
 ):
     # Get the experiment
     exp = inf_init_obj["exp"]
+    
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
+    
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
     if torch.sum(label_map != 0) >= inf_cfg_dict["log"].get("min_fg_pixels", 0):
 
@@ -260,8 +260,8 @@ def standard_image_forward_loop(
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
 
-        # Get the prediction with no gradient accumulation.
-        predict_args = {'multi_class': True}
+        # Some args for the foward pass, only binary prediction is supported for now.
+        predict_args = {'multi_class': False}
         if inf_cfg_dict["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
 
@@ -321,11 +321,6 @@ def incontext_image_forward_loop(
         # Label maps are soft labels so we need to convert them to hard labels.
         label_map = (label_map > 0.5).long() # TODO: Should this be a modifiable threshold?
        
-        # Get the prediction with no gradient accumulation.
-        predict_args = {'multi_class': True}
-        if inf_cfg_dict["model"]["ensemble"]:
-            predict_args["combine_fn"] = "identity"
-        
         # Define the arguments that are shared by fixed supports and variable supports.
         common_forward_args = {
             "x": image,

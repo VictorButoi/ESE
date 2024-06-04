@@ -82,22 +82,18 @@ def get_ese_inference_configs(
             if use_uncalibrated_models:
                 model_group_dir = group_dict['base_models_group']
             else:
-                model_group_dir = group_dict['calibrated_models_group'] / f"Individual_{calibrator}"
+                model_group_dir = f"{group_dict['calibrated_models_group']}/Individual_{calibrator}"
 
             #####################################
             # Choose the ensembles ahead of time.
             #####################################
             if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and group_dict['model_type'] != "incontext":
-                total_ens_members = gather_exp_paths(str(model_group_dir))
-                ensemble_groups = {}
-                for num_ens_members in base_cfg_args['submit_opts']['num_ens_membs']:
-                    # Get all unique subsets of total_ens_members of size num_+ens_members.
-                    unique_ensembles = list(itertools.combinations(total_ens_members, num_ens_members))
-                    # We need to subsample the unique ensembles or else we will be here forever.
-                    if len(unique_ensembles) > base_cfg_args['submit_opts']['max_ensemble_samples']:
-                        ensemble_groups[num_ens_members] = random.sample(unique_ensembles, k=base_cfg_args['submit_opts']['max_ensemble_samples'])
-                    else:
-                        ensemble_groups[num_ens_members] = unique_ensembles
+                # Get all unique subsets of total_ens_members of size num_+ens_members.
+                ensemble_group = list(itertools.combinations(gather_exp_paths(str(model_group_dir)), base_cfg['ensemble']['num_members']))
+                # We need to subsample the unique ensembles or else we will be here forever.
+                max_ensemble_samples = base_cfg['experiment']['max_ensemble_samples']
+                if len(ensemble_group) > max_ensemble_samples:
+                    ensemble_group = random.sample(ensemble_group, k=max_ensemble_samples)
 
             for run_opt_dict in total_run_cfg_options: 
                 # If you want to run inference on ensembles, use this.
@@ -127,16 +123,15 @@ def get_ese_inference_configs(
                             # Append these to the list of configs and roots.
                             dataset_cfgs.append(dupe_def_cfg_opts)
                         else:
-                            for ens_group in ensemble_groups[num_ens_members]:
-                                # Make a copy of our default config options.
-                                dupe_def_cfg_opts = default_config_options.copy()
-                                # Define where the set of base models come from.
-                                advanced_args['ensemble.num_members'] = [num_ens_members]
-                                advanced_args['ensemble.member_paths'] = [list(ens_group)]
-                                # Combine the default and advanced arguments.
-                                dupe_def_cfg_opts.update(advanced_args)
-                                # Append these to the list of configs and roots.
-                                dataset_cfgs.append(dupe_def_cfg_opts)
+                            # Make a copy of our default config options.
+                            dupe_def_cfg_opts = default_config_options.copy()
+                            # Define where the set of base models come from.
+                            advanced_args['ensemble.num_members'] = [num_ens_members]
+                            advanced_args['ensemble.member_paths'] = [list(ensemble_group)]
+                            # Combine the default and advanced arguments.
+                            dupe_def_cfg_opts.update(advanced_args)
+                            # Append these to the list of configs and roots.
+                            dataset_cfgs.append(dupe_def_cfg_opts)
                 # If you want to run inference on individual networks, use this.
                 else:
                     # If we aren't ensembling, then we can't do incontext models.
