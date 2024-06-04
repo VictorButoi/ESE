@@ -63,12 +63,13 @@ def update_toplabel_pixel_meters(
     calibration_cfg,
     record_dict 
 ):
+    B, C = output_dict["y_probs"].shape[:2]
     y_probs = output_dict["y_probs"]
     y_hard = output_dict["y_hard"].squeeze(1) # Remove the channel dimension.
     y_true = output_dict["y_true"].squeeze(1) # Remove the channel dimension.
 
     # If the confidence map is mulitclass, then we need to do some extra work.
-    if y_probs.shape[1] > 1:
+    if C > 1:
         toplabel_prob_map = torch.max(y_probs, dim=1)[0]
     else:
         toplabel_prob_map = y_probs.squeeze(1) # Remove the channel dimension.
@@ -98,7 +99,10 @@ def update_toplabel_pixel_meters(
 
     ############################################################################3
     # Calculate the accuracy map.
-    toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
+    if C > 1:
+        toplabel_freq_map = (y_hard == y_true).cpu().numpy() # Remove the channel dimension. B x H x W
+    else:
+        toplabel_freq_map = y_true.cpu().numpy()
     toplabel_prob_map = toplabel_prob_map.cpu().numpy()
     # Get the importance per pixel with respect to the loss.
     # NOTE: Top label prob map honestly doesn't make much sense here if the loss is region based like dice.
