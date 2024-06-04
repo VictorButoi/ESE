@@ -245,6 +245,7 @@ def cal_stats_init(
 
     # Compile everything into a dictionary.
     cal_init_obj_dict = {
+        "data_counter": 0,
         "dloaders": data_objs['dataloaders'],
         "output_root": task_root,
         "supports": data_objs['supports'],

@@ -68,15 +68,12 @@ def get_cal_stats(
     )
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
-        data_counter = 0
         for split in inference_init_obj["dloaders"].keys():
             split_dataloader_obj = inference_init_obj["dloaders"][split]
             loop_base_args = {
                 "inf_cfg_dict": inference_cfg_dict,
                 "inf_init_obj": inference_init_obj,
-                "trackers": inference_init_obj["trackers"],
                 "split": split,
-                "data_counter": data_counter
             }
             for label_idx in split_dataloader_obj.keys():
                 dloader_loop_args = {
@@ -105,14 +102,9 @@ def get_cal_stats(
                                 **dloader_loop_args,
                             )
                     else:
-                        dataloader_loop(
-                            support_generator=support_gen,
-                            **dloader_loop_args,
-                        )
+                        dataloader_loop(support_generator=support_gen, **dloader_loop_args)
             else:
-                dataloader_loop(
-                    **dloader_loop_args,
-                )
+                dataloader_loop(**dloader_loop_args)
         # Save the records at the end too
         if inference_cfg_dict["log"]["log_image_stats"]:
             save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
@@ -147,10 +139,8 @@ def get_cal_stats(
 def dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
-    trackers,
     dloader, 
     split: str,
-    data_counter: int,
     sup_idx: Optional[int] = None,
     label_idx: Optional[int] = None,
     support_augs: Optional[Any] = None,
@@ -170,14 +160,10 @@ def dataloader_loop(
             "split": split,
             "batch_idx": batch_idx,
             "label_idx": label_idx,
+            "sup_idx": sup_idx,
+            "support_augs": support_augs,
             **batch
         }
-        if inf_cfg_dict['model']['_type'] == 'incontext':
-            forward_batch = {
-                "sup_idx": sup_idx,
-                "support_augs": support_augs,
-                **forward_batch
-            }
         # Place the output dir in the inf_cfg_dict
         inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
         # Gather the forward item.
@@ -185,8 +171,6 @@ def dataloader_loop(
             "inf_cfg_dict": inf_cfg_dict,
             "inf_init_obj": inf_init_obj,
             "batch": forward_batch,
-            "trackers": trackers,
-            "data_counter": data_counter,
         }
         # Run the forward loop
         input_type = inf_cfg_dict['data']['input_type']
@@ -213,8 +197,6 @@ def volume_forward_loop(
     inf_cfg_dict,
     inf_init_obj,
     batch,
-    trackers,
-    data_counter,
 ):
     # Get the batch info
     image_vol_cpu = batch.pop("img")
@@ -235,8 +217,6 @@ def volume_forward_loop(
             inf_init_obj=inf_init_obj,
             batch=slice_batch,
             slice_idx=slice_idx,
-            trackers=trackers,
-            data_counter=data_counter
         )
 
 
@@ -245,8 +225,6 @@ def standard_image_forward_loop(
     inf_cfg_dict,
     inf_init_obj,
     batch,
-    trackers,
-    data_counter,
     slice_idx: Optional[int] = None,
 ):
     # Get the experiment
@@ -295,16 +273,14 @@ def standard_image_forward_loop(
         get_calibration_item_info(
             output_dict=output_dict,
             inference_cfg=inf_cfg_dict,
-            trackers=trackers,
+            trackers=inf_init_obj['trackers'],
         )
 
         # Save the records every so often, to get intermediate results. Note, because of data_ids
         # this can contain fewer than 'log interval' many items.
-        if inf_cfg_dict["log"]["log_image_stats"] and (data_counter % inf_cfg_dict['log']['log_interval'] == 0):
-            save_trackers(inf_init_obj["output_root"], trackers=trackers)
-
-        print("Data counter: ", data_counter)
-        data_counter += 1
+        if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
+            save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+        inf_init_obj['data_counter'] += 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -313,7 +289,6 @@ def incontext_image_forward_loop(
     inf_init_obj,
     batch,
     trackers,
-    data_counter,
     support_dict: Optional[Any] = None,
     support_generator: Optional[Any] = None,
     slice_idx: Optional[int] = None,
@@ -411,11 +386,11 @@ def incontext_image_forward_loop(
                         else:
                             y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
                     # Append the predictions to the ensemble predictions.
-                    ensemble_probs_list.append(torch.cat([1 - y_probs, y_probs], dim=1)) # (B, 2, H, W)
+                    ensemble_probs_list.append(y_probs) # (B, 1, H, W)
                     # Get the hard predictions.
                     ensemble_hards_list.append((y_probs > inf_cfg_dict['experiment']['threshold']).long()) # (B, 1, H, W)
                 # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-                ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 2, E, H, W)
+                ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
                 ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)
                 # Wrap the outputs into a dictionary.
                 output_dict = {
@@ -434,10 +409,9 @@ def incontext_image_forward_loop(
 
         # Save the records every so often, to get intermediate results. Note, because of data_ids
         # this can contain fewer than 'log interval' many items.
-        if inf_cfg_dict["log"]["log_image_stats"] and (data_counter % inf_cfg_dict['log']['log_interval'] == 0):
+        if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
             save_trackers(inf_init_obj["output_root"], trackers=trackers)
-
-        data_counter += 1
+        inf_init_obj['data_counter'] += 1
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
