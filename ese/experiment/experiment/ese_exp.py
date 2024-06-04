@@ -16,9 +16,9 @@ import time
 import einops
 import numpy as np
 import seaborn as sns
-from typing import Literal
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from typing import Literal, Optional
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -136,11 +136,14 @@ class CalibrationExperiment(TrainExperiment):
         self, 
         x, 
         multi_class,
-        threshold=0.5,
+        threshold = 0.5,
+        label: Optional[int] = None,
     ):
         assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
+
         # Get the label predictions
         logit_map = self.model(x) 
+
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             logit_map, 
@@ -148,6 +151,11 @@ class CalibrationExperiment(TrainExperiment):
             threshold=threshold,
             from_logits=True,
         )
+
+        if label is not None:
+            logit_map = logit_map[:, label, ...].unsqueeze(1)
+            prob_map = prob_map[:, label, ...].unsqueeze(1)
+
         # Return the outputs
         return {
             'y_logits': logit_map,

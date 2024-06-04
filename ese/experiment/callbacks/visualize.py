@@ -149,7 +149,7 @@ def ShowPredictionsCallback(
 
             # Plot the reliability diagram for the binary case of the foreground.
             cal_info = bin_stats(
-                y_pred=y_hat[1, ...][None, None, ...],
+                y_pred=y_hat[None, None, ...],
                 y_true=y[None, None, ...],
                 num_prob_bins=num_prob_bins
             )

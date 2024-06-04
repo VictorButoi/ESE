@@ -252,16 +252,24 @@ def standard_image_forward_loop(
     
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
-    
+
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
     if torch.sum(label_map != 0) >= inf_cfg_dict["log"].get("min_fg_pixels", 0):
 
         # Get your image label pair and define some regions.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
+        
+        # Label maps are soft labels so we need to convert them to hard labels.
+        label_threshold = inf_cfg_dict["data"].get("label_threshold", None)
+        if label_threshold is not None:
+            label_map = (label_map > label_threshold).long()
 
         # Some args for the foward pass, only binary prediction is supported for now.
-        predict_args = {'multi_class': False}
+        predict_args = {
+            'multi_class': False,
+            'label': inf_cfg_dict['model'].get('pred_label', None)
+        }
         if inf_cfg_dict["model"]["ensemble"]:
             predict_args["combine_fn"] = "identity"
 
@@ -319,7 +327,9 @@ def incontext_image_forward_loop(
             image, label_map = to_device((image, label_map), exp.device)
         
         # Label maps are soft labels so we need to convert them to hard labels.
-        label_map = (label_map > 0.5).long() # TODO: Should this be a modifiable threshold?
+        label_threshold = inf_cfg_dict["data"].get("label_threshold", None)
+        if label_threshold is not None:
+            label_map = (label_map > label_threshold).long()
        
         # Define the arguments that are shared by fixed supports and variable supports.
         common_forward_args = {
@@ -339,14 +349,17 @@ def incontext_image_forward_loop(
                 "context_images": support_dict['images'],
                 "context_labels": support_dict['labels'],
             }
+
             with torch.no_grad():
                 if hasattr(exp, "predict"):
                     y_probs = exp.predict(**support_args, x=image, multi_class=False)['y_probs']
                 else:
                     y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
+
             # Append the predictions to the ensemble predictions.
             y_hard = (y_probs > inf_cfg_dict['experiment']['threshold']).long() # (B, 1, H, W)
-            y_probs = torch.cat([1 - y_probs, y_probs], dim=1).unsqueeze(2) # B, 2, 1, H, W
+            y_probs = y_probs.unsqueeze(2) # B, 1, 1, H, W
+
             # Wrap the outputs into a dictionary.
             output_dict = {
                 "y_hard": y_hard,
@@ -437,6 +450,7 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
+
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
@@ -446,6 +460,7 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_level_records=trackers["image_level_records"]
         ) 
+
     ###############################################################################################
     # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
     ###############################################################################################
@@ -461,6 +476,7 @@ def get_calibration_item_info(
             "split": output_dict["split"],
             "slice_idx": output_dict["slice_idx"]
         }
+
     #################################################################
     # CALIBRATION METRICS FOR THIS IMAGE (TOP-LABEL AND CLASS-WISE) #
     #################################################################
