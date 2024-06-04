@@ -81,8 +81,10 @@ def get_ese_inference_configs(
             use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
             if use_uncalibrated_models:
                 model_group_dir = group_dict['base_models_group']
+                default_config_options['model.checkpoint'] = ['max-val-dice_score']
             else:
                 model_group_dir = f"{group_dict['calibrated_models_group']}/Individual_{calibrator}"
+                default_config_options['model.checkpoint'] = ['min-val-ece_loss']
 
             #####################################
             # Choose the ensembles ahead of time.
