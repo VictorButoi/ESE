@@ -37,17 +37,20 @@ def get_ese_inference_configs(
                 inf_cfg_opts[key] = power_set(inf_cfg_opts[key])
 
     # Gather the different config options.
-    keys = list(inf_cfg_opts.keys())
-    if 'calibrator' in keys:
-        keys.remove('calibrator') # We need to handle calibrator separately.
+    cfg_opt_keys = list(inf_cfg_opts.keys())
+    if 'calibrator' in cfg_opt_keys:
+        cfg_opt_keys.remove('calibrator') # We need to handle calibrator separately.
     else:
         inf_cfg_opts['calibrator'] = ['Uncalibrated']
 
-    # Generate product tuples
-    product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in keys]))
+    # Generate product tuples by first going through and making sure each option is a list and then using itertools.product.
+    for ico_key in inf_cfg_opts:
+        if not isinstance(inf_cfg_opts[ico_key], list):
+            inf_cfg_opts[ico_key] = [inf_cfg_opts[ico_key]]
+    product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in cfg_opt_keys]))
     
     # Convert product tuples to dictionaries
-    total_run_cfg_options = [{keys[i]: [item[i]] for i in range(len(keys))} for item in product_tuples]
+    total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
 
     # Keep a list of all the run configuration options.
     inference_opt_list = []
