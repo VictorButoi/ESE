@@ -17,9 +17,12 @@ from ionpy.util import Config
 from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
-# UniverSeg imports
-from universeg.experiment.datasets import Segment2D
-from universeg.experiment.datasets.support import RandomSupport
+# UniverSeg imports if universeg.experiment is installed
+try:
+    from universeg.experiment.datasets import Segment2D
+    from universeg.experiment.datasets.support import RandomSupport
+except:
+    pass
 # local imports
 from ese.experiment.utils.general import save_records, save_dict
 from ...experiment.utils import load_experiment, get_exp_load_info

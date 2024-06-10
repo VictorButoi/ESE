@@ -204,6 +204,7 @@ def volume_forward_loop(
             batch=slice_batch,
             slice_idx=slice_idx,
         )
+    assert slice_idx == num_slices - 1, "Slice index did not reach the end of the volume."
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
