@@ -3,8 +3,10 @@ import re
 import os
 import ast
 import yaml
+import torch
 import pickle
 import itertools
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Optional, List
@@ -19,9 +21,42 @@ from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval
 from universeg.experiment.datasets import Segment2D
 from universeg.experiment.datasets.support import RandomSupport
 # local imports
+from ese.experiment.utils.general import save_records, save_dict
 from ...experiment.utils import load_experiment, get_exp_load_info
 from ...augmentation.gather import augmentations_from_config
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
+
+
+def save_trackers(output_root, trackers):
+    save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
+    save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
+    save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
+
+
+def aug_support(sx_cpu, sy_cpu, inference_init_obj):
+    sx_cpu_np = sx_cpu.numpy() # S 1 H W
+    sy_cpu_np = sy_cpu.numpy() # S 1 H W
+    # Augment each member of the support set individually.
+    aug_sx = []    
+    aug_sy = []
+    for sup_idx in range(sx_cpu_np.shape[0]):
+        img_slice = sx_cpu_np[sup_idx, 0, ...]
+        lab_slice = sy_cpu_np[sup_idx, 0, ...]
+        # Apply the augmentation to the support set.
+        aug_pair = inference_init_obj['support_transforms'](
+            image=img_slice,
+            mask=lab_slice
+        )
+        aug_sx.append(aug_pair['image'][np.newaxis, ...])
+        aug_sy.append(aug_pair['mask'][np.newaxis, ...])
+    # Concatenate the augmented support set.
+    sx_cpu_np = np.stack(aug_sx, axis=0)
+    sy_cpu_np = np.stack(aug_sy, axis=0)
+    # Convert to torch tensors.
+    sx_cpu = torch.from_numpy(sx_cpu_np)
+    sy_cpu = torch.from_numpy(sy_cpu_np)
+    # Return the augmented support sets.
+    return sx_cpu, sy_cpu
 
 
 def verify_graceful_exit(log_path: str, log_root: str):

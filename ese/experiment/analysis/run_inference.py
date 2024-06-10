@@ -4,14 +4,17 @@ import torch
 from ionpy.util import Config
 from ionpy.util.torchutils import to_device
 # local imports
-from .analysis_utils.inference_utils import cal_stats_init 
 from .checks import global_cal_sanity_check
 from .image_records import get_image_stats
+from .analysis_utils.inference_utils import (
+    aug_support,
+    save_trackers,
+    cal_stats_init
+)
 from .pixel_records import (
     update_toplabel_pixel_meters,
     update_cw_pixel_meters
 )
-from ..utils.general import save_records, save_dict
 from ..experiment.utils import (
     show_inference_examples, 
     reduce_ensemble_preds
@@ -22,38 +25,6 @@ import pandas as pd
 from typing import Any, Optional
 from pydantic import validate_arguments
     
-
-def save_trackers(output_root, trackers):
-    save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
-    save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
-    save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
-
-
-def aug_support(sx_cpu, sy_cpu, inference_init_obj):
-    sx_cpu_np = sx_cpu.numpy() # S 1 H W
-    sy_cpu_np = sy_cpu.numpy() # S 1 H W
-    # Augment each member of the support set individually.
-    aug_sx = []    
-    aug_sy = []
-    for sup_idx in range(sx_cpu_np.shape[0]):
-        img_slice = sx_cpu_np[sup_idx, 0, ...]
-        lab_slice = sy_cpu_np[sup_idx, 0, ...]
-        # Apply the augmentation to the support set.
-        aug_pair = inference_init_obj['support_transforms'](
-            image=img_slice,
-            mask=lab_slice
-        )
-        aug_sx.append(aug_pair['image'][np.newaxis, ...])
-        aug_sy.append(aug_pair['mask'][np.newaxis, ...])
-    # Concatenate the augmented support set.
-    sx_cpu_np = np.stack(aug_sx, axis=0)
-    sy_cpu_np = np.stack(aug_sy, axis=0)
-    # Convert to torch tensors.
-    sx_cpu = torch.from_numpy(sx_cpu_np)
-    sy_cpu = torch.from_numpy(sy_cpu_np)
-    # Return the augmented support sets.
-    return sx_cpu, sy_cpu
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
@@ -99,14 +70,18 @@ def get_cal_stats(
                             # Run the dataloader loop with this particular support of images and labels.
                             dataloader_loop(
                                 sup_idx=sup_idx,
-                                support_dict={'images': sx[None], 'labels': sy[None], 'data_ids': support_data_ids},
+                                support_dict={
+                                    'images': sx[None], 
+                                    'labels': sy[None], 
+                                    'data_ids': support_data_ids
+                                },
                                 support_augs=inference_cfg_dict['experiment'].get('support_augs', None),
                                 **dloader_loop_args,
                             )
                     else:
                         dataloader_loop(support_generator=support_gen, **dloader_loop_args)
-            else:
-                dataloader_loop(**dloader_loop_args)
+                else:
+                    dataloader_loop(**dloader_loop_args)
         # Save the records at the end too
         if inference_cfg_dict["log"]["log_image_stats"]:
             save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
@@ -149,48 +124,58 @@ def dataloader_loop(
     support_dict: Optional[dict] = None,
     support_generator: Optional[Any] = None,
 ):
-    for batch_idx, batch in enumerate(dloader):
-        print(f"Working on batch #{batch_idx} out of",\
-            len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
-        if isinstance(batch, list):
-            batch = {
-                "img": batch[0],
-                "label": batch[1],
-                "data_id": batch[2],
+    iter_dloader = iter(dloader)
+    for batch_idx in range(len(dloader)):
+        try:
+            batch = next(iter_dloader)
+
+            print(f"Working on batch #{batch_idx} out of",\
+                len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+
+            if isinstance(batch, list):
+                batch = {
+                    "img": batch[0],
+                    "label": batch[1],
+                    "data_id": batch[2],
+                }
+            forward_batch = {
+                "batch_idx": batch_idx,
+                "sup_idx": sup_idx,
+                "support_augs": support_augs,
+                "data_props": data_props,
+                **batch
             }
-        forward_batch = {
-            "batch_idx": batch_idx,
-            "sup_idx": sup_idx,
-            "support_augs": support_augs,
-            "data_props": data_props,
-            **batch
-        }
-        # Place the output dir in the inf_cfg_dict
-        inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
-        # Gather the forward item.
-        forward_item = {
-            "inf_cfg_dict": inf_cfg_dict,
-            "inf_init_obj": inf_init_obj,
-            "batch": forward_batch,
-        }
-        # Run the forward loop
-        input_type = inf_cfg_dict['data']['input_type']
-        if input_type == 'volume':
-            volume_forward_loop(**forward_item)
-        elif input_type == 'image':
-            if inf_cfg_dict['model']['_type'] == 'incontext':
-                if support_dict is not None:
-                    forward_item['support_dict'] = support_dict
-                elif support_generator is not None:
-                    forward_item['support_generator'] = support_generator
+            # Place the output dir in the inf_cfg_dict
+            inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+            # Gather the forward item.
+            forward_item = {
+                "inf_cfg_dict": inf_cfg_dict,
+                "inf_init_obj": inf_init_obj,
+                "batch": forward_batch,
+            }
+            # Run the forward loop
+            input_type = inf_cfg_dict['data']['input_type']
+            if input_type == 'volume':
+                volume_forward_loop(**forward_item)
+            elif input_type == 'image':
+                if inf_cfg_dict['model']['_type'] == 'incontext':
+                    if support_dict is not None:
+                        forward_item['support_dict'] = support_dict
+                    elif support_generator is not None:
+                        forward_item['support_generator'] = support_generator
+                    else:
+                        raise ValueError("Support set method not found.")
+                    # Run the forward loop.
+                    incontext_image_forward_loop(**forward_item)
                 else:
-                    raise ValueError("Support set method not found.")
-                # Run the forward loop.
-                incontext_image_forward_loop(**forward_item)
+                    standard_image_forward_loop(**forward_item)
             else:
-                standard_image_forward_loop(**forward_item)
-        else:
-            raise ValueError(f"Input type {input_type} not recognized.")
+                raise ValueError(f"Input type {input_type} not recognized.")
+        except KeyError:
+            print("KeyError: Skipping this batch")
+            pass
+        except Exception as e:
+            raise e
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -489,3 +474,4 @@ def get_calibration_item_info(
             image_tl_pixel_meter_dict=image_tl_pixel_meter_dict,
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
+    

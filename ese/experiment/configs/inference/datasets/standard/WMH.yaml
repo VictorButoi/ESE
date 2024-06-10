@@ -7,6 +7,7 @@ data:
   input_type: volume
   slicing: dense_full
   split: '?'
+  task: '?' 
 
 global_calibration:
     num_classes: 2
