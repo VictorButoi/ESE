@@ -371,15 +371,18 @@ def dataloader_from_exp(
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
     inference_data_cfg['return_data_id'] = True
-    # If aug cfg list is not None, that means that we want to change the inference transforms.
-    if aug_cfg_list is not None:
-        inference_transforms = augmentations_from_config(aug_cfg_list)
-    else:
-        inference_transforms = None
-    dset_splits = ast.literal_eval(inference_data_cfg.pop('splits'))
+    # Get the split, which is either a list or a string.
+    try:
+        split_list = list(ast.literal_eval(inference_data_cfg.pop('split')))
+    except:
+        print("Error loading split list, defaulting to string.")
+        split_list = [inference_data_cfg.pop('split')]
+    # Iterate through the splits and construct both 
+    # 1) The dataloaders corresponding to each set of examples for inference.
+    # 2) The support sets for each split.
     dataloaders = {}
     supports = {} # use for ICL
-    for split in dset_splits:
+    for split in split_list:
         # Load the dataset with modified arguments.
         split_data_cfg = inference_data_cfg.copy()
         split_data_cfg['split'] = split
@@ -389,7 +392,7 @@ def dataloader_from_exp(
             )
         else: 
             split_dataset_obj = absolute_import(dataset_cls)(
-                transforms=inference_transforms, 
+                transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
                 **split_data_cfg
             )
             lab_split_support_dict = None
