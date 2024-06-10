@@ -163,20 +163,10 @@ def load_cal_inference_stats(
                                 ).item() 
                     # Add this log to the dataframe.
                     inference_df = pd.concat([inference_df, log_image_df])
+
         #########################################
         # POST-PROCESSING STEPS
         #########################################
-        # Only choose rows with some minimal amount of foreground pixels.
-        if options_cfg.get("min_fg_pixels", False):
-            # Get the names of all columns that have "num_lab" in them.
-            num_lab_cols = [col for col in inference_df.columns if "num_lab" in col]
-            # Remove num_lab_0_pixels because it is background
-            num_lab_cols.remove("num_lab_0_pixels")
-            # Make a new column that is the sum of all the num_lab columns.
-            inference_df['num_fg_pixels'] = inference_df[num_lab_cols].sum(axis=1)
-            original_row_amount = len(inference_df)
-            inference_df = inference_df[inference_df['num_fg_pixels'] >= options_cfg["min_fg_pixels"]]
-            print(f"Dropping rows that don't meet minimum foreground pixel requirements. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
 
         # Drop the rows corresponding to NaNs in metric_score
         if options_cfg['drop_nan_metric_rows']:

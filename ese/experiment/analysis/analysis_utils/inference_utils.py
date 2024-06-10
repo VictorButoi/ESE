@@ -1,8 +1,10 @@
 #misc imports
+import re
 import os
 import ast
 import yaml
 import pickle
+import itertools
 import pandas as pd
 from pathlib import Path
 from typing import Optional, List
@@ -231,9 +233,9 @@ def cal_stats_init(
         "cw_pixel_meter_dict": {}
     }
     # Add trackers per split
-    for data_split in data_objs['dataloaders']:
-        trackers['tl_pixel_meter_dict'][data_split] = {}
-        trackers['cw_pixel_meter_dict'][data_split] = {}
+    for data_cfg_opt in data_objs['dataloaders']:
+        trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
+        trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
 
     #####################
     # SAVE THE METADATA #
@@ -354,6 +356,8 @@ def dataloader_from_exp(
         assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
     dataset_cls = inference_data_cfg.pop('_class')
+    
+    # TODO: Clean this up, way too hardcoded.
     # Drop auxiliary information used for making the models.
     for drop_key in [
         'in_channels', 
@@ -371,46 +375,64 @@ def dataloader_from_exp(
             inference_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
     inference_data_cfg['return_data_id'] = True
-    # Get the split, which is either a list or a string.
-    try:
-        split_list = list(ast.literal_eval(inference_data_cfg.pop('split')))
-    except:
-        print("Error loading split list, defaulting to string.")
-        split_list = [inference_data_cfg.pop('split')]
-    # Iterate through the splits and construct both 
+
+    # We want to iterate through the keys of the inference data cfg, check which match the form of a tuple, and then use those
+    # as options for the dataset.
+
+    def is_tuple_string(s):
+        # Regular expression to check if the string represents a tuple
+        s = str(s)
+        tuple_regex = re.compile(r'^\(\s*([^,]+,\s*)*[^,]+\s*\)$')
+        return bool(tuple_regex.match(s))
+
+    # Iterate through the keys and check if they are tuples.
+    opt_dict = {}
+    for key in list(inference_data_cfg.keys()):
+        if is_tuple_string(inference_data_cfg[key]):
+            opt_dict[key] = list(ast.literal_eval(inference_data_cfg.pop(key)))
+    # Get the cartesian product of the options in the dictionary using itertools.
+    data_cfg_vals = opt_dict.values()
+    # Create a list of dictionaries from the Cartesian product
+    data_cfgs = [dict(zip(opt_dict.keys(), prod)) for prod in itertools.product(*data_cfg_vals)]
+
+    # Iterate through the configurations and construct both 
     # 1) The dataloaders corresponding to each set of examples for inference.
-    # 2) The support sets for each split.
+    # 2) The support sets for each run configuration.
     dataloaders = {}
     supports = {} # use for ICL
-    for split in split_list:
+    for d_cfg_opt in data_cfgs:
         # Load the dataset with modified arguments.
-        split_data_cfg = inference_data_cfg.copy()
-        split_data_cfg['split'] = split
+        d_data_cfg = inference_data_cfg.copy()
+        # Update the data cfg with the new options.
+        d_data_cfg.update(d_cfg_opt)
+        # Construct the dataset, either if it's incontext or standard.
         if inference_cfg['model']['_type'] == 'incontext':
-            lab_split_dataset_dict, lab_split_support_dict = get_incontext_dataset(
-                data_cfg=split_data_cfg, 
+            lab_d_dataset_dict, lab_d_support_dict = get_incontext_dataset(
+                data_cfg=d_data_cfg, 
             )
         else: 
-            split_dataset_obj = absolute_import(dataset_cls)(
+            d_dataset_obj = absolute_import(dataset_cls)(
                 transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
-                **split_data_cfg
+                **d_data_cfg
             )
-            lab_split_support_dict = None
+            lab_d_support_dict = None
             # Package these into dummy dictionaries. Not great, but it works.
-            lab_split_dataset_dict = {
-                -1 : split_dataset_obj
+            lab_d_dataset_dict = {
+                -1 : d_dataset_obj
             }
-        # Iterate through the labels and put in the dataloaders
-        supports[split] = lab_split_support_dict
-        dataloaders[split] = {}
-        for lab in lab_split_dataset_dict.keys():
-            # Build the dataloader for this split and label.
-            dataloaders[split][lab] = DataLoader(
-                lab_split_dataset_dict[lab], 
+        # We need to store these object by the contents of d_cfg_opt.
+        opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
+        supports[opt_string] = lab_d_support_dict
+        dataloaders[opt_string] = {}
+        for lab in lab_d_dataset_dict.keys():
+            # Build the dataloader for this opt cfg and label.
+            dataloaders[opt_string][lab] = DataLoader(
+                lab_d_dataset_dict[lab], 
                 batch_size=inference_cfg['dataloader']['batch_size'], 
                 num_workers=inference_cfg['dataloader']['num_workers'],
                 shuffle=False
             )
+
     # Add the augmentation information.
     inference_data_cfg = {
         "augmentations": aug_cfg_list,

@@ -68,21 +68,23 @@ def get_cal_stats(
     )
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
-        for split in inference_init_obj["dloaders"].keys():
-            split_dataloader_obj = inference_init_obj["dloaders"][split]
-            loop_base_args = {
-                "inf_cfg_dict": inference_cfg_dict,
-                "inf_init_obj": inference_init_obj,
-                "split": split,
-            }
-            for label_idx in split_dataloader_obj.keys():
+        loop_base_args = {
+            "inf_cfg_dict": inference_cfg_dict,
+            "inf_init_obj": inference_init_obj,
+        }
+        for data_cfg_opt, cfg_dataloader_obj in inference_init_obj["dloaders"].items():
+            # Make the data opt args for this particualr data configuration.
+            data_props = dict(item.split(':') for item in data_cfg_opt.split('^'))
+            data_props['data_cfg_opt'] = data_cfg_opt
+            for label_idx, lab_dloader in cfg_dataloader_obj.items():
+                data_props["label_idx"] = label_idx
                 dloader_loop_args = {
-                    "dloader": split_dataloader_obj[label_idx],
-                    "label_idx": label_idx,
+                    "dloader": lab_dloader,
+                    "data_props": data_props,
                     **loop_base_args
                 }
                 if inference_cfg_dict["model"]["_type"] == "incontext":
-                    support_gen = inference_init_obj["supports"][split][label_idx]
+                    support_gen = inference_init_obj["supports"][data_cfg_opt][label_idx]
                     if inference_cfg_dict["experiment"]["fixed_support_sets"]:
                         for sup_idx in range(inference_cfg_dict['experiment']['supports_per_target']):
                             # Ensure that all subjects of the same label have the same support set.
@@ -119,17 +121,18 @@ def get_cal_stats(
         for cal_metric_name, cal_metric_dict in inference_cfg_dict["global_cal_metrics"].items():
             # Add a dummy column to the dataframe.
             log_image_df[cal_metric_name] = np.nan
-            # Iterate through the splits, and replace the rows corresponding to the split with the cal losses.
-            for split in inference_init_obj["dloaders"].keys():
+            # Iterate through the data opts, and replace the rows corresponding to the data opt with the cal losses.
+            for data_cfg_opt in inference_init_obj["dloaders"].keys():
                 assert cal_metric_dict['cal_type'] in ["classwise", "toplabel"],\
                     f"Calibration type {cal_metric_dict['cal_type']} not recognized."
                 tracker_key = "cw_pixel_meter_dict" if cal_metric_dict['cal_type'] == "classwise" else "tl_pixel_meter_dict"
                 # Calculate the loss.
                 cal_loss = cal_metric_dict['_fn'](
-                    pixel_meters_dict=inference_init_obj["trackers"][tracker_key][split]
+                    pixel_meters_dict=inference_init_obj["trackers"][tracker_key][data_cfg_opt]
                 ).item() 
-                # Replace the rows of log_image_df with column 'split' 
-                log_image_df.loc[log_image_df["split"] == split, cal_metric_name] = cal_loss
+                # Replace the rows of log_image_df with column 'data_cfg_opt' 
+                log_image_df.loc[log_image_df["data_cfg_opt"] == data_cfg_opt, cal_metric_name] = cal_loss
+
         # Save the dataframe again.
         if inference_cfg_dict["log"]["log_pixel_stats"]:
             log_image_df.to_pickle(image_stats_dir)
@@ -140,15 +143,14 @@ def dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
     dloader, 
-    split: str,
     sup_idx: Optional[int] = None,
-    label_idx: Optional[int] = None,
+    data_props: Optional[dict] = {},
     support_augs: Optional[Any] = None,
     support_dict: Optional[dict] = None,
     support_generator: Optional[Any] = None,
 ):
     for batch_idx, batch in enumerate(dloader):
-        print(f"Split: {split}, Label: {label_idx} | Working on batch #{batch_idx} out of",\
+        print(f"Working on batch #{batch_idx} out of",\
             len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
         if isinstance(batch, list):
             batch = {
@@ -157,11 +159,10 @@ def dataloader_loop(
                 "data_id": batch[2],
             }
         forward_batch = {
-            "split": split,
             "batch_idx": batch_idx,
-            "label_idx": label_idx,
             "sup_idx": sup_idx,
             "support_augs": support_augs,
+            "data_props": data_props,
             **batch
         }
         # Place the output dir in the inf_cfg_dict
@@ -265,9 +266,8 @@ def standard_image_forward_loop(
             "y_probs": exp_output.get("y_probs", None),
             "y_hard": exp_output.get("y_hard", None),
             "data_id": batch["data_id"][0], # Works because batchsize = 1
-            "split": batch["split"],
-            "label_idx": batch["label_idx"],
-            "slice_idx": slice_idx
+            "slice_idx": slice_idx,
+            **batch["data_props"]
         }
         # Get the calibration item info.  
         get_calibration_item_info(
@@ -316,10 +316,9 @@ def incontext_image_forward_loop(
             "y_true": label_map,
             "y_logits": None,
             "slice_idx": slice_idx,
-            "split": batch['split'],
             "data_id": batch['data_id'][0], # Works because batchsize = 1
-            "label_idx": batch["label_idx"],
             'support_augs': batch['support_augs'], # 'support_augs' is a dictionary of augmentations for the support set.
+            **batch['data_props']
         }
 
         if support_dict is not None:
@@ -451,16 +450,11 @@ def get_calibration_item_info(
     ###############################################################################################
     if inference_cfg["model"]["ensemble"]:
         # Get the reduced predictions
-        output_dict = {
-            **reduce_ensemble_preds(
-                output_dict, 
-                inference_cfg=inference_cfg,
-            ),
-            "y_true": output_dict["y_true"],
-            "data_id": output_dict["data_id"],
-            "split": output_dict["split"],
-            "slice_idx": output_dict["slice_idx"]
-        }
+        ensembled_pred = reduce_ensemble_preds(
+                            output_dict, 
+                            inference_cfg=inference_cfg,
+                        )
+        output_dict.update(ensembled_pred)
 
     #################################################################
     # CALIBRATION METRICS FOR THIS IMAGE (TOP-LABEL AND CLASS-WISE) #
@@ -472,13 +466,13 @@ def get_calibration_item_info(
     # Top-label 
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
-            record_dict=trackers["tl_pixel_meter_dict"][output_dict["split"]],
+            record_dict=trackers['tl_pixel_meter_dict'][output_dict['data_cfg_opt']],
             **cal_args
         )
     # Class-wise 
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
-            record_dict=trackers["cw_pixel_meter_dict"][output_dict["split"]],
+            record_dict=trackers['cw_pixel_meter_dict'][output_dict['data_cfg_opt']],
             **cal_args
         )
     ##################################################################
