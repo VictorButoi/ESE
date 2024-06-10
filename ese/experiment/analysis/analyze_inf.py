@@ -211,8 +211,11 @@ def load_cal_inference_stats(
                 new_key = "model_class"
             else:
                 new_key = raw_key.split(".")[-1]
-            # Fill the key with "None" if it is NaN.
-            inference_df[new_key] = inference_df[raw_key].fillna("None")
+            inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
+            # If the new key isn't the same as the old key, remove the old key.
+            if new_key != raw_key:
+                del inference_df[raw_key]
+
         # Add keys that are necessary for the analysis.
         if '_pretrained_class' not in inference_df.columns:
             inference_df['_pretrained_class'] = "None"
@@ -244,18 +247,7 @@ def load_cal_inference_stats(
         def configuration(method_name, calibrator):
             return f"{method_name}_{calibrator}"
 
-        def model_type(ensemble):
-            return 'group' if ensemble else 'individual'
-
-        def metric_type(image_metric):
-            if 'ECE' in image_metric or 'ELM' in image_metric:
-                return 'calibration'
-            else:
-                return 'quality'
-
         # Add the new columns
-        inference_df.augment(metric_type)
-        inference_df.augment(model_type)
         inference_df.augment(joint_data_slice_id)
         inference_df.augment(method_name)
         inference_df.augment(configuration)
@@ -289,7 +281,7 @@ def load_cal_inference_stats(
             inference_df = pickle.load(f)
 
     # Get the number of rows in image_info_df for each log set.
-    final_num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
+    final_num_rows_per_log_set = inference_df.groupby(["root", "log_set"]).size()
     # Print information about each log set.
     print("Finished loading inference stats.")
     print(f"Log amounts: {final_num_rows_per_log_set}")
