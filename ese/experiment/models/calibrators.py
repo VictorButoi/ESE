@@ -158,64 +158,66 @@ class IBTS(nn.Module):
         return next(self.parameters()).device
 
         
-# class LTS(nn.Module):
-#     def __init__(
-#         self, 
-#         img_channels: int,
-#         num_classes: int, 
-#         filters: list[int],
-#         use_image: bool = True,
-#         use_logits: bool = True, 
-#         convs_per_block: int = 1,
-#         eps=1e-12, 
-#         **kwargs
-#     ):
-#         super(LTS, self).__init__()
+class LocalTS(nn.Module):
+    def __init__(
+        self, 
+        img_channels: int,
+        num_classes: int, 
+        filters: list[int],
+        use_image: bool = True,
+        use_logits: bool = True, 
+        convs_per_block: int = 1,
+        eps=1e-12, 
+        **kwargs
+    ):
+        super(LTS, self).__init__()
 
-#         self.calibrator_unet = UNet(
-#             in_channels=(num_classes + img_channels if use_image else num_classes), 
-#             out_channels=1, # For the temp map.
-#             filters=filters,
-#             convs_per_block=convs_per_block,
-#         )
-#         self.use_image = use_image
-#         self.use_logits = use_logits
-#         self.eps = eps 
+        self.calibrator_unet = UNet(
+            in_channels=(num_classes + img_channels if use_image else num_classes), 
+            out_channels=1, # For the temp map.
+            filters=filters,
+            convs_per_block=convs_per_block,
+        )
+        self.use_image = use_image
+        self.use_logits = use_logits
+        self.eps = eps 
 
-#     def weights_init(self):
-#         pass
+    def weights_init(self):
+        pass
 
-#     def get_temp_map(self, logits, image):
-#         # Either passing into probs or logits into UNet, can affect optimization.
-#         if not self.use_logits:
-#             cal_input = torch.softmax(logits, dim=1)
-#         else:
-#             cal_input = logits
-#         # Concatenate the image if we are using it.
-#         if self.use_image:
-#             cal_input = torch.cat([cal_input, image], dim=1)
-#         # Pass through the UNet.
-#         unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x H x W
-#         # Add ones so the temperature starts near 1.
-#         unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
-#         # Clip the values to be positive and add epsilon for smoothing.
-#         temp_map = F.relu(unnorm_temp_map) + self.eps
-#         # Return the temp map.
-#         return temp_map
+    def get_temp_map(self, logits, image):
+        # Either passing into probs or logits into UNet, can affect optimization.
+        if not self.use_logits:
+            cal_input = torch.softmax(logits, dim=1)
+        else:
+            cal_input = logits
+        # Concatenate the image if we are using it.
+        if self.use_image:
+            cal_input = torch.cat([cal_input, image], dim=1)
+        # Pass through the UNet.
+        unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x H x W
+        # Add ones so the temperature starts near 1.
+        unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
+        # Clip the values to be positive and add epsilon for smoothing.
+        temp_map = F.relu(unnorm_temp_map) + self.eps
+        # Return the temp map.
+        return temp_map
 
-#     def forward(self, logits, image, **kwargs):
-#         _, C, _, _ = logits.shape
-#         # Get the temperature map.
-#         temp_map = self.get_temp_map(logits, image) # B x H x W
-#         # Repeat the temperature map for all classes.
-#         temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
-#         # Finally, scale the logits by the temperatures.
-#         return logits / temp_map
+    def forward(self, logits, image, **kwargs):
+        _, C, _, _ = logits.shape
+        # Get the temperature map.
+        temp_map = self.get_temp_map(logits, image) # B x H x W
+        # Repeat the temperature map for all classes.
+        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+        # Finally, scale the logits by the temperatures.
+        return logits / temp_map
 
-#     @property
-#     def device(self):
-#         return next(self.parameters()).device
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
+
+# Keeping this for running older models.
 class LTS(nn.Module):
     def __init__(self, num_classes, image_channels, sigma=1e-8, **kwargs):
         super(LTS, self).__init__()

@@ -14,7 +14,7 @@ from ..analysis.cal_plots.reliability_plots import reliability_diagram
 
 def ShowPredictionsCallback(
     batch, 
-    threshold: float,
+    threshold: float = 0.5,
     num_prob_bins: int = 15,
     size_per_image: int = 5
 ):
