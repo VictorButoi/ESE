@@ -1,5 +1,4 @@
 # misc imports
-import ast
 import yaml
 import random
 import itertools
@@ -16,8 +15,10 @@ from ionpy.util import dict_product
 from ionpy.experiment.util import fix_seed
 from ionpy.util.config import check_missing
 
+
 def power_set(in_set):
     return list(chain.from_iterable(combinations(in_set, r) for r in range(len(in_set)+1)))
+
 
 def get_ese_inference_configs(
     group_dict: dict,
@@ -56,10 +57,8 @@ def get_ese_inference_configs(
     inference_opt_list = []
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for dataset in group_dict['datasets']:
-
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
-        
         for calibrator in inf_cfg_opts['calibrator']:
             ##################################################
             # Set a few things that will be consistent for all runs.
@@ -105,55 +104,41 @@ def get_ese_inference_configs(
                 if run_opt_dict.get('model.ensemble', False) or group_dict['model_type'] == "incontext":
                     # Define where we want to save the results.
                     if base_cfg_args != {} and base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
-                        inf_log_root = inference_exp_root / f"ensemble_upper_bounds"
+                        ensemble_log_folder = "ensemble_upper_bounds"
                     else:
-                        inf_log_root = inference_exp_root / f"{dataset}_Ensemble_{calibrator}"
+                        ensemble_log_folder = f"{dataset}_Ensemble_{calibrator}"
                     # Define where the set of base models come from.
                     advanced_args = {
-                        "log.root": [str(inf_log_root)],
+                        "log.root": [str(inference_exp_root / ensemble_log_folder)],
                         "model.ensemble": [True],
                         **run_opt_dict
                     }
                     num_ens_mem_opts = [1] if base_cfg_args == {} else base_cfg_args['submit_opts']['num_ens_membs']
                     for num_ens_members in num_ens_mem_opts:
+                        ensemble_cfg_args = {
+                            'ensemble.num_members': [num_ens_members]
+                            **default_config_options,
+                            **advanced_args
+                        }
                         # For each num_ens_members, we subselect that num of the total_ens_members.
                         if group_dict['model_type'] == "incontext":
-                            # Make a copy of our default config options.
-                            dupe_def_cfg_opts = default_config_options.copy()
-                            # If we are using incontext models, we need to use the ensemble groups.
-                            advanced_args['ensemble.num_members'] = [num_ens_members]
-                            advanced_args['model.pretrained_exp_root'] = [str(model_group_dir)]
-                            # Combine the default and advanced arguments
-                            dupe_def_cfg_opts.update(advanced_args)
-                            # Append these to the list of configs and roots.
-                            dataset_cfgs.append(dupe_def_cfg_opts)
+                            ensemble_cfg_args['model.pretrained_exp_root'] = [str(model_group_dir)]
                         else:
-                            # Make a copy of our default config options.
-                            dupe_def_cfg_opts = default_config_options.copy()
-                            # Define where the set of base models come from.
-                            advanced_args['ensemble.num_members'] = [num_ens_members]
-                            advanced_args['ensemble.member_paths'] = [list(ensemble_group)]
-                            # Combine the default and advanced arguments.
-                            dupe_def_cfg_opts.update(advanced_args)
-                            # Append these to the list of configs and roots.
-                            dataset_cfgs.append(dupe_def_cfg_opts)
+                            ensemble_cfg_args['ensemble.member_paths'] = [list(ensemble_group)]
+                        # Append these to the list of configs and roots.
+                        dataset_cfgs.append(ensemble_cfg_args)
                 # If you want to run inference on individual networks, use this.
                 else:
                     # If we aren't ensembling, then we can't do incontext models.
                     assert group_dict['model_type'] != "incontext", "Incontext models can only be used with ensembles."
-                    advanced_args = {
+                    run_opt_args = {
                         'log.root': [str(inference_exp_root / f"{dataset}_Individual_{calibrator}")],
-                        'model.ensemble': [False],
                         'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
-                        'ensemble.normalize': [None],
-                        'ensemble.combine_fn': [None],
-                        'ensemble.combine_quantity': [None],
-                        **run_opt_dict
+                        **run_opt_dict,
+                        **default_config_options
                     }
-                    # Combine the default and advanced arguments.
-                    default_config_options.update(advanced_args)
                     # Append these to the list of configs and roots.
-                    dataset_cfgs.append(default_config_options)
+                    dataset_cfgs.append(run_opt_args)
             
         # Finally, add the dataset specific details.
         with open(f"{group_dict['inf_cfg_root']}/datasets/{group_dict['model_type']}/{dataset}.yaml", 'r') as file:
