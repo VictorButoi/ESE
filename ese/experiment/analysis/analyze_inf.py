@@ -141,12 +141,12 @@ def load_cal_inference_stats(
                     # Optionally load the information from image-based metrics.
                     log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
                     log_image_df["log_set"] = log_set.name
-                    print(log_image_df)
                     # Add the columns from the metadata dataframe that have unique values.
                     for col in meta_cols:
                         assert len(metadata_log_df[col].unique()) == 1, \
                             f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
-                        log_image_df[col] = metadata_log_df[col].values[0]
+                        if col not in log_image_df.columns: # If the column is not already in the dataframe, add it.
+                            log_image_df[col] = metadata_log_df[col].values[0]
                     # Optionally load the pixel stats.
                     if options_cfg.get("load_pixel_meters", False):
                         with open(log_set / "pixel_stats.pkl", 'rb') as f:
@@ -163,7 +163,6 @@ def load_cal_inference_stats(
         #########################################
         # POST-PROCESSING STEPS
         #########################################
-
         # Drop the rows corresponding to NaNs in metric_score
         if options_cfg['drop_nan_metric_rows']:
             # Drop the rows where the metric score is NaN.
@@ -197,8 +196,8 @@ def load_cal_inference_stats(
                 new_key = "model_class"
             else:
                 new_key = raw_key.split(".")[-1]
-            # If the new key isn't the same as the old key, remove the old key.
-            if new_key != raw_key:
+            # If the new key isn't the same as the old key, add the new key.
+            if new_key != raw_key and new_key not in inference_df.columns:
                 inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
 
         # Add keys that are necessary for the analysis.
