@@ -126,57 +126,57 @@ def dataloader_loop(
 ):
     iter_dloader = iter(dloader)
     for batch_idx in range(len(dloader)):
-    # try:
-        batch = next(iter_dloader)
+        try:
+            batch = next(iter_dloader)
 
-        print(f"Working on batch #{batch_idx} out of",\
-            len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+            print(f"Working on batch #{batch_idx} out of",\
+                len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
 
-        if isinstance(batch, list):
-            batch = {
-                "img": batch[0],
-                "label": batch[1],
-                "data_id": batch[2],
+            if isinstance(batch, list):
+                batch = {
+                    "img": batch[0],
+                    "label": batch[1],
+                    "data_id": batch[2],
+                }
+            forward_batch = {
+                "batch_idx": batch_idx,
+                "sup_idx": sup_idx,
+                "support_augs": support_augs,
+                "data_props": data_props,
+                **batch
             }
-        forward_batch = {
-            "batch_idx": batch_idx,
-            "sup_idx": sup_idx,
-            "support_augs": support_augs,
-            "data_props": data_props,
-            **batch
-        }
-        # Place the output dir in the inf_cfg_dict
-        inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
-        # Gather the forward item.
-        forward_item = {
-            "inf_cfg_dict": inf_cfg_dict,
-            "inf_init_obj": inf_init_obj,
-            "batch": forward_batch,
-        }
-        # Run the forward loop
-        input_type = inf_cfg_dict['data']['input_type']
-        if input_type == 'volume':
-            volume_forward_loop(**forward_item)
-        elif input_type == 'image':
-            if inf_cfg_dict['model']['_type'] == 'incontext':
-                if support_dict is not None:
-                    forward_item['support_dict'] = support_dict
-                elif support_generator is not None:
-                    forward_item['support_generator'] = support_generator
+            # Place the output dir in the inf_cfg_dict
+            inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+            # Gather the forward item.
+            forward_item = {
+                "inf_cfg_dict": inf_cfg_dict,
+                "inf_init_obj": inf_init_obj,
+                "batch": forward_batch,
+            }
+            # Run the forward loop
+            input_type = inf_cfg_dict['data']['input_type']
+            if input_type == 'volume':
+                volume_forward_loop(**forward_item)
+            elif input_type == 'image':
+                if inf_cfg_dict['model']['_type'] == 'incontext':
+                    if support_dict is not None:
+                        forward_item['support_dict'] = support_dict
+                    elif support_generator is not None:
+                        forward_item['support_generator'] = support_generator
+                    else:
+                        raise ValueError("Support set method not found.")
+                    # Run the forward loop.
+                    incontext_image_forward_loop(**forward_item)
                 else:
-                    raise ValueError("Support set method not found.")
-                # Run the forward loop.
-                incontext_image_forward_loop(**forward_item)
+                    standard_image_forward_loop(**forward_item)
             else:
-                standard_image_forward_loop(**forward_item)
-        else:
-            raise ValueError(f"Input type {input_type} not recognized.")
-        # except KeyError as k:
-        #     print(k)
-        #     print("Skipping this batch")
-        #     pass
-        # except Exception as e:
-        #     raise e
+                raise ValueError(f"Input type {input_type} not recognized.")
+        except KeyError as k:
+            print(k)
+            print("Skipping this batch")
+            pass
+        except Exception as e:
+            raise e
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

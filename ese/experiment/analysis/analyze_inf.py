@@ -60,7 +60,7 @@ def load_cal_inference_stats(
     log_root = log_cfg["root"] 
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
-    skip_log_folders = ["wandb", "submitit", "binning_exp_logs"]
+    skip_log_folders = ["wandb", "submitit", "binning_exp_logs", "debug", "ensemble_upper_bounds"]
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):
         metadata_df = pd.DataFrame([])
@@ -68,18 +68,14 @@ def load_cal_inference_stats(
         all_inference_log_paths = []
         for inf_group in log_cfg["inference_groups"]:
             sub_exp_names = os.listdir(log_root + "/" + inf_group) 
-            # Remove the 'debug' or upper bounds folders if they exists.
-            if "debug" in sub_exp_names:
-                sub_exp_names.remove("debug")
-            if "ensemble_upper_bounds" in sub_exp_names:
-                sub_exp_names.remove("ensemble_upper_bounds")
             # Combine the inference group with the sub experiment names.
             for sub_exp in sub_exp_names:
-                sub_exp_log_path = inf_group + "/" + sub_exp
-                # Check to make sure this log wasn't the result of a crash.
-                verify_graceful_exit(sub_exp_log_path, log_root=log_root)
-                # Check to make sure that this log wasn't the result of a crash.
-                all_inference_log_paths.append(sub_exp_log_path)
+                if sub_exp not in skip_log_folders:
+                    sub_exp_log_path = inf_group + "/" + sub_exp
+                    # Check to make sure this log wasn't the result of a crash.
+                    verify_graceful_exit(sub_exp_log_path, log_root=log_root)
+                    # Check to make sure that this log wasn't the result of a crash.
+                    all_inference_log_paths.append(sub_exp_log_path)
         # Add the inference paths if they exist.
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
@@ -114,8 +110,7 @@ def load_cal_inference_stats(
                         if isinstance(flat_cfg[key], list) or isinstance(flat_cfg[key], tuple):
                             flat_cfg[key] = str(flat_cfg[key])
                     # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-                    cfg_df = pd.DataFrame(flat_cfg, index=[0])
-                    metadata_df = pd.concat([metadata_df, cfg_df])
+                    metadata_df = pd.concat([metadata_df, pd.DataFrame(flat_cfg, index=[0])])
         # Gather the columns that have unique values amongst the different configurations.
         if options_cfg["remove_shared_columns"]:
             meta_cols = []
@@ -146,6 +141,7 @@ def load_cal_inference_stats(
                     # Optionally load the information from image-based metrics.
                     log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
                     log_image_df["log_set"] = log_set.name
+                    print(log_image_df)
                     # Add the columns from the metadata dataframe that have unique values.
                     for col in meta_cols:
                         assert len(metadata_log_df[col].unique()) == 1, \
@@ -201,10 +197,9 @@ def load_cal_inference_stats(
                 new_key = "model_class"
             else:
                 new_key = raw_key.split(".")[-1]
-            inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
             # If the new key isn't the same as the old key, remove the old key.
             if new_key != raw_key:
-                del inference_df[raw_key]
+                inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
 
         # Add keys that are necessary for the analysis.
         if '_pretrained_class' not in inference_df.columns:
@@ -216,20 +211,14 @@ def load_cal_inference_stats(
         def method_name(
             model_class, 
             _pretrained_class, 
-            pretrained_seed, 
-            ensemble, 
-            combine_quantity, 
-            combine_fn,
+            pretrained_seed
         ):
-            if ensemble:
-                return f"Ensemble ({combine_fn}, {combine_quantity})" 
+            if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
+                return f"UNet (seed={pretrained_seed})"
+            elif _pretrained_class == "None":
+                return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
             else:
-                if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
-                    return f"UNet (seed={pretrained_seed})"
-                elif _pretrained_class == "None":
-                    return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
-                else:
-                    return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
+                return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
 
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"
