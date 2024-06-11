@@ -23,7 +23,7 @@ def get_image_stats(
         "neighborhood_width": inference_cfg["local_calibration"]["neighborhood_width"]
     }
     # (Both individual and reduced)
-    if inference_cfg["model"]["ensemble"]:
+    if inference_cfg["model"].get("ensemble", False):
         # Gather the individual predictions
         if output_dict['y_logits'] is not None and output_dict['y_probs'] is None:
             output_dict['y_probs'] = torch.softmax(output_dict['y_logits'], dim=1)
@@ -85,7 +85,7 @@ def get_image_stats(
     for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
         # If we are ensembling, then we need to go through eahc member of the ensemble and calculate individual metrics
         # so we can get group averages.
-        if inference_cfg["model"]["ensemble"]:
+        if inference_cfg["model"].get("ensemble", False):
             # First gather the quality scores per ensemble member.
             #######################################################
             if inference_cfg["log"]["track_ensemble_member_scores"]:
@@ -110,7 +110,7 @@ def get_image_stats(
     for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
         # If we are ensembling, then we need to go through eahc member of the ensemble and calculate individual metrics
         # so we can get group averages.
-        if inference_cfg["model"]["ensemble"]:
+        if inference_cfg["model"].get("ensemble", False):
             # First gather the calibration scores per ensemble member.
             #######################################################
             if inference_cfg["log"]["track_ensemble_member_scores"]:

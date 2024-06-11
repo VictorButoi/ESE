@@ -181,7 +181,7 @@ def show_inference_examples(
     inference_cfg,
 ):
     # If ensembling, we need to make the individual predictions the batch dimension first.
-    if inference_cfg["model"]["ensemble"]:
+    if inference_cfg["model"].get("ensemble", False):
         show_dict = {
             "x": output_dict["x"],
             "y_true": output_dict["y_true"],
@@ -199,7 +199,7 @@ def show_inference_examples(
     if show_first_pred:
         ShowPredictionsCallback(show_dict, threshold=inference_cfg['experiment']['threshold'])
     # If we are showing examples with an ensemble, then we show initially the individual predictions.
-    if inference_cfg["model"]["ensemble"]:
+    if inference_cfg["model"].get("ensemble", False):
         # Combine the outputs of the models.
         ensemble_outputs = reduce_ensemble_preds(
             output_dict=output_dict, 
