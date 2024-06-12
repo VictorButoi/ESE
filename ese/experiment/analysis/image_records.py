@@ -32,20 +32,23 @@ def get_image_stats(
             output_dict['y_probs'][:, :, ens_mem_idx, ...]\
             for ens_mem_idx in range(output_dict['y_probs'].shape[2])
         ]
+        # Input cfgs share the same y_true and from_logits.
+        ens_input_args = {
+            "y_true": output_dict["y_true"],
+            "from_logits": False,
+        }
         # Construct the input cfgs used for calulating metrics.
         ens_member_qual_input_cfgs = [
             {
                 "y_pred": member_pred, 
-                "y_true": output_dict["y_true"],
-                "from_logits": False,
+                **ens_input_args
             } for member_pred in ensemble_member_preds
         ]
         ens_member_cal_input_cfgs = [
             {
                 "y_pred": member_pred, 
-                "y_true": output_dict["y_true"],
-                "from_logits": False,
                 "preloaded_obj_dict": bin_stats_init(member_pred, **bin_stat_args)
+                **ens_input_args
             } for member_pred in ensemble_member_preds
         ]
         # Get the reduced predictions
@@ -127,25 +130,10 @@ def get_image_stats(
         # If you're showing the predictions, also print the scores.
         if inference_cfg["log"].get("show_examples", False):
             print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
-    
+
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
 
-    # If the label_idx is defined, we are dealing with a binary problem and we want to get the amount of pixels.
-    volume_dict = {}
-    # Get groundtruth label amount
-    gt_volume = output_dict['y_true'].sum().item()
-    # Get the soft prediction volume, this only works for binary problems.
-    pred_volume = output_dict['y_probs'].sum().item()
-    # Get thresholded prediction volume
-    hard_volume = output_dict['y_hard'].sum().item()
-    # Define a dictionary of the volumes.
-    volume_dict.update({
-        "gt_volume": gt_volume,
-        "soft_volume": pred_volume,
-        "hard_volume": hard_volume
-    })
-    
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
         'x', 
@@ -156,7 +144,6 @@ def get_image_stats(
         'support_set'
     ]
     output_metadata = {k: v for k, v in output_dict.items() if k not in exclude_keys}
-
     # We want to generate a hash of this metadata, useful for accesing saved predictions.
     pred_hash = hash(str(output_metadata))
     # Iterate through all of the collected metrics and add them to the records.
@@ -169,7 +156,7 @@ def get_image_stats(
             "image_metric": met_name,
             "metric_score": met_score,
             **output_metadata,
-            **volume_dict,
+            **get_volume_est_dict(output_dict),
         }
         # Add the record to the list.
         image_level_records.append(record)
@@ -218,3 +205,18 @@ def get_groundtruth_amount(
     y_true_one_hot = F.one_hot(y_true, num_classes=num_classes) # B x 1 x H x W x C
     label_amounts = y_true_one_hot.sum(dim=(0, 1, 2, 3)) # C
     return {f"num_lab_{i}_pixels": label_amounts[i].item() for i in range(num_classes)}
+
+
+def get_volume_est_dict(pred_dict):
+    # Get groundtruth label amount
+    gt_volume = pred_dict['y_true'].sum().item()
+    # Get the soft prediction volume, this only works for binary problems.
+    pred_volume = pred_dict['y_probs'].sum().item()
+    # Get thresholded prediction volume
+    hard_volume = pred_dict['y_hard'].sum().item()
+    # Define a dictionary of the volumes.
+    return {
+        "gt_volume": gt_volume,
+        "soft_volume": pred_volume,
+        "hard_volume": hard_volume
+    }
