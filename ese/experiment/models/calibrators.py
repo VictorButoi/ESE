@@ -170,7 +170,7 @@ class LocalTS(nn.Module):
         eps=1e-12, 
         **kwargs
     ):
-        super(LTS, self).__init__()
+        super(LocalTS, self).__init__()
 
         self.calibrator_unet = UNet(
             in_channels=(num_classes + img_channels if use_image else num_classes), 
