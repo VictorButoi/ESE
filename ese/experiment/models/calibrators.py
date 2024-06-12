@@ -96,67 +96,6 @@ class Dirichlet_Scaling(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-
-class IBTS(nn.Module):
-    def __init__(
-        self, 
-        img_channels: int,
-        num_classes: int, 
-        use_image: bool = True,
-        use_logits: bool = True, 
-        eps=1e-12, 
-        **kwargs
-    ):
-        super(IBTS, self).__init__()
-
-        self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
-        self.temp_predictor = resnet18()
-        # Replace the last fully-connected layer to output a single number.
-        self.temp_predictor.fc = nn.Linear(512, 1)
-        # Track some info about this calibrator.
-        self.use_image = use_image
-        self.use_logits = use_logits
-        self.eps = eps 
-
-    def weights_init(self):
-        pass
-
-    def get_temp_map(self, logits, image):
-        _, _, H, W = logits.shape
-        # Either passing into probs or logits into UNet, can affect optimization.
-        if not self.use_logits:
-            cal_input = torch.softmax(logits, dim=1)
-        else:
-            cal_input = logits
-        # Concatenate the image if we are using it.
-        if self.use_image:
-            cal_input = torch.cat([cal_input, image], dim=1)
-        # Pass through the in conv
-        x = self.in_conv(cal_input)
-        # Pass through the UNet
-        unnorm_temp = self.temp_predictor(x) # B x 1
-        # Add ones so the temperature starts near 1.
-        unnorm_temp += torch.ones(1, device=unnorm_temp.device)
-        # Finally normalize it to be positive and add epsilon for smoothing.
-        temp = F.relu(unnorm_temp) + self.eps
-        # Clip the values to be positive and add epsilon for smoothing.
-        temp_map = temp.unsqueeze(1).repeat(1, H, W)
-        # Return the temp map.
-        return temp_map
-
-    def forward(self, logits, image, **kwargs):
-        _, C, _, _ = logits.shape
-        # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x H x W
-        # Repeat the temperature map for all classes.
-        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
-        # Finally, scale the logits by the temperatures.
-        return logits / temp_map
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
         
 class LocalTS(nn.Module):
     def __init__(

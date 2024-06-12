@@ -7,6 +7,7 @@ def get_calibrator_cls(calibrator: str):
         "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
         "IBTS": "ese.experiment.models.calibrators.IBTS",
         "LTS": "ese.experiment.models.calibrators.LTS",
+        "LocalTS": "ese.experiment.models.calibrators.LocalTS",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
         "ContextualHistogramBinning": "ese.experiment.models.binning.Contextual_Histogram_Binning",
         "LocalHistogramBinning": "ese.experiment.models.binning.Local_Histogram_Binning",

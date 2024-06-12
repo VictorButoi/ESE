@@ -3,9 +3,9 @@ log:
   min_fg_pixels: 1
 
 data:
-  annotator: '?'
   input_type: volume
   slicing: full 
+  annotator: '?'
   split: '?'
   task: '?' 
 

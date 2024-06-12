@@ -2,7 +2,7 @@ data:
   _class: ese.experiment.datasets.WMH
   axis: 0
   task: Amsterdam
-  slicing: dense 
+  slicing: 'uniform' 
   annotator: observer_o12
   num_slices: 1
   in_channels: 1
