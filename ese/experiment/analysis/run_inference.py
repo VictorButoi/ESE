@@ -138,6 +138,7 @@ def dataloader_loop(
                     "label": batch[1],
                     "data_id": batch[2],
                 }
+            batch["data_id"] = batch["data_id"][0] # Works because batchsize = 1
             forward_batch = {
                 "batch_idx": batch_idx,
                 "sup_idx": sup_idx,
@@ -252,7 +253,7 @@ def standard_image_forward_loop(
             "y_logits": exp_output.get("y_logits", None),
             "y_probs": exp_output.get("y_probs", None),
             "y_hard": exp_output.get("y_hard", None),
-            "data_id": batch["data_id"][0], # Works because batchsize = 1
+            "data_id": batch["data_id"], # Works because batchsize = 1
             "slice_idx": slice_idx,
             **batch["data_props"]
         }

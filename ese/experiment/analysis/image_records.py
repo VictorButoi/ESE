@@ -6,6 +6,7 @@ from ..metrics.local_ps import bin_stats_init
 from ..experiment.utils import reduce_ensemble_preds
 from ..utils.general import save_dict 
 # Misc imports
+from pprint import pprint
 from pydantic import validate_arguments
     
 
@@ -102,9 +103,6 @@ def get_image_stats(
                 grouped_scores_dict['quality'][qual_metric_name] = None
             # Now get the ensemble quality score.
         qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
-        # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"].get("show_examples", False):
-            print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
 
     #############################################################
     # CALCULATE CALIBRATION METRICS
@@ -127,9 +125,6 @@ def get_image_stats(
                 grouped_scores_dict['calibration'][cal_metric_name] = None
         # Get the calibration error. 
         cal_metric_errors_dict[cal_metric_name] = cal_metric_dict['_fn'](**cal_input_config)
-        # If you're showing the predictions, also print the scores.
-        if inference_cfg["log"].get("show_examples", False):
-            print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
 
     assert not (len(qual_metric_scores_dict) == 0 and len(cal_metric_errors_dict) == 0), \
         "No metrics were specified in the config file."
@@ -143,7 +138,35 @@ def get_image_stats(
         'y_hard', 
         'support_set'
     ]
+    volume_dict = get_volume_est_dict(output_dict)
     output_metadata = {k: v for k, v in output_dict.items() if k not in exclude_keys}
+
+    #############################################################
+    # PRINT OUR METRICS
+    #############################################################
+    if inference_cfg["log"].get("show_examples", False):
+        # Print the quality metrics.
+        print("METRICS: ")
+        for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
+            print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
+        # Print the calibration metrics.
+        for cal_metric_name, cal_metric_dict in inference_cfg["image_cal_metrics"].items():
+            print(f"{cal_metric_name}: {cal_metric_errors_dict[cal_metric_name]}")
+        # Make a new line.
+        print()
+        
+        # Print the volume estimates.
+        print("VOLUMES: ")
+        pprint(volume_dict)
+        # Make a new line.
+        print()
+
+        # Print the metadata
+        print("METADATA: ")
+        pprint(output_metadata)
+        # Make a new line.
+        print()
+
     # We want to generate a hash of this metadata, useful for accesing saved predictions.
     pred_hash = hash(str(output_metadata))
     # Iterate through all of the collected metrics and add them to the records.
@@ -156,7 +179,7 @@ def get_image_stats(
             "image_metric": met_name,
             "metric_score": met_score,
             **output_metadata,
-            **get_volume_est_dict(output_dict),
+            **volume_dict,
         }
         # Add the record to the list.
         image_level_records.append(record)
