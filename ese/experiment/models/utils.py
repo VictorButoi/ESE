@@ -5,7 +5,7 @@ def get_calibrator_cls(calibrator: str):
         "TempScaling": "ese.experiment.models.calibrators.Temperature_Scaling",
         "VectorScaling": "ese.experiment.models.calibrators.Vector_Scaling",
         "DirichletScaling": "ese.experiment.models.calibrators.Dirichlet_Scaling",
-        "IBTS": "ese.experiment.models.calibrators.IBTS",
+        "ImageBasedTS": "ese.experiment.models.calibrators.ImageBasedTS",
         "LTS": "ese.experiment.models.calibrators.LTS",
         "LocalTS": "ese.experiment.models.calibrators.LocalTS",
         "HistogramBinning": "ese.experiment.models.binning.Histogram_Binning",
