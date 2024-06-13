@@ -147,6 +147,7 @@ def get_image_stats(
     if inference_cfg["log"].get("show_examples", False):
         # Print the quality metrics.
         print("METRICS: ")
+        print("--------")
         for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
             print(f"{qual_metric_name}: {qual_metric_scores_dict[qual_metric_name]}")
         # Print the calibration metrics.
@@ -157,12 +158,14 @@ def get_image_stats(
         
         # Print the volume estimates.
         print("VOLUMES: ")
+        print("--------")
         pprint(volume_dict)
         # Make a new line.
         print()
 
         # Print the metadata
         print("METADATA: ")
+        print("---------")
         pprint(output_metadata)
         # Make a new line.
         print()
