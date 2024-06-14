@@ -158,10 +158,11 @@ def thunderify_DRIVE(
 
             # Convert to the right type
             img = img.astype(np.float32)
-            seg = seg.astype(np.int64)
+            seg = seg.astype(np.float32)
 
-            # Move the channel axis to the front
+            # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
             img = img.transpose(2, 0, 1)
+            seg = (seg - seg.min()) / (seg.max() - seg.min())
             
             assert img.shape == (3, 128, 128), f"Image shape isn't correct, got {img.shape}"
             assert seg.shape == (128, 128), f"Seg shape isn't correct, got {seg.shape}"

@@ -24,11 +24,13 @@ def calc_bin_info(
     bin_num_samples = bin_conf_region.sum() 
     avg_bin_confidence = prob_map[bin_conf_region].sum() / bin_num_samples
     avg_bin_frequency = frequency_map[bin_conf_region].sum() / bin_num_samples
+
     # Calculate the calibration error.
     if square_diff:
         cal_error = (avg_bin_confidence - avg_bin_frequency).square()
     else:
         cal_error = (avg_bin_confidence - avg_bin_frequency).abs()
+
     return {
         "avg_conf": avg_bin_confidence,
         "avg_freq": avg_bin_frequency,

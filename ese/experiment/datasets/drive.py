@@ -4,6 +4,7 @@ import torch
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
 import numpy as np
+import matplotlib.pyplot as plt
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
@@ -48,7 +49,7 @@ class DRIVE(ThunderDataset, DatapathMixin):
         # Get the class name
         if self.transforms:
             img, mask = self.transforms(image=img, mask=mask)
-
+        
         # Prepare the return dictionary.
         return_dict = {
             "img": torch.from_numpy(img).float(),
