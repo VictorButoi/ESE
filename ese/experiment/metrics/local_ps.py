@@ -46,28 +46,34 @@ def bin_stats_init(
     from_logits: bool = False,
     neighborhood_width: Optional[int] = None
 ):
-    assert len(y_pred.shape) == len(y_true.shape) == 4,\
-        f"y_pred and y_true must be 4D tensors. Got {y_pred.shape} and {y_true.shape}."
-    
-    # If from logits, apply softmax along channels of y pred.
-    if from_logits:
-        y_pred = torch.softmax(y_pred, dim=1)
-
     y_pred = y_pred.to(torch.float64) # Get precision for calibration.
     y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
     C = y_pred.shape[1]
     assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
         f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
+    
+    # If from logits, apply softmax along channels of y pred.
+    if from_logits:
+        if C == 1:
+            y_pred = torch.sigmoid(y_pred)
+        else:
+            y_pred = torch.softmax(y_pred, dim=1)
+
+
+    # Get the max probabilities and the hard predictions.
+    if C == 1: 
+        y_max_prob_map = y_pred.squeeze(1) # B x H x W
+    else:
+        y_max_prob_map = y_pred.max(dim=1).values # B x H x W
 
     # Get the hard predictions and the max confidences.
-    if y_pred.shape[1] > 1:
+    if C == 1:
+        y_hard = (y_pred > threshold).long().squeeze(1) # B x H x W Remove the channel dimension.
+    else:
         if y_pred.shape[1] == 2 and threshold != 0.5:
             y_hard = (y_pred[:, 1, ...] > threshold).long() # B x H x W
         else:
             y_hard = y_pred.argmax(dim=1) # B x H x W
-    else:
-        y_hard = (y_pred > threshold).long().squeeze(1) # B x H x W Remove the channel dimension.
-    y_max_prob_map = y_pred.max(dim=1).values # B x H x W
 
     conf_bin_args = {
         "num_prob_bins": num_prob_bins,
@@ -129,12 +135,12 @@ def bin_stats_init(
     # For multi-class predictions, we need to one-hot both the preds and label maps.
     # Otherwise, we use the traditional definition of calibration as frequency of actual ground truth. 
     # (as opposed to frequency of correctness).
-    if C > 1:
-        top_frequency_map = (y_hard == y_true).float()
-        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
-    else:
+    if C == 1:
         top_frequency_map = y_true.float()
         classwise_frequency_map = top_frequency_map.unsqueeze(1) # Add a channel dimension.
+    else:
+        top_frequency_map = (y_hard == y_true).float()
+        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
     
     # Wrap this into a dictionary.
     return {
