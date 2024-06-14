@@ -19,8 +19,9 @@ class DRIVE(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     return_data_id: bool = False
-    iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
+    iters_per_epoch: Optional[Any] = None
+    label_threshold: Optional[float] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -45,6 +46,10 @@ class DRIVE(ThunderDataset, DatapathMixin):
 
         # Add channel dimension to the mask
         mask = np.expand_dims(mask, axis=0)
+
+        # Apply the label threshold
+        if self.label_threshold is not None:
+            mask = (mask > self.label_threshold).astype(np.float32)
 
         # Get the class name
         if self.transforms:
