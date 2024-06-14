@@ -71,11 +71,8 @@ class CalibrationExperiment(TrainExperiment):
         data_config = total_config["data"]
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
-            in_channels = data_config.pop("in_channels")
-            out_channels = data_config.pop("out_channels")
-            assert out_channels > 1, "Must be multi-class segmentation!"
-            model_config["in_channels"] = in_channels
-            model_config["out_channels"] = out_channels 
+            model_config["in_channels"] = data_config.pop("in_channels")
+            model_config["out_channels"] = data_config.pop("out_channels")
         # Set important things about the model.
         self.config = Config(total_config)
         self.model = eval_config(self.config["model"])
@@ -114,6 +111,7 @@ class CalibrationExperiment(TrainExperiment):
         if yhat.shape[1] > 1:
             y = y.long()
 
+        # Let's visualize the predictions and the ground truth.
         loss = self.loss_func(yhat, y)
 
         # If backward then backprop the gradients.

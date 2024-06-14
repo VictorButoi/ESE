@@ -71,6 +71,10 @@ def image_tl_ece_loss(
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+
     cal_info = top_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,
@@ -107,6 +111,10 @@ def image_cw_ece_loss(
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+
     cal_info = joint_label_bin_stats(
         y_pred=y_pred,
         y_true=y_true,

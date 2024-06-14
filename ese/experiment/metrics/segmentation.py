@@ -59,6 +59,9 @@ def dice_score(
     ignore_index: Optional[int] = None,
     weights: Optional[Union[Tensor, List]] = None,
 ) -> Tensor:
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
 
     y_pred, y_true = _inputs_as_onehot(
         y_pred, 
@@ -104,6 +107,10 @@ def hd95(
     weights: Optional[Union[Tensor, List]] = None,
     ignore_index: Optional[int] = None
 ):
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+
     """
     Calculates the 95th percentile Hausdorff Distance for a predicted label map. 
     """
@@ -199,6 +206,9 @@ def boundary_iou(
     from_logits: bool = False,
     ignore_index: Optional[int] = None,
 ) -> Tensor:
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
 
     if from_logits:
         if C == 1:

@@ -28,6 +28,10 @@ def pixel_crossentropy_loss(
     ignore_index: Optional[int] = -100,
     from_logits: bool = False,
 ):
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+
     """One cross_entropy function to rule them all
     ---
     Pytorch has four CrossEntropy loss-functions
