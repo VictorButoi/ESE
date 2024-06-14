@@ -141,7 +141,7 @@ def get_ese_inference_configs(
                     dataset_cfgs.append(run_opt_args)
             
         # Finally, add the dataset specific details.
-        with open(f"{group_dict['inf_cfg_root']}/datasets/{dataset}.yaml", 'r') as file:
+        with open(f"{group_dict['inf_cfg_root']}/{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])

@@ -267,13 +267,16 @@ def cal_stats_init(
     #############################
     trackers = {
         "image_level_records": [],
+    }
+    if cfg_dict['log']['log_pixel_stats']:
+        trackers.update({
         "tl_pixel_meter_dict": {},
         "cw_pixel_meter_dict": {}
-    }
-    # Add trackers per split
-    for data_cfg_opt in data_objs['dataloaders']:
-        trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
-        trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
+        })
+        # Add trackers per split
+        for data_cfg_opt in data_objs['dataloaders']:
+            trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
+            trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
 
     #####################
     # SAVE THE METADATA #
