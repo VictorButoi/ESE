@@ -115,11 +115,13 @@ class CalibrationExperiment(TrainExperiment):
             y = y.long()
 
         loss = self.loss_func(yhat, y)
+
         # If backward then backprop the gradients.
         if backward:
             loss.backward()
             self.optim.step()
             self.optim.zero_grad()
+
         # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,

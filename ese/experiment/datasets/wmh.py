@@ -112,8 +112,8 @@ class WMH(ThunderDataset, DatapathMixin):
     @property
     def signature(self):
         return {
-            "annotator": self.annotator,
             "dataset": "WMH",
+            "annotator": self.annotator,
             "resolution": self.resolution,
             "slicing": self.slicing,
             "split": self.split,
