@@ -31,10 +31,13 @@ from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperimen
 
 
 def save_trackers(output_root, trackers):
-    save_records(trackers["image_level_records"], output_root / "image_stats.pkl")
-    save_dict(trackers["cw_pixel_meter_dict"], output_root / "cw_pixel_meter_dict.pkl")
-    save_dict(trackers["tl_pixel_meter_dict"], output_root / "tl_pixel_meter_dict.pkl")
-
+    for key, tracker in trackers.items():
+        if isinstance(tracker, dict):
+            save_dict(tracker, output_root / f"{key}.pkl")
+        elif isinstance(tracker, pd.DataFrame):
+            tracker.to_pickle(output_root / f"{key}.pkl")
+        else:
+            save_records(tracker, output_root / f"{key}.pkl")
 
 def aug_support(sx_cpu, sy_cpu, inference_init_obj):
     sx_cpu_np = sx_cpu.numpy() # S 1 H W
@@ -266,7 +269,7 @@ def cal_stats_init(
     inference_cfg['dataset'] = modified_cfg 
     #############################
     trackers = {
-        "image_level_records": [],
+        "image_stats": [],
     }
     if cfg_dict['log']['log_pixel_stats']:
         trackers.update({

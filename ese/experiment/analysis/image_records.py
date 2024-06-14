@@ -14,7 +14,7 @@ from pydantic import validate_arguments
 def get_image_stats(
     output_dict, 
     inference_cfg, 
-    image_level_records
+    image_stats
 ):
     # Define some common bin stat args
     bin_stat_args = {
@@ -185,7 +185,7 @@ def get_image_stats(
             **volume_dict,
         }
         # Add the record to the list.
-        image_level_records.append(record)
+        image_stats.append(record)
 
     # If we are logging the predictions, then we need to do that here.
     if inference_cfg['log'].get("save_preds", False):

@@ -249,7 +249,7 @@ def standard_image_forward_loop(
         # Wrap the outputs into a dictionary.
         output_dict = {
             "x": image,
-            "y_true": label_map.long(),
+            "y_true": label_map,
             "y_logits": exp_output.get("y_logits", None),
             "y_probs": exp_output.get("y_probs", None),
             "y_hard": exp_output.get("y_hard", None),
@@ -426,11 +426,11 @@ def get_calibration_item_info(
     ########################
     # IMAGE LEVEL TRACKING #
     ########################
-    if "image_level_records" in trackers:
+    if "image_stats" in trackers:
         image_cal_metrics_dict = get_image_stats(
             output_dict=output_dict,
             inference_cfg=inference_cfg,
-            image_level_records=trackers["image_level_records"]
+            image_stats=trackers["image_stats"]
         ) 
 
     ###############################################################################################
@@ -466,7 +466,7 @@ def get_calibration_item_info(
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################
-    if "image_level_records" in trackers and\
+    if "image_stats" in trackers and\
         "tl_pixel_meter_dict" in trackers and\
          "cw_pixel_meter_dict" in trackers: 
         global_cal_sanity_check(
