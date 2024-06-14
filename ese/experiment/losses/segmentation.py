@@ -30,7 +30,7 @@ def pixel_crossentropy_loss(
 ):
     # Quick check to see if we are dealing with binary segmentation
     if y_pred.shape[1] == 1:
-        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+        assert ignore_index == -100, "ignore_index is not supported for binary segmentation."
 
     """One cross_entropy function to rule them all
     ---
@@ -64,7 +64,6 @@ def pixel_crossentropy_loss(
 
     if mode == "binary":
         assert y_pred.shape == y_true.shape
-        assert ignore_index is None
         assert weights is None
         if from_logits:
             loss = F.binary_cross_entropy_with_logits(
