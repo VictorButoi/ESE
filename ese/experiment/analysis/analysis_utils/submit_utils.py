@@ -4,7 +4,7 @@ import random
 import itertools
 import numpy as np
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 from itertools import chain, combinations
 # ESE imports
 from ese.scripts.utils import gather_exp_paths
@@ -21,11 +21,17 @@ def power_set(in_set):
 
 
 def get_ese_inference_configs(
-    group_dict: dict,
-    inf_cfg_opts: dict,
+    exp_group: str,
     base_cfg: Config,
+    inf_cfg_opts: dict,
+    datasets: Any,
+    base_models_group: str,
+    model_type: str = "standard",
+    scratch_root: str = "/storage/vbutoi/scratch/ESE",
+    inf_cfg_root: str = "/storage/vbutoi/projects/ESE/ese/experiment/configs/inference",
+    calibrated_models_group: Optional[str] = None,
     base_cfg_args: Optional[dict] = {},
-    power_set_keys: Optional[List[str]] = None
+    power_set_keys: Optional[List[str]] = None,
 ):
     # Set the seed if it is provided.
     if "seed" in base_cfg_args.get('submit_opts', {}):
@@ -55,26 +61,28 @@ def get_ese_inference_configs(
 
     # Keep a list of all the run configuration options.
     inference_opt_list = []
+    # If datasets is not a list, make it a list.
+    if not isinstance(datasets, list):
+        datasets = [datasets]
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for dataset in group_dict['datasets']:
+    for dataset in datasets:
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
         for calibrator in inf_cfg_opts['calibrator']:
             ##################################################
             # Set a few things that will be consistent for all runs.
             ##################################################
-            inference_exp_root = Path(group_dict['scratch_root']) / "inference" / group_dict['exp_group']
+            inference_exp_root = Path(f"{scratch_root}/inference/{exp_group}")
 
             # Define the set of default config options.
             default_config_options = {
-                'experiment.exp_name': [group_dict['exp_group']],
+                'experiment.exp_name': [exp_group],
                 'experiment.exp_root': [str(inference_exp_root)],
                 'experiment.dataset_name': [dataset],
                 'calibrator._name': [calibrator],
                 'calibrator._class': [get_calibrator_cls(calibrator)],
             }
-            if 'preload' in group_dict:
-                default_config_options['data.preload'] = [group_dict['preload']]
+
             # If additional args are provided, update the default config options.
             if 'exp_opts' in base_cfg_args:
                 default_config_options.update(base_cfg_args['exp_opts'])
@@ -82,16 +90,16 @@ def get_ese_inference_configs(
             # Define where we get the base models from.
             use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
             if use_uncalibrated_models:
-                model_group_dir = group_dict['base_models_group']
+                model_group_dir = base_models_group
                 default_config_options['model.checkpoint'] = ['max-val-dice_score']
             else:
-                model_group_dir = f"{group_dict['calibrated_models_group']}/Individual_{calibrator}"
+                model_group_dir = f"{calibrated_models_group}/Individual_{calibrator}"
                 default_config_options['model.checkpoint'] = ['min-val-ece_loss']
 
             #####################################
             # Choose the ensembles ahead of time.
             #####################################
-            if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and group_dict['model_type'] != "incontext":
+            if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and model_type != "incontext":
                 # Get all unique subsets of total_ens_members of size num_+ens_members.
                 ensemble_group = list(itertools.combinations(gather_exp_paths(str(model_group_dir)), base_cfg['ensemble']['num_members']))
                 # We need to subsample the unique ensembles or else we will be here forever.
@@ -101,7 +109,7 @@ def get_ese_inference_configs(
 
             for run_opt_dict in total_run_cfg_options: 
                 # If you want to run inference on ensembles, use this.
-                if run_opt_dict.get('model.ensemble', False) or group_dict['model_type'] == "incontext":
+                if run_opt_dict.get('model.ensemble', False) or model_type == "incontext":
                     # Define where we want to save the results.
                     if base_cfg_args != {} and base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
                         ensemble_log_folder = "ensemble_upper_bounds"
@@ -121,7 +129,7 @@ def get_ese_inference_configs(
                             **advanced_args
                         }
                         # For each num_ens_members, we subselect that num of the total_ens_members.
-                        if group_dict['model_type'] == "incontext":
+                        if model_type == "incontext":
                             ensemble_cfg_args['model.pretrained_exp_root'] = [str(model_group_dir)]
                         else:
                             ensemble_cfg_args['ensemble.member_paths'] = [list(ensemble_group)]
@@ -130,7 +138,7 @@ def get_ese_inference_configs(
                 # If you want to run inference on individual networks, use this.
                 else:
                     # If we aren't ensembling, then we can't do incontext models.
-                    assert group_dict['model_type'] != "incontext", "Incontext models can only be used with ensembles."
+                    assert model_type != "incontext", "Incontext models can only be used with ensembles."
                     run_opt_args = {
                         'log.root': [str(inference_exp_root / f"{dataset}_Individual_{calibrator}")],
                         'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
@@ -141,7 +149,7 @@ def get_ese_inference_configs(
                     dataset_cfgs.append(run_opt_args)
             
         # Finally, add the dataset specific details.
-        with open(f"{group_dict['inf_cfg_root']}/{dataset}.yaml", 'r') as file:
+        with open(f"{inf_cfg_root}/{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
