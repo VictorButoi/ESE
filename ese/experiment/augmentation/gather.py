@@ -18,8 +18,6 @@ def build_aug(aug_obj):
         for key in a_dict:
             if isinstance(a_dict[key], list):
                 a_dict[key] = tuple(a_dict[key])
-        print(aug_name_key)
-        print(a_dict)
         # Get the key.
         return absolute_import(aug_name_key)(**a_dict)
     else:
