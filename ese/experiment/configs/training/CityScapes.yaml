@@ -38,12 +38,12 @@ model:
 # AUGMNENTATIONS USED FOR CITYSCAPEV
 augmentations:
     train:
-        - Resize:
+        - albumentations.Resize:
             height: 256
             width: 512
         - HorizontalFlip:
             p: 0.5
     val:
-        - Resize: # Maybe strange to do this, but we want to be able to compare the results.
+        - albumentations.Resize: # Maybe strange to do this, but we want to be able to compare the results.
             height: 256
             width: 512

@@ -92,7 +92,9 @@ class WMH(ThunderDataset, DatapathMixin):
 
         # Get the class name
         if self.transforms:
-            img, mask = self.transforms(image=img, mask=mask)
+            transform_obj = self.transforms(image=img, mask=mask)
+            img = transform_obj["image"]
+            mask = transform_obj["mask"]
 
         # Prepare the return dictionary.
         return_dict = {
