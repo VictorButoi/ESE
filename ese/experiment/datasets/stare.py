@@ -13,7 +13,7 @@ from ionpy.util.validation import validate_arguments_init
 
 @validate_arguments_init
 @dataclass
-class DRIVE(ThunderDataset, DatapathMixin):
+class STARE(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
     version: float = 0.2
@@ -69,12 +69,12 @@ class DRIVE(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"DRIVE/thunder_drive/{self.version}"
+        return f"STARE/thunder_stare/{self.version}"
 
     @property
     def signature(self):
         return {
-            "dataset": "DRIVE",
+            "dataset": "STARE",
             "resolution": self.resolution,
             "split": self.split,
             "version": self.version,
