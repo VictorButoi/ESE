@@ -24,7 +24,7 @@ def get_ese_inference_configs(
     exp_group: str,
     base_cfg: Config,
     inf_cfg_opts: dict,
-    datasets: Any,
+    inference_datasets: Any,
     base_models_group: str,
     model_type: str = "standard",
     scratch_root: str = "/storage/vbutoi/scratch/ESE",
@@ -62,10 +62,10 @@ def get_ese_inference_configs(
     # Keep a list of all the run configuration options.
     inference_opt_list = []
     # If datasets is not a list, make it a list.
-    if not isinstance(datasets, list):
-        datasets = [datasets]
+    if not isinstance(inference_datasets, list):
+        inference_datasets = [inference_datasets]
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for dataset in datasets:
+    for dataset in inference_datasets:
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
         for calibrator in inf_cfg_opts['calibrator']:
