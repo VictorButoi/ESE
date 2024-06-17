@@ -1,12 +1,13 @@
-from dataclasses import dataclass
-from typing import Optional, Any
-
-import torch
-from torch import Tensor
-from torch import nn
-import torch.nn.functional as F
-
+# ionpy imports 
 from ionpy.nn import get_nonlinearity, ConvBlock
+# torch imports
+import torch
+from torch import nn
+from torch import Tensor
+import torch.nn.functional as F
+# misc imports
+from typing import Optional, Any
+from dataclasses import dataclass
 from pydantic import validate_arguments
 
 

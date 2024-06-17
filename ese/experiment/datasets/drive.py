@@ -44,9 +44,6 @@ class DRIVE(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img, mask = super().__getitem__(key)
 
-        # Add channel dimension to the mask
-        mask = np.expand_dims(mask, axis=0)
-
         # Apply the label threshold
         if self.label_threshold is not None:
             mask = (mask > self.label_threshold).astype(np.float32)
@@ -56,6 +53,9 @@ class DRIVE(ThunderDataset, DatapathMixin):
             transform_obj = self.transforms(image=img, mask=mask)
             img = transform_obj["image"]
             mask = transform_obj["mask"]
+
+        # Add channel dimension to the mask
+        mask = np.expand_dims(mask, axis=0)
         
         # Prepare the return dictionary.
         return_dict = {
