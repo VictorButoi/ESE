@@ -31,12 +31,11 @@ class CalibrationExperiment(TrainExperiment):
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(data_cfg.pop("_class"))
         # Build the augmentation pipeline.
-        if "augmentations" in total_config and (total_config["augmentations"] is not None):
-            train_transforms = augmentations_from_config(total_config["augmentations"].get("train", None))
-            val_transforms = augmentations_from_config(total_config["augmentations"].get("val", None))
-            self.properties["aug_digest"] = json_digest(self.config["augmentations"].to_dict())[
-                :8
-            ]
+        augmentation_list = total_config.get("augmentations", None)
+        if augmentation_list is not None:
+            train_transforms = augmentations_from_config(augmentation_list.get("train", None))
+            val_transforms = augmentations_from_config(augmentation_list.get("val", None))
+            self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
         else:
             train_transforms, val_transforms = None, None
         # Build the datasets, apply the transforms

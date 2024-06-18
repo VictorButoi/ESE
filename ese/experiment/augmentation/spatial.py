@@ -17,25 +17,25 @@ class SVLS(DualTransform):
     include_center: bool
     p: float = 0.5
     ktype: Literal['gaussian', 'uniform'] = 'gaussian'
-    slice_bsize: Optional[int] = None
 
     def __post_init__(self):
         super().__init__(self.always_apply, self.p)
         assert self.ksize % 2 == 1, "Kernel size must be odd"
         self.smooth_kernel = self.init_filter()
-        if self.slice_bsize is not None:
-            # We need to copy the local kernel N many times to match the number of channels in the mask.
-            # This is because the mask is a 3D tensor with shape (H, W, C) where C is the number of channels.
-            # We need to apply the local kernel to each channel in the mask.
-            self.smooth_kernel = np.repeat(self.smooth_kernel[np.newaxis, :, :], self.slice_bsize, axis=0)
 
     def apply(self, img, **params):
         # No changes to the image, return as is
         return img
 
     def apply_to_mask(self, mask, **params):
+        if len(mask.shape) == 2:
+            smooth_kernel = self.smooth_kernel
+        elif len(mask.shape) == 3:
+            smooth_kernel = self.smooth_kernel[np.newaxis, :, :]
+        else:
+            raise ValueError(f"Expected mask to be 2D or 3D, got shape: {mask.shape}")
         # Apply the local kernel to the mask with a convolution
-        return convolve(mask, weights=self.smooth_kernel)
+        return convolve(mask, weights=smooth_kernel)
 
     def init_filter(self):
         # Make the base array that we will normalize.

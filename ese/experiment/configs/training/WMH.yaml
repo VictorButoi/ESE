@@ -12,8 +12,8 @@ data:
   preload: True 
 
 dataloader:
-  batch_size: 4
-  num_workers: 2
+  batch_size: 2
+  num_workers: 1
 
 log:
   root: '?'
