@@ -4,12 +4,12 @@ data:
   task: Amsterdam
   slicing: 'uniform' 
   annotator: observer_o12
-  num_slices: 1
+  num_slices: 4
   in_channels: 1
-  out_channels: 2 
+  out_channels: 1 
   version: 0.2
   iters_per_epoch: 1000 
-  preload: False 
+  preload: True 
 
 dataloader:
   batch_size: 4
@@ -23,7 +23,6 @@ log:
       _fn: ionpy.metrics.dice_score
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
-      ignore_index: 0
       from_logits: True
     ece_loss:
       _fn: ese.experiment.metrics.image_ece_loss
@@ -40,7 +39,6 @@ loss_func:
   from_logits: True
   batch_reduction: 'mean' 
   ignore_empty_labels: False
-  ignore_index: 0 
 
 model:
   filters: [64, 64, 64, 64, 64]

@@ -1,4 +1,5 @@
 # local imports
+from ionpy.util.meter import MeterDict
 from .utils import process_pred_map
 from ..augmentation.gather import augmentations_from_config
 # torch imports
@@ -100,12 +101,11 @@ class CalibrationExperiment(TrainExperiment):
         x, y = batch["img"], batch["label"]
 
         # For volume datasets, sometimes want to treat different slices as a batch.
-        if ("slice_batch_size" in self.config["data"]) and (self.config["data"]["slice_batch_size"] > 1):
-            assert x.shape[0] == 1, "Batch size must be 1 for slice batching."
+        if self.config["data"].get("num_slices", 1) != 1:
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-
+        
         yhat = self.model(x)
 
         if yhat.shape[1] > 1:
@@ -131,7 +131,7 @@ class CalibrationExperiment(TrainExperiment):
         }
         self.run_callbacks("step", batch=forward_batch)
         return forward_batch
-    
+
     def predict(
         self, 
         x, 

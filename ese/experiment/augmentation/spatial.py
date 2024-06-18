@@ -1,9 +1,7 @@
-# local imports
-from ..metrics.utils import agg_neighbors_preds
 # misc imports
 import numpy as np
-from typing import Literal
 from dataclasses import dataclass
+from typing import Literal, Optional
 from pydantic import validate_arguments
 from scipy.ndimage import convolve, gaussian_filter
 from albumentations.core.transforms_interface import DualTransform
@@ -17,13 +15,19 @@ class SVLS(DualTransform):
     sigma: float 
     always_apply: bool
     include_center: bool
-    ktype: Literal['gaussian', 'uniform'] = 'gaussian'
     p: float = 0.5
+    ktype: Literal['gaussian', 'uniform'] = 'gaussian'
+    slice_bsize: Optional[int] = None
 
     def __post_init__(self):
         super().__init__(self.always_apply, self.p)
         assert self.ksize % 2 == 1, "Kernel size must be odd"
-        self.local_kernel = self.init_filter()
+        self.smooth_kernel = self.init_filter()
+        if self.slice_bsize is not None:
+            # We need to copy the local kernel N many times to match the number of channels in the mask.
+            # This is because the mask is a 3D tensor with shape (H, W, C) where C is the number of channels.
+            # We need to apply the local kernel to each channel in the mask.
+            self.smooth_kernel = np.repeat(self.smooth_kernel[np.newaxis, :, :], self.slice_bsize, axis=0)
 
     def apply(self, img, **params):
         # No changes to the image, return as is
@@ -31,8 +35,7 @@ class SVLS(DualTransform):
 
     def apply_to_mask(self, mask, **params):
         # Apply the local kernel to the mask with a convolution
-        return convolve(mask, weights=self.local_kernel)
-
+        return convolve(mask, weights=self.smooth_kernel)
 
     def init_filter(self):
         # Make the base array that we will normalize.

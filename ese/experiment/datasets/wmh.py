@@ -26,9 +26,9 @@ class WMH(ThunderDataset, DatapathMixin):
     preload: bool = False
     return_data_id: bool = False
     min_fg_label: Optional[int] = None
-    slice_batch_size: Optional[int] = 1 
     iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
+    label_threshold: Optional[float] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -52,6 +52,10 @@ class WMH(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img_vol = subj_dict['image']
         mask_vol = subj_dict['masks'][self.annotator]
+
+        # Apply the label threshold
+        if self.label_threshold is not None:
+            mask_vol = (mask_vol > self.label_threshold).astype(np.float32)
 
         # NOTE: Pixel proportions is just the label amounts, it is not a proportion...
         label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
