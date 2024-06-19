@@ -138,8 +138,6 @@ class CalibrationExperiment(TrainExperiment):
         threshold = 0.5,
         label: Optional[int] = None,
     ):
-        assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
-
         # Get the label predictions
         logit_map = self.model(x) 
 

@@ -205,7 +205,11 @@ def volume_forward_loop(
         print(f"-> Working on slice chunk #{slice_chunk} out of", num_iterations,\
               "({:.2f}%)".format((slice_chunk/ num_iterations) * 100), end="\r")
         # Slice the image and label vols at the slice_chunk and move everything to the batch dimension.
-        slice_indices = torch.arange(slice_chunk*slices_per_fp, (slice_chunk + 1)*slices_per_fp)
+        if slice_chunk == num_iterations - 1:
+            slice_indices = torch.arange(slice_chunk*slices_per_fp, image_vol_cuda.shape[1])
+        else:
+            slice_indices = torch.arange(slice_chunk*slices_per_fp, (slice_chunk + 1)*slices_per_fp)
+        # Slice the volumes by the chosen indices.
         image_slices = image_vol_cuda[:, slice_indices, ...]
         label_slices = label_vol_cuda[:, slice_indices, ...]
         # Move the slices to the batch dimension.
@@ -215,7 +219,7 @@ def volume_forward_loop(
         expanded_slice_indices = slice_indices.repeat(len(batch['data_id']))
         expanded_data_ids = []
         for data_id in batch['data_id']:
-            expanded_data_ids += [data_id] * slices_per_fp
+            expanded_data_ids += [data_id] * len(slice_indices) 
         # Get the prediction with no gradient accumulation.
         slice_batch = batch.copy()
         slice_batch.update({
@@ -248,8 +252,8 @@ def standard_image_forward_loop(
     # where each element is the number of foreground pixels in the label map.
     valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= inf_cfg_dict["log"].get("min_fg_pixels", 0)
     # Slice the image, label_map, batch_ids, and slice_indices.
-    image = image[valid_indices]
-    label_map = label_map[valid_indices]
+    image = image[valid_indices, ...]
+    label_map = label_map[valid_indices, ...]
     # Index the meta_data
     val_inds_cpu = valid_indices.cpu()
     data_ids = batch["data_id"][val_inds_cpu]
@@ -281,35 +285,45 @@ def standard_image_forward_loop(
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
         
+        # Go through the exp_output and see if they are None or not.
+        y_logits = exp_output.get("y_logits", None)
+        y_probs = exp_output.get("y_probs", None)
+        y_hard = exp_output.get("y_hard", None)
+        
         # Iterate through the batch elements.
-        for batch_idx in range(len(slice_indices)):
-            print("Data_id:", data_ids[batch_idx])
-            print("Slice index:", slice_indices[batch_idx] if "slice_indices" in batch else None)
+        for batch_inference_idx in range(len(slice_indices)):
+            # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
+            if y_logits is not None:
+                y_logits_batch = y_logits[batch_inference_idx][None]
+            if y_probs is not None:
+                y_probs_batch = y_probs[batch_inference_idx][None]
+            if y_hard is not None:
+                y_hard_batch = y_hard[batch_inference_idx][None]
             # Wrap the outputs into a dictionary.
-            # output_dict = {
-            #     "x": image,
-            #     "y_true": label_map,
-            #     "y_logits": exp_output.get("y_logits", None),
-            #     "y_probs": exp_output.get("y_probs", None),
-            #     "y_hard": exp_output.get("y_hard", None),
-            #     "data_id": data_ids[batch_idx],
-            #     **batch["data_props"]
-            # }
-            # # If we have slice indices, then we add them to the output dictionary.
-            # if "slice_indices" in batch:
-            #     output_dict["slice_idx"] = slice_indices[batch_idx] 
-            # # Get the calibration item info.  
-            # get_calibration_item_info(
-            #     output_dict=output_dict,
-            #     inference_cfg=inf_cfg_dict,
-            #     trackers=inf_init_obj['trackers'],
-            # )
+            output_dict = {
+                "x": image[batch_inference_idx][None],
+                "y_true": label_map[batch_inference_idx][None],
+                "y_logits": y_logits_batch,
+                "y_probs": y_probs_batch,
+                "y_hard": y_hard_batch,
+                "data_id": data_ids[batch_inference_idx],
+                **batch["data_props"]
+            }
+            # If we have slice indices, then we add them to the output dictionary.
+            if "slice_indices" in batch:
+                output_dict["slice_idx"] = slice_indices[batch_inference_idx] 
+            # Get the calibration item info.  
+            get_calibration_item_info(
+                output_dict=output_dict,
+                inference_cfg=inf_cfg_dict,
+                trackers=inf_init_obj['trackers'],
+            )
 
-            # # Save the records every so often, to get intermediate results. Note, because of data_ids
-            # # this can contain fewer than 'log interval' many items.
-            # if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
-            #     save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
-            # inf_init_obj['data_counter'] += 1
+            # Save the records every so often, to get intermediate results. Note, because of data_ids
+            # this can contain fewer than 'log interval' many items.
+            if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
+                save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+            inf_init_obj['data_counter'] += 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
