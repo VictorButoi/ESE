@@ -5,6 +5,7 @@ log:
 data:
   input_type: volume
   slicing: full 
+  num_slices: 1
   annotator: '?'
   split: '?'
   task: '?' 

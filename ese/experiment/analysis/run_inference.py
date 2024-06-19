@@ -178,10 +178,10 @@ def dataloader_loop(
                     standard_image_forward_loop(**forward_item)
             else:
                 raise ValueError(f"Input type {input_type} not recognized.")
-        except KeyError as k:
-            print(k)
-            print("Skipping this batch")
-            pass
+        # except KeyError as k:
+        #     print(k)
+        #     print("Skipping this batch")
+        #     pass
         except Exception as e:
             raise e
 
@@ -337,7 +337,7 @@ def incontext_image_forward_loop(
                         y_probs = torch.sigmoid(y_logits)
 
             # Append the predictions to the ensemble predictions.
-            y_hard = (y_probs > inf_cfg_dict['experiment']['threshold']).long() # (B, 1, H, W)
+            y_hard = (y_probs > inf_cfg_dict['experiment']['hard_pred_threshold']).long() # (B, 1, H, W)
             y_probs = y_probs.unsqueeze(2) # B, 1, 1, H, W
 
             # Wrap the outputs into a dictionary.
@@ -381,7 +381,7 @@ def incontext_image_forward_loop(
                     # Append the predictions to the ensemble predictions.
                     ensemble_probs_list.append(y_probs) # (B, 1, H, W)
                     # Get the hard predictions.
-                    ensemble_hards_list.append((y_probs > inf_cfg_dict['experiment']['threshold']).long()) # (B, 1, H, W)
+                    ensemble_hards_list.append((y_probs > inf_cfg_dict['experiment']['hard_pred_threshold']).long()) # (B, 1, H, W)
                 # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
                 ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
                 ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)

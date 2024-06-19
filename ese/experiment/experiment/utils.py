@@ -186,6 +186,8 @@ def show_inference_examples(
     output_dict,
     inference_cfg,
 ):
+    hard_pred_threshold = inference_cfg['experiment']['hard_pred_threshold']
+
     # If ensembling, we need to make the individual predictions the batch dimension first.
     if inference_cfg["model"].get("ensemble", False):
         show_dict = {
@@ -203,7 +205,7 @@ def show_inference_examples(
         show_dict = output_dict
     # Show the individual predictions of the ensemble, or just the prediction if no ensemble.
     if show_first_pred:
-        ShowPredictionsCallback(show_dict, threshold=inference_cfg['experiment']['threshold'])
+        ShowPredictionsCallback(show_dict, threshold=hard_pred_threshold)
     # If we are showing examples with an ensemble, then we show initially the individual predictions.
     if inference_cfg["model"].get("ensemble", False):
         # Combine the outputs of the models.
@@ -219,7 +221,7 @@ def show_inference_examples(
             "y_hard": ensemble_outputs["y_hard"] 
         }
         # Finally, show the ensemble combination.
-        ShowPredictionsCallback(ensembled_output_dict, threshold=inference_cfg['experiment']['threshold'])
+        ShowPredictionsCallback(ensembled_output_dict, threshold=hard_pred_threshold)
     # Show the support examples if they are provided.
     if "support_set" in output_dict:
         support_images = output_dict["support_set"]["context_images"]

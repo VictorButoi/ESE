@@ -17,17 +17,17 @@ class WMH(ThunderDataset, DatapathMixin):
     axis: Literal[0, 1, 2]
     task: str 
     slicing: str
-    split: Literal["train", "cal", "val", "test"]
     annotator: str = "observer_o12"
+    split: Literal["train", "cal", "val", "test"] = "train"
     num_slices: int = 1
-    replace: bool = False
-    central_width: int = 32 
     version: float = 0.2
+    central_width: int = 32 
+    replace: bool = False
     preload: bool = False
     return_data_id: bool = False
+    transforms: Optional[Any] = None
     min_fg_label: Optional[int] = None
     iters_per_epoch: Optional[Any] = None
-    transforms: Optional[Any] = None
     label_threshold: Optional[float] = None
 
     def __post_init__(self):
