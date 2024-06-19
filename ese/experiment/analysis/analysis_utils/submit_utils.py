@@ -20,17 +20,24 @@ def power_set(in_set):
 
 
 def get_ese_inference_configs(
-    exp_group: str,
+    experiment_cfg: dict,
     base_cfg: Config,
-    inf_cfg_opts: dict,
-    inference_datasets: Any,
-    base_models_group: str,
-    model_type: str = "standard",
+    code_root: str = "/storage/vbutoi/projects/ESE",
     scratch_root: str = "/storage/vbutoi/scratch/ESE",
     inf_cfg_root: str = "/storage/vbutoi/projects/ESE/ese/experiment/configs/inference",
-    calibrated_models_group: Optional[str] = None,
-    power_set_keys: Optional[List[str]] = None,
+    power_set_keys: Optional[List[str]] = None
 ):
+    # Load the inference cfg from local.
+    ##################################################
+    inf_cfg_root = Path(code_root) / "ese" / "experiment" / "configs" / "defaults"
+
+    ##################################################
+    with open(inf_cfg_root / "Calibration_Metrics.yaml", 'r') as file:
+        cal_metrics_cfg = yaml.safe_load(file)
+
+    ##################################################
+    base_cfg = base_cfg.update([cal_metrics_cfg])
+
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
