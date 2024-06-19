@@ -12,7 +12,6 @@ from ese.experiment.models.utils import get_calibrator_cls
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
-from ionpy.experiment.util import fix_seed
 from ionpy.util.config import check_missing
 
 
@@ -30,13 +29,8 @@ def get_ese_inference_configs(
     scratch_root: str = "/storage/vbutoi/scratch/ESE",
     inf_cfg_root: str = "/storage/vbutoi/projects/ESE/ese/experiment/configs/inference",
     calibrated_models_group: Optional[str] = None,
-    base_cfg_args: Optional[dict] = {},
     power_set_keys: Optional[List[str]] = None,
 ):
-    # Set the seed if it is provided.
-    if "seed" in base_cfg_args.get('submit_opts', {}):
-        fix_seed(base_cfg_args['submit_opts']['seed'])
-    
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
@@ -83,10 +77,6 @@ def get_ese_inference_configs(
                 'calibrator._class': [get_calibrator_cls(calibrator)],
             }
 
-            # If additional args are provided, update the default config options.
-            if 'exp_opts' in base_cfg_args:
-                default_config_options.update(base_cfg_args['exp_opts'])
-
             # Define where we get the base models from.
             use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
             if use_uncalibrated_models:
@@ -111,30 +101,25 @@ def get_ese_inference_configs(
                 # If you want to run inference on ensembles, use this.
                 if run_opt_dict.get('model.ensemble', False) or model_type == "incontext":
                     # Define where we want to save the results.
-                    if base_cfg_args != {} and base_cfg_args['submit_opts'].get('ensemble_upper_bound', False):
-                        ensemble_log_folder = "ensemble_upper_bounds"
-                    else:
-                        ensemble_log_folder = f"{dataset}_Ensemble_{calibrator}"
+                    ensemble_log_folder = f"{dataset}_Ensemble_{calibrator}"
                     # Define where the set of base models come from.
                     advanced_args = {
                         "log.root": [str(inference_exp_root / ensemble_log_folder)],
                         "model.ensemble": [True],
                         **run_opt_dict
                     }
-                    num_ens_mem_opts = [1] if base_cfg_args == {} else base_cfg_args['submit_opts']['num_ens_membs']
-                    for num_ens_members in num_ens_mem_opts:
-                        ensemble_cfg_args = {
-                            'ensemble.num_members': [num_ens_members]
-                            **default_config_options,
-                            **advanced_args
-                        }
-                        # For each num_ens_members, we subselect that num of the total_ens_members.
-                        if model_type == "incontext":
-                            ensemble_cfg_args['model.pretrained_exp_root'] = [str(model_group_dir)]
-                        else:
-                            ensemble_cfg_args['ensemble.member_paths'] = [list(ensemble_group)]
-                        # Append these to the list of configs and roots.
-                        dataset_cfgs.append(ensemble_cfg_args)
+                    ensemble_cfg_args = {
+                        'ensemble.num_members': [1]
+                        **default_config_options,
+                        **advanced_args
+                    }
+                    # For each num_ens_members, we subselect that num of the total_ens_members.
+                    if model_type == "incontext":
+                        ensemble_cfg_args['model.pretrained_exp_root'] = [str(model_group_dir)]
+                    else:
+                        ensemble_cfg_args['ensemble.member_paths'] = [list(ensemble_group)]
+                    # Append these to the list of configs and roots.
+                    dataset_cfgs.append(ensemble_cfg_args)
                 # If you want to run inference on individual networks, use this.
                 else:
                     # If we aren't ensembling, then we can't do incontext models.

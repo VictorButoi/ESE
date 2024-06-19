@@ -106,6 +106,7 @@ def reduce_ensemble_preds(
 def load_experiment(
     checkpoint: str,
     device: str = "cuda",
+    set_seed: bool = True,
     load_data: bool = True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
@@ -143,7 +144,12 @@ def load_experiment(
         loaded_exp = exp_class(exp_path)
     else:
         exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
-        loaded_exp = exp_class(exp_path, init_metrics=False, load_data=load_data)
+        loaded_exp = exp_class(
+            exp_path, 
+            init_metrics=False, 
+            load_data=load_data,
+            set_seed=set_seed
+        )
 
     # Load the experiment
     if checkpoint is not None:

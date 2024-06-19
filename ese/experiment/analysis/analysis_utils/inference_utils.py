@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
-from ionpy.experiment.util import absolute_import, fix_seed, generate_tuid, eval_config
+from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # UniverSeg imports if universeg.experiment is installed
 try:
     from universeg.experiment.datasets import Segment2D
@@ -247,8 +247,6 @@ def cal_stats_init(
         inference_cfg=cfg_dict
     )
     inference_exp.to_device()
-    # Ensure that inference seed is the same.
-    fix_seed(inference_cfg['experiment']['seed'])
     cal_init_obj_dict['exp'] = inference_exp
 
     #####################
@@ -368,6 +366,7 @@ def load_inference_exp_from_cfg(inference_cfg):
         load_exp_args = {
             "checkpoint": inf_model_cfg['checkpoint'],
             "load_data": False,
+            "set_seed": False,
             **get_exp_load_info(inf_model_cfg['pretrained_exp_root']),
         }
         if "_attr" in inf_model_cfg:

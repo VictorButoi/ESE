@@ -2,6 +2,7 @@
 import torch
 # ionpy imports
 from ionpy.util import Config
+from ionpy.experiment.util import fix_seed
 from ionpy.util.torchutils import to_device
 # local imports
 from .checks import global_cal_sanity_check
@@ -32,11 +33,16 @@ def get_cal_stats(
 ) -> None:
     # Get the config dictionary
     inference_cfg_dict = cfg.to_dict()
+
+    # Ensure that inference seed is the same.
+    fix_seed(inference_cfg_dict['experiment']['inference_seed'])
+
     # Initialize all the objects needed for inference.
     inference_init_obj = cal_stats_init(
         inference_cfg_dict, 
         yaml_cfg_dir="/storage/vbutoi/projects/ESE"
     )
+
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
         loop_base_args = {
@@ -59,7 +65,7 @@ def get_cal_stats(
                     if inference_cfg_dict["experiment"]["fixed_support_sets"]:
                         for sup_idx in range(inference_cfg_dict['experiment']['supports_per_target']):
                             # Ensure that all subjects of the same label have the same support set.
-                            rng = inference_cfg_dict['experiment']['seed'] * (sup_idx + 1)
+                            rng = inference_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
                             # Send the support set to the device
                             sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
                             # Apply augmentation to the support set if defined.
@@ -356,7 +362,7 @@ def incontext_image_forward_loop(
                 for ens_mem_idx in range(inf_cfg_dict['ensemble']['num_members']):
                     # Note: different subjects will use different support sets
                     # but different models will use the same support sets
-                    rng = inf_cfg_dict['experiment']['seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
+                    rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
                     sx_cpu, sy_cpu, _ = support_generator[rng]
                     # Apply augmentation to the support set if defined.
                     if inf_init_obj['support_transforms'] is not None:
