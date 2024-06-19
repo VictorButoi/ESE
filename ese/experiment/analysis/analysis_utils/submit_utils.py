@@ -12,68 +12,86 @@ from ese.experiment.models.utils import get_calibrator_cls
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
-from ionpy.util.config import check_missing
+from ionpy.util.config import check_missing, HDict, valmap
 
 
 def power_set(in_set):
     return list(chain.from_iterable(combinations(in_set, r) for r in range(len(in_set)+1)))
 
+def list2tuple(val):
+    if isinstance(val, list):
+        return tuple(map(list2tuple, val))
+    return val
+
 
 def get_ese_inference_configs(
-    experiment_cfg: dict,
+    exp_cfg: dict,
     base_cfg: Config,
-    code_root: str = "/storage/vbutoi/projects/ESE",
-    scratch_root: str = "/storage/vbutoi/scratch/ESE",
-    inf_cfg_root: str = "/storage/vbutoi/projects/ESE/ese/experiment/configs/inference",
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    code_root: Path = Path("/storage/vbutoi/projects/ESE"),
+    inf_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/inference"),
     power_set_keys: Optional[List[str]] = None
 ):
+    # We need to flatten the experiment config to get the different options.
+    cfg = HDict(exp_cfg)
+    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    inference_datasets = flat_exp_cfg.pop('data._class')
+
+    # Building new yamls under the exp_group name for model type.
+    exp_group = exp_cfg['name']
+    model_type = exp_cfg.get('model_type', 'standard')
+
     # Load the inference cfg from local.
     ##################################################
-    inf_cfg_root = Path(code_root) / "ese" / "experiment" / "configs" / "defaults"
-
+    inf_cfg_root = code_root / "ese" / "experiment" / "configs" / "defaults"
     ##################################################
     with open(inf_cfg_root / "Calibration_Metrics.yaml", 'r') as file:
         cal_metrics_cfg = yaml.safe_load(file)
-
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
+
 
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
-            if key in inf_cfg_opts:
-                inf_cfg_opts[key] = power_set(inf_cfg_opts[key])
+            if key in flat_exp_cfg:
+                flat_exp_cfg[key] = power_set(flat_exp_cfg[key])
 
     # Gather the different config options.
-    cfg_opt_keys = list(inf_cfg_opts.keys())
+    cfg_opt_keys = list(flat_exp_cfg.keys())
     if 'calibrator' in cfg_opt_keys:
         cfg_opt_keys.remove('calibrator') # We need to handle calibrator separately.
     else:
-        inf_cfg_opts['calibrator'] = ['Uncalibrated']
+        flat_exp_cfg['calibrator'] = ['Uncalibrated']
 
     # Generate product tuples by first going through and making sure each option is a list and then using itertools.product.
-    for ico_key in inf_cfg_opts:
-        if not isinstance(inf_cfg_opts[ico_key], list):
-            inf_cfg_opts[ico_key] = [inf_cfg_opts[ico_key]]
-    product_tuples = list(itertools.product(*[inf_cfg_opts[key] for key in cfg_opt_keys]))
+    for ico_key in flat_exp_cfg:
+        if not isinstance(flat_exp_cfg[ico_key], list):
+            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    product_tuples = list(itertools.product(*[flat_exp_cfg[key] for key in cfg_opt_keys]))
     
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
 
     # Keep a list of all the run configuration options.
     inference_opt_list = []
+
     # If datasets is not a list, make it a list.
     if not isinstance(inference_datasets, list):
         inference_datasets = [inference_datasets]
+    inference_datasets = [ifd.split(".")[-1] for ifd in inference_datasets]
+
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for dataset in inference_datasets:
+
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
-        for calibrator in inf_cfg_opts['calibrator']:
+        for calibrator in flat_exp_cfg['calibrator']:
+
             ##################################################
             # Set a few things that will be consistent for all runs.
             ##################################################
-            inference_exp_root = Path(f"{scratch_root}/inference/{exp_group}")
+            inference_exp_root = scratch_root / "inference" / exp_group
 
             # Define the set of default config options.
             default_config_options = {
@@ -87,10 +105,10 @@ def get_ese_inference_configs(
             # Define where we get the base models from.
             use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
             if use_uncalibrated_models:
-                model_group_dir = base_models_group
+                model_group_dir = flat_exp_cfg['base_models']
                 default_config_options['model.checkpoint'] = ['max-val-dice_score']
             else:
-                model_group_dir = f"{calibrated_models_group}/Individual_{calibrator}"
+                model_group_dir = f"{flat_exp_cfg['calibrated_models']}/Individual_{calibrator}"
                 default_config_options['model.checkpoint'] = ['min-val-ece_loss']
 
             #####################################
@@ -143,6 +161,7 @@ def get_ese_inference_configs(
         # Finally, add the dataset specific details.
         with open(f"{inf_cfg_root}/{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
+            
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
         # Iterate over the different config options for this dataset. 
