@@ -9,7 +9,7 @@ data:
   out_channels: 1 
   version: 0.2
   iters_per_epoch: 1000 
-  preload: True 
+  preload: True  # Important, 3D volumes super expensive to move to GPU
 
 dataloader:
   batch_size: 2
