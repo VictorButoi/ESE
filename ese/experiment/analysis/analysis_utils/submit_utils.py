@@ -4,7 +4,7 @@ import random
 import itertools
 import numpy as np
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 from itertools import chain, combinations
 # ESE imports
 from ese.scripts.utils import gather_exp_paths
@@ -38,14 +38,17 @@ def get_ese_inference_configs(
     inference_datasets = flat_exp_cfg.pop('data._class')
 
     # Building new yamls under the exp_group name for model type.
-    exp_group = exp_cfg['name']
+    exp_group = exp_cfg.pop('name')
     model_type = exp_cfg.get('model_type', 'standard')
+    base_models = exp_cfg.pop('base_models')
+    if 'calibrated_models' in exp_cfg:
+        calibrated_models = exp_cfg.pop('calibrated_models')
 
     # Load the inference cfg from local.
     ##################################################
-    inf_cfg_root = code_root / "ese" / "experiment" / "configs" / "defaults"
+    default_cfg_root = code_root / "ese" / "experiment" / "configs" / "defaults"
     ##################################################
-    with open(inf_cfg_root / "Calibration_Metrics.yaml", 'r') as file:
+    with open(default_cfg_root / "Calibration_Metrics.yaml", 'r') as file:
         cal_metrics_cfg = yaml.safe_load(file)
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
@@ -72,6 +75,7 @@ def get_ese_inference_configs(
     
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
+
 
     # Keep a list of all the run configuration options.
     inference_opt_list = []
@@ -105,10 +109,10 @@ def get_ese_inference_configs(
             # Define where we get the base models from.
             use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
             if use_uncalibrated_models:
-                model_group_dir = flat_exp_cfg['base_models']
+                model_group_dir = base_models 
                 default_config_options['model.checkpoint'] = ['max-val-dice_score']
             else:
-                model_group_dir = f"{flat_exp_cfg['calibrated_models']}/Individual_{calibrator}"
+                model_group_dir = f"{calibrated_models}/Individual_{calibrator}"
                 default_config_options['model.checkpoint'] = ['min-val-ece_loss']
 
             #####################################
@@ -159,7 +163,7 @@ def get_ese_inference_configs(
                     dataset_cfgs.append(run_opt_args)
             
         # Finally, add the dataset specific details.
-        with open(f"{inf_cfg_root}/{dataset}.yaml", 'r') as file:
+        with open(inf_cfg_root / f"{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
             
         # Update the base config with the dataset specific config.

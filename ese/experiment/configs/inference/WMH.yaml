@@ -12,6 +12,9 @@ data:
 global_calibration:
     num_classes: 1
 
+model:
+    pred_label: 0
+
 qual_metrics:
     - Dice:
         _fn: ese.experiment.metrics.dice_score
