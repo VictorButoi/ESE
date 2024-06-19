@@ -1,5 +1,6 @@
 # torch imports
 import torch
+from torch import Tensor
 # ionpy imports
 from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
@@ -21,6 +22,8 @@ from ..experiment.utils import (
     reduce_ensemble_preds
 )
 # Misc imports
+import math
+import einops
 import numpy as np
 import pandas as pd
 from typing import Any, Optional
@@ -144,7 +147,6 @@ def dataloader_loop(
                     "label": batch[1],
                     "data_id": batch[2],
                 }
-            batch["data_id"] = batch["data_id"][0] # Works because batchsize = 1
             forward_batch = {
                 "batch_idx": batch_idx,
                 "sup_idx": sup_idx,
@@ -188,39 +190,52 @@ def dataloader_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
-    inf_cfg_dict,
-    inf_init_obj,
     batch,
+    inf_cfg_dict,
+    inf_init_obj
 ):
-    # Get the batch info
-    image_vol_cpu = batch.pop("img")
-    label_vol_cpu = batch.pop("label")
-    image_vol_cuda, label_vol_cuda = to_device((image_vol_cpu, label_vol_cpu), inf_init_obj["exp"].device)
+    # Get the batch info, these are B x V x H x W
+    image_vol_cuda, label_vol_cuda = to_device((batch.pop("img"), batch.pop("label")), inf_init_obj["exp"].device)
     # Go through each slice and predict the metrics.
-    num_slices = image_vol_cuda.shape[1]
-    for slice_idx in range(num_slices):
-        print(f"-> Working on slice #{slice_idx} out of", num_slices, "({:.2f}%)".format((slice_idx / num_slices) * 100), end="\r")
+    slices_per_fp = inf_cfg_dict["experiment"].get("slices_per_fp", 1)
+    # Num iterations is the number of slices divided by the number of slices per forward pass.
+    num_iterations = math.ceil(image_vol_cuda.shape[1] / slices_per_fp)
+    # Iterate through the slice chunks, making sure that on the last iteration we get the remaining slices.
+    for slice_chunk in range(num_iterations):
+        print(f"-> Working on slice chunk #{slice_chunk} out of", num_iterations,\
+              "({:.2f}%)".format((slice_chunk/ num_iterations) * 100), end="\r")
+        # Slice the image and label vols at the slice_chunk and move everything to the batch dimension.
+        slice_indices = torch.arange(slice_chunk*slices_per_fp, (slice_chunk + 1)*slices_per_fp)
+        image_slices = image_vol_cuda[:, slice_indices, ...]
+        label_slices = label_vol_cuda[:, slice_indices, ...]
+        # Move the slices to the batch dimension.
+        image_batched_slices = einops.rearrange(image_slices, "b c h w -> (b c) 1 h w")
+        label_batched_slices = einops.rearrange(label_slices, "b c h w -> (b c) 1 h w")
+        # We need to expand the data_id in batch to account for the slices.
+        expanded_slice_indices = slice_indices.repeat(len(batch['data_id']))
+        expanded_data_ids = []
+        for data_id in batch['data_id']:
+            expanded_data_ids += [data_id] * slices_per_fp
         # Get the prediction with no gradient accumulation.
-        slice_batch = {
-            "img": image_vol_cuda[:, slice_idx:slice_idx+1, ...],
-            "label": label_vol_cuda[:, slice_idx:slice_idx+1, ...],
-            **batch
-        } 
+        slice_batch = batch.copy()
+        slice_batch.update({
+            "img": image_batched_slices,
+            "label": label_batched_slices,
+            "data_id": np.array(expanded_data_ids),
+            "slice_indices": expanded_slice_indices.cpu().numpy()
+        })
         standard_image_forward_loop(
             inf_cfg_dict=inf_cfg_dict,
             inf_init_obj=inf_init_obj,
-            batch=slice_batch,
-            slice_idx=slice_idx,
+            batch=slice_batch
         )
-    assert slice_idx == num_slices - 1, "Slice index did not reach the end of the volume."
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def standard_image_forward_loop(
-    inf_cfg_dict,
-    inf_init_obj,
     batch,
-    slice_idx: Optional[int] = None,
+    inf_cfg_dict,
+    inf_init_obj
 ):
     # Get the experiment
     exp = inf_init_obj["exp"]
@@ -229,7 +244,21 @@ def standard_image_forward_loop(
     image, label_map  = batch["img"], batch["label"]
 
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
-    if torch.sum(label_map != 0) >= inf_cfg_dict["log"].get("min_fg_pixels", 0):
+    # Because we allow for larger batchsizes, ie the label is B x 1 x H x W, we will get a vector of size B
+    # where each element is the number of foreground pixels in the label map.
+    valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= inf_cfg_dict["log"].get("min_fg_pixels", 0)
+    # Slice the image, label_map, batch_ids, and slice_indices.
+    image = image[valid_indices]
+    label_map = label_map[valid_indices]
+    # Index the meta_data
+    val_inds_cpu = valid_indices.cpu()
+    data_ids = batch["data_id"][val_inds_cpu]
+    # Slice indices are optional.
+    if "slice_indices" in batch:
+        slice_indices = batch["slice_indices"][val_inds_cpu]
+
+    # If we have any valid indices, then we can proceed.
+    if torch.sum(valid_indices) > 0:
 
         # Get your image label pair and define some regions.
         if image.device != exp.device:
@@ -251,30 +280,36 @@ def standard_image_forward_loop(
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
+        
+        # Iterate through the batch elements.
+        for batch_idx in range(len(slice_indices)):
+            print("Data_id:", data_ids[batch_idx])
+            print("Slice index:", slice_indices[batch_idx] if "slice_indices" in batch else None)
+            # Wrap the outputs into a dictionary.
+            # output_dict = {
+            #     "x": image,
+            #     "y_true": label_map,
+            #     "y_logits": exp_output.get("y_logits", None),
+            #     "y_probs": exp_output.get("y_probs", None),
+            #     "y_hard": exp_output.get("y_hard", None),
+            #     "data_id": data_ids[batch_idx],
+            #     **batch["data_props"]
+            # }
+            # # If we have slice indices, then we add them to the output dictionary.
+            # if "slice_indices" in batch:
+            #     output_dict["slice_idx"] = slice_indices[batch_idx] 
+            # # Get the calibration item info.  
+            # get_calibration_item_info(
+            #     output_dict=output_dict,
+            #     inference_cfg=inf_cfg_dict,
+            #     trackers=inf_init_obj['trackers'],
+            # )
 
-        # Wrap the outputs into a dictionary.
-        output_dict = {
-            "x": image,
-            "y_true": label_map,
-            "y_logits": exp_output.get("y_logits", None),
-            "y_probs": exp_output.get("y_probs", None),
-            "y_hard": exp_output.get("y_hard", None),
-            "data_id": batch["data_id"], # Works because batchsize = 1
-            "slice_idx": slice_idx,
-            **batch["data_props"]
-        }
-        # Get the calibration item info.  
-        get_calibration_item_info(
-            output_dict=output_dict,
-            inference_cfg=inf_cfg_dict,
-            trackers=inf_init_obj['trackers'],
-        )
-
-        # Save the records every so often, to get intermediate results. Note, because of data_ids
-        # this can contain fewer than 'log interval' many items.
-        if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
-            save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
-        inf_init_obj['data_counter'] += 1
+            # # Save the records every so often, to get intermediate results. Note, because of data_ids
+            # # this can contain fewer than 'log interval' many items.
+            # if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
+            #     save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+            # inf_init_obj['data_counter'] += 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

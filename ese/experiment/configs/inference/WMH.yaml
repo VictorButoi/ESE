@@ -1,6 +1,9 @@
-log:
-  track_label_amounts: True 
-  min_fg_pixels: 1
+experiment:
+  slices_per_fp: 5
+
+dataloader:
+  batch_size: 2
+  num_workers: 1
 
 data:
   input_type: volume
@@ -12,6 +15,10 @@ data:
 
 global_calibration:
     num_classes: 1
+
+log:
+  track_label_amounts: True 
+  min_fg_pixels: 1
 
 model:
     pred_label: 0

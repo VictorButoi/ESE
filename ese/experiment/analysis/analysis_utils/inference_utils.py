@@ -256,7 +256,6 @@ def cal_stats_init(
     new_dset_options = inference_cfg['data'].copy()
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
-    assert inference_cfg['dataloader']['batch_size'] == 1, "Inference only configured for batch size of 1."
     # Build the dataloaders.
     data_objs, modified_cfg = dataloader_from_exp( 
         inference_exp,
