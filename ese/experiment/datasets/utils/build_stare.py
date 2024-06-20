@@ -143,6 +143,7 @@ def thunderify_STARE(
 
     image_root = str(proc_root / 'images')
 
+    # Build a task corresponding to the dataset.
     with ThunderDB.open(str(dst_dir), "c") as db:
         # Key track of the ids
         subjects = [] 
@@ -153,35 +154,41 @@ def thunderify_STARE(
 
             # Paths to the image and segmentation
             img_dir = proc_root / "images" / example_name 
-            seg_dir = proc_root / "masks" / example_name.replace('.ppm.gz', '.vk.ppm.gz')
 
             # Load the image and segmentation.
             img = open_ppm_gz(img_dir)
-            seg = open_ppm_gz(seg_dir)
-            
+
+            mask_dict = {}
+            # Iterate through each set of ground truth
+            for annotator in ["ah", "vk"]:
+                seg_dir = proc_root / f"{annotator}_labels" / example_name.replace('.ppm.gz', f'.{annotator}.ppm.gz')
+                anno_mask = open_ppm_gz(seg_dir)
+                # Our processing has ensured that we care about axis 0.
+                mask_dict[annotator] = anno_mask 
+            # We also want to make a combined pixelwise-average mask of the two annotators. 
+            mask_dict["average"] = np.mean([mask_dict["ah"], mask_dict["vk"]], axis=0)
+
+            # We did this in v0.1 but unclear if we want to do this.
             # Do an absolutely minor amount of gaussian blurring to the seg ahead of time
             # so that the edges are a bit more fuzzy.
-            seg = cv2.GaussianBlur(seg, (5, 5), 0)
+            # seg = cv2.GaussianBlur(seg, (5, 5), 0)
 
             # Resize the image and segmentation to 128x128
-            img = resize_with_aspect_ratio(img, target_size=128)
-            seg = resize_with_aspect_ratio(seg, target_size=128)
-
-            # Convert to the right type
-            img = img.astype(np.float32)
-            seg = seg.astype(np.float32)
+            img = resize_with_aspect_ratio(img, target_size=128).astype(np.float32).transpose(2, 0, 1)
+            for ikey in mask_dict:
+                resized_mask = resize_with_aspect_ratio(mask_dict[ikey], target_size=128).astype(np.float32)
+                normalized_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
+                mask_dict[ikey] = normalized_mask 
 
             # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
-            img = img.transpose(2, 0, 1)
-            seg = (seg - seg.min()) / (seg.max() - seg.min())
-            
             assert img.shape == (3, 128, 128), f"Image shape isn't correct, got {img.shape}"
-            assert seg.shape == (128, 128), f"Seg shape isn't correct, got {seg.shape}"
-            assert np.count_nonzero(seg) > 0, "Label can't be empty."
 
             # Save the datapoint to the database
-            db[key] = (img, seg) 
-            subjects.append(key)   
+            db[key] = {
+                "image": img,
+                "masks": mask_dict,
+            }
+            subjects.append(key)
 
         subjects = sorted(subjects)
         splits = data_splits(subjects, splits_ratio, splits_seed)
