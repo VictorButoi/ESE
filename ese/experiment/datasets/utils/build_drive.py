@@ -57,33 +57,6 @@ def resize_with_aspect_ratio(image, target_size=256):
     return cropped_image 
 
 
-def shrink_boundary(binary_mask, pixels=15):
-    """
-    Removes pixels from the boundary of objects in a binary mask.
-
-    Parameters:
-    - binary_mask (np.array): A binary image where the object is represented by 255 and the background is 0.
-    - pixels (int): The number of pixels to remove from the boundary.
-
-    Returns:
-    - np.array: A new binary image with the boundary pixels removed.
-    """
-    # Create a kernel of ones of shape (pixels, pixels)
-    kernel = np.ones((pixels, pixels), np.uint8)
-
-    # Make a new mask where the border is included
-    new_binary_mask = binary_mask.copy()
-    new_binary_mask[new_binary_mask == 2] = 1
-
-    # Erode the image
-    eroded = cv2.erode(new_binary_mask, kernel, iterations=1)
-
-    # If you erode past the area you KNOW is foreground, set it back to 1.
-    eroded[binary_mask == 1] = 1
-    
-    return eroded
-
-
 @validate_arguments
 def data_splits(
     values: List[str], 
@@ -136,7 +109,9 @@ def thunderify_DRIVE(
         # Key track of the ids
         subjects = [] 
         # Iterate through the examples.
-        for example_name in tqdm(os.listdir(image_root), total=len(list(proc_root.iterdir()))):
+        subj_list = list(os.listdir(image_root))
+        downsize_errors = []
+        for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
             # Define the image_key
             key = "subject_" + example_name.split('_')[0]
 
@@ -148,9 +123,19 @@ def thunderify_DRIVE(
             img = np.array(Image.open(img_dir))
             seg = np.array(Image.open(seg_dir))
 
+            # Square pad the img and seg to the larger dimension.
+            if img.shape[0] != img.shape[1]:
+                pad = abs(img.shape[0] - img.shape[1]) // 2
+                if img.shape[0] > img.shape[1]:
+                    img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
+                    seg = cv2.copyMakeBorder(seg, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
+                else:
+                    img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+                    seg = cv2.copyMakeBorder(seg, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+
             # Do an absolutely minor amount of gaussian blurring to the seg ahead of time
             # so that the edges are a bit more fuzzy.
-            seg = cv2.GaussianBlur(seg, (5, 5), 0)
+            seg = cv2.GaussianBlur(seg, (7, 7), 0)
 
             # Resize the image and segmentation to 128x128
             img = resize_with_aspect_ratio(img, target_size=128)
@@ -192,3 +177,5 @@ def thunderify_DRIVE(
         db["_samples"] = subjects
         db["_splits"] = splits
         db["_attrs"] = attrs
+
+    
