@@ -1,9 +1,9 @@
 # torch imports
 import torch
 from torch import Tensor
+from torch.nn import functional as F
 
 # random imports
-from typing import Optional, Union
 from pydantic import validate_arguments
 
 
@@ -22,7 +22,7 @@ def soft_binary_cross_entropy(
     y_pred = torch.clamp(y_pred, epsilon, 1. - epsilon)
     
     # Compute binary cross-entropy
-    bce = -(y_true * torch.log(y_pred) + (1. - y_true) * torch.log(1. - y_pred))
+    bce = -(y_true * torch.clamp(torch.log(y_pred), min=-100) + (1. - y_true) * torch.clamp(torch.log(1. - y_pred), min=-100))
 
     # Return mean loss
     return bce
@@ -39,7 +39,7 @@ def focal_loss(
         y_pred= torch.sigmoid(y_pred)
     
     #first compute binary cross-entropy 
-    BCE = soft_binary_cross_entropy(y_pred, y_true, from_logits=False)
+    BCE = F.binary_cross_entropy(y_pred, y_true, reduction="none")
     BCE_EXP = torch.exp(-BCE)
     focal_loss = alpha * (1 - BCE_EXP)**gamma * BCE
                     

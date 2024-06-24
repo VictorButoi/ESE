@@ -107,9 +107,6 @@ class CalibrationExperiment(TrainExperiment):
         
         yhat = self.model(x)
 
-        if yhat.shape[1] > 1:
-            y = y.long()
-
         # Let's visualize the predictions and the ground truth.
         loss = self.loss_func(yhat, y)
 

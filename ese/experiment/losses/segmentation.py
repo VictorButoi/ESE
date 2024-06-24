@@ -110,12 +110,12 @@ def pixel_crossentropy_loss(
     batch_reduction: Reduction = "mean",
     loss_pix_weights: Optional[str] = None,
     weights: Optional[Union[Tensor, list]] = None,
-    ignore_index: Optional[int] = -100,
+    ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
     # Quick check to see if we are dealing with binary segmentation
     if y_pred.shape[1] == 1:
-        assert ignore_index == -100, "ignore_index is not supported for binary segmentation."
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
 
     """One cross_entropy function to rule them all
     ---
@@ -135,7 +135,6 @@ def pixel_crossentropy_loss(
     """
     assert len(y_pred.shape) > 2, "y_pred must have at least 3 dimensions."
     batch_size, num_classes = y_pred.shape[:2]
-    y_true = y_true.long()
 
     if mode == "auto":
         if y_pred.shape == y_true.shape:
@@ -149,14 +148,13 @@ def pixel_crossentropy_loss(
 
     if mode == "binary":
         assert y_pred.shape == y_true.shape
+        assert ignore_index is None
         assert weights is None
-        # If the label is a float, we need to use our own BCE function.
-        loss = soft_binary_cross_entropy(
-            y_pred, 
-            y_true, 
-            from_logits=from_logits
-        )
-        # Squeeze out the channel dimension.
+        # If y_true isn't a long tensor, make it one
+        if from_logits:
+            loss = F.binary_cross_entropy_with_logits(input=y_pred, target=y_true, reduction="none")
+        else:
+            loss = F.binary_cross_entropy(y_pred, y_true, reduction="none")
         loss = loss.squeeze(dim=1)
     else:
         # Squeeze the label, (no need for channel dimension).
