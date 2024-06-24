@@ -35,9 +35,6 @@ log:
       from_logits: True
 
 loss_func: 
-  _class: ionpy.loss.SoftDiceLoss
-  from_logits: True
-  batch_reduction: 'mean' 
   ignore_empty_labels: False
 
 model:

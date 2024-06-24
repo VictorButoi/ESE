@@ -10,10 +10,56 @@ from typing import Optional, Union
 # local imports
 from .weights import get_pixel_weights
 from ionpy.loss.util import _loss_module_from_func
+from ionpy.metrics.segmentation import soft_dice_score
 from ionpy.metrics.util import (
     InputMode,
     Reduction
 )
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def soft_dice_loss(
+    y_pred: Tensor,
+    y_true: Tensor,
+    mode: InputMode = "auto",
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    weights: Optional[Union[Tensor, list]] = None,
+    ignore_index: Optional[int] = None,
+    ignore_empty_labels: bool = False,
+    from_logits: bool = False,
+    smooth: float = 1e-7,
+    eps: float = 1e-7,
+    square_denom: bool = True,
+    log_loss: bool = False,
+) -> Tensor:
+    # Quick check to see if we are dealing with binary segmentation
+    if y_pred.shape[1] == 1:
+        assert ignore_index is None, "ignore_index is not supported for binary segmentation."
+
+    score = soft_dice_score(
+        y_pred,
+        y_true,
+        mode=mode,
+        reduction=reduction,
+        batch_reduction=batch_reduction,
+        weights=weights,
+        ignore_empty_labels=ignore_empty_labels,
+        ignore_index=ignore_index,
+        from_logits=from_logits,
+        smooth=smooth,
+        eps=eps,
+        square_denom=square_denom,
+    )
+    # Assert that everywhere the score is between 0 and 1 (batch many items)
+    assert (score >= 0).all() and (score <= 1).all(), f"Score is not between 0 and 1: {score}"
+
+    if log_loss:
+        loss = -torch.log(score.clamp_min(eps))
+    else:
+        loss = 1.0 - score
+
+    return loss
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -127,3 +173,4 @@ def pixel_crossentropy_loss(
 
 
 PixelCELoss = _loss_module_from_func("PixelCELoss", pixel_crossentropy_loss)
+SoftDiceLoss = _loss_module_from_func("SoftDiceLoss", soft_dice_loss)
