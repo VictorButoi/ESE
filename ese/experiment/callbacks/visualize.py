@@ -85,7 +85,7 @@ def ShowPredictionsCallback(
     if bs == 1:
         ncols = 7
     else:
-        ncols = 3
+        ncols = 4
     f, axarr = plt.subplots(nrows=bs, ncols=ncols, figsize=(ncols * size_per_image, bs*size_per_image))
 
     # Go through each item in the batch.
@@ -182,9 +182,13 @@ def ShowPredictionsCallback(
             im2 = axarr[b_idx, 1].imshow(y[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
 
-            axarr[b_idx, 2].set_title("Hard Prediction")
-            im3 = axarr[b_idx, 2].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
+            axarr[b_idx, 2].set_title("Soft Prediction")
+            im3 = axarr[b_idx, 2].imshow(y_hat[b_idx], cmap=label_cm, interpolation='None')
             f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
+
+            axarr[b_idx, 3].set_title("Hard Prediction")
+            im4 = axarr[b_idx, 3].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
+            f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
 
             # turn off the axis and grid
             for ax in axarr[b_idx]:

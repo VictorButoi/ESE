@@ -3,12 +3,11 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 # misc imports
-import math
-import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Optional, Union
 # local imports
 from .weights import get_pixel_weights
+from .functional import soft_binary_cross_entropy, focal_loss
 from ionpy.loss.util import _loss_module_from_func
 from ionpy.metrics.segmentation import soft_dice_score
 from ionpy.metrics.util import (
@@ -63,6 +62,46 @@ def soft_dice_loss(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def pixel_focal_loss(
+    y_pred: Tensor,
+    y_true: Tensor,
+    alpha: float = 0.25,
+    gamma: float = 2.0,
+    from_logits: bool = False,
+    ignore_empty_labels: bool = False,
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+):
+    assert y_pred.shape[1] == 1, "Focal loss is only supported for binary segmentation."
+    fl_score = focal_loss(
+        y_pred,
+        y_true,
+        alpha=alpha,
+        gamma=gamma,
+        from_logits=from_logits,
+    )
+    loss = fl_score.squeeze(dim=1)
+
+    # Channels have been collapsed
+    spatial_dims = list(range(1, len(y_pred.shape) - 1))
+    if reduction == "mean":
+        loss = loss.mean(dim=spatial_dims)
+    if reduction == "sum":
+        loss = loss.sum(dim=spatial_dims)
+
+    # Do the reduction overt the batch dimension, or not.
+    if batch_reduction == "mean":
+        fl_loss = loss.mean(dim=0)
+    elif batch_reduction == "sum":
+        fl_loss = loss.sum(dim=0)
+    else:
+        fl_loss = loss 
+
+    # Returnt he reduced loss
+    return fl_loss
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def pixel_crossentropy_loss(
     y_pred: Tensor,
     y_true: Tensor,
@@ -111,18 +150,13 @@ def pixel_crossentropy_loss(
     if mode == "binary":
         assert y_pred.shape == y_true.shape
         assert weights is None
-        if from_logits:
-            loss = F.binary_cross_entropy_with_logits(
-                y_pred, 
-                y_true, 
-                reduction="none"
-                )
-        else:
-            loss = F.binary_cross_entropy(
-                y_pred, 
-                y_true, 
-                reduction="none"
-                )
+        # If the label is a float, we need to use our own BCE function.
+        loss = soft_binary_cross_entropy(
+            y_pred, 
+            y_true, 
+            from_logits=from_logits
+        )
+        # Squeeze out the channel dimension.
         loss = loss.squeeze(dim=1)
     else:
         # Squeeze the label, (no need for channel dimension).
@@ -173,4 +207,5 @@ def pixel_crossentropy_loss(
 
 
 PixelCELoss = _loss_module_from_func("PixelCELoss", pixel_crossentropy_loss)
+PixelFocalLoss = _loss_module_from_func("PixelFocalLoss", pixel_focal_loss)
 SoftDiceLoss = _loss_module_from_func("SoftDiceLoss", soft_dice_loss)

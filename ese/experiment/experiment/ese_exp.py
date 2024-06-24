@@ -89,7 +89,7 @@ class CalibrationExperiment(TrainExperiment):
             # Get the weights per loss and normalize to weights to 1.
             loss_weights = (weights / torch.sum(weights))
             # Build the loss function.
-            self.loss_func = lambda yhat, y: torch.sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
+            self.loss_func = lambda yhat, y: sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
         else:
             self.loss_func = eval_config(self.config["loss_func"])
     
