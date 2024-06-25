@@ -247,22 +247,17 @@ def standard_image_forward_loop(
     # Get the batch info
     image, label_map  = batch["img"], batch["label"]
 
-    # If we have don't have a minimum number of foreground pixels, then we skip this image.
-    # Because we allow for larger batchsizes, ie the label is B x 1 x H x W, we will get a vector of size B
-    # where each element is the number of foreground pixels in the label map.
-    valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= inf_cfg_dict["log"].get("min_fg_pixels", 0)
-    # Slice the image, label_map, batch_ids, and slice_indices.
-    image = image[valid_indices, ...]
-    label_map = label_map[valid_indices, ...]
-    # Index the meta_data
-    val_inds_cpu = valid_indices.cpu()
-    data_ids = batch["data_id"][val_inds_cpu]
-    # Slice indices are optional.
-    if "slice_indices" in batch:
-        slice_indices = batch["slice_indices"][val_inds_cpu]
+    # Get the data_ids that have enough label.
+    valid_id_dict = filter_by_min_lab(
+        image, 
+        label_map, 
+        batch=batch, 
+        min_pix=inf_cfg_dict["log"].get("min_fg_pixels", 0)
+
+    )
 
     # If we have any valid indices, then we can proceed.
-    if torch.sum(valid_indices) > 0:
+    if valid_id_dict['data_ids'].size > 0:
 
         # Get your image label pair and define some regions.
         if image.device != exp.device:
@@ -289,9 +284,10 @@ def standard_image_forward_loop(
         y_logits = exp_output.get("y_logits", None)
         y_probs = exp_output.get("y_probs", None)
         y_hard = exp_output.get("y_hard", None)
-        
-        # Iterate through the batch elements.
-        for batch_inference_idx in range(len(slice_indices)):
+        # Get through all the batch elements.
+        batch_size = image.shape[0] 
+        # 
+        for batch_inference_idx in range(batch_size):
             # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
             if y_logits is not None:
                 y_logits_batch = y_logits[batch_inference_idx][None]
@@ -306,12 +302,12 @@ def standard_image_forward_loop(
                 "y_logits": y_logits_batch,
                 "y_probs": y_probs_batch,
                 "y_hard": y_hard_batch,
-                "data_id": data_ids[batch_inference_idx],
+                "data_id": valid_id_dict['data_ids'][batch_inference_idx],
                 **batch["data_props"]
             }
             # If we have slice indices, then we add them to the output dictionary.
-            if "slice_indices" in batch:
-                output_dict["slice_idx"] = slice_indices[batch_inference_idx] 
+            if "slice_indices" in valid_id_dict:
+                output_dict["slice_idx"] = valid_id_dict['slice_indices'][batch_inference_idx] 
             # Get the calibration item info.  
             get_calibration_item_info(
                 output_dict=output_dict,
@@ -533,3 +529,25 @@ def get_calibration_item_info(
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
     
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def filter_by_min_lab(image, label_map, batch, min_pix):
+    # If we have don't have a minimum number of foreground pixels, then we skip this image.
+    # Because we allow for larger batchsizes, ie the label is B x 1 x H x W, we will get a vector of size B
+    # where each element is the number of foreground pixels in the label map.
+    valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= min_pix 
+    # Slice the image, label_map, batch_ids, and slice_indices.
+    image = image[valid_indices, ...]
+    label_map = label_map[valid_indices, ...]
+    # Index the meta_data
+    val_inds_cpu = valid_indices.cpu()
+    # If data_id is not a np.array, turn it into one.
+    if not isinstance(batch["data_id"], np.ndarray):
+        batch["data_id"] = np.array(batch["data_id"])
+    valid_ind_dict = {
+        "data_ids": batch["data_id"][val_inds_cpu]
+    }
+    # Slice indices are optional.
+    if "slice_indices" in batch:
+        valid_ind_dict['slice_indices'] = batch["slice_indices"][val_inds_cpu]
+    return valid_ind_dict

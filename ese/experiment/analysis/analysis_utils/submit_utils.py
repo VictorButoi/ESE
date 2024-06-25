@@ -1,5 +1,6 @@
 # misc imports
 import yaml
+import os
 import random
 import itertools
 import numpy as np
@@ -33,16 +34,15 @@ def get_ese_inference_configs(
     power_set_keys: Optional[List[str]] = None
 ):
     # We need to flatten the experiment config to get the different options.
+    # Building new yamls under the exp_group name for model type.
+    exp_group = exp_cfg.pop('name')
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     inference_datasets = flat_exp_cfg.pop('data._class')
-
-    # Building new yamls under the exp_group name for model type.
-    exp_group = exp_cfg.pop('name')
-    model_type = exp_cfg.get('model_type', 'standard')
-    base_models = exp_cfg.pop('base_models')
-    if 'calibrated_models' in exp_cfg:
-        calibrated_models = exp_cfg.pop('calibrated_models')
+    # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
+    for key in flat_exp_cfg:
+        if isinstance(flat_exp_cfg[key], tuple):
+            flat_exp_cfg[key] = list(flat_exp_cfg[key])
 
     # Load the inference cfg from local.
     ##################################################
@@ -66,10 +66,8 @@ def get_ese_inference_configs(
         if not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     product_tuples = list(itertools.product(*[flat_exp_cfg[key] for key in cfg_opt_keys]))
-
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
-
     # Keep a list of all the run configuration options.
     inference_opt_list = []
 
@@ -87,7 +85,6 @@ def get_ese_inference_configs(
 
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for dataset in inference_datasets:
-
         # Add the dataset specific details.
         with open(inf_cfg_root / f"{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
@@ -95,21 +92,24 @@ def get_ese_inference_configs(
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
-
+        # Iterate through all of our inference options.
         for run_opt_dict in total_run_cfg_options: 
-            # If you want to run inference on ensembles, use this.
-            print(run_opt_dict)
-            raise ValueError
+            # One required key is 'base_model'. We need to know if it is a single model or a group of models.
+            # We evaluate this by seeing if 'submitit' is in the base model path.
+            model_group_dir = Path(run_opt_dict.pop('base_model')[0])
+            # If you want to run inference on a single model, use this.
             run_opt_args = {
                 'experiment.dataset_name': [dataset],
                 'log.root': [str(inference_exp_root)],
-                'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
                 **run_opt_dict,
                 **default_config_options
             }
+            if 'submitit' in os.listdir(model_group_dir):
+                run_opt_args['model.pretrained_exp_root'] = gather_exp_paths(str(model_group_dir)) 
+            else:
+                run_opt_args['model.pretrained_exp_root'] = [str(model_group_dir)]
             # Append these to the list of configs and roots.
             dataset_cfgs.append(run_opt_args)
-            
         # Iterate over the different config options for this dataset. 
         for option_dict in dataset_cfgs:
             for cfg_update in dict_product(option_dict):
