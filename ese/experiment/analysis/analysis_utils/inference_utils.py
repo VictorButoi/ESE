@@ -1,3 +1,4 @@
+from pprint import pprint
 #misc imports
 import re
 import os
@@ -248,6 +249,7 @@ def cal_stats_init(
     )
     inference_exp.to_device()
     cal_init_obj_dict['exp'] = inference_exp
+    exp_total_config = inference_exp.config.to_dict()
 
     #####################
     # BUILD THE DATASET #
@@ -257,13 +259,15 @@ def cal_stats_init(
     input_type = new_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    data_objs, modified_cfg = dataloader_from_exp( 
-        inference_exp,
+    data_objs, modified_dataset_cfg = dataloader_from_exp( 
+        exp_total_config['data'],
         inference_cfg=inference_cfg,
         new_dset_options=new_dset_options, 
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
-    inference_cfg['dataset'] = modified_cfg 
+    # Update important keys in the inference cfg.
+    inference_cfg['dataset'] = modified_dataset_cfg 
+    inference_cfg['loss_func'] = exp_total_config['loss_func']
     #############################
     trackers = {
         "image_stats": [],
@@ -384,13 +388,11 @@ def load_inference_exp_from_cfg(inference_cfg):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
-    inference_exp, 
+    inference_data_cfg, 
     inference_cfg,
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
-    total_config = inference_exp.config.to_dict()
-    inference_data_cfg = total_config['data']
     if new_dset_options is not None:
         inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 

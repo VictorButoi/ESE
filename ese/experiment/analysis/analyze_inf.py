@@ -93,8 +93,6 @@ def load_cal_inference_stats(
         skip_log_sets = []
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
-            # config
-            print(log_dir)
             # In this case, there are multiple log sets in the log directory.
             for log_set in log_dir.iterdir():
                 if log_set.name not in skip_log_folders:
