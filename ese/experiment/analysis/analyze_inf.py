@@ -67,15 +67,15 @@ def load_cal_inference_stats(
         # Gather inference log paths.
         all_inference_log_paths = []
         for inf_group in log_cfg["inference_groups"]:
-            sub_exp_names = os.listdir(log_root + "/" + inf_group) 
-            # Combine the inference group with the sub experiment names.
-            for sub_exp in sub_exp_names:
+            inf_group_dir = log_root + "/" + inf_group
+            for sub_exp in  os.listdir(inf_group_dir) :
                 if sub_exp not in skip_log_folders:
                     sub_exp_log_path = inf_group + "/" + sub_exp
                     # Check to make sure this log wasn't the result of a crash.
                     verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                     # Check to make sure that this log wasn't the result of a crash.
                     all_inference_log_paths.append(sub_exp_log_path)
+        print(all_inference_log_paths)
         # Add the inference paths if they exist.
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
@@ -84,33 +84,36 @@ def load_cal_inference_stats(
         skip_log_sets = []
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
+            # config
+            print(log_dir)
+            # In this case, there are multiple log sets in the log directory.
             for log_set in log_dir.iterdir():
                 if log_set.name not in skip_log_folders:
                     # Load the metadata file (json) and add it to the metadata dataframe.
-                    config_dir = log_set / "config.yml"
-                    with open(config_dir, 'r') as stream:
-                        cfg_yaml = yaml.safe_load(stream)
-                    cfg = HDict(cfg_yaml)
-                    flat_cfg = valmap(list2tuple, cfg.flatten())
-                    flat_cfg["log_set"] = log_set.name
+                    logset_config_dir = log_set / "config.yml"
+                    with open(logset_config_dir, 'r') as stream:
+                        logset_cfg_yaml = yaml.safe_load(stream)
+                    logset_cfg = HDict(logset_cfg_yaml)
+                    logset_flat_cfg = valmap(list2tuple, logset_cfg.flatten())
+                    logset_flat_cfg["log_set"] = log_set.name
                     # Count the number of ensemble members.
-                    if "ensemble.member_paths" in flat_cfg and flat_cfg["ensemble.member_paths"] != "None":
-                        flat_cfg["num_ensemble_members"] = len(flat_cfg["ensemble.member_paths"])
-                        flat_cfg["ensemble_hash"] = hash_list(flat_cfg["ensemble.member_paths"])
+                    if "ensemble.member_paths" in logset_flat_cfg and logset_flat_cfg["ensemble.member_paths"] != "None":
+                        logset_flat_cfg["num_ensemble_members"] = len(logset_flat_cfg["ensemble.member_paths"])
+                        logset_flat_cfg["ensemble_hash"] = hash_list(logset_flat_cfg["ensemble.member_paths"])
                     else:
-                        flat_cfg["num_ensemble_members"] = "None"
-                        flat_cfg["ensemble_hash"] = "None"
+                        logset_flat_cfg["num_ensemble_members"] = "None"
+                        logset_flat_cfg["ensemble_hash"] = "None"
                     # If there are additional log attributes, add them here:
                     inf_group = log_path.split("/")[0]
                     if ("log_attributes" in results_cfg) and (inf_group in results_cfg["log_attributes"]):
                         for log_attr in results_cfg["log_attributes"][inf_group]:
-                            flat_cfg[log_attr] = results_cfg["log_attributes"][inf_group][log_attr]
+                            logset_flat_cfg[log_attr] = results_cfg["log_attributes"][inf_group][log_attr]
                     # For the rest of the keys, if the length of the value is more than 1, convert it to a string.
-                    for key in flat_cfg:
-                        if isinstance(flat_cfg[key], list) or isinstance(flat_cfg[key], tuple):
-                            flat_cfg[key] = str(flat_cfg[key])
+                    for key in logset_flat_cfg:
+                        if isinstance(logset_flat_cfg[key], list) or isinstance(logset_flat_cfg[key], tuple):
+                            logset_flat_cfg[key] = str(logset_flat_cfg[key])
                     # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-                    metadata_df = pd.concat([metadata_df, pd.DataFrame(flat_cfg, index=[0])])
+                    metadata_df = pd.concat([metadata_df, pd.DataFrame(logset_flat_cfg, index=[0])])
         # Gather the columns that have unique values amongst the different configurations.
         if options_cfg["remove_shared_columns"]:
             meta_cols = []
