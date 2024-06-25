@@ -53,7 +53,6 @@ def get_ese_inference_configs(
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
 
-
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
@@ -62,20 +61,14 @@ def get_ese_inference_configs(
 
     # Gather the different config options.
     cfg_opt_keys = list(flat_exp_cfg.keys())
-    if 'calibrator' in cfg_opt_keys:
-        cfg_opt_keys.remove('calibrator') # We need to handle calibrator separately.
-    else:
-        flat_exp_cfg['calibrator'] = ['Uncalibrated']
-
     # Generate product tuples by first going through and making sure each option is a list and then using itertools.product.
     for ico_key in flat_exp_cfg:
         if not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     product_tuples = list(itertools.product(*[flat_exp_cfg[key] for key in cfg_opt_keys]))
-    
+
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
-
 
     # Keep a list of all the run configuration options.
     inference_opt_list = []
@@ -85,89 +78,38 @@ def get_ese_inference_configs(
         inference_datasets = [inference_datasets]
     inference_datasets = [ifd.split(".")[-1] for ifd in inference_datasets]
 
+    # Define the set of default config options.
+    inference_exp_root = scratch_root / "inference" / exp_group
+    default_config_options = {
+        'experiment.exp_name': [exp_group],
+        'experiment.exp_root': [str(inference_exp_root)],
+    }
+
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for dataset in inference_datasets:
 
-        # Accumulate a set of config options for each dataset
-        dataset_cfgs = []
-        for calibrator in flat_exp_cfg['calibrator']:
-
-            ##################################################
-            # Set a few things that will be consistent for all runs.
-            ##################################################
-            inference_exp_root = scratch_root / "inference" / exp_group
-
-            # Define the set of default config options.
-            default_config_options = {
-                'experiment.exp_name': [exp_group],
-                'experiment.exp_root': [str(inference_exp_root)],
-                'experiment.dataset_name': [dataset],
-                'calibrator._name': [calibrator],
-                'calibrator._class': [get_calibrator_cls(calibrator)],
-            }
-
-            # Define where we get the base models from.
-            use_uncalibrated_models = (calibrator == "Uncalibrated") or ("Binning" in calibrator)
-            if use_uncalibrated_models:
-                model_group_dir = base_models 
-                default_config_options['model.checkpoint'] = ['max-val-dice_score']
-            else:
-                model_group_dir = f"{calibrated_models}/Individual_{calibrator}"
-                default_config_options['model.checkpoint'] = ['min-val-ece_loss']
-
-            #####################################
-            # Choose the ensembles ahead of time.
-            #####################################
-            if np.any([run_opt_dict.get('do_ensemble', False) for run_opt_dict in total_run_cfg_options]) and model_type != "incontext":
-                # Get all unique subsets of total_ens_members of size num_+ens_members.
-                ensemble_group = list(itertools.combinations(gather_exp_paths(str(model_group_dir)), base_cfg['ensemble']['num_members']))
-                # We need to subsample the unique ensembles or else we will be here forever.
-                max_ensemble_samples = base_cfg['experiment']['max_ensemble_samples']
-                if len(ensemble_group) > max_ensemble_samples:
-                    ensemble_group = random.sample(ensemble_group, k=max_ensemble_samples)
-
-            for run_opt_dict in total_run_cfg_options: 
-                # If you want to run inference on ensembles, use this.
-                if run_opt_dict.get('model.ensemble', False) or model_type == "incontext":
-                    # Define where we want to save the results.
-                    ensemble_log_folder = f"{dataset}_Ensemble_{calibrator}"
-                    # Define where the set of base models come from.
-                    advanced_args = {
-                        "log.root": [str(inference_exp_root / ensemble_log_folder)],
-                        "model.ensemble": [True],
-                        **run_opt_dict
-                    }
-                    ensemble_cfg_args = {
-                        'ensemble.num_members': [1]
-                        **default_config_options,
-                        **advanced_args
-                    }
-                    # For each num_ens_members, we subselect that num of the total_ens_members.
-                    if model_type == "incontext":
-                        ensemble_cfg_args['model.pretrained_exp_root'] = [str(model_group_dir)]
-                    else:
-                        ensemble_cfg_args['ensemble.member_paths'] = [list(ensemble_group)]
-                    # Append these to the list of configs and roots.
-                    dataset_cfgs.append(ensemble_cfg_args)
-                # If you want to run inference on individual networks, use this.
-                else:
-                    # If we aren't ensembling, then we can't do incontext models.
-                    assert model_type != "incontext", "Incontext models can only be used with ensembles."
-                    run_opt_args = {
-                        'log.root': [str(inference_exp_root / f"{dataset}_Individual_{calibrator}")],
-                        'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
-                        **run_opt_dict,
-                        **default_config_options
-                    }
-                    # Append these to the list of configs and roots.
-                    dataset_cfgs.append(run_opt_args)
-            
-        # Finally, add the dataset specific details.
+        # Add the dataset specific details.
         with open(inf_cfg_root / f"{dataset}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
-            
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
+        # Accumulate a set of config options for each dataset
+        dataset_cfgs = []
+
+        for run_opt_dict in total_run_cfg_options: 
+            # If you want to run inference on ensembles, use this.
+            print(run_opt_dict)
+            raise ValueError
+            run_opt_args = {
+                'experiment.dataset_name': [dataset],
+                'log.root': [str(inference_exp_root)],
+                'model.pretrained_exp_root': gather_exp_paths(str(model_group_dir)), # Note this is a list of train exp paths.
+                **run_opt_dict,
+                **default_config_options
+            }
+            # Append these to the list of configs and roots.
+            dataset_cfgs.append(run_opt_args)
+            
         # Iterate over the different config options for this dataset. 
         for option_dict in dataset_cfgs:
             for cfg_update in dict_product(option_dict):
@@ -176,6 +118,7 @@ def get_ese_inference_configs(
                 check_missing(cfg)
                 # Add it to the total list of inference options.
                 inference_opt_list.append(cfg)
+
     # Return the list of different configs.
     return inference_opt_list
 
