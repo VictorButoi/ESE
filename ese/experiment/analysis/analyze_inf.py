@@ -68,14 +68,23 @@ def load_cal_inference_stats(
         all_inference_log_paths = []
         for inf_group in log_cfg["inference_groups"]:
             inf_group_dir = log_root + "/" + inf_group
-            for sub_exp in  os.listdir(inf_group_dir) :
-                if sub_exp not in skip_log_folders:
-                    sub_exp_log_path = inf_group + "/" + sub_exp
-                    # Check to make sure this log wasn't the result of a crash.
-                    verify_graceful_exit(sub_exp_log_path, log_root=log_root)
-                    # Check to make sure that this log wasn't the result of a crash.
-                    all_inference_log_paths.append(sub_exp_log_path)
-        print(all_inference_log_paths)
+            group_folders = os.listdir(inf_group_dir)
+            # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
+            if "submitit" in group_folders:
+                # Check to make sure this log wasn't the result of a crash.
+                verify_graceful_exit(inf_group_dir, log_root=log_root)
+                # Check to make sure that this log wasn't the result of a crash.
+                all_inference_log_paths.append(inf_group_dir)
+            # Otherwise, we had separated our runs in 'log sets', which isn't a good level of abstraction.
+            # but it's what we had done before.
+            else:
+                for sub_exp in group_folders:
+                    if sub_exp not in skip_log_folders:
+                        sub_exp_log_path = inf_group + "/" + sub_exp
+                        # Check to make sure this log wasn't the result of a crash.
+                        verify_graceful_exit(sub_exp_log_path, log_root=log_root)
+                        # Check to make sure that this log wasn't the result of a crash.
+                        all_inference_log_paths.append(sub_exp_log_path)
         # Add the inference paths if they exist.
         if "inference_paths" in log_cfg:
             for inf_path in log_cfg["inference_paths"]:
@@ -166,6 +175,9 @@ def load_cal_inference_stats(
         #########################################
         # POST-PROCESSING STEPS
         #########################################
+        # If slice_idx isn't in the columns, add it.
+        if "slice_idx" not in inference_df.columns:
+            inference_df["slice_idx"] = "None"
         # Drop the rows corresponding to NaNs in metric_score
         if options_cfg['drop_nan_metric_rows']:
             # Drop the rows where the metric score is NaN.
