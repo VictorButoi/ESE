@@ -203,15 +203,17 @@ def load_cal_inference_stats(
 
         # Go through several optional keys, and add them if they don't exist
         for raw_key in inference_df.columns:
-            if raw_key == "calibrator._name":
-                new_key = "calibrator"
-            elif raw_key == "model._class":
-                new_key = "model_class"
+            key_parts = raw_key.split(".")
+            last_part = key_parts[-1]
+            if last_part in ['_class', '_name']:
+                new_key = "".join(key_parts)
             else:
-                new_key = raw_key.split(".")[-1]
+                new_key = last_part
             # If the new key isn't the same as the old key, add the new key.
             if new_key != raw_key and new_key not in inference_df.columns:
                 inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
+                # Delete the old _key
+                del inference_df[raw_key]
 
         # Add keys that are necessary for the analysis.
         if '_pretrained_class' not in inference_df.columns:
@@ -235,13 +237,9 @@ def load_cal_inference_stats(
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"
 
-        def configuration(method_name, calibrator):
-            return f"{method_name}_{calibrator}"
-
         # Add the new columns
         inference_df.augment(joint_data_slice_id)
         inference_df.augment(method_name)
-        inference_df.augment(configuration)
 
         # Load the average unet baseline results.
         if options_cfg.get('add_baseline_rows', False):
