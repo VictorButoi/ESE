@@ -544,12 +544,26 @@ def filter_by_min_lab(image, label_map, batch, min_pix):
     # If data_id is not a np.array, turn it into one.
     if not isinstance(batch["data_id"], np.ndarray):
         batch["data_id"] = np.array(batch["data_id"])
-    print("data_ids:", batch["data_id"]) 
-    print("val_inds:", val_inds_cpu)
-    valid_ind_dict = {
-        "data_ids": batch["data_id"][val_inds_cpu]
-    }
-    # Slice indices are optional.
-    if "slice_indices" in batch:
-        valid_ind_dict['slice_indices'] = batch["slice_indices"][val_inds_cpu]
+
+    if val_inds_cpu.shape[0] == 1:
+        if val_inds_cpu[0]:
+            valid_ind_dict = {
+                "data_ids": batch["data_id"]
+            }
+            if "slice_indices" in batch:
+                valid_ind_dict['slice_indices'] = batch["slice_indices"]
+        else:
+            valid_ind_dict = {
+                "data_ids": np.array([])
+            }
+            if "slice_indices" in batch:
+                valid_ind_dict['slice_indices'] = np.array([])
+    else:
+        valid_ind_dict = {
+            "data_ids": batch["data_id"][val_inds_cpu]
+        }
+        # Slice indices are optional.
+        if "slice_indices" in batch:
+            valid_ind_dict['slice_indices'] = batch["slice_indices"][val_inds_cpu]
+    # Return the valid data ids and (optionally) slice ids.
     return valid_ind_dict

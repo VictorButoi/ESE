@@ -19,6 +19,7 @@ class DRIVE(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     return_data_id: bool = False
+    return_gt_proportion: bool = False
     transforms: Optional[Any] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
@@ -42,7 +43,11 @@ class DRIVE(ThunderDataset, DatapathMixin):
         subj_name = self.subjects[key]
 
         # Get the image and mask
-        img, mask = super().__getitem__(key)
+        example_obj = super().__getitem__(key)
+        if isinstance(example_obj, dict):
+            img, mask = example_obj["img"], example_obj["seg"]
+        else:
+            img, mask = example_obj
 
         plt.imshow(mask, cmap="gray")
         plt.show()
@@ -69,10 +74,12 @@ class DRIVE(ThunderDataset, DatapathMixin):
             "label": torch.from_numpy(mask).float(),
         }
 
-        # Print the shapes
+        # Add some additional information.
+        if self.return_gt_proportion:
+            return_dict["gt_proportion"] = example_obj["gt_proportion"]
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
-
+        
         return return_dict
 
     @property
