@@ -57,6 +57,16 @@ def resize_with_aspect_ratio(image, target_size=256):
     return cropped_image 
 
 
+def square_pad(img):
+    if img.shape[0] != img.shape[1]:
+        pad = abs(img.shape[0] - img.shape[1]) // 2
+        if img.shape[0] > img.shape[1]:
+            img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
+        else:
+            img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+    return img
+
+
 @validate_arguments
 def data_splits(
     values: List[str], 
@@ -122,47 +132,44 @@ def thunderify_DRIVE(
             # Load the image and segmentation.
             img = np.array(Image.open(img_dir))
             seg = np.array(Image.open(seg_dir))
+            seg = (seg - seg.min()) / (seg.max() - seg.min())
 
             # Square pad the img and seg to the larger dimension.
-            if img.shape[0] != img.shape[1]:
-                pad = abs(img.shape[0] - img.shape[1]) // 2
-                if img.shape[0] > img.shape[1]:
-                    img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
-                    seg = cv2.copyMakeBorder(seg, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
-                else:
-                    img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
-                    seg = cv2.copyMakeBorder(seg, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+            img = square_pad(img)
+            seg = square_pad(seg)
+
+            # Get the ground-truth volumetric proportion.
+            gt_proportion = np.count_nonzero(seg) / seg.size
+
+            ########################
+            # DOWNSIZING PROCEDURE.
+            ########################
 
             # Do an absolutely minor amount of gaussian blurring to the seg ahead of time
             # so that the edges are a bit more fuzzy.
             seg = cv2.GaussianBlur(seg, (7, 7), 0)
 
-            # Resize the image and segmentation to 128x128
-            img = resize_with_aspect_ratio(img, target_size=128)
-            seg = resize_with_aspect_ratio(seg, target_size=128)
+            # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
+            img = resize_with_aspect_ratio(img, target_size=config["resize_to"])
+            seg = resize_with_aspect_ratio(seg, target_size=config["resize_to"])
 
             # Convert to the right type
             img = img.astype(np.float32)
             seg = seg.astype(np.float32)
 
-            threshseg = (seg > 0.5).astype(np.float32)
-            plt.imshow(threshseg, cmap='gray')
-            plt.xticks([])
-            plt.yticks([])
-            plt.show()
-            
-            raise ValueError
-
             # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
             img = img.transpose(2, 0, 1)
-            seg = (seg - seg.min()) / (seg.max() - seg.min())
             
-            assert img.shape == (3, 128, 128), f"Image shape isn't correct, got {img.shape}"
-            assert seg.shape == (128, 128), f"Seg shape isn't correct, got {seg.shape}"
+            assert img.shape == (3, config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
+            assert seg.shape == (config["resize_to"], config["resize_to"]), f"Seg shape isn't correct, got {seg.shape}"
             assert np.count_nonzero(seg) > 0, "Label can't be empty."
 
             # Save the datapoint to the database
-            db[key] = (img, seg) 
+            db[key] = {
+                "img": img, 
+                "seg": seg,
+                "gt_proportion": gt_proportion
+            } 
             subjects.append(key)   
 
         subjects = sorted(subjects)
@@ -179,7 +186,7 @@ def thunderify_DRIVE(
         attrs = dict(
             dataset="DRIVE",
             version=version,
-            resolution=128,
+            resolution=config["resize_to"],
         )
         db["_subjects"] = subjects
         db["_samples"] = subjects

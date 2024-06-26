@@ -2,7 +2,7 @@ data:
   _class: ese.experiment.datasets.STARE
   in_channels: 3
   out_channels: 1 
-  version: 0.1
+  version: 1.1
   iters_per_epoch: 1000 
   preload: False 
 

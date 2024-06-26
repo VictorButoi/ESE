@@ -116,6 +116,16 @@ def data_splits(
     return (train, cal, val, test)
 
 
+def square_pad(img):
+    if img.shape[0] != img.shape[1]:
+        pad = abs(img.shape[0] - img.shape[1]) // 2
+        if img.shape[0] > img.shape[1]:
+            img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
+        else:
+            img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+    return img
+
+
 def open_ppm_gz(file_path):
     # Open the gzip file
     with gzip.open(file_path, 'rb') as f:
@@ -157,36 +167,42 @@ def thunderify_STARE(
 
             # Load the image and segmentation.
             img = open_ppm_gz(img_dir)
-
             mask_dict = {}
             # Iterate through each set of ground truth
             for annotator in ["ah", "vk"]:
                 seg_dir = proc_root / f"{annotator}_labels" / example_name.replace('.ppm.gz', f'.{annotator}.ppm.gz')
-                anno_mask = open_ppm_gz(seg_dir)
-                # Our processing has ensured that we care about axis 0.
-                mask_dict[annotator] = anno_mask 
+                mask_dict[annotator] = open_ppm_gz(seg_dir)
             # We also want to make a combined pixelwise-average mask of the two annotators. 
             mask_dict["average"] = np.mean([mask_dict["ah"], mask_dict["vk"]], axis=0)
 
-            # We did this in v0.1 but unclear if we want to do this.
-            # Do an absolutely minor amount of gaussian blurring to the seg ahead of time
-            # so that the edges are a bit more fuzzy.
-            # seg = cv2.GaussianBlur(seg, (5, 5), 0)
-
-            # Resize the image and segmentation to 128x128
-            img = resize_with_aspect_ratio(img, target_size=128).astype(np.float32).transpose(2, 0, 1)
-            for ikey in mask_dict:
-                resized_mask = resize_with_aspect_ratio(mask_dict[ikey], target_size=128).astype(np.float32)
-                normalized_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
-                mask_dict[ikey] = normalized_mask 
-
+            # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
+            img = resize_with_aspect_ratio(img, target_size=config["resize_to"])
+            # Next we have to go through the masks and square them.
+            gt_prop_dict = {}
+            for mask_key in mask_dict:
+                # 1. First we squrare pad the mask.
+                square_mask = square_pad(mask_dict[mask_key])
+                # 2. We record the ground-truth proportion of the mask.
+                gt_prop_dict[mask_key] = np.count_nonzero(square_mask) / square_mask.size
+                # 3 We then blur the mask a bit. to get the edges a bit more fuzzy.
+                smooth_mask = cv2.GaussianBlur(square_mask, (7, 7), 0)
+                # 4. We reize the mask to get to our target resolution.
+                resized_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
+                # 5. Finally, we normalize it to be [0,1].
+                norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
+                # 6. Store it in the mask dict.
+                mask_dict[mask_key] = norm_mask.astype(np.float32)
+            
+            # Final cleanup steps. 
+            img = img.transpose(2, 0, 1).astype(np.float32)
             # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
-            assert img.shape == (3, 128, 128), f"Image shape isn't correct, got {img.shape}"
+            assert img.shape == (3, config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
 
             # Save the datapoint to the database
             db[key] = {
                 "image": img,
                 "masks": mask_dict,
+                "gt_props": gt_prop_dict
             }
             subjects.append(key)
 
@@ -204,7 +220,7 @@ def thunderify_STARE(
         attrs = dict(
             dataset="STARE",
             version=version,
-            resolution=128,
+            resolution=config["resize_to"],
         )
         db["_subjects"] = subjects
         db["_samples"] = subjects
