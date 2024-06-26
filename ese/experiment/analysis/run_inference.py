@@ -544,6 +544,8 @@ def filter_by_min_lab(image, label_map, batch, min_pix):
     # If data_id is not a np.array, turn it into one.
     if not isinstance(batch["data_id"], np.ndarray):
         batch["data_id"] = np.array(batch["data_id"])
+    print("data_ids:", batch["data_id"]) 
+    print("val_inds:", val_inds_cpu)
     valid_ind_dict = {
         "data_ids": batch["data_id"][val_inds_cpu]
     }

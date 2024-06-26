@@ -11,7 +11,10 @@ from sklearn.model_selection import train_test_split
 from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
 # Neurite imports
-import neurite_sandbox as nes
+try:
+    import neurite as ne
+except ImportError:
+    pass
 
 
 @validate_arguments

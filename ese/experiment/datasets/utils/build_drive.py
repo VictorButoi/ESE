@@ -145,6 +145,14 @@ def thunderify_DRIVE(
             img = img.astype(np.float32)
             seg = seg.astype(np.float32)
 
+            threshseg = (seg > 0.5).astype(np.float32)
+            plt.imshow(threshseg, cmap='gray')
+            plt.xticks([])
+            plt.yticks([])
+            plt.show()
+            
+            raise ValueError
+
             # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
             img = img.transpose(2, 0, 1)
             seg = (seg - seg.min()) / (seg.max() - seg.min())

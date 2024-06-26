@@ -44,9 +44,15 @@ class DRIVE(ThunderDataset, DatapathMixin):
         # Get the image and mask
         img, mask = super().__getitem__(key)
 
+        plt.imshow(mask, cmap="gray")
+        plt.show()
+
         # Apply the label threshold
         if self.label_threshold is not None:
             mask = (mask > self.label_threshold).astype(np.float32)
+
+        plt.imshow(mask, cmap="gray")
+        plt.show()
 
         # Get the class name
         if self.transforms:
