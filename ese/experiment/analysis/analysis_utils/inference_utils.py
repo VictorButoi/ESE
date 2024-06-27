@@ -1,4 +1,3 @@
-from pprint import pprint
 #misc imports
 import re
 import os
@@ -10,6 +9,7 @@ import itertools
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from pprint import pprint
 from typing import Optional, List
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
@@ -393,9 +393,6 @@ def dataloader_from_exp(
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
-    pprint(inference_data_cfg)
-    pprint(new_dset_options)
-
     if new_dset_options is not None:
         inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 

@@ -71,7 +71,7 @@ class STARE(ThunderDataset, DatapathMixin):
 
         # Print the shapes
         if self.return_gt_proportion:
-            return_dict["gt_proportion"] = example_obj["gt_props"][self.annotator]
+            return_dict["gt_proportion"] = example_obj["gt_proportion"][self.annotator]
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
 
