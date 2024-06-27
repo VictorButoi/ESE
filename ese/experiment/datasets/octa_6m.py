@@ -69,7 +69,7 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
 
         # Add some additional information.
         if self.return_gt_proportion:
-            return_dict["gt_proportion"] = example_obj["gt_proportion"]
+            return_dict["gt_proportion"] = example_obj["gt_proportion"][self.label]
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
         
