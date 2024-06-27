@@ -393,6 +393,9 @@ def dataloader_from_exp(
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
+    pprint(inference_data_cfg)
+    pprint(new_dset_options)
+
     if new_dset_options is not None:
         inference_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 

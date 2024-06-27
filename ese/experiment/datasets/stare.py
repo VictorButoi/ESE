@@ -19,9 +19,11 @@ class STARE(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     return_data_id: bool = False
+    return_gt_proportion: bool = False
     transforms: Optional[Any] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
+    annotator: Literal["ah", "vk", "average"] = "average"
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -42,7 +44,11 @@ class STARE(ThunderDataset, DatapathMixin):
         subj_name = self.subjects[key]
 
         # Get the image and mask
-        img, mask = super().__getitem__(key)
+        example_obj = super().__getitem__(key)
+        if isinstance(example_obj, dict):
+            img, mask = example_obj["image"], example_obj["masks"][self.annotator]
+        else:
+            img, mask = example_obj
 
         # Apply the label threshold
         if self.label_threshold is not None:
@@ -64,6 +70,8 @@ class STARE(ThunderDataset, DatapathMixin):
         }
 
         # Print the shapes
+        if self.return_gt_proportion:
+            return_dict["gt_proportion"] = example_obj["gt_props"][self.annotator]
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
 

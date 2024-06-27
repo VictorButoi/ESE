@@ -74,7 +74,7 @@ def get_ese_inference_configs(
     # If datasets is not a list, make it a list.
     if not isinstance(inference_datasets, list):
         inference_datasets = [inference_datasets]
-    inference_datasets = [ifd.split(".")[-1] for ifd in inference_datasets]
+    inf_dataset_names = [ifd.split(".")[-1] for ifd in inference_datasets]
 
     # Define the set of default config options.
     inference_exp_root = scratch_root / "inference" / exp_group
@@ -84,9 +84,9 @@ def get_ese_inference_configs(
     }
 
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for dataset in inference_datasets:
+    for d_idx, dataset_name in enumerate(inf_dataset_names):
         # Add the dataset specific details.
-        with open(inf_cfg_root / f"{dataset}.yaml", 'r') as file:
+        with open(inf_cfg_root / f"{dataset_name}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
@@ -99,7 +99,8 @@ def get_ese_inference_configs(
             model_group_dir = Path(run_opt_dict.pop('base_model')[0])
             # If you want to run inference on a single model, use this.
             run_opt_args = {
-                'experiment.dataset_name': [dataset],
+                'experiment.dataset_name': [dataset_name],
+                'data._class': [inference_datasets[d_idx]],
                 'log.root': [str(inference_exp_root)],
                 **run_opt_dict,
                 **default_config_options

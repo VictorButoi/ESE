@@ -177,6 +177,8 @@ def thunderify_STARE(
 
             # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
             img = resize_with_aspect_ratio(img, target_size=config["resize_to"])
+            plt.imshow(img)
+            plt.show()
             # Next we have to go through the masks and square them.
             gt_prop_dict = {}
             for mask_key in mask_dict:
@@ -190,6 +192,8 @@ def thunderify_STARE(
                 resized_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
                 # 5. Finally, we normalize it to be [0,1].
                 norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
+                plt.imshow(norm_mask, cmap='gray')
+                plt.show()
                 # 6. Store it in the mask dict.
                 mask_dict[mask_key] = norm_mask.astype(np.float32)
             
