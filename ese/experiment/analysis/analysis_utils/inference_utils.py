@@ -474,7 +474,8 @@ def dataloader_from_exp(
                 lab_d_dataset_dict[lab], 
                 batch_size=inference_cfg['dataloader']['batch_size'], 
                 num_workers=inference_cfg['dataloader']['num_workers'],
-                shuffle=False
+                shuffle=False,
+                drop_last=False
             )
 
     # Add the augmentation information.
