@@ -130,8 +130,7 @@ def dataloader_loop(
     sup_idx: Optional[int] = None,
     data_props: Optional[dict] = {},
     support_augs: Optional[Any] = None,
-    support_dict: Optional[dict] = None,
-    support_generator: Optional[Any] = None,
+    inference_type: Optional[str] = "standard",
 ):
     iter_dloader = iter(dloader)
     for batch_idx in range(len(dloader)):
@@ -149,35 +148,31 @@ def dataloader_loop(
                 }
             forward_batch = {
                 "batch_idx": batch_idx,
-                "sup_idx": sup_idx,
-                "support_augs": support_augs,
-                "data_props": data_props,
+                **data_props,
                 **batch
             }
+            # Final thing (just for our machinery), convert the data_id to a np.array.
+            forward_batch["data_id"] = np.array(forward_batch["data_id"])
+            if inference_type == "incontext":
+                forward_batch.update({
+                    'support_augs': support_augs,
+                    'sup_idx': sup_idx
+                })
             # Place the output dir in the inf_cfg_dict
             inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
             # Gather the forward item.
             forward_item = {
+                "raw_batch": forward_batch,
                 "inf_cfg_dict": inf_cfg_dict,
                 "inf_init_obj": inf_init_obj,
-                "batch": forward_batch,
             }
+
             # Run the forward loop
             input_type = inf_cfg_dict['data']['input_type']
             if input_type == 'volume':
                 volume_forward_loop(**forward_item)
             elif input_type == 'image':
-                if inf_cfg_dict['model']['_type'] == 'incontext':
-                    if support_dict is not None:
-                        forward_item['support_dict'] = support_dict
-                    elif support_generator is not None:
-                        forward_item['support_generator'] = support_generator
-                    else:
-                        raise ValueError("Support set method not found.")
-                    # Run the forward loop.
-                    incontext_image_forward_loop(**forward_item)
-                else:
-                    standard_image_forward_loop(**forward_item)
+                standard_image_forward_loop(**forward_item)
             else:
                 raise ValueError(f"Input type {input_type} not recognized.")
         # except KeyError as k:
@@ -190,12 +185,12 @@ def dataloader_loop(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def volume_forward_loop(
-    batch,
+    raw_batch,
     inf_cfg_dict,
     inf_init_obj
 ):
     # Get the batch info, these are B x V x H x W
-    image_vol_cuda, label_vol_cuda = to_device((batch.pop("img"), batch.pop("label")), inf_init_obj["exp"].device)
+    image_vol_cuda, label_vol_cuda = to_device((raw_batch.pop("img"), raw_batch.pop("label")), inf_init_obj["exp"].device)
     # Go through each slice and predict the metrics.
     slices_per_fp = inf_cfg_dict["experiment"].get("slices_per_fp", 1)
     # Num iterations is the number of slices divided by the number of slices per forward pass.
@@ -216,58 +211,62 @@ def volume_forward_loop(
         image_batched_slices = einops.rearrange(image_slices, "b c h w -> (b c) 1 h w")
         label_batched_slices = einops.rearrange(label_slices, "b c h w -> (b c) 1 h w")
         # We need to expand the data_id in batch to account for the slices.
-        expanded_slice_indices = slice_indices.repeat(len(batch['data_id']))
+        expanded_slice_indices = slice_indices.repeat(len(raw_batch['data_id']))
         expanded_data_ids = []
-        for data_id in batch['data_id']:
+        for data_id in raw_batch['data_id']:
             expanded_data_ids += [data_id] * len(slice_indices) 
         # Get the prediction with no gradient accumulation.
-        slice_batch = batch.copy()
+        slice_batch = raw_batch.copy()
         slice_batch.update({
             "img": image_batched_slices,
             "label": label_batched_slices,
             "data_id": np.array(expanded_data_ids),
-            "slice_indices": expanded_slice_indices.cpu().numpy()
+            "slice_indices": expanded_slice_indices.cpu().numpy(),
         })
         standard_image_forward_loop(
+            slice_batch,
             inf_cfg_dict=inf_cfg_dict,
             inf_init_obj=inf_init_obj,
-            batch=slice_batch
         )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def standard_image_forward_loop(
-    batch,
+    raw_batch,
     inf_cfg_dict,
     inf_init_obj
 ):
     # Get the experiment
     exp = inf_init_obj["exp"]
     
-    # Get the batch info
-    image, label_map  = batch["img"], batch["label"]
-
     # Get the data_ids that have enough label.
-    valid_id_dict = filter_by_min_lab(
-        image, 
-        label_map, 
-        batch=batch, 
+    valid_example_inds = filter_by_min_lab(
+        label_map=raw_batch["label"], 
         min_pix=inf_cfg_dict["log"].get("min_fg_pixels", 0)
-
     )
 
     # If we have any valid indices, then we can proceed.
-    if valid_id_dict['data_ids'].size > 0:
+    if valid_example_inds.any():
+        
+        # Select batch inds by the valid indices.
+        batch = select_batch_by_inds(
+            batch=raw_batch, 
+            valid_inds=valid_example_inds
+        )
+
+        # Get the example data
+        image = batch.pop("img")
+        label_map = batch.pop("label")
 
         # Get your image label pair and define some regions.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
         
         # Label maps are soft labels so we need to convert them to hard labels.
-        label_threshold = inf_cfg_dict["data"].get("label_threshold", None)
-        if label_threshold is not None:
-            label_map = (label_map > label_threshold).long()
-
+        hard_lab_thresh = inf_cfg_dict["data"].get("label_threshold", None)
+        if hard_lab_thresh is not None:
+            label_map = (label_map > hard_lab_thresh).long()
+        
         # Some args for the foward pass, only binary prediction is supported for now.
         predict_args = {
             'multi_class': False,
@@ -286,8 +285,8 @@ def standard_image_forward_loop(
         y_hard = exp_output.get("y_hard", None)
         # Get through all the batch elements.
         batch_size = image.shape[0] 
-        # 
         for batch_inference_idx in range(batch_size):
+
             # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
             if y_logits is not None:
                 y_logits_batch = y_logits[batch_inference_idx][None]
@@ -295,6 +294,7 @@ def standard_image_forward_loop(
                 y_probs_batch = y_probs[batch_inference_idx][None]
             if y_hard is not None:
                 y_hard_batch = y_hard[batch_inference_idx][None]
+
             # Wrap the outputs into a dictionary.
             output_dict = {
                 "x": image[batch_inference_idx][None],
@@ -302,12 +302,16 @@ def standard_image_forward_loop(
                 "y_logits": y_logits_batch,
                 "y_probs": y_probs_batch,
                 "y_hard": y_hard_batch,
-                "data_id": valid_id_dict['data_ids'][batch_inference_idx],
-                **batch["data_props"]
             }
-            # If we have slice indices, then we add them to the output dictionary.
-            if "slice_indices" in valid_id_dict:
-                output_dict["slice_idx"] = valid_id_dict['slice_indices'][batch_inference_idx] 
+
+            # Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
+            for mdata_key in batch.keys():
+                mdata = batch[mdata_key]
+                if isinstance(mdata, (torch.Tensor, np.ndarray)):
+                    output_dict[mdata_key] = mdata[batch_inference_idx].item()
+                else:
+                    output_dict[mdata_key] = mdata
+
             # Get the calibration item info.  
             get_calibration_item_info(
                 output_dict=output_dict,
@@ -321,135 +325,6 @@ def standard_image_forward_loop(
                 save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
             inf_init_obj['data_counter'] += 1
 
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def incontext_image_forward_loop(
-    inf_cfg_dict,
-    inf_init_obj,
-    batch,
-    trackers,
-    support_dict: Optional[Any] = None,
-    support_generator: Optional[Any] = None,
-    slice_idx: Optional[int] = None,
-):
-    # Get the experiment object so we can make predictions with it.
-    exp = inf_init_obj["exp"]
-    # Get the batch info
-    image = batch.pop("img")
-    label_map = batch.pop("label")
-    # If we have don't have a minimum number of foreground pixels, then we skip this image.
-    if torch.sum(label_map != 0) >= inf_cfg_dict["log"].get("min_fg_pixels", 0):
-
-        # Get your image label pair and define some regions.
-        if image.device != exp.device:
-            image, label_map = to_device((image, label_map), exp.device)
-        
-        # Label maps are soft labels so we need to convert them to hard labels.
-        label_threshold = inf_cfg_dict["data"].get("label_threshold", None)
-        if label_threshold is not None:
-            label_map = (label_map > label_threshold).long()
-       
-        # Define the arguments that are shared by fixed supports and variable supports.
-        common_forward_args = {
-            "x": image,
-            "y_true": label_map,
-            "y_logits": None,
-            "slice_idx": slice_idx,
-            "data_id": batch['data_id'][0], # Works because batchsize = 1
-            'support_augs': batch['support_augs'], # 'support_augs' is a dictionary of augmentations for the support set.
-            **batch['data_props']
-        }
-
-        if support_dict is not None:
-            assert inf_cfg_dict['ensemble']['num_members'] == 1, "Ensemble members must be 1 for fixed support sets."
-            support_args = {
-                "context_images": support_dict['images'],
-                "context_labels": support_dict['labels'],
-            }
-
-            with torch.no_grad():
-                if hasattr(exp, "predict"):
-                    y_probs = exp.predict(
-                        x=image, 
-                        multi_class=False,
-                        **support_args, 
-                    )['y_probs']
-                else:
-                    y_logits = exp.model(target_image=image, **support_args)
-                    if y_logits.shape[1] > 1:
-                        y_probs = torch.softmax(y_logits, dim=1)
-                    else:
-                        y_probs = torch.sigmoid(y_logits)
-
-            # Append the predictions to the ensemble predictions.
-            y_hard = (y_probs > inf_cfg_dict['experiment']['hard_pred_threshold']).long() # (B, 1, H, W)
-            y_probs = y_probs.unsqueeze(2) # B, 1, 1, H, W
-
-            # Wrap the outputs into a dictionary.
-            output_dict = {
-                "y_hard": y_hard,
-                "y_probs": y_probs,
-                "sup_idx": batch['sup_idx'],
-                "support_set": support_args,
-                "support_data_ids": support_dict['data_ids'],
-                **common_forward_args
-            }
-            # Get the calibration item info.  
-            get_calibration_item_info(
-                output_dict=output_dict,
-                inference_cfg=inf_cfg_dict,
-                trackers=trackers,
-            )
-        else:
-            for sup_idx in range(inf_cfg_dict['experiment']['supports_per_target']):
-                ensemble_probs_list = [] 
-                ensemble_hards_list = []
-                for ens_mem_idx in range(inf_cfg_dict['ensemble']['num_members']):
-                    # Note: different subjects will use different support sets
-                    # but different models will use the same support sets
-                    rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1) * (ens_mem_idx + 1) + batch['batch_idx'] 
-                    sx_cpu, sy_cpu, _ = support_generator[rng]
-                    # Apply augmentation to the support set if defined.
-                    if inf_init_obj['support_transforms'] is not None:
-                        sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
-                    sx, sy = to_device((sx_cpu, sy_cpu), exp.device)
-                    # Package it into a dictionary.
-                    support_args = {
-                        "context_images": sx[None],
-                        "context_labels": sy[None],
-                    }
-                    with torch.no_grad():
-                        if hasattr(exp, "predict"):
-                            y_probs = exp.predict(**support_args, x=image, multi_class=False)['y_probs']
-                        else:
-                            y_probs = torch.sigmoid(exp.model(**support_args, target_image=image))
-                    # Append the predictions to the ensemble predictions.
-                    ensemble_probs_list.append(y_probs) # (B, 1, H, W)
-                    # Get the hard predictions.
-                    ensemble_hards_list.append((y_probs > inf_cfg_dict['experiment']['hard_pred_threshold']).long()) # (B, 1, H, W)
-                # Make the predictions (B, 2, E, H, W) by having the first channel be the background and second be the foreground.
-                ensembled_probs = torch.stack(ensemble_probs_list, dim=0).permute(1, 2, 0, 3, 4) # (B, 1, E, H, W)
-                ensembled_hard_pred = torch.cat(ensemble_hards_list, dim=1) # (B, E, H, W)
-                # Wrap the outputs into a dictionary.
-                output_dict = {
-                    "sup_idx": sup_idx,
-                    "y_probs": ensembled_probs,
-                    "y_hard": ensembled_hard_pred,
-                    "data_id": batch["data_id"][0], # Works because batchsize = 1
-                    **common_forward_args
-                }
-                # Get the calibration item info.  
-                get_calibration_item_info(
-                    output_dict=output_dict,
-                    inference_cfg=inf_cfg_dict,
-                    trackers=trackers,
-                )
-
-        # Save the records every so often, to get intermediate results. Note, because of data_ids
-        # this can contain fewer than 'log interval' many items.
-        if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
-            save_trackers(inf_init_obj["output_root"], trackers=trackers)
-        inf_init_obj['data_counter'] += 1
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_calibration_item_info(
@@ -531,39 +406,36 @@ def get_calibration_item_info(
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def filter_by_min_lab(image, label_map, batch, min_pix):
+def select_batch_by_inds(
+    batch, 
+    valid_inds
+):
+    subselect_batch = {}
+    # We want to iterate through the keys, and if the key is a torch.Tensor or np.ndarray, then we want to select
+    # the indices that are valid.
+    for ikey in batch.keys():
+        if isinstance(batch[ikey], (torch.Tensor, np.ndarray)):
+            if len(valid_inds) == 1:
+                if valid_inds[0]:
+                    subselect_batch[ikey] = batch[ikey]
+                else:
+                    subselect_batch[ikey] = np.array([])
+            else:
+                subselect_batch[ikey] = batch[ikey][valid_inds]
+        else:
+            subselect_batch[ikey] = batch[ikey]
+    # Return the filtered batch. 
+    return subselect_batch 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def filter_by_min_lab(
+    label_map, 
+    min_pix: int = 0
+):
     # If we have don't have a minimum number of foreground pixels, then we skip this image.
     # Because we allow for larger batchsizes, ie the label is B x 1 x H x W, we will get a vector of size B
     # where each element is the number of foreground pixels in the label map.
     valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= min_pix 
-    # Slice the image, label_map, batch_ids, and slice_indices.
-    image = image[valid_indices, ...]
-    label_map = label_map[valid_indices, ...]
-    # Index the meta_data
-    val_inds_cpu = valid_indices.cpu()
-    # If data_id is not a np.array, turn it into one.
-    if not isinstance(batch["data_id"], np.ndarray):
-        batch["data_id"] = np.array(batch["data_id"])
-
-    if val_inds_cpu.shape[0] == 1:
-        if val_inds_cpu[0]:
-            valid_ind_dict = {
-                "data_ids": batch["data_id"]
-            }
-            if "slice_indices" in batch:
-                valid_ind_dict['slice_indices'] = batch["slice_indices"]
-        else:
-            valid_ind_dict = {
-                "data_ids": np.array([])
-            }
-            if "slice_indices" in batch:
-                valid_ind_dict['slice_indices'] = np.array([])
-    else:
-        valid_ind_dict = {
-            "data_ids": batch["data_id"][val_inds_cpu]
-        }
-        # Slice indices are optional.
-        if "slice_indices" in batch:
-            valid_ind_dict['slice_indices'] = batch["slice_indices"][val_inds_cpu]
-    # Return the valid data ids and (optionally) slice ids.
-    return valid_ind_dict
+    #  Return the valid indices.
+    return valid_indices.cpu()

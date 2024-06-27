@@ -234,15 +234,26 @@ def get_groundtruth_amount(
 
 
 def get_volume_est_dict(pred_dict):
-    # Get groundtruth label amount
+    # Get the numeber of pixels in the resolution.
+    num_pixels = pred_dict['y_true'].numel()
+
+    # GET THE DIFFERENT RAW VOLUME ESTIMATES
     gt_volume = pred_dict['y_true'].sum().item()
-    # Get the soft prediction volume, this only works for binary problems.
     pred_volume = pred_dict['y_probs'].sum().item()
-    # Get thresholded prediction volume
     hard_volume = pred_dict['y_hard'].sum().item()
+
+    # GET THE PREDICTED PROPORTIONS
+    new_gt_proportion = gt_volume / num_pixels
+    soft_proportion = pred_volume / num_pixels
+    hard_proportion = hard_volume / num_pixels
+
+
     # Define a dictionary of the volumes.
     return {
         "gt_volume": gt_volume,
         "soft_volume": pred_volume,
-        "hard_volume": hard_volume
+        "hard_volume": hard_volume,
+        "new_gt_proportion": new_gt_proportion,
+        "soft_proportion": soft_proportion,
+        "hard_proportion": hard_proportion
     }
