@@ -1,6 +1,4 @@
 import os
-import io
-import gzip
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
@@ -59,31 +57,14 @@ def resize_with_aspect_ratio(image, target_size=256):
     return cropped_image 
 
 
-def shrink_boundary(binary_mask, pixels=15):
-    """
-    Removes pixels from the boundary of objects in a binary mask.
-
-    Parameters:
-    - binary_mask (np.array): A binary image where the object is represented by 255 and the background is 0.
-    - pixels (int): The number of pixels to remove from the boundary.
-
-    Returns:
-    - np.array: A new binary image with the boundary pixels removed.
-    """
-    # Create a kernel of ones of shape (pixels, pixels)
-    kernel = np.ones((pixels, pixels), np.uint8)
-
-    # Make a new mask where the border is included
-    new_binary_mask = binary_mask.copy()
-    new_binary_mask[new_binary_mask == 2] = 1
-
-    # Erode the image
-    eroded = cv2.erode(new_binary_mask, kernel, iterations=1)
-
-    # If you erode past the area you KNOW is foreground, set it back to 1.
-    eroded[binary_mask == 1] = 1
-    
-    return eroded
+def square_pad(img):
+    if img.shape[0] != img.shape[1]:
+        pad = abs(img.shape[0] - img.shape[1]) // 2
+        if img.shape[0] > img.shape[1]:
+            img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
+        else:
+            img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
+    return img
 
 
 @validate_arguments
@@ -116,27 +97,7 @@ def data_splits(
     return (train, cal, val, test)
 
 
-def square_pad(img):
-    if img.shape[0] != img.shape[1]:
-        pad = abs(img.shape[0] - img.shape[1]) // 2
-        if img.shape[0] > img.shape[1]:
-            img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
-        else:
-            img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
-    return img
-
-
-def open_ppm_gz(file_path):
-    # Open the gzip file
-    with gzip.open(file_path, 'rb') as f:
-        # Decompress and read the content
-        decompressed_data = f.read()
-    # Load the image from the decompressed data
-    image = np.array(Image.open(io.BytesIO(decompressed_data)))
-    return image
-
-
-def thunderify_STARE(
+def thunderify_OCTA(
     cfg: Config
 ):
     # Get the dictionary version of the config.
@@ -153,60 +114,62 @@ def thunderify_STARE(
 
     image_root = str(proc_root / 'images')
 
-    # Build a task corresponding to the dataset.
+    # Iterate through each datacenter, axis  and build it as a task
     with ThunderDB.open(str(dst_dir), "c") as db:
         # Key track of the ids
         subjects = [] 
         # Iterate through the examples.
-        for example_name in tqdm(os.listdir(image_root), total=len(list(proc_root.iterdir()))):
+        subj_list = list(os.listdir(image_root))
+        for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
             # Define the image_key
-            key = example_name.split('.')[0]
+            key = "subject_" + example_name.split('_')[0]
 
             # Paths to the image and segmentation
             img_dir = proc_root / "images" / example_name 
+            seg_dir = proc_root / "masks" / example_name
 
             # Load the image and segmentation.
-            raw_img = open_ppm_gz(img_dir)
-            mask_dict = {}
-            # Iterate through each set of ground truth
-            for annotator in ["ah", "vk"]:
-                seg_dir = proc_root / f"{annotator}_labels" / example_name.replace('.ppm.gz', f'.{annotator}.ppm.gz')
-                mask_dict[annotator] = open_ppm_gz(seg_dir)
+            raw_img = np.array(Image.open(img_dir))
+            raw_seg = np.array(Image.open(seg_dir))
 
-            # We also want to make a combined pixelwise-average mask of the two annotators. 
-            mask_dict["average"] = np.mean([mask_dict["ah"], mask_dict["vk"]], axis=0)
-
-            # Pad the img and resize it.
-            square_img = square_pad(raw_img)
-            resized_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"])
-            # Next we have to go through the masks and square them.
+            # For this dataset, as it is non-binary, we have to do something more clever.
+            # First we need to map our segmentation to a binary segmentation.
+            unique_labels = np.unique(raw_seg)
+            mask_dict = {} 
             gt_prop_dict = {}
-            for mask_key in mask_dict:
-                # 1. First we squrare pad the mask.
-                square_mask = square_pad(mask_dict[mask_key])
-                # 2. We record the ground-truth proportion of the mask.
-                gt_prop_dict[mask_key] = np.count_nonzero(square_mask) / square_mask.size
-                # 3 We then blur the mask a bit. to get the edges a bit more fuzzy.
-                smooth_mask = cv2.GaussianBlur(square_mask, (7, 7), 0)
-                # 4. We reize the mask to get to our target resolution.
-                resized_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
-                # 5. Finally, we normalize it to be [0,1].
-                norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
-                # 6. Store it in the mask dict.
-                mask_dict[mask_key] = norm_mask.astype(np.float32)
-            
-            # Final cleanup steps. 
-            resized_img = resized_img.transpose(2, 0, 1).astype(np.float32)
-            # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
-            assert resized_img.shape == (3, config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
+
+            # If the unique labels are greater than 2, then we have to do some work.
+            square_img = square_pad(raw_img)
+            img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
+
+            for lab in unique_labels:
+                # If the lab != 0, then we make a binary mask.
+                if lab != 0:
+                    # Make a binary mask.
+                    binary_mask = (raw_seg == lab).astype(np.float32)
+                    # We want to square pad the binary mask.
+                    square_bin_mask = square_pad(binary_mask)
+                    # Get the proportion of the binary mask.
+                    gt_prop = np.count_nonzero(square_bin_mask) / square_bin_mask.size
+                    gt_prop_dict[lab] = gt_prop
+                    # We need to blur the binary mask.
+                    smooth_mask = cv2.GaussianBlur(square_bin_mask, (7, 7), 0)
+                    # Now we process the mask in our standard way.
+                    resized_mask  = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
+                    # Renormalize the mask to be between 0 and 1.
+                    norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
+                    # Store the mask in the mask_dict.
+                    mask_dict[lab] = norm_mask.astype(np.float32)
+
+            assert img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
 
             # Save the datapoint to the database
             db[key] = {
-                "img": resized_img,
+                "img": img, 
                 "seg": mask_dict,
-                "gt_proportion": gt_prop_dict
-            }
-            subjects.append(key)
+                "gt_proportion": gt_prop_dict 
+            } 
+            subjects.append(key)   
 
         subjects = sorted(subjects)
         splits = data_splits(subjects, splits_ratio, splits_seed)
@@ -220,7 +183,7 @@ def thunderify_STARE(
             "seed": splits_seed
             }
         attrs = dict(
-            dataset="STARE",
+            dataset="OCTA_6M",
             version=version,
             resolution=config["resize_to"],
         )
@@ -228,3 +191,5 @@ def thunderify_STARE(
         db["_samples"] = subjects
         db["_splits"] = splits
         db["_attrs"] = attrs
+
+    
