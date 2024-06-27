@@ -1,5 +1,6 @@
 from .wmh import WMH
 from .oasis import OASIS
+from .octa_6m import OCTA_6M
 from .ade20k import ADE20k
 from .drive import DRIVE
 from .stare import STARE

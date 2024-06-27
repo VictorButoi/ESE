@@ -16,6 +16,7 @@ from ionpy.util.validation import validate_arguments_init
 class OCTA_6M(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
+    label: Literal[100, 255]
     version: float = 0.2
     preload: bool = False
     return_data_id: bool = False
@@ -44,10 +45,7 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
 
         # Get the image and mask
         example_obj = super().__getitem__(key)
-        if isinstance(example_obj, dict):
-            img, mask = example_obj["img"], example_obj["seg"]
-        else:
-            img, mask = example_obj
+        img, mask = example_obj["img"], example_obj["seg"][self.label]
 
         # Apply the label threshold
         if self.label_threshold is not None:
@@ -60,6 +58,7 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
             mask = transform_obj["mask"]
 
         # Add channel dimension to the mask
+        img = np.expand_dims(img, axis=0)
         mask = np.expand_dims(mask, axis=0)
         
         # Prepare the return dictionary.
