@@ -166,19 +166,19 @@ def thunderify_STARE(
             img_dir = proc_root / "images" / example_name 
 
             # Load the image and segmentation.
-            img = open_ppm_gz(img_dir)
+            raw_img = open_ppm_gz(img_dir)
             mask_dict = {}
             # Iterate through each set of ground truth
             for annotator in ["ah", "vk"]:
                 seg_dir = proc_root / f"{annotator}_labels" / example_name.replace('.ppm.gz', f'.{annotator}.ppm.gz')
                 mask_dict[annotator] = open_ppm_gz(seg_dir)
+
             # We also want to make a combined pixelwise-average mask of the two annotators. 
             mask_dict["average"] = np.mean([mask_dict["ah"], mask_dict["vk"]], axis=0)
 
-            # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
-            img = resize_with_aspect_ratio(img, target_size=config["resize_to"])
-            plt.imshow(img)
-            plt.show()
+            # Pad the img and resize it.
+            square_img = square_pad(raw_img)
+            resized_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"])
             # Next we have to go through the masks and square them.
             gt_prop_dict = {}
             for mask_key in mask_dict:
@@ -192,21 +192,20 @@ def thunderify_STARE(
                 resized_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
                 # 5. Finally, we normalize it to be [0,1].
                 norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
-                plt.imshow(norm_mask, cmap='gray')
-                plt.show()
+
                 # 6. Store it in the mask dict.
                 mask_dict[mask_key] = norm_mask.astype(np.float32)
             
             # Final cleanup steps. 
-            img = img.transpose(2, 0, 1).astype(np.float32)
+            resized_img = resized_img.transpose(2, 0, 1).astype(np.float32)
             # Move the channel axis to the front and normalize the labelmap to be between 0 and 1
-            assert img.shape == (3, config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
+            assert resized_img.shape == (3, config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
 
             # Save the datapoint to the database
             db[key] = {
-                "image": img,
-                "masks": mask_dict,
-                "gt_props": gt_prop_dict
+                "img": resized_img,
+                "seg": mask_dict,
+                "gt_proportion": gt_prop_dict
             }
             subjects.append(key)
 

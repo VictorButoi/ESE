@@ -43,10 +43,10 @@ class STARE(ThunderDataset, DatapathMixin):
         key = key % len(self.samples)
         subj_name = self.subjects[key]
 
-        # Get the image and mask
+        # Get the img and mask
         example_obj = super().__getitem__(key)
         if isinstance(example_obj, dict):
-            img, mask = example_obj["image"], example_obj["masks"][self.annotator]
+            img, mask = example_obj["img"], example_obj["seg"][self.annotator]
         else:
             img, mask = example_obj
 
@@ -56,8 +56,8 @@ class STARE(ThunderDataset, DatapathMixin):
 
         # Get the class name
         if self.transforms:
-            transform_obj = self.transforms(image=img, mask=mask)
-            img = transform_obj["image"]
+            transform_obj = self.transforms(img=img, mask=mask)
+            img = transform_obj["img"]
             mask = transform_obj["mask"]
 
         # Add channel dimension to the mask
