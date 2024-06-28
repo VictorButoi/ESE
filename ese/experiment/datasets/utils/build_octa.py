@@ -115,113 +115,92 @@ def thunderify_OCTA(
     image_root = str(proc_root / 'images')
 
     # Iterate through each datacenter, axis  and build it as a task
-    # with ThunderDB.open(str(dst_dir), "c") as db:
-    # Key track of the ids
-    subjects = [] 
-    # Iterate through the examples.
-    subj_list = list(os.listdir(image_root))
-    for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
-        # Define the image_key
-        key = "subject_" + example_name.split('_')[0]
+    with ThunderDB.open(str(dst_dir), "c") as db:
+        # Key track of the ids
+        subjects = [] 
+        # Iterate through the examples.
+        subj_list = list(os.listdir(image_root))
+        for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
+            # Define the image_key
+            key = "subject_" + example_name.split('_')[0]
 
-        # Paths to the image and segmentation
-        img_dir = proc_root / "images" / example_name 
-        seg_dir = proc_root / "masks" / example_name
+            # Paths to the image and segmentation
+            img_dir = proc_root / "images" / example_name 
+            seg_dir = proc_root / "masks" / example_name
 
-        # Load the image and segmentation.
-        raw_img = np.array(Image.open(img_dir))
-        raw_seg = np.array(Image.open(seg_dir))
+            # Load the image and segmentation.
+            raw_img = np.array(Image.open(img_dir))
+            raw_seg = np.array(Image.open(seg_dir))
 
-        # For this dataset, as it is non-binary, we have to do something more clever.
-        # First we need to map our segmentation to a binary segmentation.
-        unique_labels = np.unique(raw_seg)
-        mask_dict = {} 
-        gt_prop_dict = {}
+            # For this dataset, as it is non-binary, we have to do something more clever.
+            # First we need to map our segmentation to a binary segmentation.
+            unique_labels = np.unique(raw_seg)
+            mask_dict = {} 
+            gt_prop_dict = {}
 
-        # If the unique labels are greater than 2, then we have to do some work.
-        square_img = square_pad(raw_img)
-        square_raw_seg = square_pad(raw_seg)
-        print("Highest res:", square_img.shape)
-        plt.imshow(square_img, cmap='gray')
-        # Remove the axes and ticks
-        plt.axis('off')
-        plt.show()
-        plt.imshow(square_raw_seg)
-        # Remove the axes and ticks
-        plt.axis('off')
-        plt.show()
-        img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
-        plt.imshow(img, cmap='gray')
-        # Remove the axes and ticks
-        plt.axis('off')
-        plt.show()
+            # If the unique labels are greater than 2, then we have to do some work.
+            square_img = square_pad(raw_img)
+            square_raw_seg = square_pad(raw_seg)
 
-        for lab in unique_labels:
-            # If the lab != 0, then we make a binary mask.
-            if lab != 0:
-                # Make a binary mask.
-                binary_mask = (square_raw_seg == lab).astype(np.float32)
-                plt.imshow(binary_mask, cmap='gray')
-                # Remove the axes and ticks
-                plt.axis('off')
-                plt.show()
-                # Get the proportion of the binary mask.
-                gt_prop = np.count_nonzero(binary_mask) / binary_mask.size
-                gt_prop_dict[lab] = gt_prop
-                # We need to blur the binary mask.
-                smooth_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
-                # Now we process the mask in our standard way.
-                resized_mask  = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
+            # Remove the axes and ticks
+            if square_img.shape[0] != config["resize_to"]:
+                square_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
 
-                plt.imshow(resized_mask, cmap='gray')
-                # Remove the axes and ticks
-                plt.axis('off')
-                plt.show()
+            for lab in unique_labels:
+                # If the lab != 0, then we make a binary mask.
+                if lab != 0:
+                    # Make a binary mask.
+                    binary_mask = (square_raw_seg == lab).astype(np.float32)
 
-                # Renormalize the mask to be between 0 and 1.
-                norm_mask = (resized_mask - resized_mask.min()) / (resized_mask.max() - resized_mask.min())
+                    # Get the proportion of the binary mask.
+                    gt_prop = np.count_nonzero(binary_mask) / binary_mask.size
+                    gt_prop_dict[lab] = gt_prop
 
-                plt.imshow((norm_mask > 0.5), cmap='gray')
-                # Remove the axes and ticks
-                plt.axis('off')
-                plt.show()
+                    # If we are resizing then we need to smooth the mask.
+                    if square_raw_seg.shape[0] != config["resize_to"]:
+                        smooth_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
+                        # Now we process the mask in our standard way.
+                        proc_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
+                    else:
+                        proc_mask = binary_mask
 
-                # Store the mask in the mask_dict.
-                mask_dict[lab] = norm_mask.astype(np.float32)
-            
-        raise ValueError
+                    # Renormalize the mask to be between 0 and 1.
+                    norm_mask = (proc_mask - proc_mask.min()) / (proc_mask.max() - proc_mask.min())
 
-        assert img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {img.shape}"
+                    # Store the mask in the mask_dict.
+                    mask_dict[lab] = norm_mask.astype(np.float32)
+                
+            assert square_img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {square_img.shape}"
 
-    #     # Save the datapoint to the database
-    #     db[key] = {
-    #         "img": img, 
-    #         "seg": mask_dict,
-    #         "gt_proportion": gt_prop_dict 
-    #     } 
-    #     subjects.append(key)   
+            # Save the datapoint to the database
+            db[key] = {
+                "img": square_img, 
+                "seg": mask_dict,
+                "gt_proportion": gt_prop_dict 
+            } 
+            subjects.append(key)
 
-    # subjects = sorted(subjects)
-    # splits = data_splits(subjects, splits_ratio, splits_seed)
-    # splits = dict(zip(("train", "cal", "val", "test"), splits))
-    # for split_key in splits:
-    #     print(f"{split_key}: {len(splits[split_key])} samples")
+        subjects = sorted(subjects)
+        splits = data_splits(subjects, splits_ratio, splits_seed)
+        splits = dict(zip(("train", "cal", "val", "test"), splits))
+        for split_key in splits:
+            print(f"{split_key}: {len(splits[split_key])} samples")
 
-    # # Save the metadata
-    # db["_subjects"] = subjects
-    # db["_splits"] = splits
-    # db["_splits_kwarg"] = {
-    #     "ratio": splits_ratio, 
-    #     "seed": splits_seed
-    #     }
-    # attrs = dict(
-    #     dataset="OCTA_6M",
-    #     version=version,
-    #     resolution=config["resize_to"],
-    # )
-    # db["_subjects"] = subjects
-    # db["_samples"] = subjects
-    # db["_splits"] = splits
-    # db["_attrs"] = attrs
+        # Save the metadata
+        db["_subjects"] = subjects
+        db["_splits"] = splits
+        db["_splits_kwarg"] = {
+            "ratio": splits_ratio, 
+            "seed": splits_seed
+            }
+        attrs = dict(
+            dataset="OCTA_6M",
+            version=version,
+            resolution=config["resize_to"],
+        )
+        db["_subjects"] = subjects
+        db["_samples"] = subjects
+        db["_splits"] = splits
+        db["_attrs"] = attrs
 
-    
+        
