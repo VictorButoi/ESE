@@ -1,6 +1,7 @@
 # torch imports
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 # ionpy imports
 from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
@@ -175,10 +176,7 @@ def dataloader_loop(
                 standard_image_forward_loop(**forward_item)
             else:
                 raise ValueError(f"Input type {input_type} not recognized.")
-        # except KeyError as k:
-        #     print(k)
-        #     print("Skipping this batch")
-        #     pass
+
         except Exception as e:
             raise e
 
@@ -275,35 +273,52 @@ def standard_image_forward_loop(
         if inf_cfg_dict["model"].get("ensemble", False):
             predict_args["combine_fn"] = "identity"
 
+        # Optionally, we can resize the image at inference.
+        inf_res = inf_cfg_dict['experiment'].get('inference_resolution', None) 
+        if inf_res is not None:
+            # Get the original resolution of the image and write that we did resizing to the metadata.
+            og_img_res = image.shape[-2:]
+            batch['inference_resolution'] = inf_res
+            # Resize the image
+            image = torch.nn.functional.interpolate(
+                image, 
+                size=inf_res, 
+                mode='bilinear', 
+                align_corners=False
+            )
+
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
         
         # Go through the exp_output and see if they are None or not.
-        y_logits = exp_output.get("y_logits", None)
-        y_probs = exp_output.get("y_probs", None)
-        y_hard = exp_output.get("y_hard", None)
+        for key, value in exp_output.items():
+            # If the value is None, then drop the key.
+            if value is None:
+                exp_output.pop(key)
+            # If we are resizing, then we need to resize the output.
+            if inf_res is not None:
+                # Perform linear interpolation to resize the network output to its original size.
+                exp_output[key] = F.interpolate(
+                    value, 
+                    size=og_img_res,
+                    mode='bilinear', 
+                    align_corners=False
+                )
+
         # Get through all the batch elements.
-        batch_size = image.shape[0] 
-        for batch_inference_idx in range(batch_size):
-
+        inference_batch_size = image.shape[0] 
+        for batch_inference_idx in range(inference_batch_size):
             # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
-            if y_logits is not None:
-                y_logits_batch = y_logits[batch_inference_idx][None]
-            if y_probs is not None:
-                y_probs_batch = y_probs[batch_inference_idx][None]
-            if y_hard is not None:
-                y_hard_batch = y_hard[batch_inference_idx][None]
-
+            outputs_dict = {
+                tensor_type: out_tensor[batch_inference_idx, None, ...] for tensor_type, out_tensor in exp_output.items()
+            }
             # Wrap the outputs into a dictionary.
             output_dict = {
                 "x": image[batch_inference_idx][None],
                 "y_true": label_map[batch_inference_idx][None],
-                "y_logits": y_logits_batch,
-                "y_probs": y_probs_batch,
-                "y_hard": y_hard_batch,
+                **outputs_dict
             }
-
             # Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
             for mdata_key in batch.keys():
                 mdata = batch[mdata_key]

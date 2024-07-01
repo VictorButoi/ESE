@@ -149,7 +149,7 @@ class CalibrationExperiment(TrainExperiment):
         if label is not None:
             logit_map = logit_map[:, label, ...].unsqueeze(1)
             prob_map = prob_map[:, label, ...].unsqueeze(1)
-
+        
         # Return the outputs
         return {
             'y_logits': logit_map,
