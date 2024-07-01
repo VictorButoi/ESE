@@ -1,10 +1,10 @@
 # torch imports
 import torch
 # random imports
-from dataclasses import dataclass
-from typing import Any, List, Literal, Optional
 import numpy as np
 import matplotlib.pyplot as plt
+from dataclasses import dataclass
+from typing import Any, List, Literal, Optional
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset

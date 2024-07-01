@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 from pathlib import Path
 from pprint import pprint
+from datetime import datetime
 from typing import List, Optional
 from itertools import chain, combinations
 # ESE imports
@@ -29,12 +30,19 @@ def list2tuple(val):
 def get_ese_training_configs(
     exp_cfg: dict,
     base_cfg: Config,
+    add_date: bool = True,
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
     train_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/training"),
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
+
+    # Optionally, add today's date to the run name.
+    if add_date:
+        today_date = datetime.now()
+        formatted_date = today_date.strftime("%m_%d_%y")
+        exp_name = f"{formatted_date}_{exp_name}"
 
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
@@ -78,14 +86,22 @@ def get_ese_training_configs(
 def get_ese_inference_configs(
     exp_cfg: dict,
     base_cfg: Config,
-    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    add_date: bool = True,
+    power_set_keys: Optional[List[str]] = None,
     code_root: Path = Path("/storage/vbutoi/projects/ESE"),
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
     inf_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/inference"),
-    power_set_keys: Optional[List[str]] = None
 ):
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
+
+    # Optionally, add today's date to the run name.
+    if add_date:
+        today_date = datetime.now()
+        formatted_date = today_date.strftime("%m_%d_%y")
+        exp_name = f"{formatted_date}_{exp_name}"
+
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     inference_datasets = flat_exp_cfg.pop('data._class')
