@@ -5,11 +5,12 @@ import random
 import itertools
 import numpy as np
 from pathlib import Path
+from pprint import pprint
 from typing import List, Optional
 from itertools import chain, combinations
 # ESE imports
-from ese.scripts.utils import gather_exp_paths
 from ese.experiment.models.utils import get_calibrator_cls
+from ese.scripts.utils import gather_exp_paths, get_option_product
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
@@ -29,28 +30,41 @@ def get_ese_training_configs(
     exp_cfg: dict,
     base_cfg: Config,
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
-    code_root: Path = Path("/storage/vbutoi/projects/ESE"),
-    inf_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/inference"),
-    power_set_keys: Optional[List[str]] = None
+    train_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/training"),
 ): 
-    # Load the inference cfg from local.
-    ##################################################
-    train_cfg_root = code_root / "ese" / "experiment" / "configs" / "training"
+    # We need to flatten the experiment config to get the different options.
+    # Building new yamls under the exp_name name for model type.
+    exp_name = exp_cfg.pop('name')
 
-    ##################################################
-    with open(cal_cfg_root / f"{dset}.yaml", 'r') as file:
+    cfg = HDict(exp_cfg)
+    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    train_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
+
+    # Load the dataset specific config and update the base config.
+    with open(train_cfg_root/ f"{train_dataset_name}.yaml", 'r') as file:
         dataset_cfg = yaml.safe_load(file)
-
-    # Create the ablation options
+    base_cfg = base_cfg.update([dataset_cfg])
+    
+    # Get the information about seeds.
+    seed = flat_exp_cfg.pop('experiment.seed', 40)
+    seed_range = flat_exp_cfg.pop('experiment.seed_range', 1)
+    
+    # Define the set of default config options.
+    train_exp_root = scratch_root / "training" / exp_name 
+    
+    # We need all of our options to be in lists as convention for the product.
+    for ico_key in flat_exp_cfg:
+        if not isinstance(flat_exp_cfg[ico_key], list):
+            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    
+    # Create the ablation options.
     option_set = [
         {
-            'log.root': [exp_root],
-            'data.label': [lab],
-            'data.version': [1.0],
-            'experiment.seed': [start_seed + seed_idx],
-            'loss_func._class': [f'ese.experiment.losses.{loss_func}'],
+            'log.root': [str(train_exp_root)],
+            'experiment.seed': [seed + seed_idx],
+            **flat_exp_cfg
         }
-        for seed_idx in range(num_seeds)
+        for seed_idx in range(seed_range)
     ]
 
     # Get the configs
@@ -70,8 +84,8 @@ def get_ese_inference_configs(
     power_set_keys: Optional[List[str]] = None
 ):
     # We need to flatten the experiment config to get the different options.
-    # Building new yamls under the exp_group name for model type.
-    exp_group = exp_cfg.pop('name')
+    # Building new yamls under the exp_name name for model type.
+    exp_name = exp_cfg.pop('name')
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     inference_datasets = flat_exp_cfg.pop('data._class')
@@ -97,11 +111,15 @@ def get_ese_inference_configs(
 
     # Gather the different config options.
     cfg_opt_keys = list(flat_exp_cfg.keys())
-    # Generate product tuples by first going through and making sure each option is a list and then using itertools.product.
+
+    #First going through and making sure each option is a list and then using itertools.product.
     for ico_key in flat_exp_cfg:
         if not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    
+    # Generate product tuples 
     product_tuples = list(itertools.product(*[flat_exp_cfg[key] for key in cfg_opt_keys]))
+
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
     # Keep a list of all the run configuration options.
@@ -113,9 +131,9 @@ def get_ese_inference_configs(
     inf_dataset_names = [ifd.split(".")[-1] for ifd in inference_datasets]
 
     # Define the set of default config options.
-    inference_exp_root = scratch_root / "inference" / exp_group
+    inference_exp_root = scratch_root / "inference" / exp_name
     default_config_options = {
-        'experiment.exp_name': [exp_group],
+        'experiment.exp_name': [exp_name],
         'experiment.exp_root': [str(inference_exp_root)],
     }
 
@@ -135,9 +153,9 @@ def get_ese_inference_configs(
             model_group_dir = Path(run_opt_dict.pop('base_model')[0])
             # If you want to run inference on a single model, use this.
             run_opt_args = {
-                'experiment.dataset_name': [dataset_name],
-                'data._class': [inference_datasets[d_idx]],
                 'log.root': [str(inference_exp_root)],
+                'data._class': [inference_datasets[d_idx]],
+                'experiment.dataset_name': [dataset_name],
                 **run_opt_dict,
                 **default_config_options
             }
@@ -173,7 +191,7 @@ def get_ese_calibration_configs(
 
     cal_option_list = []
     for calibrator in calibrators:
-        log_root = scratch_root / 'calibration' / group_dict['exp_group'] / f"Individual_{calibrator}"
+        log_root = scratch_root / 'calibration' / group_dict['exp_name'] / f"Individual_{calibrator}"
         for pt_dir in gather_exp_paths(training_exps_dir):
             # Get the calibrator name
             calibration_options = {
