@@ -25,6 +25,42 @@ def list2tuple(val):
     return val
 
 
+def get_ese_training_configs(
+    exp_cfg: dict,
+    base_cfg: Config,
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    code_root: Path = Path("/storage/vbutoi/projects/ESE"),
+    inf_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/inference"),
+    power_set_keys: Optional[List[str]] = None
+): 
+    # Load the inference cfg from local.
+    ##################################################
+    train_cfg_root = code_root / "ese" / "experiment" / "configs" / "training"
+
+    ##################################################
+    with open(cal_cfg_root / f"{dset}.yaml", 'r') as file:
+        dataset_cfg = yaml.safe_load(file)
+
+    # Create the ablation options
+    option_set = [
+        {
+            'log.root': [exp_root],
+            'data.label': [lab],
+            'data.version': [1.0],
+            'experiment.seed': [start_seed + seed_idx],
+            'loss_func._class': [f'ese.experiment.losses.{loss_func}'],
+        }
+        for seed_idx in range(num_seeds)
+    ]
+
+    # Get the configs
+    cfgs = get_option_product(exp_name, option_set, base_cfg)
+
+    # Return the train configs.
+    return cfgs
+
+
+
 def get_ese_inference_configs(
     exp_cfg: dict,
     base_cfg: Config,
