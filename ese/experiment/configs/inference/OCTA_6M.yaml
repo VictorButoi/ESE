@@ -5,7 +5,6 @@ data:
   input_type: image 
   return_gt_proportion: True
   label_threshold: 0.5
-  version: 0.1 
   split: '?'
 
 global_calibration:
