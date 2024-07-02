@@ -1,6 +1,7 @@
 # torch imports
 from torch import Tensor
 # misc imports
+import matplotlib.pyplot as plt
 from pydantic import validate_arguments
 from typing import Dict, Optional, Union, List, Literal
 # ionpy imports
@@ -36,6 +37,7 @@ def image_ece_loss(
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
+    # Calculate the mean statistics per bin.
     cal_info = bin_stats(
         y_pred=y_pred,
         y_true=y_true,

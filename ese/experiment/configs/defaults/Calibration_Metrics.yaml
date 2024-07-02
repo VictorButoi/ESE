@@ -5,30 +5,6 @@ image_cal_metrics:
         _fn: ese.experiment.metrics.calibration.image_ece_loss
         cal_type: 'toplabel'
 
-    - Image_Edge-ECE:
-        _fn: ese.experiment.metrics.calibration.image_edge_ece_loss
-        cal_type: 'toplabel'
-
-    - Image_CW-ECE:
-        _fn: ese.experiment.metrics.calibration.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-
-    - Image_ECW-ECE:
-        _fn: ese.experiment.metrics.calibration.image_ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'proportional'
-
-    - Image_Uniform-CW-ECE:
-        _fn: ese.experiment.metrics.calibration.image_cw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-
-    - Image_Uniform-ECW-ECE:
-        _fn: ese.experiment.metrics.calibration.image_ecw_ece_loss
-        cal_type: 'classwise'
-        class_weighting: 'uniform'
-
 # Define global metrics when you want to verify that these are the same as the image
 # based metrics, per image.
 global_cal_metrics:
@@ -37,27 +13,3 @@ global_cal_metrics:
     - ECE:
         _fn: ese.experiment.metrics.calibration.ece_loss
         cal_type: 'toplabel'
-
-    - Edge-ECE:
-        _fn: ese.experiment.metrics.calibration.edge_ece_loss
-        cal_type: 'toplabel'
-
-    - CW-ECE:
-        _fn: ese.experiment.metrics.calibration.cw_ece_loss
-        class_weighting: 'proportional'
-        cal_type: 'classwise'
-
-    - ECW-ECE:
-        _fn: ese.experiment.metrics.calibration.ecw_ece_loss
-        class_weighting: 'proportional'
-        cal_type: 'classwise'
-
-    - Uniform-CW-ECE:
-        _fn: ese.experiment.metrics.calibration.cw_ece_loss
-        class_weighting: 'uniform'
-        cal_type: 'classwise'
-
-    - Uniform-ECW-ECE:
-        _fn: ese.experiment.metrics.calibration.ecw_ece_loss
-        class_weighting: 'uniform'
-        cal_type: 'classwise'
