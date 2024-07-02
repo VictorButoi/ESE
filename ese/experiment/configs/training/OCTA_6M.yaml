@@ -4,11 +4,12 @@ data:
   out_channels: 1 
   label: '?' # Two options, 100 and 255
   version: '?' # Two options, 0.1 and 1.0 either 128 or 400 res 
+  label_threshold: 0.5 # The default is to train on hard labels.
   iters_per_epoch: 1000 
   preload: False 
 
 dataloader:
-  batch_size: 8
+  batch_size: 1
   num_workers: 1
 
 log:
@@ -37,3 +38,18 @@ model:
 train:
   epochs: 50
   eval_freq: 5 
+
+
+
+# Good aug for 128 x 128
+# # Stndard segmentation data augmentation.
+# augmentations:
+#     train:
+#         - albumentations.ElasticTransform:
+#             alpha: 100 
+#             sigma: 7 
+#             alpha_affine: 0 
+#             p: 0.5
+#             always_apply: True
+#         - albumentations.Flip:
+#             p: 0.5

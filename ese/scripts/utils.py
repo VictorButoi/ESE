@@ -38,29 +38,38 @@ def get_option_product(
     option_set,
     base_cfg
 ):
+    # If option_set is not a list, make it a list
+    if not isinstance(option_set, list):
+        option_set = [option_set]
     cfgs = []
     for option_dict in option_set:
+        # Get all of the keys that have length > 1 (will be turned into different options)
+        varying_keys = [key for key, value in option_dict.items() if len(value) > 1]
+        # Iterate through all of the different options
         for cfg_update in dict_product(option_dict):
-            cfg = base_cfg.update([cfg_update, proc_exp_name(exp_name, cfg_update)])
+            cfg_name_args = proc_cfg_name(exp_name, varying_keys, cfg_update)
+            cfg = base_cfg.update([cfg_update, cfg_name_args])
             # Verify it's a valid config
             check_missing(cfg)
             cfgs.append(cfg)
     return cfgs
 
 
-def proc_exp_name(
+def proc_cfg_name(
     exp_name,
+    varying_keys,
     cfg
 ):
     params = []
     params.append("exp_name:" + exp_name)
     for key, value in cfg.items():
-        if key not in ["log.root", "train.pretrained_dir"]:
-            key_name = key.split(".")[-1]
-            short_value = str(value).replace(" ", "")
-            if key_name == "exp_name":
-                params.append(str(short_value))
-            else:
-                params.append(f"{key_name}:{short_value}")
+        if key in varying_keys:
+            if key not in ["log.root", "train.pretrained_dir"]:
+                key_name = key.split(".")[-1]
+                short_value = str(value).replace(" ", "")
+                if key_name == "exp_name":
+                    params.append(str(short_value))
+                else:
+                    params.append(f"{key_name}:{short_value}")
     wandb_string = "-".join(params)
     return {"log.wandb_string": wandb_string}

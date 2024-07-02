@@ -66,14 +66,11 @@ def get_ese_training_configs(
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     
     # Create the ablation options.
-    option_set = [
-        {
-            'log.root': [str(train_exp_root)],
-            'experiment.seed': [seed + seed_idx],
-            **flat_exp_cfg
-        }
-        for seed_idx in range(seed_range)
-    ]
+    option_set = {
+        'log.root': [str(train_exp_root)],
+        'experiment.seed': [seed + seed_idx for seed_idx in range(seed_range)],
+        **flat_exp_cfg
+    }
 
     # Get the configs
     cfgs = get_option_product(exp_name, option_set, base_cfg)
