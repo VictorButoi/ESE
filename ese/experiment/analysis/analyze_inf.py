@@ -208,13 +208,13 @@ def load_cal_inference_stats(
             if last_part in ['_class', '_name']:
                 new_key = "".join(key_parts)
             else:
-                new_key = last_part
+                new_key = "_".join(key_parts)
             # If the new key isn't the same as the old key, add the new key.
             if new_key != raw_key and new_key not in inference_df.columns:
                 inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
                 # Delete the old _key
                 del inference_df[raw_key]
-
+        
         # Add keys that are necessary for the analysis.
         if '_pretrained_class' not in inference_df.columns:
             inference_df['_pretrained_class'] = "None"
@@ -225,14 +225,14 @@ def load_cal_inference_stats(
         def method_name(
             model_class, 
             _pretrained_class, 
-            pretrained_seed
+            experiment_pretrained_seed
         ):
             if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
-                return f"UNet (seed={pretrained_seed})"
+                return f"UNet (seed={experiment_pretrained_seed})"
             elif _pretrained_class == "None":
-                return f"{model_class.split('.')[-1]} (seed={pretrained_seed})"
+                return f"{model_class.split('.')[-1]} (seed={experiment_pretrained_seed})"
             else:
-                return f"{_pretrained_class.split('.')[-1]} (seed={pretrained_seed})"
+                return f"{_pretrained_class.split('.')[-1]} (seed={experiment_pretrained_seed})"
 
         def joint_data_slice_id(data_id, slice_idx):
             return f"{data_id}_{slice_idx}"
@@ -270,7 +270,7 @@ def load_cal_inference_stats(
             inference_df = pickle.load(f)
 
     # Get the number of rows in image_info_df for each log set.
-    final_num_rows_per_log_set = inference_df.groupby(["root", "log_set"]).size()
+    final_num_rows_per_log_set = inference_df.groupby(["log_root", "log_set"]).size()
     # Print information about each log set.
     print("Finished loading inference stats.")
     print(f"Log amounts: {final_num_rows_per_log_set}")
