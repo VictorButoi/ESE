@@ -280,16 +280,8 @@ def standard_image_forward_loop(
         if resolution_cfg: 
             input_res_cfg = resolution_cfg.get('input', None)
             if input_res_cfg:
-                # Get the original resolution of the image and write that we did resizing to the metadata.
-                new_img_res = input_res_cfg['size']
-                batch['inference_resolution'] = new_img_res
                 # Resize the image
-                image = torch.nn.functional.interpolate(
-                    image, 
-                    size=new_img_res, 
-                    mode=input_res_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
-                    align_corners=input_res_cfg['align_corners']
-                )
+                image = resize_image(input_res_cfg, image)
 
         # Do a forward pass.
         with torch.no_grad():
@@ -305,12 +297,7 @@ def standard_image_forward_loop(
                 output_res_cfg = resolution_cfg.get('output', None)
                 if output_res_cfg:
                     # Resize the image
-                    exp_output[out_key] = torch.nn.functional.interpolate(
-                        out_tensor, 
-                        size=output_res_cfg['size'], 
-                        mode=output_res_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
-                        align_corners=output_res_cfg['align_corners']
-                    )
+                    exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
                 
         # Get through all the batch elements.
         inference_batch_size = image.shape[0] 
@@ -425,6 +412,24 @@ def get_calibration_item_info(
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
     
+
+def resize_image(resize_cfg, image):
+    # Get the original resolution of the image and write that we did resizing to the metadata.
+    new_img_res = resize_cfg['size']
+    # Resize the image
+    interpolate_args = {
+        "input": image, 
+        "size": new_img_res, 
+        "mode": resize_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
+    }
+    if resize_cfg['mode'] in ['linear', 'bilinear', 'bicubic', 'trilinear']:
+        interpolate_args['align_corners'] = resize_cfg['align_corners']
+    # Resize the image or return if it's already the right size.
+    if new_img_res != image.shape[-2:]:
+        return torch.nn.functional.interpolate(**interpolate_args)
+    else:
+        return image
+
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def select_batch_by_inds(
