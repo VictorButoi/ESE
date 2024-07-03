@@ -27,6 +27,7 @@ import math
 import einops
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from typing import Any, Optional
 from pydantic import validate_arguments
     
@@ -272,40 +273,45 @@ def standard_image_forward_loop(
         }
         if inf_cfg_dict["model"].get("ensemble", False):
             predict_args["combine_fn"] = "identity"
-
+        
         # Optionally, we can resize the image at inference.
-        inf_res = inf_cfg_dict['experiment'].get('inference_resolution', None) 
-        if inf_res is not None:
-            # Get the original resolution of the image and write that we did resizing to the metadata.
-            og_img_res = image.shape[-2:]
-            batch['inference_resolution'] = inf_res
-            # Resize the image
-            image = torch.nn.functional.interpolate(
-                image, 
-                size=inf_res, 
-                mode='bilinear', 
-                align_corners=False
-            )
+        resolution_cfg = inf_cfg_dict['experiment'].get('resolution', None) 
+
+        if resolution_cfg: 
+            input_res_cfg = resolution_cfg.get('input', None)
+            if input_res_cfg:
+                # Get the original resolution of the image and write that we did resizing to the metadata.
+                new_img_res = input_res_cfg['size']
+                batch['inference_resolution'] = new_img_res
+                # Resize the image
+                image = torch.nn.functional.interpolate(
+                    image, 
+                    size=new_img_res, 
+                    mode=input_res_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
+                    align_corners=input_res_cfg['align_corners']
+                )
 
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
-        
-        # Go through the exp_output and see if they are None or not.
-        for key, value in exp_output.items():
-            # If the value is None, then drop the key.
-            if value is None:
-                exp_output.pop(key)
-            # If we are resizing, then we need to resize the output.
-            if inf_res is not None:
-                # Perform linear interpolation to resize the network output to its original size.
-                exp_output[key] = F.interpolate(
-                    value, 
-                    size=og_img_res,
-                    mode='bilinear', 
-                    align_corners=False
-                )
 
+        # Go through the exp_output and see if they are None or not.
+        for out_key, out_tensor in exp_output.items():
+            # If the value is None, then drop the key.
+            if out_tensor is None:
+                exp_output.pop(out_key)
+            # If we are resizing, then we need to resize the output.
+            if resolution_cfg: 
+                output_res_cfg = resolution_cfg.get('output', None)
+                if output_res_cfg:
+                    # Resize the image
+                    exp_output[out_key] = torch.nn.functional.interpolate(
+                        out_tensor, 
+                        size=output_res_cfg['size'], 
+                        mode=output_res_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
+                        align_corners=output_res_cfg['align_corners']
+                    )
+                
         # Get through all the batch elements.
         inference_batch_size = image.shape[0] 
         for batch_inference_idx in range(inference_batch_size):
