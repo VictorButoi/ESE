@@ -59,8 +59,9 @@ class LiTS(ThunderDataset, DatapathMixin):
             img = transform_obj["image"]
             mask = transform_obj["mask"]
 
-        # Add channel dimension to the mask
-        mask = np.expand_dims(mask, axis=0)
+        # Add channel dimension to the img and mask
+        img = img[None]
+        mask = mask[None]
         
         # Prepare the return dictionary.
         return_dict = {
