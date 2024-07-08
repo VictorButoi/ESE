@@ -1,4 +1,5 @@
 from .wmh import WMH
+from .lits import LiTS
 from .oasis import OASIS
 from .octa_6m import OCTA_6M
 from .ade20k import ADE20k
