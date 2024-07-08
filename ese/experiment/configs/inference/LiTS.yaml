@@ -1,0 +1,44 @@
+log:
+  track_label_amounts: True 
+
+data:
+  input_type: image 
+  return_gt_proportion: True
+  label_threshold: 0.5
+  version: 0.1 
+  split: '?'
+
+global_calibration:
+    num_classes: 1
+
+model:
+    pred_label: 0
+
+qual_metrics:
+    - Dice:
+        _fn: ese.experiment.metrics.dice_score
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        metric_type: quality
+    - HD95:
+        _fn: ese.experiment.metrics.hd95
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        metric_type: quality
+    - BoundaryIOU:
+        _fn: ese.experiment.metrics.boundary_iou
+        boundary_width: 4
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False 
+        metric_type: quality
+    - SoftVolumeError:
+        _fn: ese.experiment.metrics.volume_error
+        do_threshold: False 
+        batch_reduction: 'mean' 
+        metric_type: quality
+    - HardVolumeError:
+        _fn: ese.experiment.metrics.volume_error
+        do_threshold: True
+        threshold: 0.5
+        batch_reduction: 'mean' 
+        metric_type: quality
