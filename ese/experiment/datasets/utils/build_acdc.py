@@ -15,7 +15,11 @@ from sklearn.model_selection import train_test_split
 from pydantic import validate_arguments
 
 
-def resize_with_aspect_ratio(image, target_size=256):
+def resize_with_aspect_ratio(
+    image, 
+    interpolation="linear",
+    target_size=256
+):
     """
     Resize the image so that its shortest side is of the target size 
     while maintaining the aspect ratio.
@@ -39,7 +43,12 @@ def resize_with_aspect_ratio(image, target_size=256):
         new_height = int(height * scaling_factor)
 
     # Resize the image
-    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    if interpolation == "linear":
+        resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    elif interpolation == "nearest":
+        resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+    else:
+        raise ValueError(f"Unknown interpolation method: {interpolation}")
 
     # Center-crop the longer side
     if resized_image.shape[:2] != (target_size, target_size):
@@ -154,6 +163,10 @@ def thunderify_ACDC(
                 img_slice = np.clip(img_slice, -100, 800)
                 ## Normalize the image to be between 0 and 1.
                 img_slice = (img_slice - img_slice.min()) / (img_slice.max() - img_slice.min())
+
+                # We need to square pad both the img_slice and seg_slice first.
+                img_slice = square_pad(img_slice)
+                seg_slice = square_pad(seg_slice)
 
                 # Get the ground-truth volumetric proportion.
                 gt_proportion = np.count_nonzero(seg_slice) / seg_slice.size

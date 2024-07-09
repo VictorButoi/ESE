@@ -29,7 +29,7 @@ class ACDC(ThunderDataset, DatapathMixin):
         super().__init__(self.path, preload=self.preload)
         super().supress_readonly_warning()
         # min_label_density
-        subjects: List[str] = self._db["_spACDC"][self.split]
+        subjects: List[str] = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
         # Control how many samples are in each epoch.
