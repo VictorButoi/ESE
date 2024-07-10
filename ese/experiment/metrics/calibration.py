@@ -37,6 +37,7 @@ def image_ece_loss(
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
 ) -> Union[dict, Tensor]:
+    
     # Calculate the mean statistics per bin.
     cal_info = bin_stats(
         y_pred=y_pred,
