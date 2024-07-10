@@ -286,7 +286,7 @@ def standard_image_forward_loop(
         # Do a forward pass.
         with torch.no_grad():
             exp_output =  exp.predict(image, **predict_args)
-
+        
         # Go through the exp_output and see if they are None or not.
         for out_key, out_tensor in exp_output.items():
             # If the value is None, then drop the key.

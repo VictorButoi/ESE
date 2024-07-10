@@ -137,6 +137,9 @@ def thunderify_LiTS(
         loaded_volume = nib.load(img_dir).get_fdata().squeeze()
         loaded_seg = nib.load(seg_dir).get_fdata().squeeze()
 
+        # Print he full resolution
+        print(f"Resolution: {loaded_volume.shape}")
+
         # Binarize the segmentation mask for its second class which is the liver tumor.
         binary_seg = (loaded_seg == 2).astype(np.float32)
 
@@ -149,29 +152,16 @@ def thunderify_LiTS(
 
         # if we have more than the minimum required amount of label, we proceed with this subj.
         if np.count_nonzero(seg_slice) > config.get("min_fg_label", 0):
-
-            # Plot the image with the seg overlayed.
-            f, axarr = plt.subplots(1, 2, figsize=(16, 8))
-            axarr[0].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(seg_slice, cmap="jet", alpha=0.3, interpolation="None")
-            plt.show()
-
+            
             # We now need to process the image slice by doing our standard processing.
 
-            # Clip the img_slice to be between -500 and 1000.
-            # img_slice = np.clip(img_slice, -500, 1000)
-            # Normalize the image to be between 0 and 1.
-            # img_slice = (img_slice - img_slice.min()) / (img_slice.max() - img_slice.min())
+            ## Clip the img_slice to be between -500 and 1000.
+            img_slice = np.clip(img_slice, -500, 1000)
+            ## Normalize the image to be between 0 and 1.
+            img_slice = (img_slice - img_slice.min()) / (img_slice.max() - img_slice.min())
 
             # Get the ground-truth volumetric proportion.
             gt_proportion = np.count_nonzero(seg_slice) / seg_slice.size
-
-            f, axarr = plt.subplots(1, 2, figsize=(16, 8))
-            axarr[0].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(seg_slice, cmap="jet", alpha=0.3, interpolation="None")
-            plt.show()
 
             ########################
             # DOWNSIZING PROCEDURE.
@@ -189,12 +179,18 @@ def thunderify_LiTS(
             img_slice = img_slice.astype(np.float32)
             seg_slice = seg_slice.astype(np.float32)
 
-            f, axarr = plt.subplots(1, 2, figsize=(16, 8))
-            axarr[0].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(img_slice, cmap="gray", interpolation="None")
-            axarr[1].imshow(seg_slice, cmap="jet", alpha=0.3, interpolation="None")
+            plt.imshow(img_slice, cmap="gray", interpolation="None")
+            # Turn off the x and y ticks
+            plt.xticks([])
+            plt.yticks([])
+            plt.show()
+            plt.imshow(seg_slice, cmap="gray", interpolation="None")
+            # Turn off the x and y ticks
+            plt.xticks([])
+            plt.yticks([])
             plt.show()
 
+            raise ValueError
             print("---------------------------------------------")
 
             # # Save the datapoint to the database
