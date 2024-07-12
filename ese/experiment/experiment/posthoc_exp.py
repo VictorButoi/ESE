@@ -184,10 +184,7 @@ class PostHocExperiment(TrainExperiment):
         else:
             yhat_cal = self.model(yhat, image=x)
         # Calculate the loss between the pred and original preds.
-        if "BWPixelCELoss" in str(self.loss_func):
-            loss = self.loss_func(yhat_cal, y, dist_to_boundary=batch["dist_to_boundary"])
-        else:
-            loss = self.loss_func(yhat_cal, y)
+        loss = self.loss_func(yhat_cal, y)
         # If backward then backprop the gradients.
         if backward:
             loss.backward()
@@ -212,8 +209,6 @@ class PostHocExperiment(TrainExperiment):
         threshold = 0.5,
         label: Optional[int] = None,
     ):
-        assert x.shape[0] == 1, "Batch size must be 1 for prediction for now."
-
         # Predict with the base model.
         with torch.no_grad():
             yhat = self.base_model(x)
