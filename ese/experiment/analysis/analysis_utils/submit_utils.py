@@ -191,6 +191,7 @@ def get_ese_inference_configs(
 def get_ese_calibration_configs(
     exp_cfg: dict,
     base_cfg: Config,
+    calibration_model_cfgs: dict,
     add_date: bool = True,
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
     calibration_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/calibrate"),
@@ -204,7 +205,7 @@ def get_ese_calibration_configs(
         today_date = datetime.now()
         formatted_date = today_date.strftime("%m_%d_%y")
         exp_name = f"{formatted_date}_{exp_name}"
-
+    
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
@@ -219,7 +220,11 @@ def get_ese_calibration_configs(
     
     # We need all of our options to be in lists as convention for the product.
     for ico_key in flat_exp_cfg:
-        if not isinstance(flat_exp_cfg[ico_key], list):
+        # If this is a tuple, then convert it to a list.
+        if isinstance(flat_exp_cfg[ico_key], tuple):
+            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
+        # Otherwise, make sure it is a list.
+        elif not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     
     # Create the ablation options.
@@ -230,6 +235,18 @@ def get_ese_calibration_configs(
 
     # Get the configs
     cfgs = get_option_product(exp_name, option_set, base_cfg)
+
+    # This is a list of calibration model configs. But the actual calibration model
+    # should still not be defined at this point. We iterate through the configs, and replace
+    # the model config with the calibration model config.
+    for c_idx, cfg in enumerate(cfgs):
+        # Convert the Config obj to a dict.
+        cfg_dict = cfg.to_dict()
+        # Replace the model with the dict from calibration model cfgs.
+        cal_model = cfg_dict.pop('model')
+        cfg_dict['model'] = calibration_model_cfgs[cal_model]
+        # Replace the Config object with the new config dict.
+        cfgs[c_idx] = Config(cfg_dict)
 
     # Return the train configs.
     return cfgs
