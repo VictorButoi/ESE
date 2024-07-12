@@ -1,16 +1,13 @@
 # misc imports
-import yaml
 import os
-import random
+import yaml
 import itertools
-import numpy as np
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime
 from typing import List, Optional
 from itertools import chain, combinations
 # ESE imports
-from ese.experiment.models.utils import get_calibrator_cls
 from ese.scripts.utils import gather_exp_paths, get_option_product
 # Ionpy imports
 from ionpy.util import Config
@@ -192,40 +189,47 @@ def get_ese_inference_configs(
 
 
 def get_ese_calibration_configs(
-    group_dict: dict,
-    calibrators: List[str], 
-    cal_base_cfgs: dict,
-    cal_model_opts: dict,
-    additional_args: Optional[dict] = None,
-    subsplit_dict: Optional[dict] = None
-):
-    scratch_root = Path("/storage/vbutoi/scratch/ESE")
-    training_exps_dir = scratch_root / "training" / group_dict['base_models_group']
+    exp_cfg: dict,
+    base_cfg: Config,
+    add_date: bool = True,
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    calibration_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/calibrate"),
+): 
+    # We need to flatten the experiment config to get the different options.
+    # Building new yamls under the exp_name name for model type.
+    exp_name = exp_cfg.pop('name')
 
-    cal_option_list = []
-    for calibrator in calibrators:
-        log_root = scratch_root / 'calibration' / group_dict['exp_name'] / f"Individual_{calibrator}"
-        for pt_dir in gather_exp_paths(training_exps_dir):
-            # Get the calibrator name
-            calibration_options = {
-                'log.root': [str(log_root)],
-                'train.pretrained_dir': [pt_dir],
-            }
-            for model_key in cal_base_cfgs[calibrator]:
-                if (calibrator in cal_model_opts) and (model_key in cal_model_opts[calibrator]):
-                    assert isinstance(cal_model_opts[calibrator][model_key], list), "Calibration model options must be a list."
-                    calibration_options[f"model.{model_key}"] = cal_model_opts[calibrator][model_key]
-                else:
-                    base_cal_val = cal_base_cfgs[calibrator][model_key]
-                    assert base_cal_val != "?", "Base calibration model value is not set."
-                    calibration_options[f"model.{model_key}"] = [cal_base_cfgs[calibrator][model_key]]
+    # Optionally, add today's date to the run name.
+    if add_date:
+        today_date = datetime.now()
+        formatted_date = today_date.strftime("%m_%d_%y")
+        exp_name = f"{formatted_date}_{exp_name}"
 
-            if subsplit_dict is not None:
-                pt_dir_id = pt_dir.split('/')[-1]
-                calibration_options['data.subsplit'] = [subsplit_dict[pt_dir_id]]
-            if additional_args is not None:
-                calibration_options.update(additional_args)
-            # Add the calibration options to the list
-            cal_option_list.append(calibration_options)
-    # Return the list of calibration options
-    return cal_option_list
+    cfg = HDict(exp_cfg)
+    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
+
+    # Load the dataset specific config and update the base config.
+    with open(calibration_cfg_root/ f"{calibration_dataset_name}.yaml", 'r') as file:
+        dataset_cfg = yaml.safe_load(file)
+    base_cfg = base_cfg.update([dataset_cfg])
+    
+    # Define the set of default config options.
+    calibration_exp_root = scratch_root / "calibration" / exp_name 
+    
+    # We need all of our options to be in lists as convention for the product.
+    for ico_key in flat_exp_cfg:
+        if not isinstance(flat_exp_cfg[ico_key], list):
+            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    
+    # Create the ablation options.
+    option_set = {
+        'log.root': [str(calibration_exp_root)],
+        **flat_exp_cfg
+    }
+
+    # Get the configs
+    cfgs = get_option_product(exp_name, option_set, base_cfg)
+
+    # Return the train configs.
+    return cfgs
