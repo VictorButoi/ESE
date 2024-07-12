@@ -25,6 +25,18 @@ def list2tuple(val):
         return tuple(map(list2tuple, val))
     return val
 
+def save_exp_cfg(exp_cfg, exp_name, group, add_date, scratch_root):
+    # Optionally, add today's date to the run name.
+    if add_date:
+        today_date = datetime.now()
+        formatted_date = today_date.strftime("%m_%d_%y")
+        exp_name = f"{formatted_date}_{exp_name}"
+    # Save the experiment config.
+    exp_root = scratch_root / group / exp_name
+    autosave(exp_cfg, exp_root / "experiment.yml") # SAVE #1: Experiment config
+    # Return the experiment root.
+    return exp_root
+
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ese_training_configs(
@@ -36,15 +48,14 @@ def get_ese_training_configs(
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
-    train_exp_root = scratch_root / "training" / exp_cfg['name']
-    autosave(exp_cfg, train_exp_root / "experiment.yml") # SAVE #1: Experiment config
     exp_name = exp_cfg.pop('name')
-
-    # Optionally, add today's date to the run name.
-    if add_date:
-        today_date = datetime.now()
-        formatted_date = today_date.strftime("%m_%d_%y")
-        exp_name = f"{formatted_date}_{exp_name}"
+    train_exp_root = save_exp_cfg(
+        exp_cfg, 
+        exp_name=exp_name,
+        group="training", 
+        add_date=add_date, 
+        scratch_root=scratch_root
+    )
 
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
@@ -90,16 +101,15 @@ def get_ese_calibration_configs(
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
-    calibration_exp_root = scratch_root / "calibration" / exp_cfg['name']
-    autosave(exp_cfg, calibration_exp_root / "experiment.yml") # SAVE #1: Experiment config
     exp_name = exp_cfg.pop('name')
+    calibration_exp_root = save_exp_cfg(
+        exp_cfg, 
+        exp_name=exp_name,
+        group="calibration", 
+        add_date=add_date, 
+        scratch_root=scratch_root
+    )
 
-    # Optionally, add today's date to the run name.
-    if add_date:
-        today_date = datetime.now()
-        formatted_date = today_date.strftime("%m_%d_%y")
-        exp_name = f"{formatted_date}_{exp_name}"
-    
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
@@ -157,15 +167,14 @@ def get_ese_inference_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
-    inference_exp_root = scratch_root / "inference" / exp_cfg['name']
-    autosave(exp_cfg, inference_exp_root / "experiment.yml") # SAVE #1: Experiment config
     exp_name = exp_cfg.pop('name')
-
-    # Optionally, add today's date to the run name.
-    if add_date:
-        today_date = datetime.now()
-        formatted_date = today_date.strftime("%m_%d_%y")
-        exp_name = f"{formatted_date}_{exp_name}"
+    inference_exp_root = save_exp_cfg(
+        exp_cfg, 
+        exp_name=exp_name,
+        group="inference", 
+        add_date=add_date, 
+        scratch_root=scratch_root
+    )
 
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())

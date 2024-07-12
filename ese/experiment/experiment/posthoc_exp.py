@@ -111,7 +111,7 @@ class PostHocExperiment(TrainExperiment):
         pretrained_model_cfg_dict = pretrained_total_cfg_dict['model']
         # Either keep training the network, or use a post-hoc calibrator.
         self.model_class = model_cfg_dict['_class']
-        if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
+        if self.model_class is None:
             self.base_model = torch.nn.Identity()
             # Load the model, there is no learned calibrator.
             self.model = self.pretrained_exp.model
@@ -167,7 +167,7 @@ class PostHocExperiment(TrainExperiment):
         with torch.no_grad():
             yhat = self.base_model(x)
         # Calibrate the predictions.
-        if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
+        if self.model_class is None:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
@@ -202,7 +202,7 @@ class PostHocExperiment(TrainExperiment):
             yhat = self.base_model(x)
 
         # Apply post-hoc calibration.
-        if self.model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
+        if self.model_class is None:
             logit_map = self.model(yhat)
         else:
             logit_map = self.model(yhat, image=x)
