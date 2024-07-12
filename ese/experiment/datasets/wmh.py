@@ -27,6 +27,7 @@ class WMH(ThunderDataset, DatapathMixin):
     return_data_id: bool = False
     transforms: Optional[Any] = None
     min_fg_label: Optional[int] = None
+    num_examples: Optional[int] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
 
@@ -38,6 +39,9 @@ class WMH(ThunderDataset, DatapathMixin):
         subjects: List[str] = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
+        # Limit the number of examples available if necessary.
+        if self.num_examples is not None:
+            self.samples = self.samples[:self.num_examples]
         # Control how many samples are in each epoch.
         self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
 

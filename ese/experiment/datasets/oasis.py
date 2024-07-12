@@ -27,6 +27,7 @@ class OASIS(ThunderDataset, DatapathMixin):
     replace: bool = False
     preload: bool = False
     return_data_id: bool = False
+    num_examples: Optional[int] = None
     iters_per_epoch: Optional[int] = None
     target_labels: Optional[List[int]] = None
     transforms: Optional[Any] = None
@@ -37,6 +38,10 @@ class OASIS(ThunderDataset, DatapathMixin):
         subjects = self._db["_splits"][self.split]
         self.samples = subjects
         self.subjects = subjects
+
+        # Limit the number of examples available if necessary.
+        if self.num_examples is not None:
+            self.samples = self.samples[:self.num_examples]
 
         # If target labels is not None, then we need to remap the target labels to a contiguous set.
         if self.target_labels is not None:

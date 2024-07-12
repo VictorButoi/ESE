@@ -18,6 +18,7 @@ class OxfordPets(ThunderDataset, DatapathMixin):
     version: float = 0.2
     preload: bool = False
     num_classes: Any = "all" 
+    num_examples: Optional[int] = None
     iters_per_epoch: Optional[int] = None
     transforms: Optional[Any] = None
 
@@ -40,6 +41,9 @@ class OxfordPets(ThunderDataset, DatapathMixin):
         else:
             self.samples = samples 
             self.classes = classes
+        # Limit the number of examples available if necessary.
+        if self.num_examples is not None:
+            self.samples = self.samples[:self.num_examples]
         self.class_map = {c: (i + 1) for i, c in enumerate(np.unique(classes))} # 1 -> 38 (0 background)
         self.return_data_id = False
         # Control how many samples are in each epoch.

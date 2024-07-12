@@ -19,6 +19,7 @@ class CityScapes(ThunderDataset, DatapathMixin):
     preload: bool = False
     cities: Any = "all" 
     return_data_id: bool = False
+    num_examples: Optional[int] = None
     iters_per_epoch: Optional[Any] = None
     transforms: Optional[Any] = None
 
@@ -40,7 +41,9 @@ class CityScapes(ThunderDataset, DatapathMixin):
         else:
             self.samples = samples 
             self.sample_cities = sample_cities 
-
+        # Limit the number of examples available if necessary.
+        if self.num_examples is not None:
+            self.samples = self.samples[:self.num_examples]
         # Control how many samples are in each epoch.
         self.num_samples = len(self.samples) if self.iters_per_epoch is None else self.iters_per_epoch
         # Get the class conversion dictionary (From Calibration in Semantic Segmentation are we on the right) 
