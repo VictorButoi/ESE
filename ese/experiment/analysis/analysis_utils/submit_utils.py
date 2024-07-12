@@ -6,12 +6,14 @@ from pathlib import Path
 from pprint import pprint
 from datetime import datetime
 from typing import List, Optional
+from pydantic import validate_arguments
 from itertools import chain, combinations
 # ESE imports
 from ese.scripts.utils import gather_exp_paths, get_option_product
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
+from ionpy.util.ioutil import autosave
 from ionpy.util.config import check_missing, HDict, valmap
 
 
@@ -24,6 +26,7 @@ def list2tuple(val):
     return val
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ese_training_configs(
     exp_cfg: dict,
     base_cfg: Config,
@@ -33,6 +36,8 @@ def get_ese_training_configs(
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
+    train_exp_root = scratch_root / "training" / exp_cfg['name']
+    autosave(exp_cfg, train_exp_root / "experiment.yml") # SAVE #1: Experiment config
     exp_name = exp_cfg.pop('name')
 
     # Optionally, add today's date to the run name.
@@ -49,13 +54,11 @@ def get_ese_training_configs(
     with open(train_cfg_root/ f"{train_dataset_name}.yaml", 'r') as file:
         dataset_cfg = yaml.safe_load(file)
     base_cfg = base_cfg.update([dataset_cfg])
+    autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
     
     # Get the information about seeds.
     seed = flat_exp_cfg.pop('experiment.seed', 40)
     seed_range = flat_exp_cfg.pop('experiment.seed_range', 1)
-    
-    # Define the set of default config options.
-    train_exp_root = scratch_root / "training" / exp_name 
     
     # We need all of our options to be in lists as convention for the product.
     for ico_key in flat_exp_cfg:
@@ -76,7 +79,72 @@ def get_ese_training_configs(
     return cfgs
 
 
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_ese_calibration_configs(
+    exp_cfg: dict,
+    base_cfg: Config,
+    calibration_model_cfgs: dict,
+    add_date: bool = True,
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    calibration_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/calibrate"),
+): 
+    # We need to flatten the experiment config to get the different options.
+    # Building new yamls under the exp_name name for model type.
+    calibration_exp_root = scratch_root / "calibration" / exp_cfg['name']
+    autosave(exp_cfg, calibration_exp_root / "experiment.yml") # SAVE #1: Experiment config
+    exp_name = exp_cfg.pop('name')
 
+    # Optionally, add today's date to the run name.
+    if add_date:
+        today_date = datetime.now()
+        formatted_date = today_date.strftime("%m_%d_%y")
+        exp_name = f"{formatted_date}_{exp_name}"
+    
+    cfg = HDict(exp_cfg)
+    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
+
+    # Load the dataset specific config and update the base config.
+    with open(calibration_cfg_root/ f"{calibration_dataset_name}.yaml", 'r') as file:
+        dataset_cfg = yaml.safe_load(file)
+    base_cfg = base_cfg.update([dataset_cfg])
+    autosave(base_cfg.to_dict(), calibration_exp_root / "base.yml") # SAVE #2: Base config
+    
+    # We need all of our options to be in lists as convention for the product.
+    for ico_key in flat_exp_cfg:
+        # If this is a tuple, then convert it to a list.
+        if isinstance(flat_exp_cfg[ico_key], tuple):
+            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
+        # Otherwise, make sure it is a list.
+        elif not isinstance(flat_exp_cfg[ico_key], list):
+            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    
+    # Create the ablation options.
+    option_set = {
+        'log.root': [str(calibration_exp_root)],
+        **flat_exp_cfg
+    }
+
+    # Get the configs
+    cfgs = get_option_product(exp_name, option_set, base_cfg)
+
+    # This is a list of calibration model configs. But the actual calibration model
+    # should still not be defined at this point. We iterate through the configs, and replace
+    # the model config with the calibration model config.
+    for c_idx, cfg in enumerate(cfgs):
+        # Convert the Config obj to a dict.
+        cfg_dict = cfg.to_dict()
+        # Replace the model with the dict from calibration model cfgs.
+        cal_model = cfg_dict.pop('model')
+        cfg_dict['model'] = calibration_model_cfgs[cal_model]
+        # Replace the Config object with the new config dict.
+        cfgs[c_idx] = Config(cfg_dict)
+
+    # Return the train configs.
+    return cfgs
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ese_inference_configs(
     exp_cfg: dict,
     base_cfg: Config,
@@ -88,6 +156,9 @@ def get_ese_inference_configs(
 ):
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
+    # Save the experiment config.
+    inference_exp_root = scratch_root / "inference" / exp_cfg['name']
+    autosave(exp_cfg, inference_exp_root / "experiment.yml") # SAVE #1: Experiment config
     exp_name = exp_cfg.pop('name')
 
     # Optionally, add today's date to the run name.
@@ -112,6 +183,7 @@ def get_ese_inference_configs(
         cal_metrics_cfg = yaml.safe_load(file)
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
+    autosave(base_cfg.to_dict(), inference_exp_root / "base.yml") # SAVE #2: Base config
 
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
@@ -141,7 +213,6 @@ def get_ese_inference_configs(
     inf_dataset_names = [ifd.split(".")[-1] for ifd in inference_datasets]
 
     # Define the set of default config options.
-    inference_exp_root = scratch_root / "inference" / exp_name
     default_config_options = {
         'experiment.exp_name': [exp_name],
         'experiment.exp_root': [str(inference_exp_root)],
@@ -186,67 +257,3 @@ def get_ese_inference_configs(
 
     # Return the list of different configs.
     return inference_opt_list
-
-
-def get_ese_calibration_configs(
-    exp_cfg: dict,
-    base_cfg: Config,
-    calibration_model_cfgs: dict,
-    add_date: bool = True,
-    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
-    calibration_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/calibrate"),
-): 
-    # We need to flatten the experiment config to get the different options.
-    # Building new yamls under the exp_name name for model type.
-    exp_name = exp_cfg.pop('name')
-
-    # Optionally, add today's date to the run name.
-    if add_date:
-        today_date = datetime.now()
-        formatted_date = today_date.strftime("%m_%d_%y")
-        exp_name = f"{formatted_date}_{exp_name}"
-    
-    cfg = HDict(exp_cfg)
-    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
-    calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
-
-    # Load the dataset specific config and update the base config.
-    with open(calibration_cfg_root/ f"{calibration_dataset_name}.yaml", 'r') as file:
-        dataset_cfg = yaml.safe_load(file)
-    base_cfg = base_cfg.update([dataset_cfg])
-    
-    # Define the set of default config options.
-    calibration_exp_root = scratch_root / "calibration" / exp_name 
-    
-    # We need all of our options to be in lists as convention for the product.
-    for ico_key in flat_exp_cfg:
-        # If this is a tuple, then convert it to a list.
-        if isinstance(flat_exp_cfg[ico_key], tuple):
-            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
-        # Otherwise, make sure it is a list.
-        elif not isinstance(flat_exp_cfg[ico_key], list):
-            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
-    
-    # Create the ablation options.
-    option_set = {
-        'log.root': [str(calibration_exp_root)],
-        **flat_exp_cfg
-    }
-
-    # Get the configs
-    cfgs = get_option_product(exp_name, option_set, base_cfg)
-
-    # This is a list of calibration model configs. But the actual calibration model
-    # should still not be defined at this point. We iterate through the configs, and replace
-    # the model config with the calibration model config.
-    for c_idx, cfg in enumerate(cfgs):
-        # Convert the Config obj to a dict.
-        cfg_dict = cfg.to_dict()
-        # Replace the model with the dict from calibration model cfgs.
-        cal_model = cfg_dict.pop('model')
-        cfg_dict['model'] = calibration_model_cfgs[cal_model]
-        # Replace the Config object with the new config dict.
-        cfgs[c_idx] = Config(cfg_dict)
-
-    # Return the train configs.
-    return cfgs
