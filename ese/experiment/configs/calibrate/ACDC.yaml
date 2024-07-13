@@ -1,8 +1,8 @@
 train:
-  epochs: 10
+  epochs: 100
 
 data:
-  iters_per_epoch: 100
+  iters_per_epoch: 1000
 
 dataloader:
   batch_size: 8
