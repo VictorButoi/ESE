@@ -180,23 +180,22 @@ def load_cal_inference_stats(
                 if log_set_path.is_dir() and log_set_path.name not in skip_log_folders:
                     # Optionally load the information from image-based metrics.
                     log_image_df = pd.read_pickle(log_set_path / "image_stats.pkl")
-                    log_image_df["log_set"] = log_set_path.name
                     # Get the metadata corresponding to this log set.
                     metadata_log_df = metadata_df[metadata_df["log_set"] == log_set_path.name]
                     assert len(metadata_log_df) == 1, \
                         f"Metadata configuration must have one instance, found {len(metadata_log_df)}."
-                    # Copy the metadata df the number of times to match the number of rows in the log_image_df.
+                    # Tile the metadata df the number of times to match the number of rows in the log_image_df.
                     tiled_metadata_log_df = pd.concat([metadata_log_df] * len(log_image_df), ignore_index=True)
                     # Add the columns from the metadata dataframe that have unique values.
-                    log_image_df = pd.concat([log_image_df, tiled_metadata_log_df], axis=1)
+                    logset_complete_df = pd.concat([log_image_df, tiled_metadata_log_df], axis=1)
                     # Optionally load the pixel stats.
                     if results_cfg["options"].get("get_glocal_cal_metrics", False):
-                        log_image_df = pd.concat([
-                            log_image_df, 
+                        logset_complete_df = pd.concat([
+                            logset_complete_df, 
                             load_pixel_meters(log_set_path, results_cfg=results_cfg)
                         ], axis=1)
                     # Add this log to the dataframe.
-                    inference_pd_collection.append(log_image_df)
+                    inference_pd_collection.append(logset_complete_df)
         # Finally concatenate all of the inference dataframes.
         inference_df = pd.concat(inference_pd_collection, axis=0)
 
@@ -208,8 +207,6 @@ def load_cal_inference_stats(
             inference_df["slice_idx"] = "None"
         # Drop the rows corresponding to NaNs in metric_score
         if results_cfg["options"]['drop_nan_metric_rows']:
-            # Drop the rows where the metric score is NaN.
-            original_row_amount = len(inference_df)
             # Get the triples of (data_idx, slice_idx, metric_name) where metric_score is NaN.
             unique_nan_triples = inference_df[inference_df['metric_score'].isna()][['data_id', 'slice_idx', 'image_metric']].drop_duplicates()
             # Drop the rows which match the triples.
@@ -219,7 +216,7 @@ def load_cal_inference_stats(
                       (inference_df['slice_idx'] == row['slice_idx']) & 
                       (inference_df['image_metric'] == row['image_metric']))
                       ]
-            print(f"Dropping (datapoint, metric) pairs with NaN metric score. Dropped from {original_row_amount} -> {len(inference_df)} rows.")
+            print(f"Dropping (datapoint, metric) pairs with NaN metric score. Dropped from {len(inference_df)} -> {len(inference_df)} rows.")
 
         # Get the number of rows in image_info_df for each log set.
         num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
@@ -232,6 +229,9 @@ def load_cal_inference_stats(
                 print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
 
         # Go through several optional keys, and add them if they don't exist
+        new_columns = {}
+        old_raw_keys = []
+        # Go through several optional keys, and add them if they don't exist
         for raw_key in inference_df.columns:
             key_parts = raw_key.split(".")
             last_part = key_parts[-1]
@@ -241,9 +241,13 @@ def load_cal_inference_stats(
                 new_key = "_".join(key_parts)
             # If the new key isn't the same as the old key, add the new key.
             if new_key != raw_key and new_key not in inference_df.columns:
-                inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
-                # Delete the old _key
-                del inference_df[raw_key]
+                new_columns[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
+                old_raw_keys.append(raw_key)
+
+        # Add new columns to the DataFrame all at once
+        inference_df = pd.concat([inference_df, pd.DataFrame(new_columns)], axis=1)
+        # Delete the old keys
+        inference_df.drop(columns=[col for col in inference_df.columns if col in old_raw_keys], inplace=True)
 
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
