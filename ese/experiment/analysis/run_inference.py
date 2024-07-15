@@ -54,10 +54,15 @@ def get_cal_stats(
             "inf_cfg_dict": inference_cfg_dict,
             "inf_init_obj": inference_init_obj,
         }
-        for data_cfg_opt, cfg_dataloader_obj in inference_init_obj["dloaders"].items():
-            # Make the data opt args for this particualr data configuration.
-            data_props = dict(item.split(':') for item in data_cfg_opt.split('^'))
-            data_props['data_cfg_opt'] = data_cfg_opt
+        for data_cfg_str, cfg_dataloader_obj in inference_init_obj["dloaders"].items():
+
+            # Make the data opt args for this particular data configuration.
+            if len(data_cfg_str) > 0:
+                data_props = dict(item.split(':') for item in data_cfg_str.split('^'))
+            else:
+                data_props = {}
+
+            data_props['data_cfg_str'] = data_cfg_str 
             for label_idx, lab_dloader in cfg_dataloader_obj.items():
                 data_props["label_idx"] = label_idx
                 dloader_loop_args = {
@@ -66,7 +71,7 @@ def get_cal_stats(
                     **loop_base_args
                 }
                 if inference_cfg_dict["model"]["_type"] == "incontext":
-                    support_gen = inference_init_obj["supports"][data_cfg_opt][label_idx]
+                    support_gen = inference_init_obj["supports"][data_cfg_str][label_idx]
                     if inference_cfg_dict["experiment"]["fixed_support_sets"]:
                         for sup_idx in range(inference_cfg_dict['experiment']['supports_per_target']):
                             # Ensure that all subjects of the same label have the same support set.
@@ -108,16 +113,16 @@ def get_cal_stats(
             # Add a dummy column to the dataframe.
             log_image_df[cal_metric_name] = np.nan
             # Iterate through the data opts, and replace the rows corresponding to the data opt with the cal losses.
-            for data_cfg_opt in inference_init_obj["dloaders"].keys():
+            for data_cfg_str in inference_init_obj["dloaders"].keys():
                 assert cal_metric_dict['cal_type'] in ["classwise", "toplabel"],\
                     f"Calibration type {cal_metric_dict['cal_type']} not recognized."
                 tracker_key = "cw_pixel_meter_dict" if cal_metric_dict['cal_type'] == "classwise" else "tl_pixel_meter_dict"
                 # Calculate the loss.
                 cal_loss = cal_metric_dict['_fn'](
-                    pixel_meters_dict=inference_init_obj["trackers"][tracker_key][data_cfg_opt]
+                    pixel_meters_dict=inference_init_obj["trackers"][tracker_key][data_cfg_str]
                 ).item() 
-                # Replace the rows of log_image_df with column 'data_cfg_opt' 
-                log_image_df.loc[log_image_df["data_cfg_opt"] == data_cfg_opt, cal_metric_name] = cal_loss
+                # Replace the rows of log_image_df with column 'data_cfg_str' 
+                log_image_df.loc[log_image_df["data_cfg_str"] == data_cfg_str, cal_metric_name] = cal_loss
 
         # Save the dataframe again.
         if inference_cfg_dict["log"]["log_pixel_stats"]:
@@ -388,13 +393,13 @@ def get_calibration_item_info(
     # Top-label 
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
-            record_dict=trackers['tl_pixel_meter_dict'][output_dict['data_cfg_opt']],
+            record_dict=trackers['tl_pixel_meter_dict'][output_dict['data_cfg_str']],
             **cal_args
         )
     # Class-wise 
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
-            record_dict=trackers['cw_pixel_meter_dict'][output_dict['data_cfg_opt']],
+            record_dict=trackers['cw_pixel_meter_dict'][output_dict['data_cfg_str']],
             **cal_args
         )
     ##################################################################
