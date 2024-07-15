@@ -25,12 +25,15 @@ def LOAD_AUG_CONFIG():
 def gather_exp_paths(root):
     # For ensembles, define the root dir.
     run_names = os.listdir(root)
-    if "submitit" in run_names:
-        run_names.remove("submitit")
-    if "wandb" in run_names:
-        run_names.remove("wandb")
-    run_names = [f"{root}/{run_name}" for run_name in run_names]
-    return run_names
+    # NOTE: Not the best way to do this, but we need to skip over some files/directories.
+    skip_items = [
+        "submitit",
+        "wandb",
+        "base.yml",
+        "experiment.yml"
+    ]
+    # Filter out the skip_items
+    return [f"{root}/{run_name}" for run_name in run_names if run_name not in skip_items]
 
 
 def get_option_product(

@@ -153,7 +153,11 @@ def load_experiment(
 
     # Load the experiment
     if checkpoint is not None:
-        loaded_exp.load(tag=checkpoint)
+        # Very scuffed, but sometimes we want to load different checkpoints.
+        try:
+            loaded_exp.load(tag=checkpoint)
+        except Exception as e:
+            loaded_exp.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
     
     # Set the device
     loaded_exp.device = torch.device(device)
