@@ -49,26 +49,45 @@ def hash_list(input_list):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_flat_cfg(
+    cfg_name: str, 
+    cfg_dir: Path
+):
+    with open(cfg_dir, 'r') as stream:
+        logset_cfg_yaml = yaml.safe_load(stream)
+    logset_cfg = HDict(logset_cfg_yaml)
+    logset_flat_cfg = valmap(list2tuple, logset_cfg.flatten())
+    logset_flat_cfg["log_set"] = cfg_name
+    # For the rest of the keys, if the length of the value is more than 1, convert it to a string.
+    for key in logset_flat_cfg:
+        if isinstance(logset_flat_cfg[key], list) or isinstance(logset_flat_cfg[key], tuple):
+            logset_flat_cfg[key] = str(logset_flat_cfg[key])
+    # Return the flattened configuration.
+    return logset_flat_cfg
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
     results_cfg: dict,
     load_cached: bool
 ) -> dict:
     # Build a dictionary to store the inference info.
     log_cfg = results_cfg["log"] 
-    options_cfg = results_cfg["options"]
-
     log_root = log_cfg["root"] 
+
+    # Get the hash of the results_cfg dictionary.
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
-    skip_log_folders = [
-        "wandb", 
-        "submitit", 
-        "binning_exp_logs", 
-        "ensemble_upper_bounds",
-        "debug"
-    ]
+
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):
+        skip_log_folders = [
+            "wandb", 
+            "submitit", 
+            "binning_exp_logs", 
+            "ensemble_upper_bounds",
+            "debug"
+        ]
         metadata_df = pd.DataFrame([])
         # Gather inference log paths.
         all_inference_log_paths = []
@@ -94,9 +113,8 @@ def load_cal_inference_stats(
                         # Check to make sure that this log wasn't the result of a crash.
                         all_inference_log_paths.append(sub_exp_log_path)
         # Add the inference paths if they exist.
-        if "inference_paths" in log_cfg:
-            for inf_path in log_cfg["inference_paths"]:
-                all_inference_log_paths.append(inf_path)
+        for inf_path in log_cfg.get("inference_paths", []):
+            all_inference_log_paths.append(inf_path)
         # Loop through every configuration in the log directory.
         skip_log_sets = []
         for log_path in all_inference_log_paths:
@@ -108,24 +126,19 @@ def load_cal_inference_stats(
                 if log_set.is_dir() and log_set.name not in skip_log_folders:
                     # Load the metadata file (json) and add it to the metadata dataframe.
                     logset_config_dir = log_set / "config.yml"
-                    with open(logset_config_dir, 'r') as stream:
-                        logset_cfg_yaml = yaml.safe_load(stream)
-                    logset_cfg = HDict(logset_cfg_yaml)
-                    logset_flat_cfg = valmap(list2tuple, logset_cfg.flatten())
-                    logset_flat_cfg["log_set"] = log_set.name
-                    # If there are additional log attributes, add them here:
-                    inf_group = log_path.split("/")[0]
-                    if ("log_attributes" in results_cfg) and (inf_group in results_cfg["log_attributes"]):
-                        for log_attr in results_cfg["log_attributes"][inf_group]:
-                            logset_flat_cfg[log_attr] = results_cfg["log_attributes"][inf_group][log_attr]
-                    # For the rest of the keys, if the length of the value is more than 1, convert it to a string.
-                    for key in logset_flat_cfg:
-                        if isinstance(logset_flat_cfg[key], list) or isinstance(logset_flat_cfg[key], tuple):
-                            logset_flat_cfg[key] = str(logset_flat_cfg[key])
+                    logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
+                    # If there was a pretraining class, then we additionally add its config.
+                    # if results_cfg["options"].get('load_pretrained_cfg', True)\
+                    #     and 'model.pretrained_exp_root' in logset_flat_cfg:
+                    #     pretrained_cfg_dir = Path(logset_flat_cfg['model.pretrained_exp_root']) / "config.yml"
+                    #     pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
+                    #     print(pretrained_cfg_dir)
+                    #     print(pt_flat_cfg)
+                    #     raise ValueError
                     # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
                     metadata_df = pd.concat([metadata_df, pd.DataFrame(logset_flat_cfg, index=[0])])
         # Gather the columns that have unique values amongst the different configurations.
-        if options_cfg["remove_shared_columns"]:
+        if results_cfg["options"]["remove_shared_columns"]:
             meta_cols = []
             for col in metadata_df.columns:
                 if len(metadata_df[col].unique()) > 1:
@@ -162,7 +175,7 @@ def load_cal_inference_stats(
                         if col not in log_image_df.columns: # If the column is not already in the dataframe, add it.
                             log_image_df[col] = metadata_log_df[col].values[0]
                     # Optionally load the pixel stats.
-                    if options_cfg.get("load_pixel_meters", False):
+                    if results_cfg["options"].get("load_pixel_meters", False):
                         with open(log_set / "pixel_stats.pkl", 'rb') as f:
                             pixel_meter_dict = pickle.load(f)
                         # Loop through the calibration metrics and add them to the dataframe.
@@ -181,7 +194,7 @@ def load_cal_inference_stats(
         if "slice_idx" not in inference_df.columns:
             inference_df["slice_idx"] = "None"
         # Drop the rows corresponding to NaNs in metric_score
-        if options_cfg['drop_nan_metric_rows']:
+        if results_cfg["options"]['drop_nan_metric_rows']:
             # Drop the rows where the metric score is NaN.
             original_row_amount = len(inference_df)
             # Get the triples of (data_idx, slice_idx, metric_name) where metric_score is NaN.
@@ -197,7 +210,7 @@ def load_cal_inference_stats(
 
         # Get the number of rows in image_info_df for each log set.
         num_rows_per_log_set = inference_df.groupby(["log.root", "log_set"]).size()
-        if options_cfg["equal_rows_per_cfg_assert"]:
+        if results_cfg["options"]["equal_rows_per_cfg_assert"]:
             # Make sure there is only one unique value in the above.
             assert len(num_rows_per_log_set.unique()) == 1, \
                 f"The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}."
@@ -218,17 +231,11 @@ def load_cal_inference_stats(
                 inference_df[new_key] = inference_df[raw_key].fillna("None") # Fill the key with "None" if it is NaN.
                 # Delete the old _key
                 del inference_df[raw_key]
-        
-        # Add keys that are necessary for the analysis.
-        if '_pretrained_class' not in inference_df.columns:
-            inference_df['_pretrained_class'] = "None"
-        else:
-            inference_df['_pretrained_class'] = inference_df['_pretrained_class'].fillna("None")
-        
+
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
-        if options_cfg.get('add_dice_loss_rows', False):
-            inference_df = add_dice_loss_rows(inference_df, opts_cfg=options_cfg)
+        if results_cfg["options"].get('add_dice_loss_rows', False):
+            inference_df = add_dice_loss_rows(inference_df, opts_cfg=results_cfg["options"])
 
         # If precomputed_results_path doesn't exist, create it.
         if not os.path.exists(os.path.dirname(precomputed_results_path)):

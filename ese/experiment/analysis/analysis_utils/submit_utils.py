@@ -250,9 +250,9 @@ def get_ese_inference_configs(
                 **default_config_options
             }
             if 'submitit' in os.listdir(model_group_dir):
-                run_opt_args['model.pretrained_exp_root'] = gather_exp_paths(str(model_group_dir)) 
+                run_opt_args['experiment.model_dir'] = gather_exp_paths(str(model_group_dir)) 
             else:
-                run_opt_args['model.pretrained_exp_root'] = [str(model_group_dir)]
+                run_opt_args['experiment.model_dir'] = [str(model_group_dir)]
             # Append these to the list of configs and roots.
             dataset_cfgs.append(run_opt_args)
         # Iterate over the different config options for this dataset. 

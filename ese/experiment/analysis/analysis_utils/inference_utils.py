@@ -268,6 +268,7 @@ def cal_stats_init(
     # Update important keys in the inference cfg.
     inference_cfg['dataset'] = modified_dataset_cfg 
     inference_cfg['loss_func'] = exp_total_config['loss_func']
+    inference_cfg['train'] = exp_total_config['train']
     #############################
     trackers = {
         "image_stats": [],
@@ -370,7 +371,7 @@ def load_inference_exp_from_cfg(inference_cfg):
             "checkpoint": inf_model_cfg['checkpoint'],
             "load_data": False,
             "set_seed": False,
-            **get_exp_load_info(inf_model_cfg['pretrained_exp_root']),
+            **get_exp_load_info(inference_cfg['experiment']['model_dir']),
         }
         if "_attr" in inf_model_cfg:
             load_exp_args['attr_dict'] = inf_model_cfg['_attr']
