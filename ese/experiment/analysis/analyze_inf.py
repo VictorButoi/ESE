@@ -60,7 +60,13 @@ def load_cal_inference_stats(
     log_root = log_cfg["root"] 
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
-    skip_log_folders = ["wandb", "submitit", "binning_exp_logs", "debug", "ensemble_upper_bounds"]
+    skip_log_folders = [
+        "wandb", 
+        "submitit", 
+        "binning_exp_logs", 
+        "ensemble_upper_bounds",
+        "debug"
+    ]
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):
         metadata_df = pd.DataFrame([])
@@ -79,8 +85,10 @@ def load_cal_inference_stats(
             # but it's what we had done before.
             else:
                 for sub_exp in group_folders:
-                    if sub_exp not in skip_log_folders:
-                        sub_exp_log_path = inf_group + "/" + sub_exp
+                    sub_exp_log_path = inf_group + "/" + sub_exp
+                    # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+                    # Verify that it is a folder and also that it is not in the skip_log_folders.
+                    if os.path.isdir(sub_exp_log_path) and sub_exp not in skip_log_folders:
                         # Check to make sure this log wasn't the result of a crash.
                         verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                         # Check to make sure that this log wasn't the result of a crash.
@@ -95,7 +103,9 @@ def load_cal_inference_stats(
             log_dir = Path(os.path.join(log_root, log_path))
             # In this case, there are multiple log sets in the log directory.
             for log_set in log_dir.iterdir():
-                if log_set.name not in skip_log_folders:
+                # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+                # Verify that log_set is a directory and that it's not in the skip_log_folders.
+                if log_set.is_dir() and log_set.name not in skip_log_folders:
                     # Load the metadata file (json) and add it to the metadata dataframe.
                     logset_config_dir = log_set / "config.yml"
                     with open(logset_config_dir, 'r') as stream:
@@ -103,13 +113,6 @@ def load_cal_inference_stats(
                     logset_cfg = HDict(logset_cfg_yaml)
                     logset_flat_cfg = valmap(list2tuple, logset_cfg.flatten())
                     logset_flat_cfg["log_set"] = log_set.name
-                    # Count the number of ensemble members.
-                    if "ensemble.member_paths" in logset_flat_cfg and logset_flat_cfg["ensemble.member_paths"] != "None":
-                        logset_flat_cfg["num_ensemble_members"] = len(logset_flat_cfg["ensemble.member_paths"])
-                        logset_flat_cfg["ensemble_hash"] = hash_list(logset_flat_cfg["ensemble.member_paths"])
-                    else:
-                        logset_flat_cfg["num_ensemble_members"] = "None"
-                        logset_flat_cfg["ensemble_hash"] = "None"
                     # If there are additional log attributes, add them here:
                     inf_group = log_path.split("/")[0]
                     if ("log_attributes" in results_cfg) and (inf_group in results_cfg["log_attributes"]):
@@ -145,7 +148,8 @@ def load_cal_inference_stats(
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             for log_set in log_dir.iterdir():
-                if log_set.name not in skip_log_sets + skip_log_folders:
+                # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+                if log_set.is_dir() and log_set.name not in (skip_log_sets + skip_log_folders):
                     # Get the metadata corresponding to this log set.
                     metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
                     # Optionally load the information from image-based metrics.
@@ -221,46 +225,14 @@ def load_cal_inference_stats(
         else:
             inference_df['_pretrained_class'] = inference_df['_pretrained_class'].fillna("None")
         
-        # Here are a few common columns that we will always want in the dataframe.    
-        def method_name(
-            model_class, 
-            _pretrained_class, 
-            experiment_pretrained_seed
-        ):
-            if model_class in ["Vanilla", "FT_CE", "FT_Dice"]:
-                return f"UNet (seed={experiment_pretrained_seed})"
-            elif _pretrained_class == "None":
-                return f"{model_class.split('.')[-1]} (seed={experiment_pretrained_seed})"
-            else:
-                return f"{_pretrained_class.split('.')[-1]} (seed={experiment_pretrained_seed})"
-
-        def joint_data_slice_id(data_id, slice_idx):
-            return f"{data_id}_{slice_idx}"
-
-        # Add the new columns
-        inference_df.augment(joint_data_slice_id)
-        inference_df.augment(method_name)
-
-        # Load the average unet baseline results.
-        if options_cfg.get('add_baseline_rows', False):
-            unique_num_ensemble_mem = inference_df['num_ensemble_members'].unique()
-            unet_avg = get_average_unet_baselines(
-                inference_df, 
-                per_calibrator=(len(unique_num_ensemble_mem) == 1),
-                group_metrics=list(cal_metrics.keys())
-            )
-            # For every num_ensembles, we need to add the average UNet baseline.
-            for num_ensembles in unique_num_ensemble_mem:
-                if num_ensembles != 'None':
-                    unet_avg_copy = unet_avg.copy()
-                    unet_avg_copy['num_ensemble_members'] = num_ensembles
-                    inference_df = pd.concat([inference_df, unet_avg_copy], axis=0, ignore_index=True)
-
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
         if options_cfg.get('add_dice_loss_rows', False):
             inference_df = add_dice_loss_rows(inference_df, opts_cfg=options_cfg)
 
+        # If precomputed_results_path doesn't exist, create it.
+        if not os.path.exists(os.path.dirname(precomputed_results_path)):
+            os.makedirs(os.path.dirname(precomputed_results_path))
         # Save the inference info to a pickle file.
         with open(precomputed_results_path, 'wb') as f:
             pickle.dump(inference_df, f)

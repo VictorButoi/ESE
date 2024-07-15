@@ -115,6 +115,9 @@ class PostHocExperiment(TrainExperiment):
             self.base_model = torch.nn.Identity()
             # Load the model, there is no learned calibrator.
             self.model = self.pretrained_exp.model
+            # Edit the model_config.
+            total_cfg_dict['model']['_class'] = parse_class_name(str(self.base_model.__class__))
+            total_cfg_dict['model']['_pretrained_class'] = parse_class_name(str(self.model.__class__))
         else:
             self.base_model = self.pretrained_exp.model
             self.base_model.eval()
@@ -126,6 +129,9 @@ class PostHocExperiment(TrainExperiment):
             # Load the model
             self.model = eval_config(model_cfg_dict)
             self.model.weights_init()
+            # Edit the model_config, note that this is flipped with above.
+            total_cfg_dict['model']['_class'] = parse_class_name(str(self.model.__class__))
+            total_cfg_dict['model']['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
 
 
         ########################################################################
@@ -135,9 +141,6 @@ class PostHocExperiment(TrainExperiment):
         self.properties["num_params"] = num_params(self.model)
         # Set the new experiment params as the old ones.
         total_cfg_dict['experiment'] = pretrained_total_cfg_dict['experiment']
-        # Edit the model_config.
-        total_cfg_dict['model']['_class'] = self.model_class
-        total_cfg_dict['model']['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
         # Save the new config because we edited it and reset self.config
         autosave(total_cfg_dict, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_cfg_dict)
