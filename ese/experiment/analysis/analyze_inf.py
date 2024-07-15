@@ -49,6 +49,29 @@ def hash_list(input_list):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def load_pixel_meters(
+    log_set_dir: Path,
+    results_cfg: dict
+):
+    cal_metric_dict = yaml.safe_load(open(results_cfg["calibration"]["metric_cfg_file"], 'r'))
+    cal_metrics = preload_calibration_metrics(
+        base_cal_cfg=results_cfg["calibration"],
+        cal_metrics_dict=cal_metric_dict["global_cal_metrics"]
+    )
+
+    with open(log_set_dir / "pixel_stats.pkl", 'rb') as f:
+        pixel_meter_dict = pickle.load(f)
+
+    # Loop through the calibration metrics and add them to the dataframe.
+    global_met_df = {}
+    for cal_metric_name, cal_metric_dict in cal_metrics.items():
+        global_met_df[cal_metric_name] = cal_metric_dict['_fn'](
+            pixel_meters_dict=pixel_meter_dict
+        ).item() 
+    return global_met_df
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_flat_cfg(
     cfg_name: str, 
     cfg_dir: Path
@@ -88,7 +111,6 @@ def load_cal_inference_stats(
             "ensemble_upper_bounds",
             "debug"
         ]
-        metadata_df = pd.DataFrame([])
         # Gather inference log paths.
         all_inference_log_paths = []
         for inf_group in log_cfg["inference_groups"]:
@@ -116,7 +138,7 @@ def load_cal_inference_stats(
         for inf_path in log_cfg.get("inference_paths", []):
             all_inference_log_paths.append(inf_path)
         # Loop through every configuration in the log directory.
-        skip_log_sets = []
+        metadata_pd_collection = []
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
             # In this case, there are multiple log sets in the log directory.
@@ -128,15 +150,18 @@ def load_cal_inference_stats(
                     logset_config_dir = log_set / "config.yml"
                     logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
                     # If there was a pretraining class, then we additionally add its config.
-                    # if results_cfg["options"].get('load_pretrained_cfg', True)\
-                    #     and 'model.pretrained_exp_root' in logset_flat_cfg:
-                    #     pretrained_cfg_dir = Path(logset_flat_cfg['model.pretrained_exp_root']) / "config.yml"
-                    #     pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
-                    #     print(pretrained_cfg_dir)
-                    #     print(pt_flat_cfg)
-                    #     raise ValueError
-                    # Convert the dictionary to a dataframe and concatenate it to the metadata dataframe.
-                    metadata_df = pd.concat([metadata_df, pd.DataFrame(logset_flat_cfg, index=[0])])
+                    if results_cfg["options"].get('load_pretrained_cfg', True)\
+                        and 'train.pretrained_dir' in logset_flat_cfg:
+                        pretrained_cfg_dir = Path(logset_flat_cfg['train.pretrained_dir']) / "config.yml"
+                        pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
+                        # Add 'pretraining' to the keys of the pretrained config.
+                        pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
+                        # Update the logset_flat_cfg with the pretrained config.
+                        logset_flat_cfg.update(pt_flat_cfg)
+                    # Append the df of the dictionary.
+                    metadata_pd_collection.append(logset_flat_cfg)
+        # Finally, concatenate all of the metadata dataframes.
+        metadata_df = pd.DataFrame(metadata_pd_collection) 
         # Gather the columns that have unique values amongst the different configurations.
         if results_cfg["options"]["remove_shared_columns"]:
             meta_cols = []
@@ -145,47 +170,35 @@ def load_cal_inference_stats(
                     meta_cols.append(col)
         else:
             meta_cols = metadata_df.columns
-        ##################################
-        # INITIALIZE CALIBRATION METRICS #
-        ##################################
-        if "calibration" in results_cfg:
-            cal_metric_dict = yaml.safe_load(open(results_cfg["calibration"]["metric_cfg_file"], 'r'))
-            compute_cal_mets = results_cfg["log"].get("compute_cal_metrics", False)
-            cal_metrics = preload_calibration_metrics(
-                base_cal_cfg=results_cfg["calibration"],
-                cal_metrics_dict=cal_metric_dict["global_cal_metrics"]
-            )
         #############################
-        inference_df = pd.DataFrame([])
+        inference_pd_collection = []
         # Loop through every configuration in the log directory.
         for log_path in all_inference_log_paths:
             log_dir = Path(os.path.join(log_root, log_path))
-            for log_set in log_dir.iterdir():
+            for log_set_path in log_dir.iterdir():
                 # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
-                if log_set.is_dir() and log_set.name not in (skip_log_sets + skip_log_folders):
-                    # Get the metadata corresponding to this log set.
-                    metadata_log_df = metadata_df[metadata_df["log_set"] == log_set.name]
+                if log_set_path.is_dir() and log_set_path.name not in skip_log_folders:
                     # Optionally load the information from image-based metrics.
-                    log_image_df = pd.read_pickle(log_set / "image_stats.pkl")
-                    log_image_df["log_set"] = log_set.name
+                    log_image_df = pd.read_pickle(log_set_path / "image_stats.pkl")
+                    log_image_df["log_set"] = log_set_path.name
+                    # Get the metadata corresponding to this log set.
+                    metadata_log_df = metadata_df[metadata_df["log_set"] == log_set_path.name]
+                    assert len(metadata_log_df) == 1, \
+                        f"Metadata configuration must have one instance, found {len(metadata_log_df)}."
+                    # Copy the metadata df the number of times to match the number of rows in the log_image_df.
+                    tiled_metadata_log_df = pd.concat([metadata_log_df] * len(log_image_df), ignore_index=True)
                     # Add the columns from the metadata dataframe that have unique values.
-                    for col in meta_cols:
-                        assert len(metadata_log_df[col].unique()) == 1, \
-                            f"Column {col} has more than one unique value in the metadata dataframe for log set {log_set}."
-                        if col not in log_image_df.columns: # If the column is not already in the dataframe, add it.
-                            log_image_df[col] = metadata_log_df[col].values[0]
+                    log_image_df = pd.concat([log_image_df, tiled_metadata_log_df], axis=1)
                     # Optionally load the pixel stats.
-                    if results_cfg["options"].get("load_pixel_meters", False):
-                        with open(log_set / "pixel_stats.pkl", 'rb') as f:
-                            pixel_meter_dict = pickle.load(f)
-                        # Loop through the calibration metrics and add them to the dataframe.
-                        for cal_metric_name, cal_metric_dict in cal_metrics.items():
-                            if cal_metric_name not in log_image_df.columns and compute_cal_mets:
-                                log_image_df[cal_metric_name] = cal_metric_dict['_fn'](
-                                    pixel_meters_dict=pixel_meter_dict
-                                ).item() 
+                    if results_cfg["options"].get("get_glocal_cal_metrics", False):
+                        log_image_df = pd.concat([
+                            log_image_df, 
+                            load_pixel_meters(log_set_path, results_cfg=results_cfg)
+                        ], axis=1)
                     # Add this log to the dataframe.
-                    inference_df = pd.concat([inference_df, log_image_df])
+                    inference_pd_collection.append(log_image_df)
+        # Finally concatenate all of the inference dataframes.
+        inference_df = pd.concat(inference_pd_collection, axis=0)
 
         #########################################
         # POST-PROCESSING STEPS

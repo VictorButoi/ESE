@@ -117,7 +117,6 @@ class PostHocExperiment(TrainExperiment):
             self.model = self.pretrained_exp.model
             # Edit the model_config.
             total_cfg_dict['model']['_class'] = parse_class_name(str(self.base_model.__class__))
-            total_cfg_dict['model']['_pretrained_class'] = parse_class_name(str(self.model.__class__))
         else:
             self.base_model = self.pretrained_exp.model
             self.base_model.eval()
@@ -131,8 +130,6 @@ class PostHocExperiment(TrainExperiment):
             self.model.weights_init()
             # Edit the model_config, note that this is flipped with above.
             total_cfg_dict['model']['_class'] = parse_class_name(str(self.model.__class__))
-            total_cfg_dict['model']['_pretrained_class'] = parse_class_name(str(self.base_model.__class__))
-
 
         ########################################################################
         # Make sure we use the old experiment seed and add important metadata. #
