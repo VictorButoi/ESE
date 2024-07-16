@@ -52,13 +52,15 @@ class PostHocExperiment(TrainExperiment):
 
         if load_data:
             if "train_splits" in new_data_cfg and "val_splits" in new_data_cfg:
+                train_split = new_data_cfg.pop("train_splits")
+                val_split = new_data_cfg.pop("val_splits")
                 self.train_dataset = dataset_cls(
-                    split=new_data_cfg.pop("train_splits"), 
+                    split= train_split,
                     transforms=train_transforms, 
                     **new_data_cfg
                 )
                 self.val_dataset = dataset_cls(
-                    split=new_data_cfg.pop("val_splits"), 
+                    split=val_split,
                     transforms=val_transforms, 
                     **new_data_cfg
                 )
