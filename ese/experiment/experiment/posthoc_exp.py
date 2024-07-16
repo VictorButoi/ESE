@@ -52,13 +52,27 @@ class PostHocExperiment(TrainExperiment):
 
         if load_data:
             if "train_splits" in new_data_cfg and "val_splits" in new_data_cfg:
-                train_splits = new_data_cfg.pop("train_splits")
-                val_splits = new_data_cfg.pop("val_splits")
-                self.train_dataset = dataset_cls(split=train_splits, transforms=train_transforms, **new_data_cfg)
-                self.val_dataset = dataset_cls(split=val_splits, transforms=val_transforms, **new_data_cfg)
+                self.train_dataset = dataset_cls(
+                    split=new_data_cfg.pop("train_splits"), 
+                    transforms=train_transforms, 
+                    **new_data_cfg
+                )
+                self.val_dataset = dataset_cls(
+                    split=new_data_cfg.pop("val_splits"), 
+                    transforms=val_transforms, 
+                    **new_data_cfg
+                )
             else:
-                self.train_dataset = dataset_cls(split="train", transforms=train_transforms, **new_data_cfg)
-                self.val_dataset = dataset_cls(split="val", transforms=val_transforms, **new_data_cfg)
+                self.train_dataset = dataset_cls(
+                    split="train", 
+                    transforms=train_transforms, 
+                    **new_data_cfg
+                )
+                self.val_dataset = dataset_cls(
+                    split="val", 
+                    transforms=val_transforms, 
+                    **new_data_cfg
+                )
 
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
@@ -127,7 +141,9 @@ class PostHocExperiment(TrainExperiment):
             ########################
             # Load the model
             self.model = eval_config(model_cfg_dict)
-            self.model.weights_init()
+            # If the model has a weights_init method, call it to initialize the weights.
+            if hasattr(self.model, "weights_init"):
+                self.model.weights_init()
             # Edit the model_config, note that this is flipped with above.
             total_cfg_dict['model']['_class'] = parse_class_name(str(self.model.__class__))
 

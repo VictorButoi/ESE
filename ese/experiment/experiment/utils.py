@@ -139,32 +139,29 @@ def load_experiment(
             props = json.loads(prop_file.read())
         exp_class = props["experiment"]["class"]
     # Load the class
-    if "universeg" in exp_class.lower():
-        exp_class = absolute_import(f'universeg.experiment.experiment.{exp_class}')
-        loaded_exp = exp_class(exp_path)
-    else:
-        exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
-        loaded_exp = exp_class(
-            exp_path, 
-            init_metrics=False, 
-            load_data=load_data,
-            set_seed=set_seed
-        )
+    exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
+    exp_obj = exp_class(
+        exp_path, 
+        init_metrics=False, 
+        load_data=load_data,
+        set_seed=set_seed
+    )
 
     # Load the experiment
     if checkpoint is not None:
         # Very scuffed, but sometimes we want to load different checkpoints.
+        print(f"Loading checkpoint: {checkpoint}")
         try:
-            loaded_exp.load(tag=checkpoint)
+            exp_obj.load(tag=checkpoint)
         except Exception as e:
-            loaded_exp.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
+            exp_obj.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
     
     # Set the device
-    loaded_exp.device = torch.device(device)
+    exp_obj.device = torch.device(device)
     if device == "cuda":
-        loaded_exp.to_device()
+        exp_obj.to_device()
     
-    return loaded_exp
+    return exp_obj
 
 
 def get_exp_load_info(pretrained_exp_root):
