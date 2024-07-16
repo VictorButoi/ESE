@@ -128,8 +128,7 @@ class PostHocExperiment(TrainExperiment):
         # Either keep training the network, or use a post-hoc calibrator.
         self.model_class = model_cfg_dict['_class']
         if self.model_class is None:
-            self.base_model = torch.nn.Identity()
-            # Load the model, there is no learned calibrator.
+            self.base_model = torch.nn.Identity() # Therh is no learned calibrator.
             self.model = self.pretrained_exp.model
             # Edit the model_config.
             total_cfg_dict['model']['_class'] = parse_class_name(str(self.base_model.__class__))
@@ -139,9 +138,6 @@ class PostHocExperiment(TrainExperiment):
             # Get the old in and out channels from the pretrained model.
             model_cfg_dict["num_classes"] = pretrained_model_cfg_dict['out_channels']
             model_cfg_dict["image_channels"] = pretrained_model_cfg_dict['in_channels']
-            # BUILD THE CALIBRATOR #
-            ########################
-            # Load the model
             self.model = eval_config(model_cfg_dict)
             # If the model has a weights_init method, call it to initialize the weights.
             if hasattr(self.model, "weights_init"):

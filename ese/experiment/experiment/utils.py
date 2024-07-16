@@ -150,10 +150,12 @@ def load_experiment(
     # Load the experiment
     if checkpoint is not None:
         # Very scuffed, but sometimes we want to load different checkpoints.
-        print(f"Loading checkpoint: {checkpoint}")
         try:
+            print(f"Loading checkpoint: {checkpoint}.")
             exp_obj.load(tag=checkpoint)
         except Exception as e:
+            print(e)
+            print("Defaulting to loading: max-val-dice_score.")
             exp_obj.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
     
     # Set the device
