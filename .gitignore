@@ -1,6 +1,7 @@
 .idea/
 __pycache__/
 wandb/
+notebooks/experiments/
 notebooks/err_analysis/bpets_err.ipynb
 notebooks/err_analysis/cityscapes_err.ipynb
 notebooks/err_analysis/oasis_35_err.ipynb
