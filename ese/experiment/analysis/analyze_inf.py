@@ -134,9 +134,6 @@ def load_cal_inference_stats(
                         verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                         # Check to make sure that this log wasn't the result of a crash.
                         all_inference_log_paths.append(sub_exp_log_path)
-        # Add the inference paths if they exist.
-        for inf_path in log_cfg.get("inference_paths", []):
-            all_inference_log_paths.append(inf_path)
         # Loop through every configuration in the log directory.
         metadata_pd_collection = []
         for log_path in all_inference_log_paths:
