@@ -70,7 +70,10 @@ class Popcorn_Scaling(nn.Module):
         self.temperature_kernel = nn.Parameter(torch.ones(ksize, ksize))
 
     def weights_init(self):
-        if self.init_mode == 'delta':
+        if self.init_mode == 'random':
+            # Randomly initialize the kernel weights
+            self.temperature_kernel.data.normal_(0, 0.01)
+        elif self.init_mode == 'delta':
             self.temperature_kernel.data.fill_(0)
             self.temperature_kernel.data[self.ksize//2, self.ksize//2] = 1
         elif self.init_mode == 'uniform':

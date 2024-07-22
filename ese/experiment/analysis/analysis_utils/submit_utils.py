@@ -155,8 +155,11 @@ def get_ese_calibration_configs(
         # Convert the Config obj to a dict.
         cfg_dict = cfg.to_dict()
         # Replace the model with the dict from calibration model cfgs.
-        cal_model = cfg_dict.pop('model')
-        cfg_dict['model'] = cal_model_cfgs[cal_model]
+        cal_model_cfg = cfg_dict.pop('model')
+        model_cfg = cal_model_cfgs[cal_model_cfg.pop('class_name')].copy()
+        # Update with the new params and put it back in the cfg.
+        model_cfg.update(cal_model_cfg)
+        cfg_dict['model'] = model_cfg 
         # Replace the Config object with the new config dict.
         cfgs[c_idx] = Config(cfg_dict)
 
