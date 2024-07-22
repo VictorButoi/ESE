@@ -1,0 +1,20 @@
+# For calibration methods.
+Finetune:
+  _class: null
+  
+TempScaling:
+  _class: ese.experiment.models.calibrators.Temperature_Scaling
+
+ImageBasedTS:
+  _class: ese.experiment.models.calibrators.ImageBasedTS
+  img_channels: 1
+  num_classes: 1
+
+LocalTS:
+  _class: ese.experiment.models.calibrators.LocalTS
+  img_channels: 1
+  num_classes: 1
+  filters:
+    - 4 
+    - 4 
+    - 4 

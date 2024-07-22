@@ -5,8 +5,10 @@ import torch.nn.functional as F
 from torchvision.models import resnet18
 # misc imports
 import math
+from typing import Literal
 # local imports
 from .unet import UNet
+from .utils import create_gaussian_tensor
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
     
@@ -48,6 +50,70 @@ class Temperature_Scaling(nn.Module):
         temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1)
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
+class Popcorn_Scaling(nn.Module):
+    def __init__(
+        self, 
+        ksize: int, 
+        init_mode: Literal['delta', 'uniform', 'gaussian'] = 'delta',
+        **kwargs
+    ):
+        super(Popcorn_Scaling, self).__init__()
+        assert ksize % 2 == 1, "Kernel size must be odd."
+        self.ksize = ksize
+        self.init_mode = init_mode
+        self.temperature_kernel = nn.Parameter(torch.ones(ksize, ksize))
+
+    def weights_init(self):
+        if self.init_mode == 'delta':
+            self.temperature_kernel.data.fill_(0)
+            self.temperature_kernel.data[self.ksize//2, self.ksize//2] = 1
+        elif self.init_mode == 'uniform':
+            # Initialize the kernel as uniform with each element being 1/ksize^2
+            self.temperature_kernel.data.fill_(1 / (self.ksize**2))
+        elif self.init_mode == 'gaussian':
+            # Initialize the kernel as a guassian centered at the middle pixel.
+            self.temperature_kernel = nn.Parameter(create_gaussian_tensor(mu=0.0, sigma=1.0, ksize=self.ksize))
+        else:
+            raise ValueError(f"Invalid init_mode: {self.init_mode}")
+        
+    def forward(self, logits, **kwargs):
+        # Expand the shape of the kernel to match the shape of the logits.
+        temperature_kernel = self.temperature_kernel[None, None, ...]
+        # Convolve the logits with the temperature kernel.
+        tempered_logits = F.conv2d(logits, temperature_kernel, padding=self.ksize//2) 
+        # Finally, scale the logits by the temperatures.
+        return tempered_logits
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
+class Gaussian_Temperature_Scaling(nn.Module):
+    def __init__(self, ksize, **kwargs):
+        super(Gaussian_Temperature_Scaling, self).__init__()
+        assert ksize % 2 == 1, "Kernel size must be odd."
+        # Initialize the kernel with a Gaussian distribution.
+        self.mu = nn.Parameter(torch.ones(1))
+        self.sigma = nn.Parameter(torch.zeros(1))
+        self.ksize = ksize
+    
+    def forward(self, logits, **kwargs):
+        gaussian_temp_kernel = create_gaussian_tensor(
+            mu=self.mu,
+            sigma=self.sigma,
+            ksize=self.ksize 
+        )[None, None, ...]
+        # Expand the shape of temp map to match the shape of the logits
+        tempered_logits = F.conv2d(logits, gaussian_temp_kernel, padding=self.ksize//2) 
+        # Finally, scale the logits by the temperatures.
+        return tempered_logits
 
     @property
     def device(self):

@@ -94,10 +94,10 @@ def get_ese_training_configs(
 def get_ese_calibration_configs(
     exp_cfg: dict,
     base_cfg: Config,
-    calibration_model_cfgs: dict,
     add_date: bool = True,
-    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
-    calibration_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/calibrate"),
+    calibration_model_cfgs: dict = {},
+    code_root: Path = Path("/storage/vbutoi/projects/ESE"),
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE")
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
@@ -114,11 +114,21 @@ def get_ese_calibration_configs(
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
+    cfg_root = code_root / "ese"/ "experiment" / "configs" 
+
     # Load the dataset specific config and update the base config.
-    with open(calibration_cfg_root/ f"{calibration_dataset_name}.yaml", 'r') as file:
+    with open(cfg_root / "calibrate" / f"{calibration_dataset_name}.yaml", 'r') as file:
         dataset_cfg = yaml.safe_load(file)
     base_cfg = base_cfg.update([dataset_cfg])
     autosave(base_cfg.to_dict(), calibration_exp_root / "base.yml") # SAVE #2: Base config
+
+    # We want to load the base calibrator model configs (from yaml file) and 
+    # then update it with the new calibration model configs.
+    with open(cfg_root / "defaults" / "Calibrator_Models.yaml", 'r') as file:
+        base_cal_models_cfg = yaml.safe_load(file)
+    # Update base_cal_models_cfg with calibration_model_cfgs
+    cal_model_cfgs = base_cal_models_cfg.copy()
+    cal_model_cfgs.update(calibration_model_cfgs)
     
     # We need all of our options to be in lists as convention for the product.
     for ico_key in flat_exp_cfg:
@@ -146,7 +156,7 @@ def get_ese_calibration_configs(
         cfg_dict = cfg.to_dict()
         # Replace the model with the dict from calibration model cfgs.
         cal_model = cfg_dict.pop('model')
-        cfg_dict['model'] = calibration_model_cfgs[cal_model]
+        cfg_dict['model'] = cal_model_cfgs[cal_model]
         # Replace the Config object with the new config dict.
         cfgs[c_idx] = Config(cfg_dict)
 
