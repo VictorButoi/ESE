@@ -13,10 +13,10 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
-import time
 import einops
 import numpy as np
 import seaborn as sns
+from pprint import pprint
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from typing import Literal, Optional
@@ -75,6 +75,9 @@ class CalibrationExperiment(TrainExperiment):
             model_config["out_channels"] = data_config.pop("out_channels")
         # Set important things about the model.
         self.config = Config(total_config)
+
+        pprint(self.config["model"])
+
         self.model = eval_config(self.config["model"])
         self.properties["num_params"] = num_params(self.model)
     

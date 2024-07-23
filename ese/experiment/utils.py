@@ -139,7 +139,7 @@ def load_experiment(
             props = json.loads(prop_file.read())
         exp_class = props["experiment"]["class"]
     # Load the class
-    exp_class = absolute_import(f'ese.experiment.experiment.{exp_class}')
+    exp_class = absolute_import(f'ese.experiment.{exp_class}')
     exp_obj = exp_class(
         exp_path, 
         init_metrics=False, 

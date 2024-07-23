@@ -3,15 +3,15 @@ Finetune:
   _class: null
   
 TempScaling:
-  _class: ese.experiment.models.calibrators.Temperature_Scaling
+  _class: ese.models.calibrators.Temperature_Scaling
 
 ImageBasedTS:
-  _class: ese.experiment.models.calibrators.ImageBasedTS
+  _class: ese.models.calibrators.ImageBasedTS
   img_channels: 1
   num_classes: 1
 
 LocalTS:
-  _class: ese.experiment.models.calibrators.LocalTS
+  _class: ese.models.calibrators.LocalTS
   img_channels: 1
   num_classes: 1
   filters:
@@ -21,6 +21,6 @@ LocalTS:
 
 # For calibration methods.
 PopcornScaling:
-  _class: ese.experiment.models.calibrators.Popcorn_Scaling
+  _class: ese.models.calibrators.Popcorn_Scaling
   ksize: 5 
   init_mode: random 

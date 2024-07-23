@@ -44,7 +44,7 @@ def get_ese_training_configs(
     base_cfg: Config,
     add_date: bool = True,
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
-    train_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/training"),
+    train_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/configs/training"),
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
@@ -114,7 +114,7 @@ def get_ese_calibration_configs(
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
-    cfg_root = code_root / "ese"/ "experiment" / "configs" 
+    cfg_root = code_root / "ese"/ "configs" 
 
     # Load the dataset specific config and update the base config.
     with open(cfg_root / "calibrate" / f"{calibration_dataset_name}.yaml", 'r') as file:
@@ -188,8 +188,7 @@ def get_ese_inference_configs(
     add_date: bool = True,
     power_set_keys: Optional[List[str]] = None,
     code_root: Path = Path("/storage/vbutoi/projects/ESE"),
-    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
-    inf_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/experiment/configs/inference"),
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE")
 ):
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
@@ -213,7 +212,7 @@ def get_ese_inference_configs(
 
     # Load the inference cfg from local.
     ##################################################
-    default_cfg_root = code_root / "ese" / "experiment" / "configs" / "defaults"
+    default_cfg_root = code_root / "ese" / "configs" / "defaults"
     ##################################################
     with open(default_cfg_root / "Calibration_Metrics.yaml", 'r') as file:
         cal_metrics_cfg = yaml.safe_load(file)
@@ -257,7 +256,7 @@ def get_ese_inference_configs(
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for d_idx, dataset_name in enumerate(inf_dataset_names):
         # Add the dataset specific details.
-        with open(inf_cfg_root / f"{dataset_name}.yaml", 'r') as file:
+        with open(code_root / "ese" / "configs" / "inference" / f"{dataset_name}.yaml", 'r') as file:
             dataset_inference_cfg = yaml.safe_load(file)
         # Update the base config with the dataset specific config.
         dataset_base_cfg = base_cfg.update([dataset_inference_cfg])

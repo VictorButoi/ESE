@@ -3,7 +3,7 @@ import numpy as np
 from typing import Any, Literal
 from pydantic import validate_arguments
 # Local imports
-from ese.experiment.metrics.utils import get_bins
+from ese.metrics.utils import get_bins
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
