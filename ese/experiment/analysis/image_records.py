@@ -168,6 +168,7 @@ def get_image_stats(
         print("---------")
         pprint(output_metadata)
         # Make a new line.
+        print("--------------------------------------------------------------------------")
         print()
 
     # We want to generate a hash of this metadata, useful for accesing saved predictions.
