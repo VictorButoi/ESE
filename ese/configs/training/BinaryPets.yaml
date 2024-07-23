@@ -1,5 +1,5 @@
 data:
-  _class: ese.experiment.datasets.BinaryPets
+  _class: ese.datasets.BinaryPets
   preload: False 
   version: 0.1
   in_channels: 3

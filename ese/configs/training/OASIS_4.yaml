@@ -1,5 +1,5 @@
 data:
-  _class: ese.experiment.datasets.OASIS
+  _class: ese.datasets.OASIS
   axis: 0
   label_set: label4
   slicing: central 

@@ -25,31 +25,31 @@ model:
 
 qual_metrics:
     - Dice:
-        _fn: ese.experiment.metrics.dice_score
+        _fn: ese.metrics.dice_score
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
     - HD95:
-        _fn: ese.experiment.metrics.hd95
+        _fn: ese.metrics.hd95
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
     - BoundaryIOU:
-        _fn: ese.experiment.metrics.boundary_iou
+        _fn: ese.metrics.boundary_iou
         boundary_width: 4
         batch_reduction: 'mean' 
         ignore_empty_labels: False 
         metric_type: quality
     - Accuracy:
-        _fn: ese.experiment.metrics.pixel_accuracy
+        _fn: ese.metrics.pixel_accuracy
         metric_type: quality
     - SoftVolumeError:
-        _fn: ese.experiment.metrics.volume_error
+        _fn: ese.metrics.volume_error
         do_threshold: False 
         batch_reduction: 'mean' 
         metric_type: quality
     - HardVolumeError:
-        _fn: ese.experiment.metrics.volume_error
+        _fn: ese.metrics.volume_error
         do_threshold: True
         threshold: 0.5
         batch_reduction: 'mean' 

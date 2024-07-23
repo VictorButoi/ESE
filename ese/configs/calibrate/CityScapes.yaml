@@ -11,16 +11,16 @@ log:
       batch_reduction: 'mean' 
       ignore_empty_labels: True
     ece_loss:
-      _fn: ese.experiment.metrics.image_ece_loss
+      _fn: ese.metrics.image_ece_loss
       from_logits: True
       num_prob_bins: 15
     edge_ece_loss:
-      _fn: ese.experiment.metrics.image_edge_ece_loss
+      _fn: ese.metrics.image_edge_ece_loss
       from_logits: True
       num_prob_bins: 15
       neighborhood_width: 3
     elm_loss:
-      _fn: ese.experiment.metrics.image_elm_loss
+      _fn: ese.metrics.image_elm_loss
       class_weighting: 'proportional'
       from_logits: True
       num_prob_bins: 15

@@ -11,19 +11,19 @@ global_calibration:
 
 qual_metrics:
     - Dice:
-        _fn: ese.experiment.metrics.dice_score
+        _fn: ese.metrics.dice_score
         from_logits: True
         batch_reduction: 'mean' 
         ignore_index: 0
         metric_type: quality
     - HD95:
-        _fn: ese.experiment.metrics.hd95
+        _fn: ese.metrics.hd95
         from_logits: True
         batch_reduction: 'mean' 
         ignore_index: 0
         metric_type: quality
     - BoundaryIOU:
-        _fn: ese.experiment.metrics.boundary_iou
+        _fn: ese.metrics.boundary_iou
         boundary_width: 1
         from_logits: True
         batch_reduction: 'mean' 

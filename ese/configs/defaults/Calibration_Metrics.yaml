@@ -2,7 +2,7 @@ image_cal_metrics:
     # ECE Metrics
     #########################################################
     - Image_ECE:
-        _fn: ese.experiment.metrics.calibration.image_ece_loss
+        _fn: ese.metrics.calibration.image_ece_loss
         cal_type: 'toplabel'
 
 # Define global metrics when you want to verify that these are the same as the image
@@ -11,5 +11,5 @@ global_cal_metrics:
     # ECE Metrics
     ########################################################
     - ECE:
-        _fn: ese.experiment.metrics.calibration.ece_loss
+        _fn: ese.metrics.calibration.ece_loss
         cal_type: 'toplabel'

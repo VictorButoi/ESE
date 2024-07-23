@@ -1,5 +1,5 @@
 data:
-  _class: ese.experiment.datasets.OxfordPets
+  _class: ese.datasets.OxfordPets
   preload: True
   version: 0.1
   num_classes: all 

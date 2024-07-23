@@ -1,5 +1,5 @@
 data:
-  _class: ese.experiment.datasets.OASIS
+  _class: ese.datasets.OASIS
   axis: 1
   label_set: label35
   num_slices: 1
