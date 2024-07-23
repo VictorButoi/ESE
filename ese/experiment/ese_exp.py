@@ -28,8 +28,12 @@ class CalibrationExperiment(TrainExperiment):
         # Get the data and transforms we want to apply
         total_config = self.config.to_dict()
         data_cfg = total_config["data"]
+
+        # TODO: BACKWARDS COMPATIBILITY STOPGAP
+        dataset_cls_name = data_cfg.pop("_class").replace("ese.experiment", "ese")
+
         # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(data_cfg.pop("_class"))
+        dataset_cls = absolute_import(dataset_cls_name)
         # Build the augmentation pipeline.
         augmentation_list = total_config.get("augmentations", None)
         if augmentation_list is not None:
@@ -76,9 +80,11 @@ class CalibrationExperiment(TrainExperiment):
         # Set important things about the model.
         self.config = Config(total_config)
 
-        pprint(self.config["model"])
+        # TODO: BACKWARDS COMPATIBILITY STOPGAP
+        model_cfg = self.config["model"].to_dict()
+        model_cfg["_class"] = model_cfg["_class"].replace("ese.experiment", "ese")
 
-        self.model = eval_config(self.config["model"])
+        self.model = eval_config(Config(model_cfg))
         self.properties["num_params"] = num_params(self.model)
     
     def build_loss(self):
@@ -94,7 +100,12 @@ class CalibrationExperiment(TrainExperiment):
             # Build the loss function.
             self.loss_func = lambda yhat, y: sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
         else:
-            self.loss_func = eval_config(self.config["loss_func"])
+
+            # TODO: BACKWARDS COMPATIBILITY STOPGAP
+            loss_cfg = self.config["loss_func"].to_dict()
+            loss_cfg["_class"] = loss_cfg["_class"].replace("ese.experiment", "ese")
+
+            self.loss_func = eval_config(Config(loss_cfg))
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.

@@ -44,7 +44,8 @@ def run_ese_exp(
         if not show_examples and "step" in cfg["callbacks"]:
             cfg["callbacks"].pop("step")
         # If not tracking wandb, remove the callback if its in the config.
-        wandb_callback = "ese.experiment.callbacks.WandbLogger"
+        # TODO: Maybe remove this in a more elegant way.
+        wandb_callback = "ese.callbacks.WandbLogger"
         if not track_wandb and wandb_callback in cfg["callbacks"]["epoch"]:
             cfg["callbacks"]["epoch"].remove(wandb_callback)
     # Either run the experiment or the job function.
@@ -83,7 +84,8 @@ def submit_ese_exps(
             if "step" in cfg["callbacks"]:
                 cfg["callbacks"].pop("step")
             # If you don't want to track wandb, then remove the wandb callback.
-            wandb_callback = "ese.experiment.callbacks.WandbLogger"
+            # TODO: wandb_callback defined multiple times, doesn't need to be---very bad code schema.
+            wandb_callback = "ese.callbacks.WandbLogger"
             if not track_wandb and wandb_callback in cfg["callbacks"]["epoch"]:
                 cfg["callbacks"]["epoch"].remove(wandb_callback)
         # Add the modified config to the list.
