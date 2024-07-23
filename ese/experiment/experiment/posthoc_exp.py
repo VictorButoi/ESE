@@ -2,9 +2,7 @@
 from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name
 # torch imports
-import yaml
 import torch
-from pathlib import Path
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.util import Config
@@ -14,11 +12,11 @@ from ionpy.util.hash import json_digest
 from ionpy.analysis import ResultsLoader
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
-from ionpy.datasets.cuda import CUDACachedDataset
 from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
 import os
 from typing import Optional
+import matplotlib.pyplot as plt
 
 
 class PostHocExperiment(TrainExperiment):
@@ -174,19 +172,32 @@ class PostHocExperiment(TrainExperiment):
     def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
+
         # Get the image and label from the batch.
         x = batch["img"]
         y = batch["label"]
+
         # Forward pass
         with torch.no_grad():
             yhat = self.base_model(x)
+        
+        # plt.imshow(yhat[0, 0].cpu().numpy(), cmap='gray', interpolation='none')
+        # plt.colorbar()
+        # plt.show()
+
         # Calibrate the predictions.
         if self.model_class is None:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
+
+        # plt.imshow(yhat_cal[0, 0].cpu().detach().numpy(), cmap='gray', interpolation='none')
+        # plt.colorbar()
+        # plt.show()
+
         # Calculate the loss between the pred and original preds.
         loss = self.loss_func(yhat_cal, y)
+
         # If backward then backprop the gradients.
         if backward:
             loss.backward()

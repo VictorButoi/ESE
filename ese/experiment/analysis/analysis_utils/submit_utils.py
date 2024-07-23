@@ -139,6 +139,16 @@ def get_ese_calibration_configs(
         elif not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     
+    # We need to make sure that these are models and not model folders.
+    all_pre_models = []
+    for pre_model_dir in flat_exp_cfg['train.pretrained_dir']:
+        if 'submitit' in os.listdir(pre_model_dir):
+            all_pre_models += gather_exp_paths(pre_model_dir) 
+        else:
+            all_pre_models.append(pre_model_dir)
+    # Set it back in the flat_exp_cfg.
+    flat_exp_cfg['train.pretrained_dir'] = all_pre_models
+    
     # Create the ablation options.
     option_set = {
         'log.root': [str(calibration_exp_root)],
@@ -155,10 +165,14 @@ def get_ese_calibration_configs(
         # Convert the Config obj to a dict.
         cfg_dict = cfg.to_dict()
         # Replace the model with the dict from calibration model cfgs.
-        cal_model_cfg = cfg_dict.pop('model')
-        model_cfg = cal_model_cfgs[cal_model_cfg.pop('class_name')].copy()
-        # Update with the new params and put it back in the cfg.
-        model_cfg.update(cal_model_cfg)
+        cal_model = cfg_dict.pop('model')
+        if isinstance(cal_model, dict):
+            model_cfg = cal_model_cfgs[cal_model.pop('class_name')].copy()
+            # Update with the new params and put it back in the cfg.
+            model_cfg.update(cal_model)
+        else:
+            model_cfg = cal_model_cfgs[cal_model].copy()
+        # Put the model cfg back in the cfg_dict.
         cfg_dict['model'] = model_cfg 
         # Replace the Config object with the new config dict.
         cfgs[c_idx] = Config(cfg_dict)
