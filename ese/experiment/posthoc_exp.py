@@ -49,12 +49,15 @@ class PostHocExperiment(TrainExperiment):
             train_transforms, val_transforms = None, None
 
         if load_data:
-            if "train_splits" in new_data_cfg and "val_splits" in new_data_cfg:
-                train_split = new_data_cfg.pop("train_splits")
-                val_split = new_data_cfg.pop("val_splits")
+            train_split = new_data_cfg.pop("train_splits", None)
+            val_split = new_data_cfg.pop("val_splits", None)
+            num_examples = new_data_cfg.pop("num_examples", None)
+
+            if train_split and val_split:
                 self.train_dataset = dataset_cls(
                     split= train_split,
                     transforms=train_transforms, 
+                    num_examples=num_examples,
                     **new_data_cfg
                 )
                 self.val_dataset = dataset_cls(
@@ -66,6 +69,7 @@ class PostHocExperiment(TrainExperiment):
                 self.train_dataset = dataset_cls(
                     split="train", 
                     transforms=train_transforms, 
+                    num_examples=num_examples,
                     **new_data_cfg
                 )
                 self.val_dataset = dataset_cls(

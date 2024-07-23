@@ -154,7 +154,7 @@ def pixel_crossentropy_loss(
         if from_logits:
             loss = F.binary_cross_entropy_with_logits(input=y_pred, target=y_true, reduction="none")
         else:
-            loss = F.binary_cross_entropy(y_pred, y_true, reduction="none")
+            loss = F.binary_cross_entropy(input=y_pred, target=y_true, reduction="none")
         loss = loss.squeeze(dim=1)
     else:
         # Squeeze the label, (no need for channel dimension).
