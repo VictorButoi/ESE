@@ -1,5 +1,5 @@
 train:
-  epochs: 600
+  epochs: 1000
 
 data:
   iters_per_epoch: 1000

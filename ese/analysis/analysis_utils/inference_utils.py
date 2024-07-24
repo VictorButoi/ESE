@@ -25,9 +25,9 @@ try:
 except:
     pass
 # local imports
-from ese.experiment.utils.general import save_records, save_dict
-from ...experiment.utils import load_experiment, get_exp_load_info
+from ese.utils.general import save_records, save_dict
 from ...augmentation.gather import augmentations_from_config
+from ...experiment.utils import load_experiment, get_exp_load_info
 from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 
 
@@ -401,7 +401,10 @@ def dataloader_from_exp(
         assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
     dataset_cls = inference_data_cfg.pop('_class')
-    
+
+    # TODO: BACKWARDS COMPATIBILITY STOPGAP
+    dataset_cls = dataset_cls.replace("ese.experiment", "ese")
+
     # TODO: Clean this up, way too hardcoded.
     # Drop auxiliary information used for making the models.
     for drop_key in [
@@ -414,7 +417,8 @@ def dataloader_from_exp(
         'train_splits',
         'train_datasets',
         'val_splits',
-        'val_datasets'
+        'val_datasets',
+        'num_examples'
     ]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
@@ -456,6 +460,7 @@ def dataloader_from_exp(
                 data_cfg=d_data_cfg, 
             )
         else: 
+
             d_dataset_obj = absolute_import(dataset_cls)(
                 transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
                 **d_data_cfg

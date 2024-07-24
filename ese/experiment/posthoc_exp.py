@@ -38,7 +38,10 @@ class PostHocExperiment(TrainExperiment):
         self.config = Config(total_config)
 
         # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(new_data_cfg.pop("_class"))
+        # TODO: BACKWARDS COMPATIBILITY STOPGAP
+        dataset_cls_name = new_data_cfg.pop("_class").replace("ese.experiment", "ese")
+
+        dataset_cls = absolute_import(dataset_cls_name)
         # Build the augmentation pipeline.
         augmentation_list = total_config.get("augmentations", None)
         if augmentation_list is not None:
@@ -140,7 +143,12 @@ class PostHocExperiment(TrainExperiment):
             # Get the old in and out channels from the pretrained model.
             model_cfg_dict["num_classes"] = pretrained_model_cfg_dict['out_channels']
             model_cfg_dict["image_channels"] = pretrained_model_cfg_dict['in_channels']
-            self.model = eval_config(model_cfg_dict)
+
+
+            # TODO: BACKWARDS COMPATIBILITY STOPGAP
+            model_cfg_dict["_class"] = model_cfg_dict["_class"].replace("ese.experiment", "ese")
+
+            self.model = eval_config(Config(model_cfg_dict))
             # If the model has a weights_init method, call it to initialize the weights.
             if hasattr(self.model, "weights_init"):
                 self.model.weights_init()
@@ -171,7 +179,10 @@ class PostHocExperiment(TrainExperiment):
             # Build the loss function.
             self.loss_func = lambda yhat, y: sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
         else:
-            self.loss_func = eval_config(self.config["loss_func"])
+            # TODO: BACKWARDS COMPATIBILITY STOPGAP
+            loss_cfg = self.config["loss_func"].to_dict()
+            loss_cfg["_class"] = loss_cfg["_class"].replace("ese.experiment", "ese")
+            self.loss_func = eval_config(Config(loss_cfg))
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
