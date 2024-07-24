@@ -177,11 +177,14 @@ def thunderify_ACDC(
 
                 # Do an absolutely minor amount of gaussian blurring to the seg ahead of time
                 # so that the edges are a bit more fuzzy.
-                seg_slice = cv2.GaussianBlur(seg_slice, (7, 7), 0)
-
-                # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
-                img_slice = resize_with_aspect_ratio(img_slice, target_size=config["resize_to"])
-                seg_slice = resize_with_aspect_ratio(seg_slice, target_size=config["resize_to"])
+                old_size = img_slice.shape[0]
+                new_size = config["resize_to"]
+                if old_size != new_size:
+                    if old_size > new_size:
+                        seg_slice = cv2.GaussianBlur(seg_slice, (7, 7), 0)
+                    # Resize the image and segmentation to config["resize_to"]xconfig["resize_to"]
+                    img_slice = resize_with_aspect_ratio(img_slice, target_size=new_size)
+                    seg_slice = resize_with_aspect_ratio(seg_slice, target_size=new_size)
 
                 # Convert to the right type
                 img_slice = img_slice.astype(np.float32)

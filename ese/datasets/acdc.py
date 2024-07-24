@@ -17,6 +17,7 @@ class ACDC(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
     version: float = 0.1
+    resolution: int = 128
     preload: bool = False
     return_data_id: bool = False
     return_gt_proportion: bool = False

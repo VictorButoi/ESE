@@ -140,6 +140,7 @@ class CalibrationExperiment(TrainExperiment):
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
         
+        # Make a prediction with a forward pass of the model.
         yhat = self.model(x)
 
         # Let's visualize the predictions and the ground truth.
