@@ -359,6 +359,7 @@ def cal_stats_init(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_inference_exp_from_cfg(inference_cfg): 
     inf_model_cfg = inference_cfg['model']
+
     # Get the configs of the experiment
     if inf_model_cfg.get('ensemble', False) and inf_model_cfg['_type'] != "incontext":
         inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
@@ -378,6 +379,7 @@ def load_inference_exp_from_cfg(inference_cfg):
         # Load the experiment directly if you give a sub-path.
         inference_exp = load_experiment(**load_exp_args)
         save_root = None
+
     # Make a new value for the pretrained seed, so we can differentiate between
     # members of ensemble
     old_inference_cfg = inference_exp.config.to_dict()

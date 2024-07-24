@@ -18,6 +18,10 @@ def build_aug(aug_obj):
         for key in a_dict:
             if isinstance(a_dict[key], list):
                 a_dict[key] = tuple(a_dict[key])
+
+        # TODO: Remove, this is a stop-gap for backwards compatibility.
+        aug_name_key = aug_name_key.replace("ese.experiment", "ese")
+
         # Get the key.
         return absolute_import(aug_name_key)(**a_dict)
     else:
