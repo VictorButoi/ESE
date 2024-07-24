@@ -419,8 +419,7 @@ def dataloader_from_exp(
         'train_splits',
         'train_datasets',
         'val_splits',
-        'val_datasets',
-        'num_examples'
+        'val_datasets'
     ]:
         if drop_key in inference_data_cfg.keys():
             inference_data_cfg.pop(drop_key)
@@ -457,21 +456,15 @@ def dataloader_from_exp(
         # Update the data cfg with the new options.
         d_data_cfg.update(d_cfg_opt)
         # Construct the dataset, either if it's incontext or standard.
-        if inference_cfg['model']['_type'] == 'incontext':
-            lab_d_dataset_dict, lab_d_support_dict = get_incontext_dataset(
-                data_cfg=d_data_cfg, 
-            )
-        else: 
-
-            d_dataset_obj = absolute_import(dataset_cls)(
-                transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
-                **d_data_cfg
-            )
-            lab_d_support_dict = None
-            # Package these into dummy dictionaries. Not great, but it works.
-            lab_d_dataset_dict = {
-                -1 : d_dataset_obj
-            }
+        d_dataset_obj = absolute_import(dataset_cls)(
+            transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
+            **d_data_cfg
+        )
+        lab_d_support_dict = None
+        # Package these into dummy dictionaries. Not great, but it works.
+        lab_d_dataset_dict = {
+            -1 : d_dataset_obj
+        }
         # We need to store these object by the contents of d_cfg_opt.
         opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
         supports[opt_string] = lab_d_support_dict
@@ -499,35 +492,6 @@ def dataloader_from_exp(
     }
     # Return the dataloaders and the modified data cfg.
     return data_obj_dict, inference_data_cfg
-
-
-def get_incontext_dataset(data_cfg):
-    support_size = data_cfg.pop('support_size')
-    # Build the target and support datasets.
-    for del_key in ["samples_per_epoch", "return_data_id"]:
-        if del_key in data_cfg.keys():
-            data_cfg.pop(del_key)
-    # Make a target dataset for each label provided.
-    target_dset_lab_dict = {}
-    support_lab_dict = {}
-    for label in data_cfg.pop('labels'):
-        target_lab_dataset = Segment2D(
-            label=label, 
-            return_data_id=True,
-            **data_cfg
-        )
-        context_lab_dataset = target_lab_dataset.other_split("train")
-        # Construct the support of examples to use.
-        lab_support = RandomSupport(
-            context_lab_dataset, 
-            support_size=support_size, 
-            replacement=True, 
-            return_data_ids=True
-        )
-        # Place them in the dictionary
-        target_dset_lab_dict[label] = target_lab_dataset
-        support_lab_dict[label] = lab_support
-    return target_dset_lab_dict, support_lab_dict 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
