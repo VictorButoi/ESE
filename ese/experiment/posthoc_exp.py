@@ -95,6 +95,7 @@ class PostHocExperiment(TrainExperiment):
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
     def build_model(self):
+
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_cfg_dict = self.config.to_dict()

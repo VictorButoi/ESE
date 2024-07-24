@@ -266,7 +266,7 @@ def cal_stats_init(
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
     # Update important keys in the inference cfg.
-    inference_cfg['dataset'] = modified_dataset_cfg 
+    inference_cfg['data'].update(modified_dataset_cfg)
     inference_cfg['loss_func'] = exp_total_config['loss_func']
     inference_cfg['train'] = exp_total_config['train']
     #############################
