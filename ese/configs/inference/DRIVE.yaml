@@ -1,7 +1,7 @@
 log:
   track_label_amounts: True 
 
-data:
+inference_data:
   input_type: image 
   return_gt_proportion: True
   label_threshold: 0.5

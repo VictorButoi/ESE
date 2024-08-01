@@ -5,7 +5,7 @@ dataloader:
   batch_size: 2
   num_workers: 1
 
-data:
+inference_data:
   input_type: volume
   slicing: full 
   num_slices: 1

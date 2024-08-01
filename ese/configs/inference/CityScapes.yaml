@@ -2,7 +2,7 @@ log:
   track_label_amounts: True
   min_fg_pixels: 0
 
-data:
+inference_data:
   input_type: image 
 
 global_calibration:

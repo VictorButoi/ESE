@@ -204,7 +204,7 @@ def get_ese_inference_configs(
 
     cfg = HDict(exp_cfg)
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
-    inference_datasets = flat_exp_cfg.pop('data._class')
+    inference_datasets = flat_exp_cfg.pop('inference_data._class')
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key in flat_exp_cfg:
         if isinstance(flat_exp_cfg[key], tuple):
@@ -270,8 +270,8 @@ def get_ese_inference_configs(
             # If you want to run inference on a single model, use this.
             run_opt_args = {
                 'log.root': [str(inference_exp_root)],
-                'data._class': [inference_datasets[d_idx]],
-                'experiment.dataset_name': [dataset_name],
+                'inference_data._class': [inference_datasets[d_idx]],
+                'experiment.inf_dataset_name': [dataset_name],
                 **run_opt_dict,
                 **default_config_options
             }
