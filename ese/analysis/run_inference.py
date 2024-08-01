@@ -175,7 +175,7 @@ def dataloader_loop(
             }
 
             # Run the forward loop
-            input_type = inf_cfg_dict['data']['input_type']
+            input_type = inf_cfg_dict['inference_data']['input_type']
             if input_type == 'volume':
                 volume_forward_loop(**forward_item)
             elif input_type == 'image':
@@ -267,7 +267,7 @@ def standard_image_forward_loop(
             image, label_map = to_device((image, label_map), exp.device)
         
         # Label maps are soft labels so we need to convert them to hard labels.
-        hard_lab_thresh = inf_cfg_dict["data"].get("label_threshold", None)
+        hard_lab_thresh = inf_cfg_dict["inference_data"].get("label_threshold", None)
         if hard_lab_thresh is not None:
             label_map = (label_map > hard_lab_thresh).long()
         

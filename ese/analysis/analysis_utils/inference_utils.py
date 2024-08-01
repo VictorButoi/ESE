@@ -255,20 +255,20 @@ def cal_stats_init(
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    new_dset_options = inference_cfg['data'].copy()
-    input_type = new_dset_options.pop("input_type")
+    inference_dset_options = inference_cfg['inference_data'].copy()
+    input_type = inference_dset_options.pop("input_type")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    data_objs, modified_dataset_cfg = dataloader_from_exp( 
-        exp_total_config['data'],
-        inference_cfg=inference_cfg,
-        new_dset_options=new_dset_options, 
+    training_data_cfg = exp_total_config['data']
+    data_objs = dataloader_from_exp( 
+        inf_data_cfg=inference_dset_options, 
+        dataloader_cfg=inference_cfg['dataloader'],
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
     # Update important keys in the inference cfg.
-    inference_cfg['data'].update(modified_dataset_cfg)
-    inference_cfg['loss_func'] = exp_total_config['loss_func']
     inference_cfg['train'] = exp_total_config['train']
+    inference_cfg['loss_func'] = exp_total_config['loss_func']
+    inference_cfg['training_data'] = training_data_cfg
     #############################
     trackers = {
         "image_stats": [],
@@ -391,18 +391,18 @@ def load_inference_exp_from_cfg(inference_cfg):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def dataloader_from_exp(
-    inference_data_cfg, 
-    inference_cfg,
+    inf_data_cfg, 
+    dataloader_cfg,
     aug_cfg_list: Optional[List[dict]] = None,
     new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
 ):
     if new_dset_options is not None:
-        inference_data_cfg.update(new_dset_options)
+        inf_data_cfg.update(new_dset_options)
     # Make sure we aren't sampling for evaluation. 
-    if "slicing" in inference_data_cfg.keys():
-        assert inference_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
+    if "slicing" in inf_data_cfg.keys():
+        assert inf_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
-    dataset_cls = inference_data_cfg.pop('_class')
+    dataset_cls = inf_data_cfg.pop('_class')
 
     # TODO: BACKWARDS COMPATIBILITY STOPGAP
     dataset_cls = dataset_cls.replace("ese.experiment", "ese")
@@ -421,10 +421,10 @@ def dataloader_from_exp(
         'val_splits',
         'val_datasets'
     ]:
-        if drop_key in inference_data_cfg.keys():
-            inference_data_cfg.pop(drop_key)
+        if drop_key in inf_data_cfg.keys():
+            inf_data_cfg.pop(drop_key)
     # Ensure that we return the different data ids.
-    inference_data_cfg['return_data_id'] = True
+    inf_data_cfg['return_data_id'] = True
 
     # We want to iterate through the keys of the inference data cfg, check which match the form of a tuple, and then use those
     # as options for the dataset.
@@ -437,9 +437,9 @@ def dataloader_from_exp(
 
     # Iterate through the keys and check if they are tuples.
     opt_dict = {}
-    for key in list(inference_data_cfg.keys()):
-        if is_tuple_string(inference_data_cfg[key]):
-            opt_dict[key] = list(ast.literal_eval(inference_data_cfg.pop(key)))
+    for key in list(inf_data_cfg.keys()):
+        if is_tuple_string(inf_data_cfg[key]):
+            opt_dict[key] = list(ast.literal_eval(inf_data_cfg.pop(key)))
     # Get the cartesian product of the options in the dictionary using itertools.
     data_cfg_vals = opt_dict.values()
     # Create a list of dictionaries from the Cartesian product
@@ -452,7 +452,7 @@ def dataloader_from_exp(
     supports = {} # use for ICL
     for d_cfg_opt in data_cfgs:
         # Load the dataset with modified arguments.
-        d_data_cfg = inference_data_cfg.copy()
+        d_data_cfg = inf_data_cfg.copy()
         # Update the data cfg with the new options.
         d_data_cfg.update(d_cfg_opt)
         # Construct the dataset, either if it's incontext or standard.
@@ -473,25 +473,19 @@ def dataloader_from_exp(
             # Build the dataloader for this opt cfg and label.
             dataloaders[opt_string][lab] = DataLoader(
                 lab_d_dataset_dict[lab], 
-                batch_size=inference_cfg['dataloader']['batch_size'], 
-                num_workers=inference_cfg['dataloader']['num_workers'],
+                batch_size=dataloader_cfg['batch_size'], 
+                num_workers=dataloader_cfg['num_workers'],
                 shuffle=False,
                 drop_last=False
             )
 
-    # Add the augmentation information.
-    modified_data_cfg = {
-        "augmentations": aug_cfg_list,
-        "_class": dataset_cls,
-        **inference_data_cfg,
-    }
     # Build a dictionary of our data objs
     data_obj_dict = {
         "dataloaders": dataloaders,
         "supports": supports,
     }
     # Return the dataloaders and the modified data cfg.
-    return data_obj_dict, modified_data_cfg 
+    return data_obj_dict
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
