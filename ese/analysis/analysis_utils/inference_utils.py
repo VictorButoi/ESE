@@ -480,7 +480,7 @@ def dataloader_from_exp(
             )
 
     # Add the augmentation information.
-    inference_data_cfg = {
+    modified_data_cfg = {
         "augmentations": aug_cfg_list,
         "_class": dataset_cls,
         **inference_data_cfg,
@@ -491,7 +491,7 @@ def dataloader_from_exp(
         "supports": supports,
     }
     # Return the dataloaders and the modified data cfg.
-    return data_obj_dict, inference_data_cfg
+    return data_obj_dict, modified_data_cfg 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
