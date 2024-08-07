@@ -12,7 +12,8 @@ from ionpy.loss.util import _loss_module_from_func
 from ionpy.metrics.segmentation import soft_dice_score
 from ionpy.metrics.util import (
     InputMode,
-    Reduction
+    Reduction,
+    _inputs_as_onehot
 )
 
 
@@ -99,6 +100,57 @@ def pixel_focal_loss(
 
     # Returnt he reduced loss
     return fl_loss
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def area_estimation_error(
+    y_pred: Tensor, # 1 x C x H x W
+    y_true: Tensor, # 1 x 1 x H x W
+    mode: InputMode = "auto",
+    square_diff: bool = True,
+    reduction: Reduction = "mean",
+    batch_reduction: Reduction = "mean",
+    ignore_index: Optional[int] = None,
+    from_logits: bool = False,
+):
+    # Check that the shapes are correct
+    assert len(y_pred.shape) == 4, f"y_pred must have 4 dimensions, got {y_pred.shape}"
+    assert len(y_true.shape) == 4, f"y_pred must have 4 dimensions, got {y_true.shape}"
+
+    # Quick check to see if we are dealing with binary segmentation
+    y_pred, y_true = _inputs_as_onehot(
+        y_pred, 
+        y_true, 
+        mode=mode,
+        discretize=False,
+        from_logits=from_logits
+    )
+    # Sum over the last dimension to get the area
+    y_pred_areas = y_pred.sum(dim=-1)
+    y_true_areas = y_true.sum(dim=-1)
+
+    if square_diff:
+        loss = (y_pred_areas - y_true_areas)**2
+    else:
+        loss = y_pred_areas - y_true_areas
+
+    # Remove the ignore index if it is present
+    if ignore_index is not None:
+        valid_indices = torch.arange(loss.shape[1])
+        valid_indices = valid_indices[valid_indices != ignore_index]
+        loss = loss[:, valid_indices]
+
+    if reduction == "mean":
+        loss = loss.mean(dim=-1)
+    if reduction == "sum":
+        loss = loss.sum(dim=-1)
+
+    if batch_reduction == "mean":
+        loss = loss.mean(dim=0)
+    if batch_reduction == "sum":
+        loss = loss.sum(dim=0)
+
+    return loss
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -206,4 +258,5 @@ def pixel_crossentropy_loss(
 
 PixelCELoss = _loss_module_from_func("PixelCELoss", pixel_crossentropy_loss)
 PixelFocalLoss = _loss_module_from_func("PixelFocalLoss", pixel_focal_loss)
+AreaEstimationError = _loss_module_from_func("AreaEstimationError", area_estimation_error)
 SoftDiceLoss = _loss_module_from_func("SoftDiceLoss", soft_dice_loss)
