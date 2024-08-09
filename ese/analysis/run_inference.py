@@ -10,7 +10,7 @@ from ionpy.util.torchutils import to_device
 from .checks import global_cal_sanity_check
 from .image_records import get_image_stats
 from .analysis_utils.inference_utils import (
-    aug_support,
+    save_preds,
     save_trackers,
     cal_stats_init
 )
@@ -50,9 +50,10 @@ def get_cal_stats(
 
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
-        loop_base_args = {
+        tracker_objs = {
             "inf_cfg_dict": inference_cfg_dict,
             "inf_init_obj": inference_init_obj,
+            "predictions": {}
         }
         for data_cfg_str, cfg_dataloader in inference_init_obj["dloaders"].items():
             # Make the data opt args for this particular data configuration.
@@ -65,14 +66,16 @@ def get_cal_stats(
             dataloader_loop(
                 dloader=cfg_dataloader,
                 data_props=data_props,
-                **loop_base_args
+                **tracker_objs
             )
         # Save the records at the end too
-        if inference_cfg_dict["log"]["log_image_stats"]:
-            save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
+        save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
+        # Optionally, save the prediction logits.
+        if inference_cfg_dict['log']["save_preds"]:
+            save_preds(tracker_objs["predictions"], output_root=inference_init_obj["output_root"])
 
     # After the forward loop, we can calculate the global calibration metrics.
-    if inference_cfg_dict["log"]["summary_compute_global_metrics"]:
+    if inference_cfg_dict["log"]["compute_global_metrics"]:
         # After the final pixel_meters have been saved, we can calculate the global calibration metrics and
         # insert them into the saved image_level_record dataframe.
         image_stats_dir = inference_init_obj["output_root"] / "image_stats.pkl"
@@ -102,6 +105,7 @@ def get_cal_stats(
 def dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
+    predictions,
     dloader, 
     sup_idx: Optional[int] = None,
     data_props: Optional[dict] = {},
@@ -136,6 +140,7 @@ def dataloader_loop(
                 "raw_batch": forward_batch,
                 "inf_cfg_dict": inf_cfg_dict,
                 "inf_init_obj": inf_init_obj,
+                "predictions": predictions
             }
 
             # Run the forward loop
@@ -202,7 +207,8 @@ def volume_forward_loop(
 def standard_image_forward_loop(
     raw_batch,
     inf_cfg_dict,
-    inf_init_obj
+    inf_init_obj,
+    predictions
 ):
     # Get the experiment
     exp = inf_init_obj["exp"]
@@ -288,6 +294,12 @@ def standard_image_forward_loop(
                     output_dict[mdata_key] = mdata[batch_inference_idx].item()
                 else:
                     output_dict[mdata_key] = mdata
+            
+            # TODO: this currently does not work for 3D volumes. They will only have one slice saved,
+            # will need to figure out a better way to save the slices.
+            # If we are logging the predictions, then we need to do that here.
+            if inf_cfg_dict['log']["save_preds"]:
+                predictions[output_dict['data_id']] = output_dict['y_logits']
 
             # Get the calibration item info.  
             get_calibration_item_info(
@@ -298,7 +310,7 @@ def standard_image_forward_loop(
 
             # Save the records every so often, to get intermediate results. Note, because of data_ids
             # this can contain fewer than 'log interval' many items.
-            if inf_cfg_dict["log"]["log_image_stats"] and (inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0):
+            if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
                 save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
             inf_init_obj['data_counter'] += 1
 

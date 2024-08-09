@@ -460,25 +460,16 @@ def dataloader_from_exp(
             transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
             **d_data_cfg
         )
-        lab_d_support_dict = None
-        # Package these into dummy dictionaries. Not great, but it works.
-        lab_d_dataset_dict = {
-            -1 : d_dataset_obj
-        }
         # We need to store these object by the contents of d_cfg_opt.
         opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
-        supports[opt_string] = lab_d_support_dict
-        dataloaders[opt_string] = {}
-        for lab in lab_d_dataset_dict.keys():
-            # Build the dataloader for this opt cfg and label.
-            dataloaders[opt_string][lab] = DataLoader(
-                lab_d_dataset_dict[lab], 
-                batch_size=dataloader_cfg['batch_size'], 
-                num_workers=dataloader_cfg['num_workers'],
-                shuffle=False,
-                drop_last=False
-            )
-
+        # Build the dataloader for this opt cfg and label.
+        dataloaders[opt_string] = DataLoader(
+            d_dataset_obj, 
+            batch_size=dataloader_cfg['batch_size'], 
+            num_workers=dataloader_cfg['num_workers'],
+            shuffle=False,
+            drop_last=False
+        )
     # Build a dictionary of our data objs
     data_obj_dict = {
         "dataloaders": dataloaders,
@@ -507,3 +498,10 @@ def preload_calibration_metrics(
             "cal_type": c_met_cfg[c_metric_name]["cal_type"]
         }
     return cal_metrics
+
+
+def save_preds(output_dict, output_root):
+    # Make a copy of the output dict.
+    np.savez(output_root / 'preds.npz', **output_dict)
+
+
