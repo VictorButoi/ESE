@@ -10,7 +10,7 @@ ImageBasedTS:
   img_channels: 1
   num_classes: 1
 
-LocalTS:
+LTS:
   _class: ese.models.calibrators.LocalTS
   img_channels: 1
   num_classes: 1

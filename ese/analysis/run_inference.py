@@ -54,50 +54,19 @@ def get_cal_stats(
             "inf_cfg_dict": inference_cfg_dict,
             "inf_init_obj": inference_init_obj,
         }
-        for data_cfg_str, cfg_dataloader_obj in inference_init_obj["dloaders"].items():
-
+        for data_cfg_str, cfg_dataloader in inference_init_obj["dloaders"].items():
             # Make the data opt args for this particular data configuration.
             if len(data_cfg_str) > 0:
                 data_props = dict(item.split(':') for item in data_cfg_str.split('^'))
+                data_props['data_cfg_str'] = data_cfg_str 
             else:
-                data_props = {}
-
-            data_props['data_cfg_str'] = data_cfg_str 
-            for label_idx, lab_dloader in cfg_dataloader_obj.items():
-                data_props["label_idx"] = label_idx
-                dloader_loop_args = {
-                    "dloader": lab_dloader,
-                    "data_props": data_props,
-                    **loop_base_args
-                }
-                if inference_cfg_dict["model"]["_type"] == "incontext":
-                    support_gen = inference_init_obj["supports"][data_cfg_str][label_idx]
-                    if inference_cfg_dict["experiment"]["fixed_support_sets"]:
-                        for sup_idx in range(inference_cfg_dict['experiment']['supports_per_target']):
-                            # Ensure that all subjects of the same label have the same support set.
-                            rng = inference_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
-                            # Send the support set to the device
-                            sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
-                            # Apply augmentation to the support set if defined.
-                            if inference_init_obj['support_transforms'] is not None:
-                                sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inference_init_obj)
-                            # if "Subject11" not in support_data_ids:
-                            sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
-                            # Run the dataloader loop with this particular support of images and labels.
-                            dataloader_loop(
-                                sup_idx=sup_idx,
-                                support_dict={
-                                    'images': sx[None], 
-                                    'labels': sy[None], 
-                                    'data_ids': support_data_ids
-                                },
-                                support_augs=inference_cfg_dict['experiment'].get('support_augs', None),
-                                **dloader_loop_args,
-                            )
-                    else:
-                        dataloader_loop(support_generator=support_gen, **dloader_loop_args)
-                else:
-                    dataloader_loop(**dloader_loop_args)
+                data_props = {'data_cfg_str': data_cfg_str}
+            # Iterate through this configuration's dataloader.
+            dataloader_loop(
+                dloader=cfg_dataloader,
+                data_props=data_props,
+                **loop_base_args
+            )
         # Save the records at the end too
         if inference_cfg_dict["log"]["log_image_stats"]:
             save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
@@ -160,11 +129,6 @@ def dataloader_loop(
             }
             # Final thing (just for our machinery), convert the data_id to a np.array.
             forward_batch["data_id"] = np.array(forward_batch["data_id"])
-            if inference_type == "incontext":
-                forward_batch.update({
-                    'support_augs': support_augs,
-                    'sup_idx': sup_idx
-                })
             # Place the output dir in the inf_cfg_dict
             inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
             # Gather the forward item.

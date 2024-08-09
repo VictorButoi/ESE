@@ -172,6 +172,7 @@ def get_image_stats(
         print()
 
     # We want to generate a hash of this metadata, useful for accesing saved predictions.
+    print("Output metadata:", output_metadata)
     pred_hash = hash(str(output_metadata))
     # Iterate through all of the collected metrics and add them to the records.
     for met_name, met_score in {**qual_metric_scores_dict, **cal_metric_errors_dict}.items():
@@ -189,7 +190,7 @@ def get_image_stats(
         image_stats.append(record)
 
     # If we are logging the predictions, then we need to do that here.
-    if inference_cfg['log'].get("save_preds", False):
+    if inference_cfg['log']["save_preds"]:
         save_preds(
             output_dict=output_dict,
             pred_hash=pred_hash,
@@ -199,11 +200,7 @@ def get_image_stats(
     return cal_metric_errors_dict
 
 
-def save_preds(
-    output_dict, 
-    pred_hash, 
-    output_root
-):
+def save_preds(output_dict, pred_hash, output_root):
     # Make a copy of the output dict.
     output_dict_copy = output_dict.copy()
     remove_keys = [
@@ -218,10 +215,13 @@ def save_preds(
     for key, value in output_dict_copy.items():
         if isinstance(value, torch.Tensor):
             output_dict_copy[key] = value.cpu()
-    save_dict(
-        dict=output_dict_copy,
-        log_dir=output_root / "preds" / f"{pred_hash}.pkl"
-    )
+
+    print("Pred hash:", pred_hash)
+    print("Output dict:", output_dict_copy.keys()) 
+    # Save the predictions.
+    print(output_root)
+    raise ValueError
+    save_dict(dict=output_dict_copy, log_dir=output_root / "preds" / f"{pred_hash}.pkl")
 
 
 def get_groundtruth_amount(
