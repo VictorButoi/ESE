@@ -171,7 +171,7 @@ def ShowPredictionsCallback(
             for x_idx, ax in enumerate(axarr):
                 # Don't turn off the last axis
                 if x_idx != len(axarr) - 1:
-                    ax.axis('off')
+                    # ax.axis('off')
                     ax.grid(False)
         else:
             axarr[b_idx, 0].set_title("Image")

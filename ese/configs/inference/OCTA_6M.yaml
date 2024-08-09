@@ -2,10 +2,11 @@ log:
   track_label_amounts: True 
 
 inference_data:
-  input_type: image 
-  return_gt_proportion: True
-  label_threshold: 0.5
   split: '?'
+  label: 255
+  input_type: image 
+  label_threshold: 0.5
+  return_gt_proportion: True
 
 global_calibration:
     num_classes: 1
