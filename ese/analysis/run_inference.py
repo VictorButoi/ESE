@@ -241,26 +241,22 @@ def standard_image_forward_loop(
         if hard_lab_thresh is not None:
             label_map = (label_map > hard_lab_thresh).long()
         
-        # Some args for the foward pass, only binary prediction is supported for now.
-        predict_args = {
-            'multi_class': False,
-            'label': inf_cfg_dict['model'].get('pred_label', None)
-        }
-        if inf_cfg_dict["model"].get("ensemble", False):
-            predict_args["combine_fn"] = "identity"
-        
         # Optionally, we can resize the image at inference.
         resolution_cfg = inf_cfg_dict['experiment'].get('resolution', None) 
-
         if resolution_cfg: 
             input_res_cfg = resolution_cfg.get('input', None)
             if input_res_cfg:
                 # Resize the image
                 image = resize_image(input_res_cfg, image)
-
+        
         # Do a forward pass.
         with torch.no_grad():
-            exp_output =  exp.predict(image, **predict_args)
+            exp_output =  exp.predict(
+                image, 
+                multi_class=False,
+                label=inf_cfg_dict['model'].get('pred_label', None),
+                threshold=inf_cfg_dict['experiment'].get('pred_threshold', 0.5)
+            )
         
         # Go through the exp_output and see if they are None or not.
         for out_key, out_tensor in exp_output.items():
