@@ -160,7 +160,7 @@ def load_cal_inference_stats(
         # Finally, concatenate all of the metadata dataframes.
         metadata_df = pd.DataFrame(metadata_pd_collection) 
         # Gather the columns that have unique values amongst the different configurations.
-        if results_cfg["options"]["remove_shared_columns"]:
+        if results_cfg["options"].get("remove_shared_columns", False):
             meta_cols = []
             for col in metadata_df.columns:
                 if len(metadata_df[col].unique()) > 1:
@@ -203,7 +203,7 @@ def load_cal_inference_stats(
         if "slice_idx" not in inference_df.columns:
             inference_df["slice_idx"] = "None"
         # Drop the rows corresponding to NaNs in metric_score
-        if results_cfg["options"]['drop_nan_metric_rows']:
+        if results_cfg["options"].get('drop_nan_metric_rows', True):
             # Get the triples of (data_idx, slice_idx, metric_name) where metric_score is NaN.
             unique_nan_triples = inference_df[inference_df['metric_score'].isna()][['data_id', 'slice_idx', 'image_metric']].drop_duplicates()
             # Drop the rows which match the triples.
@@ -248,7 +248,7 @@ def load_cal_inference_stats(
 
         # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
         # that is 1 - metric_score.
-        if results_cfg["options"].get('add_dice_loss_rows', False):
+        if results_cfg["options"].get('add_dice_loss_rows', True):
             inference_df = add_dice_loss_rows(inference_df, opts_cfg=results_cfg["options"])
 
         # If precomputed_results_path doesn't exist, create it.
@@ -268,6 +268,26 @@ def load_cal_inference_stats(
     print("Finished loading inference stats.")
     print(f"Log amounts: {final_num_rows_per_log_set}")
 
+    # Prepare the final object
+    inference_obj = {
+        "df": inference_df,
+        "preds": None,
+        "dataset": None
+    }
+
+    # Get some arguments.
+    load_preds = results_cfg["options"].get("load_predictions", False)
+    load_inf_dataset = results_cfg["options"].get("load_inference_dataset", False)
+
+    if load_preds:
+        pass
+
+    if load_inf_dataset:
+        raise NotImplementedError("Loading the inference dataset is not yet implemented.")
+    
     # Finally, return the dictionary of inference info.
-    return inference_df
+    if not load_preds and not load_inf_dataset:
+        return inference_df
+    else:
+        return inference_obj 
 

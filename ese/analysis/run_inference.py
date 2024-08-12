@@ -107,10 +107,7 @@ def dataloader_loop(
     inf_init_obj,
     predictions,
     dloader, 
-    sup_idx: Optional[int] = None,
-    data_props: Optional[dict] = {},
-    support_augs: Optional[Any] = None,
-    inference_type: Optional[str] = "standard",
+    data_props: Optional[dict] = {}
 ):
     iter_dloader = iter(dloader)
     for batch_idx in range(len(dloader)):
@@ -295,7 +292,7 @@ def standard_image_forward_loop(
             # will need to figure out a better way to save the slices.
             # If we are logging the predictions, then we need to do that here.
             if inf_cfg_dict['log']["save_preds"]:
-                predictions[output_dict['data_id']] = output_dict['y_logits']
+                predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
 
             # Get the calibration item info.  
             get_calibration_item_info(
