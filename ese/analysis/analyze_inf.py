@@ -126,14 +126,17 @@ def load_cal_inference_stats(
             # but it's what we had done before.
             else:
                 for sub_exp in group_folders:
-                    sub_exp_log_path = inf_group + "/" + sub_exp
+                    sub_exp_log_path = inf_group_dir + "/" + sub_exp
                     # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
                     # Verify that it is a folder and also that it is not in the skip_log_folders.
                     if os.path.isdir(sub_exp_log_path) and sub_exp not in skip_log_folders:
-                        # Check to make sure this log wasn't the result of a crash.
-                        verify_graceful_exit(sub_exp_log_path, log_root=log_root)
-                        # Check to make sure that this log wasn't the result of a crash.
-                        all_inference_log_paths.append(sub_exp_log_path)
+                        sub_exp_group_folders = os.listdir(sub_exp_log_path)
+                        # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
+                        if "submitit" in sub_exp_group_folders:
+                            # Check to make sure this log wasn't the result of a crash.
+                            verify_graceful_exit(sub_exp_log_path, log_root=log_root)
+                            # Check to make sure that this log wasn't the result of a crash.
+                            all_inference_log_paths.append(sub_exp_log_path)
         # Loop through every configuration in the log directory.
         metadata_pd_collection = []
         for log_path in all_inference_log_paths:
