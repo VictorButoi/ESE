@@ -136,9 +136,6 @@ class CalibrationExperiment(TrainExperiment):
             x, y = batch["img"], batch["label"]
         else:
             x, y = batch[0], batch[1]
-        
-        print(x.shape)
-        print(y.shape)
 
         # For volume datasets, sometimes want to treat different slices as a batch.
         if self.config["data"].get("num_slices", 1) != 1:
