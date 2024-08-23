@@ -61,10 +61,18 @@ def get_ese_training_configs(
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     train_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
-    # Load the dataset specific config and update the base config.
-    with open(train_cfg_root/ f"{train_dataset_name}.yaml", 'r') as file:
-        dataset_cfg = yaml.safe_load(file)
-    base_cfg = base_cfg.update([dataset_cfg])
+
+    # Add the dataset specific details.
+    dataset_cfg_file = train_cfg_root/ f"{train_dataset_name}.yaml"
+    if dataset_cfg_file.exists():
+        with open(dataset_cfg_file, 'r') as d_file:
+            dataset_train_cfg = yaml.safe_load(d_file)
+        # Update the base config with the dataset specific config.
+        base_cfg = base_cfg.update([dataset_train_cfg])
+    else:
+        print(f"No base config found for dataset: {train_dataset_name}. Using default base config.")
+
+    # Save the new base config. Load the dataset specific config and update the base config.
     autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
     
     # Get the information about seeds.
@@ -255,11 +263,18 @@ def get_ese_inference_configs(
 
     # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
     for d_idx, dataset_name in enumerate(inf_dataset_names):
+
         # Add the dataset specific details.
-        with open(code_root / "ese" / "configs" / "inference" / f"{dataset_name}.yaml", 'r') as file:
-            dataset_inference_cfg = yaml.safe_load(file)
-        # Update the base config with the dataset specific config.
-        dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
+        dataset_cfg_file = code_root / "ese" / "configs" / "inference" / f"{dataset_name}.yaml"
+        if dataset_cfg_file.exists():
+            with open(dataset_cfg_file, 'r') as d_file:
+                dataset_inference_cfg = yaml.safe_load(d_file)
+            # Update the base config with the dataset specific config.
+            dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
+        else:
+            print(f"No base config found for dataset: {dataset_name}. Using default base config.")
+            dataset_base_cfg = base_cfg
+
         # Accumulate a set of config options for each dataset
         dataset_cfgs = []
         # Iterate through all of our inference options.

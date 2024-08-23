@@ -15,9 +15,9 @@ from pydantic import validate_arguments
 @dataclass(eq=False, repr=False)
 class UNet(nn.Module):
 
-    in_channels: int
-    out_channels: int
     filters: list[int]
+    in_channels: int = 1
+    out_channels: int = 1
     dec_filters: Optional[list[int]] = None
     out_activation: Optional[str] = None
     convs_per_block: int = 1
