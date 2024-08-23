@@ -61,7 +61,6 @@ def get_ese_training_configs(
     flat_exp_cfg = valmap(list2tuple, cfg.flatten())
     train_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
-
     # Add the dataset specific details.
     dataset_cfg_file = train_cfg_root/ f"{train_dataset_name}.yaml"
     if dataset_cfg_file.exists():
@@ -78,10 +77,14 @@ def get_ese_training_configs(
     # Get the information about seeds.
     seed = flat_exp_cfg.pop('experiment.seed', 40)
     seed_range = flat_exp_cfg.pop('experiment.seed_range', 1)
-    
+
     # We need all of our options to be in lists as convention for the product.
     for ico_key in flat_exp_cfg:
-        if not isinstance(flat_exp_cfg[ico_key], list):
+        # If this is a tuple, then convert it to a list.
+        if isinstance(flat_exp_cfg[ico_key], tuple):
+            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
+        # Otherwise, make sure it is a list.
+        elif not isinstance(flat_exp_cfg[ico_key], list):
             flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
     
     # Create the ablation options.
