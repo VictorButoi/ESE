@@ -17,6 +17,12 @@ from ionpy.util.ioutil import autosave
 from ionpy.util.config import check_missing, HDict, valmap
 
 
+def flatten_cfg(cfg: Config):
+    cfg = HDict(cfg)
+    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    return flat_exp_cfg
+
+
 def power_set(in_set):
     return list(chain.from_iterable(combinations(in_set, r) for r in range(len(in_set)+1)))
 
@@ -57,8 +63,7 @@ def get_ese_training_configs(
         scratch_root=scratch_root
     )
 
-    cfg = HDict(exp_cfg)
-    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    flat_exp_cfg = flatten_cfg(exp_cfg)
     train_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
     # Add the dataset specific details.
@@ -121,8 +126,7 @@ def get_ese_calibration_configs(
         scratch_root=scratch_root
     )
 
-    cfg = HDict(exp_cfg)
-    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    flat_exp_cfg = flatten_cfg(exp_cfg)
     calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
 
     cfg_root = code_root / "ese"/ "configs" 
@@ -213,8 +217,7 @@ def get_ese_inference_configs(
         scratch_root=scratch_root
     )
 
-    cfg = HDict(exp_cfg)
-    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
+    flat_exp_cfg = flatten_cfg(exp_cfg)
     inference_datasets = flat_exp_cfg.pop('inference_data._class')
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key in flat_exp_cfg:
@@ -310,3 +313,78 @@ def get_ese_inference_configs(
 
     # Return the list of different configs.
     return inference_opt_list
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_ese_restart_configs(
+    exp_cfg: dict,
+    base_cfg: Config,
+    add_date: bool = True,
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
+    train_cfg_root: Path = Path("/storage/vbutoi/projects/ESE/ese/configs/training"),
+): 
+    # We need to flatten the experiment config to get the different options.
+    # Building new yamls under the exp_name name for model type.
+    exp_name = exp_cfg.pop('name')
+    train_exp_root = save_exp_cfg(
+        exp_cfg, 
+        exp_name=exp_name,
+        group="training", 
+        add_date=add_date, 
+        scratch_root=scratch_root
+    )
+
+    # Get the flat version of the experiment config.
+    flat_exp_cfg = flatten_cfg(exp_cfg)
+
+    # If we are changing aspects of the dataset, we need to update the base config.
+    if 'data._class' in flat_exp_cfg:
+        # Add the dataset specific details.
+        dataset_cfg_file = train_cfg_root/ f"{flat_exp_cfg['data._class'].split('.')[-1]}.yaml"
+        if dataset_cfg_file.exists():
+            with open(dataset_cfg_file, 'r') as d_file:
+                dataset_train_cfg = yaml.safe_load(d_file)
+            # Update the base config with the dataset specific config.
+            base_cfg = base_cfg.update([dataset_train_cfg])
+        
+    # Restart config is the base updated with the exp options.
+    restart_cfg = flatten_cfg(base_cfg)
+    restart_cfg.update(flat_exp_cfg)
+
+    # We need all of our options to be in lists as convention for the product.
+    for ico_key in restart_cfg:
+        # If this is a tuple, then convert it to a list.
+        if isinstance(restart_cfg[ico_key], tuple):
+            restart_cfg[ico_key] = list(restart_cfg[ico_key])
+        # Otherwise, make sure it is a list.
+        elif not isinstance(restart_cfg[ico_key], list):
+            restart_cfg[ico_key] = [restart_cfg[ico_key]]
+        
+    print(restart_cfg)
+
+    raise ValueError
+
+    # Now we need to go through all the pre-trained models and gather THEIR configs.
+    all_pre_models = []
+    for pre_model_dir in flat_exp_cfg['train.pretrained_dir']:
+        if 'submitit' in os.listdir(pre_model_dir):
+            all_pre_models += gather_exp_paths(pre_model_dir) 
+        else:
+            all_pre_models.append(pre_model_dir)
+
+    print(all_pre_models)
+
+    raise ValueError
+
+    # Create the ablation options.
+    option_set = {
+        'log.root': [str(train_exp_root)],
+        'experiment.seed': [seed + seed_idx for seed_idx in range(seed_range)],
+        **flat_exp_cfg
+    }
+
+    # Get the configs
+    cfgs = get_option_product(exp_name, option_set, base_cfg)
+
+    # Return the train configs.
+    return cfgs
