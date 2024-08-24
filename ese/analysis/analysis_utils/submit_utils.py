@@ -4,44 +4,15 @@ import yaml
 import itertools
 from pathlib import Path
 from pprint import pprint
-from datetime import datetime
 from typing import List, Optional
 from pydantic import validate_arguments
-from itertools import chain, combinations
-# ESE imports
-from ese.scripts.utils import gather_exp_paths, get_option_product
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
 from ionpy.util.ioutil import autosave
-from ionpy.util.config import check_missing, HDict, valmap
-
-
-def flatten_cfg(cfg: Config):
-    cfg = HDict(cfg)
-    flat_exp_cfg = valmap(list2tuple, cfg.flatten())
-    return flat_exp_cfg
-
-
-def power_set(in_set):
-    return list(chain.from_iterable(combinations(in_set, r) for r in range(len(in_set)+1)))
-
-def list2tuple(val):
-    if isinstance(val, list):
-        return tuple(map(list2tuple, val))
-    return val
-
-def save_exp_cfg(exp_cfg, exp_name, group, add_date, scratch_root):
-    # Optionally, add today's date to the run name.
-    if add_date:
-        today_date = datetime.now()
-        formatted_date = today_date.strftime("%m_%d_%y")
-        exp_name = f"{formatted_date}_{exp_name}"
-    # Save the experiment config.
-    exp_root = scratch_root / group / exp_name
-    autosave(exp_cfg, exp_root / "experiment.yml") # SAVE #1: Experiment config
-    # Return the experiment root.
-    return exp_root
+from ionpy.util.config import check_missing
+# Local imports
+from .helpers import *
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -63,8 +34,8 @@ def get_ese_training_configs(
         scratch_root=scratch_root
     )
 
-    flat_exp_cfg = flatten_cfg(exp_cfg)
-    train_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
+    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
+    train_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
 
     # Add the dataset specific details.
     dataset_cfg_file = train_cfg_root/ f"{train_dataset_name}.yaml"
@@ -80,23 +51,14 @@ def get_ese_training_configs(
     autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
     
     # Get the information about seeds.
-    seed = flat_exp_cfg.pop('experiment.seed', 40)
-    seed_range = flat_exp_cfg.pop('experiment.seed_range', 1)
+    seed = flat_exp_cfg_dict.pop('experiment.seed', 40)
+    seed_range = flat_exp_cfg_dict.pop('experiment.seed_range', 1)
 
-    # We need all of our options to be in lists as convention for the product.
-    for ico_key in flat_exp_cfg:
-        # If this is a tuple, then convert it to a list.
-        if isinstance(flat_exp_cfg[ico_key], tuple):
-            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
-        # Otherwise, make sure it is a list.
-        elif not isinstance(flat_exp_cfg[ico_key], list):
-            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
-    
     # Create the ablation options.
     option_set = {
         'log.root': [str(train_exp_root)],
         'experiment.seed': [seed + seed_idx for seed_idx in range(seed_range)],
-        **flat_exp_cfg
+        **listify_dict(flat_exp_cfg_dict)
     }
 
     # Get the configs
@@ -126,8 +88,9 @@ def get_ese_calibration_configs(
         scratch_root=scratch_root
     )
 
-    flat_exp_cfg = flatten_cfg(exp_cfg)
-    calibration_dataset_name = flat_exp_cfg['data._class'].split('.')[-1]
+    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
+    calibration_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
+    flat_exp_cfg_dict = listify_dict(flat_exp_cfg_dict) # Make it compatible to our product function.
 
     cfg_root = code_root / "ese"/ "configs" 
 
@@ -145,29 +108,20 @@ def get_ese_calibration_configs(
     cal_model_cfgs = base_cal_models_cfg.copy()
     cal_model_cfgs.update(calibration_model_cfgs)
     
-    # We need all of our options to be in lists as convention for the product.
-    for ico_key in flat_exp_cfg:
-        # If this is a tuple, then convert it to a list.
-        if isinstance(flat_exp_cfg[ico_key], tuple):
-            flat_exp_cfg[ico_key] = list(flat_exp_cfg[ico_key])
-        # Otherwise, make sure it is a list.
-        elif not isinstance(flat_exp_cfg[ico_key], list):
-            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
-    
     # We need to make sure that these are models and not model folders.
     all_pre_models = []
-    for pre_model_dir in flat_exp_cfg['train.pretrained_dir']:
+    for pre_model_dir in flat_exp_cfg_dict['train.pretrained_dir']:
         if 'submitit' in os.listdir(pre_model_dir):
             all_pre_models += gather_exp_paths(pre_model_dir) 
         else:
             all_pre_models.append(pre_model_dir)
     # Set it back in the flat_exp_cfg.
-    flat_exp_cfg['train.pretrained_dir'] = all_pre_models
+    flat_exp_cfg_dict['train.pretrained_dir'] = all_pre_models
     
     # Create the ablation options.
     option_set = {
         'log.root': [str(calibration_exp_root)],
-        **flat_exp_cfg
+        **flat_exp_cfg_dict
     }
 
     # Get the configs
@@ -217,12 +171,12 @@ def get_ese_inference_configs(
         scratch_root=scratch_root
     )
 
-    flat_exp_cfg = flatten_cfg(exp_cfg)
-    inference_datasets = flat_exp_cfg.pop('inference_data._class')
+    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
+    inference_datasets = flat_exp_cfg_dict.pop('inference_data._class')
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
-    for key in flat_exp_cfg:
-        if isinstance(flat_exp_cfg[key], tuple):
-            flat_exp_cfg[key] = list(flat_exp_cfg[key])
+    for key in flat_exp_cfg_dict:
+        if isinstance(flat_exp_cfg_dict[key], tuple):
+            flat_exp_cfg_dict[key] = list(flat_exp_cfg_dict[key])
 
     # Load the inference cfg from local.
     ##################################################
@@ -237,19 +191,19 @@ def get_ese_inference_configs(
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
         for key in power_set_keys:
-            if key in flat_exp_cfg:
-                flat_exp_cfg[key] = power_set(flat_exp_cfg[key])
+            if key in flat_exp_cfg_dict:
+                flat_exp_cfg_dict[key] = power_set(flat_exp_cfg_dict[key])
 
     # Gather the different config options.
-    cfg_opt_keys = list(flat_exp_cfg.keys())
+    cfg_opt_keys = list(flat_exp_cfg_dict.keys())
 
     #First going through and making sure each option is a list and then using itertools.product.
-    for ico_key in flat_exp_cfg:
-        if not isinstance(flat_exp_cfg[ico_key], list):
-            flat_exp_cfg[ico_key] = [flat_exp_cfg[ico_key]]
+    for ico_key in flat_exp_cfg_dict:
+        if not isinstance(flat_exp_cfg_dict[ico_key], list):
+            flat_exp_cfg_dict[ico_key] = [flat_exp_cfg_dict[ico_key]]
     
     # Generate product tuples 
-    product_tuples = list(itertools.product(*[flat_exp_cfg[key] for key in cfg_opt_keys]))
+    product_tuples = list(itertools.product(*[flat_exp_cfg_dict[key] for key in cfg_opt_keys]))
 
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
@@ -326,7 +280,7 @@ def get_ese_restart_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
-    train_exp_root = save_exp_cfg(
+    restart_exp_root = save_exp_cfg(
         exp_cfg, 
         exp_name=exp_name,
         group="training", 
@@ -335,56 +289,50 @@ def get_ese_restart_configs(
     )
 
     # Get the flat version of the experiment config.
-    flat_exp_cfg = flatten_cfg(exp_cfg)
+    restart_cfg_dict = flatten_cfg2dict(exp_cfg)
 
     # If we are changing aspects of the dataset, we need to update the base config.
-    if 'data._class' in flat_exp_cfg:
+    if 'data._class' in restart_cfg_dict:
         # Add the dataset specific details.
-        dataset_cfg_file = train_cfg_root/ f"{flat_exp_cfg['data._class'].split('.')[-1]}.yaml"
+        dataset_cfg_file = train_cfg_root/ f"{restart_cfg_dict['data._class'].split('.')[-1]}.yaml"
         if dataset_cfg_file.exists():
             with open(dataset_cfg_file, 'r') as d_file:
                 dataset_train_cfg = yaml.safe_load(d_file)
             # Update the base config with the dataset specific config.
             base_cfg = base_cfg.update([dataset_train_cfg])
         
-    # Restart config is the base updated with the exp options.
-    restart_cfg = flatten_cfg(base_cfg)
-    restart_cfg.update(flat_exp_cfg)
-
-    # We need all of our options to be in lists as convention for the product.
-    for ico_key in restart_cfg:
-        # If this is a tuple, then convert it to a list.
-        if isinstance(restart_cfg[ico_key], tuple):
-            restart_cfg[ico_key] = list(restart_cfg[ico_key])
-        # Otherwise, make sure it is a list.
-        elif not isinstance(restart_cfg[ico_key], list):
-            restart_cfg[ico_key] = [restart_cfg[ico_key]]
-        
-    print(restart_cfg)
-
-    raise ValueError
+    # This is a required key. We want to get all of the models and vary everything else.
+    pretrained_dir_list = restart_cfg_dict.pop('train.pretrained_dir') 
 
     # Now we need to go through all the pre-trained models and gather THEIR configs.
     all_pre_models = []
-    for pre_model_dir in flat_exp_cfg['train.pretrained_dir']:
+    for pre_model_dir in pretrained_dir_list:
         if 'submitit' in os.listdir(pre_model_dir):
             all_pre_models += gather_exp_paths(pre_model_dir) 
         else:
             all_pre_models.append(pre_model_dir)
 
-    print(all_pre_models)
-
-    raise ValueError
-
-    # Create the ablation options.
-    option_set = {
-        'log.root': [str(train_exp_root)],
-        'experiment.seed': [seed + seed_idx for seed_idx in range(seed_range)],
-        **flat_exp_cfg
+    # Listify the dict for the product.
+    listy_pt_cfg_dict = {
+        'log.root': [str(restart_exp_root)],
+        **listify_dict(restart_cfg_dict)
     }
-
-    # Get the configs
-    cfgs = get_option_product(exp_name, option_set, base_cfg)
+    
+    # Go through all the pretrained models and add the new options for the restart.
+    restart_cfgs = []
+    for pt_dir in all_pre_models:
+        # Load the pre-trained model config.
+        with open(f"{pt_dir}/config.yml", 'r') as file:
+            pt_exp_cfg = Config(yaml.safe_load(file))
+        # Make a copy of the listy_pt_cfg_dict.
+        pt_listy_cfg_dict = listy_pt_cfg_dict.copy()
+        pt_listy_cfg_dict['train.pretrained_dir'] = [pt_dir] # Put the pre-trained model back in.
+        # Update the pt_exp_cfg with the restart_cfg.
+        pt_restart_exp_cfg = pt_exp_cfg.update([base_cfg])
+        # Print the restart_pt_cfg
+        pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_exp_cfg)
+        # Append the list of configs for this pre-trained model.
+        restart_cfgs += pt_cfgs
 
     # Return the train configs.
-    return cfgs
+    return restart_cfgs
