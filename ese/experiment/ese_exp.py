@@ -48,30 +48,20 @@ class CalibrationExperiment(TrainExperiment):
             val_split = data_cfg.pop("val_splits", None)
             num_examples = data_cfg.pop("num_examples", None)
 
-            if train_split and val_split:
-                self.train_dataset = dataset_cls(
-                    split= train_split,
-                    transforms=train_transforms, 
-                    num_examples=num_examples,
-                    **data_cfg
-                )
-                self.val_dataset = dataset_cls(
-                    split=val_split,
-                    transforms=val_transforms, 
-                    **data_cfg
-                )
-            else:
-                self.train_dataset = dataset_cls(
-                    split="train", 
-                    transforms=train_transforms, 
-                    num_examples=num_examples,
-                    **data_cfg
-                )
-                self.val_dataset = dataset_cls(
-                    split="val", 
-                    transforms=val_transforms, 
-                    **data_cfg
-                )
+            splits_defined = train_split is not None and val_split is not None
+
+            # Initialize the dataset classes.
+            self.train_dataset = dataset_cls(
+                split=train_split if splits_defined else "train",
+                transforms=train_transforms, 
+                num_examples=num_examples,
+                **data_cfg
+            )
+            self.val_dataset = dataset_cls(
+                split=val_split if splits_defined else "val",
+                transforms=val_transforms, 
+                **data_cfg
+            )
     
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them

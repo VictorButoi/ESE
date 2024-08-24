@@ -110,13 +110,13 @@ def get_ese_calibration_configs(
     
     # We need to make sure that these are models and not model folders.
     all_pre_models = []
-    for pre_model_dir in flat_exp_cfg_dict['train.pretrained_dir']:
+    for pre_model_dir in flat_exp_cfg_dict['train.base_pretrained_dir']:
         if 'submitit' in os.listdir(pre_model_dir):
             all_pre_models += gather_exp_paths(pre_model_dir) 
         else:
             all_pre_models.append(pre_model_dir)
     # Set it back in the flat_exp_cfg.
-    flat_exp_cfg_dict['train.pretrained_dir'] = all_pre_models
+    flat_exp_cfg_dict['train.base_pretrained_dir'] = all_pre_models
     
     # Create the ablation options.
     option_set = {

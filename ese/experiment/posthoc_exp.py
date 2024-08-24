@@ -56,30 +56,20 @@ class PostHocExperiment(TrainExperiment):
             val_split = new_data_cfg.pop("val_splits", None)
             num_examples = new_data_cfg.pop("num_examples", None)
 
-            if train_split and val_split:
-                self.train_dataset = dataset_cls(
-                    split= train_split,
-                    transforms=train_transforms, 
-                    num_examples=num_examples,
-                    **new_data_cfg
-                )
-                self.val_dataset = dataset_cls(
-                    split=val_split,
-                    transforms=val_transforms, 
-                    **new_data_cfg
-                )
-            else:
-                self.train_dataset = dataset_cls(
-                    split="train", 
-                    transforms=train_transforms, 
-                    num_examples=num_examples,
-                    **new_data_cfg
-                )
-                self.val_dataset = dataset_cls(
-                    split="val", 
-                    transforms=val_transforms, 
-                    **new_data_cfg
-                )
+            splits_defined = train_split is not None and val_split is not None
+
+            # Initialize the dataset classes.
+            self.train_dataset = dataset_cls(
+                split=train_split if splits_defined else "train",
+                transforms=train_transforms, 
+                num_examples=num_examples,
+                **new_data_cfg
+            )
+            self.val_dataset = dataset_cls(
+                split=val_split if splits_defined else "val",
+                transforms=val_transforms, 
+                **new_data_cfg
+            )
 
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
@@ -107,20 +97,20 @@ class PostHocExperiment(TrainExperiment):
         load_exp_args = {
             "device": "cuda",
             "load_data": False, # Important, we might want to modify the data construction.
-            "checkpoint": total_cfg_dict['train'].get('checkpoint', 'max-val-dice_score')
+            "checkpoint": total_cfg_dict['train'].get('base_checkpoint', 'max-val-dice_score')
         }
             
         # Either select from a set of experiments in a common directory OR choose a particular experiment to load.
-        if "config.yml" in os.listdir(total_cfg_dict['train']['pretrained_dir']):
+        if "config.yml" in os.listdir(total_cfg_dict['train']['base_pretrained_dir']):
             self.pretrained_exp = load_experiment(
-                path=total_cfg_dict['train']['pretrained_dir'],
+                path=total_cfg_dict['train']['base_pretrained_dir'],
                 **load_exp_args
             )
         else:
             rs = ResultsLoader()
             self.pretrained_exp = load_experiment(
-                df=rs.load_metrics(rs.load_configs(total_cfg_dict['train']['pretrained_dir'], properties=False)),
-                selection_metric=total_cfg_dict['train']['pretrained_select_metric'],
+                df=rs.load_metrics(rs.load_configs(total_cfg_dict['train']['base_pretrained_dir'], properties=False)),
+                selection_metric=total_cfg_dict['train']['base_pt_select_metric'],
                 **load_exp_args
             )
         # Now we can access the old total config. 
@@ -143,8 +133,9 @@ class PostHocExperiment(TrainExperiment):
             self.base_model = self.pretrained_exp.model
             self.base_model.eval()
             # Get the old in and out channels from the pretrained model.
-            model_cfg_dict["num_classes"] = pretrained_model_cfg_dict['out_channels']
-            model_cfg_dict["image_channels"] = pretrained_model_cfg_dict['in_channels']
+            # TODO: Kind of hardcoded to binary greyscale segmentation...
+            model_cfg_dict["num_classes"] = pretrained_model_cfg_dict.get('out_channels', 1)
+            model_cfg_dict["image_channels"] = pretrained_model_cfg_dict.get('in_channels', 1)
 
             # TODO: BACKWARDS COMPATIBILITY STOPGAP
             model_cfg_dict["_class"] = model_cfg_dict["_class"].replace("ese.experiment", "ese")
