@@ -8,6 +8,7 @@ from ionpy.experiment.util import absolute_import
 import ast
 import json
 import einops
+import inspect
 from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Any, Optional
@@ -238,3 +239,8 @@ def show_inference_examples(
             axarr[0, supp_idx].axis("off")
             axarr[1, supp_idx].axis("off")
         plt.show()
+
+
+def filter_args_by_class(cls, args_dict):
+    valid_args = set(inspect.signature(cls).parameters)
+    return {k: v for k, v in args_dict.items() if k in valid_args}

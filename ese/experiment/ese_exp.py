@@ -1,5 +1,5 @@
 # local imports
-from .utils import process_pred_map
+from .utils import process_pred_map, filter_args_by_class
 from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
@@ -50,17 +50,19 @@ class CalibrationExperiment(TrainExperiment):
 
             splits_defined = train_split is not None and val_split is not None
 
+            # We need to filter the arguments that are not needed for the dataset class.
+            filtered_data_cfg = filter_args_by_class(dataset_cls, data_cfg)
             # Initialize the dataset classes.
             self.train_dataset = dataset_cls(
                 split=train_split if splits_defined else "train",
                 transforms=train_transforms, 
                 num_examples=num_examples,
-                **data_cfg
+                **filtered_data_cfg
             )
             self.val_dataset = dataset_cls(
                 split=val_split if splits_defined else "val",
                 transforms=val_transforms, 
-                **data_cfg
+                **filtered_data_cfg
             )
     
     def build_dataloader(self, batch_size=None):

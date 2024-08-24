@@ -1,6 +1,6 @@
 # local imports
 from ..augmentation.gather import augmentations_from_config
-from .utils import load_experiment, process_pred_map, parse_class_name
+from .utils import load_experiment, process_pred_map, parse_class_name, filter_args_by_class
 # torch imports
 import torch
 from torch.utils.data import DataLoader
@@ -58,17 +58,19 @@ class PostHocExperiment(TrainExperiment):
 
             splits_defined = train_split is not None and val_split is not None
 
+            # We need to filter the arguments that are not needed for the dataset class.
+            filtered_new_data_cfg = filter_args_by_class(dataset_cls, new_data_cfg)
             # Initialize the dataset classes.
             self.train_dataset = dataset_cls(
                 split=train_split if splits_defined else "train",
                 transforms=train_transforms, 
                 num_examples=num_examples,
-                **new_data_cfg
+                **filtered_new_data_cfg
             )
             self.val_dataset = dataset_cls(
                 split=val_split if splits_defined else "val",
                 transforms=val_transforms, 
-                **new_data_cfg
+                **filtered_new_data_cfg
             )
 
     def build_dataloader(self, batch_size=None):
