@@ -1,5 +1,4 @@
 # local imports
-from ionpy.util.meter import MeterDict
 from .utils import process_pred_map
 from ..augmentation.gather import augmentations_from_config
 # torch imports
@@ -7,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.util import Config
-from ionpy.nn.util import num_params
+from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
@@ -92,8 +91,9 @@ class CalibrationExperiment(TrainExperiment):
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
         # Get the model and data configs.
-        model_config = total_config["model"]
         data_config = total_config["data"]
+        train_config = total_config["train"]
+        model_config = total_config["model"]
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
             model_config["in_channels"] = data_config.pop("in_channels")
@@ -107,6 +107,42 @@ class CalibrationExperiment(TrainExperiment):
 
         self.model = eval_config(Config(model_cfg))
         self.properties["num_params"] = num_params(self.model)
+
+        # If there is a pretrained model, load it.
+        if "pretrained_dir" in train_config:
+            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+        
+        # Put the model on the device here.
+        self.to_device()
+    
+    def build_optim(self):
+        optim_cfg_dict = self.config["optim"].to_dict()
+        train_cfg_dict = self.config["train"].to_dict()
+
+        if 'lr_scheduler' in optim_cfg_dict:
+            self.lr_scheduler = eval_config(optim_cfg_dict.pop('lr_scheduler', None))
+
+        if "weight_decay" in optim_cfg_dict:
+            optim_cfg_dict["params"] = split_param_groups_by_weight_decay(
+                self.model, optim_cfg_dict["weight_decay"]
+            )
+        else:
+            optim_cfg_dict["params"] = self.model.parameters()
+
+        self.optim = eval_config(optim_cfg_dict)
+
+        # If there is a pretrained model, then load the optimizer state.
+        if "pretrained_dir" in train_cfg_dict:
+            checkpoint_dir = f'{train_cfg_dict["pretrained_dir"]}/checkpoints/{train_cfg_dict["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.optim.load_state_dict(checkpoint["optim"])
+        else:
+            # Zero out the gradients as initialization 
+            self.optim.zero_grad()
     
     def build_loss(self):
         # If there is a composition of losses, then combine them.

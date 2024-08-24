@@ -328,9 +328,9 @@ def get_ese_restart_configs(
         pt_listy_cfg_dict = listy_pt_cfg_dict.copy()
         pt_listy_cfg_dict['train.pretrained_dir'] = [pt_dir] # Put the pre-trained model back in.
         # Update the pt_exp_cfg with the restart_cfg.
-        pt_restart_exp_cfg = pt_exp_cfg.update([base_cfg])
+        pt_restart_base_cfg = pt_exp_cfg.update([base_cfg])
         # Print the restart_pt_cfg
-        pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_exp_cfg)
+        pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_base_cfg)
         # Append the list of configs for this pre-trained model.
         restart_cfgs += pt_cfgs
 
