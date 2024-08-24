@@ -89,15 +89,24 @@ def get_ese_calibration_configs(
     )
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
-    calibration_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
     flat_exp_cfg_dict = listify_dict(flat_exp_cfg_dict) # Make it compatible to our product function.
 
-    cfg_root = code_root / "ese"/ "configs" 
+    cfg_root = code_root / "ese" / "configs" 
 
     # Load the dataset specific config and update the base config.
-    with open(cfg_root / "calibrate" / f"{calibration_dataset_name}.yaml", 'r') as file:
-        dataset_cfg = yaml.safe_load(file)
-    base_cfg = base_cfg.update([dataset_cfg])
+    if 'data._class' in flat_exp_cfg_dict:
+        calibration_dataset_name = flat_exp_cfg_dict['data._class'][0].split('.')[-1]
+        dataset_cfg_file = cfg_root / "calibrate" / f"{calibration_dataset_name}.yaml"
+        # If the dataset specific config exists, update the base config.
+        if dataset_cfg_file.exists():
+            with open(dataset_cfg_file, 'r') as file:
+                dataset_cfg = yaml.safe_load(file)
+            base_cfg = base_cfg.update([dataset_cfg])
+        else:
+            print(f"No base config found for dataset: {calibration_dataset_name}. Using default base config.")
+    else:
+        print(f"No base config found. Using default base config.")
+
     autosave(base_cfg.to_dict(), calibration_exp_root / "base.yml") # SAVE #2: Base config
 
     # We want to load the base calibrator model configs (from yaml file) and 

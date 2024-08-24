@@ -159,6 +159,7 @@ class CalibrationExperiment(TrainExperiment):
     def run_step(self, batch_idx, batch, backward, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
+
         # Get the image and label.
         if isinstance(batch, dict):
             x, y = batch["img"], batch["label"]

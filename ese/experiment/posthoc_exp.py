@@ -218,27 +218,21 @@ class PostHocExperiment(TrainExperiment):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
 
-        # Get the image and label from the batch.
-        x = batch["img"]
-        y = batch["label"]
+        # Get the image and label.
+        if isinstance(batch, dict):
+            x, y = batch["img"], batch["label"]
+        else:
+            x, y = batch[0], batch[1]
 
         # Forward pass
         with torch.no_grad():
             yhat = self.base_model(x)
         
-        # plt.imshow(yhat[0, 0].cpu().numpy(), cmap='gray', interpolation='none')
-        # plt.colorbar()
-        # plt.show()
-
         # Calibrate the predictions.
         if self.model_class is None:
             yhat_cal = self.model(yhat)
         else:
             yhat_cal = self.model(yhat, image=x)
-
-        # plt.imshow(yhat_cal[0, 0].cpu().detach().numpy(), cmap='gray', interpolation='none')
-        # plt.colorbar()
-        # plt.show()
 
         # Calculate the loss between the pred and original preds.
         loss = self.loss_func(yhat_cal, y)
