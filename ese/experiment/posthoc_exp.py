@@ -6,13 +6,13 @@ import torch
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.util import Config
-from ionpy.nn.util import num_params
 from ionpy.util.ioutil import autosave
 from ionpy.util.hash import json_digest
 from ionpy.analysis import ResultsLoader
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
+from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 # misc imports
 import os
 from typing import Optional
@@ -129,6 +129,7 @@ class PostHocExperiment(TrainExperiment):
         #########################################
         #            Model Creation             #
         #########################################
+        train_config = total_cfg_dict['train']
         model_cfg_dict = total_cfg_dict['model']
         pretrained_model_cfg_dict = pretrained_total_cfg_dict['model']
         # Either keep training the network, or use a post-hoc calibrator.
@@ -144,7 +145,6 @@ class PostHocExperiment(TrainExperiment):
             # Get the old in and out channels from the pretrained model.
             model_cfg_dict["num_classes"] = pretrained_model_cfg_dict['out_channels']
             model_cfg_dict["image_channels"] = pretrained_model_cfg_dict['in_channels']
-
 
             # TODO: BACKWARDS COMPATIBILITY STOPGAP
             model_cfg_dict["_class"] = model_cfg_dict["_class"].replace("ese.experiment", "ese")
@@ -166,7 +166,43 @@ class PostHocExperiment(TrainExperiment):
         # Save the new config because we edited it and reset self.config
         autosave(total_cfg_dict, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_cfg_dict)
-    
+
+        # If there is a pretrained model, load it.
+        if "pretrained_dir" in train_config:
+            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+        
+        # Put the model on the device here.
+        self.to_device()
+
+    def build_optim(self):
+        optim_cfg_dict = self.config["optim"].to_dict()
+        train_cfg_dict = self.config["train"].to_dict()
+
+        if 'lr_scheduler' in optim_cfg_dict:
+            self.lr_scheduler = eval_config(optim_cfg_dict.pop('lr_scheduler', None))
+
+        if "weight_decay" in optim_cfg_dict:
+            optim_cfg_dict["params"] = split_param_groups_by_weight_decay(
+                self.model, optim_cfg_dict["weight_decay"]
+            )
+        else:
+            optim_cfg_dict["params"] = self.model.parameters()
+
+        self.optim = eval_config(optim_cfg_dict)
+
+        # If there is a pretrained model, then load the optimizer state.
+        if "pretrained_dir" in train_cfg_dict:
+            checkpoint_dir = f'{train_cfg_dict["pretrained_dir"]}/checkpoints/{train_cfg_dict["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.optim.load_state_dict(checkpoint["optim"])
+        else:
+            # Zero out the gradients as initialization 
+            self.optim.zero_grad()
+        
     def build_loss(self):
         # If there is a composition of losses, then combine them.
         # else just build the loss normally.
