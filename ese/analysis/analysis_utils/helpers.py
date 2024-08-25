@@ -1,5 +1,7 @@
 # misc imports
 import os
+import yaml
+from pprint import pprint
 from datetime import datetime
 from itertools import chain, combinations
 # Ionpy imports
@@ -49,19 +51,23 @@ def get_option_product(
     base_cfg
 ):
     # If option_set is not a list, make it a list
-    if not isinstance(option_set, list):
-        option_set = [option_set]
     cfgs = []
-    for option_dict in option_set:
-        # Get all of the keys that have length > 1 (will be turned into different options)
-        varying_keys = [key for key, value in option_dict.items() if len(value) > 1]
-        # Iterate through all of the different options
-        for cfg_update in dict_product(option_dict):
-            cfg_name_args = proc_cfg_name(exp_name, varying_keys, cfg_update)
-            cfg = base_cfg.update([cfg_update, cfg_name_args])
-            # Verify it's a valid config
-            check_missing(cfg)
-            cfgs.append(cfg)
+    # Get all of the keys that have length > 1 (will be turned into different options)
+    varying_keys = [key for key, value in option_set.items() if len(value) > 1]
+    # Iterate through all of the different options
+    for cfg_update in dict_product(option_set):
+        # If one of the keys in the update is a dictionary, then we need to wrap
+        # it in a list, otherwise the update will collapse the dictionary.
+        for key in cfg_update:
+            if isinstance(cfg_update[key], dict):
+                cfg_update[key] = [cfg_update[key]]
+        # Get the name that will be used for WANDB tracking and update the base with
+        # this version of the experiment.
+        cfg_name_args = proc_cfg_name(exp_name, varying_keys, cfg_update)
+        cfg = base_cfg.update([cfg_update, cfg_name_args])
+        # Verify it's a valid config
+        check_missing(cfg)
+        cfgs.append(cfg)
     return cfgs
 
 

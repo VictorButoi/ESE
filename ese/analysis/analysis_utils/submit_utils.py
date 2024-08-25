@@ -33,11 +33,11 @@ def get_ese_training_configs(
         add_date=add_date, 
         scratch_root=scratch_root
     )
-
+    # Flatten the experiment config.
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
-    train_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
 
     # Add the dataset specific details.
+    train_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
     dataset_cfg_file = train_cfg_root/ f"{train_dataset_name}.yaml"
     if dataset_cfg_file.exists():
         with open(dataset_cfg_file, 'r') as d_file:
@@ -338,7 +338,6 @@ def get_ese_restart_configs(
         pt_listy_cfg_dict['train.pretrained_dir'] = [pt_dir] # Put the pre-trained model back in.
         # Update the pt_exp_cfg with the restart_cfg.
         pt_restart_base_cfg = pt_exp_cfg.update([base_cfg])
-        # Print the restart_pt_cfg
         pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_base_cfg)
         # Append the list of configs for this pre-trained model.
         restart_cfgs += pt_cfgs

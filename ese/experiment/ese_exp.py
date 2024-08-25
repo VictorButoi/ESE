@@ -36,6 +36,8 @@ class CalibrationExperiment(TrainExperiment):
         # Build the augmentation pipeline.
         augmentation_list = total_config.get("augmentations", None)
         if augmentation_list is not None:
+            print(augmentation_list.get("train", None))
+
             train_transforms = augmentations_from_config(augmentation_list.get("train", None))
             val_transforms = augmentations_from_config(augmentation_list.get("val", None))
             self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
