@@ -292,7 +292,7 @@ def get_ese_restart_configs(
     restart_exp_root = save_exp_cfg(
         exp_cfg, 
         exp_name=exp_name,
-        group="training", 
+        group="restarted", 
         add_date=add_date, 
         scratch_root=scratch_root
     )
