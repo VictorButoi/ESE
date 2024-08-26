@@ -89,7 +89,7 @@ class CalibrationExperiment(TrainExperiment):
         data_config = total_config["data"]
         train_config = total_config["train"]
         model_config = total_config["model"]
-        exp_config = total_config["experiment"]
+        exp_config = total_config.get("experiment", {})
 
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
@@ -118,7 +118,7 @@ class CalibrationExperiment(TrainExperiment):
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
         train_cfg_dict = self.config["train"].to_dict()
-        exp_cfg_dict = self.config["experiment"].to_dict()
+        exp_cfg_dict = self.config.get("experiment", {}).to_dict()
 
         if 'lr_scheduler' in optim_cfg_dict:
             self.lr_scheduler = eval_config(optim_cfg_dict.pop('lr_scheduler', None))
