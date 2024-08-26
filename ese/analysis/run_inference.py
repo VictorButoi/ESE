@@ -141,7 +141,7 @@ def dataloader_loop(
             }
 
             # Run the forward loop
-            input_type = inf_cfg_dict['inference_data']['input_type']
+            input_type = inf_cfg_dict['inference_data'].get('input_type', 'image')
             if input_type == 'volume':
                 volume_forward_loop(**forward_item)
             elif input_type == 'image':

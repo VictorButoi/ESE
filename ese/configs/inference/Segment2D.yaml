@@ -1,0 +1,44 @@
+log:
+  track_label_amounts: True 
+
+inference_data:
+  split: '?'
+  resolution: 256
+  input_type: image 
+  version: "v4.2"
+  label: 0
+
+global_calibration:
+    num_classes: 1
+
+model:
+    pred_label: 0 # We do this for binary predictions.
+
+qual_metrics:
+    - Dice:
+        _fn: ese.metrics.dice_score
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        metric_type: quality
+    - HD95:
+        _fn: ese.metrics.hd95
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False
+        metric_type: quality
+    - BoundaryIOU:
+        _fn: ese.metrics.boundary_iou
+        boundary_width: 4
+        batch_reduction: 'mean' 
+        ignore_empty_labels: False 
+        metric_type: quality
+    - SoftVolumeError:
+        _fn: ese.metrics.volume_error
+        do_threshold: False 
+        batch_reduction: 'mean' 
+        metric_type: quality
+    - HardVolumeError:
+        _fn: ese.metrics.volume_error
+        do_threshold: True
+        threshold: 0.5
+        batch_reduction: 'mean' 
+        metric_type: quality

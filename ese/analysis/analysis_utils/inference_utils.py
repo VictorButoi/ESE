@@ -256,7 +256,7 @@ def cal_stats_init(
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
     inference_dset_options = inference_cfg['inference_data'].copy()
-    input_type = inference_dset_options.pop("input_type")
+    input_type = inference_dset_options.pop("input_type", "image")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
     training_data_cfg = exp_total_config['data']

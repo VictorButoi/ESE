@@ -22,7 +22,14 @@ def gather_exp_paths(root):
         "experiment.yml"
     ]
     # Filter out the skip_items
-    return [f"{root}/{run_name}" for run_name in run_names if run_name not in skip_items]
+    valid_exp_paths = []
+    for run_name in run_names:
+        run_dir = f"{root}/{run_name}"
+        # Make sure we don't include the skip items and that we actually have valid checkpoints.
+        if (run_name not in skip_items) and os.path.isdir(f"{run_dir}/checkpoints"):
+            valid_exp_paths.append(run_dir)
+    # Return the valid experiment paths.
+    return valid_exp_paths
 
 
 def proc_cfg_name(
