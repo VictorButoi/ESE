@@ -102,16 +102,19 @@ class PostHocExperiment(TrainExperiment):
             "checkpoint": total_cfg_dict['train'].get('base_checkpoint', 'max-val-dice_score')
         }
             
+        # Backwards compatibility for the pretrained directory.
+        base_pt_key = 'pretrained_dir' if 'base_pretrained_dir' not in total_cfg_dict['train']\
+            else 'base_pretrained_dir'
         # Either select from a set of experiments in a common directory OR choose a particular experiment to load.
-        if "config.yml" in os.listdir(total_cfg_dict['train']['base_pretrained_dir']):
+        if "config.yml" in os.listdir(total_cfg_dict['train'][base_pt_key]):
             self.pretrained_exp = load_experiment(
-                path=total_cfg_dict['train']['base_pretrained_dir'],
+                path=total_cfg_dict['train'][base_pt_key],
                 **load_exp_args
             )
         else:
             rs = ResultsLoader()
             self.pretrained_exp = load_experiment(
-                df=rs.load_metrics(rs.load_configs(total_cfg_dict['train']['base_pretrained_dir'], properties=False)),
+                df=rs.load_metrics(rs.load_configs(total_cfg_dict['train'][base_pt_key], properties=False)),
                 selection_metric=total_cfg_dict['train']['base_pt_select_metric'],
                 **load_exp_args
             )
@@ -121,9 +124,12 @@ class PostHocExperiment(TrainExperiment):
         #########################################
         #            Model Creation             #
         #########################################
+
         train_config = total_cfg_dict['train']
         model_cfg_dict = total_cfg_dict['model']
+        exp_config = total_cfg_dict['experiment']
         pretrained_model_cfg_dict = pretrained_total_cfg_dict['model']
+
         # Either keep training the network, or use a post-hoc calibrator.
         self.model_class = model_cfg_dict['_class']
         if self.model_class is None:
@@ -161,7 +167,7 @@ class PostHocExperiment(TrainExperiment):
         self.config = Config(total_cfg_dict)
 
         # If there is a pretrained model, load it.
-        if "pretrained_dir" in train_config:
+        if "pretrained_dir" in train_config and exp_config.get("restart", False):
             checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
             checkpoint = torch.load(checkpoint_dir, map_location=self.device)
@@ -173,6 +179,7 @@ class PostHocExperiment(TrainExperiment):
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
         train_cfg_dict = self.config["train"].to_dict()
+        exp_cfg_dict = self.config["experiment"].to_dict()
 
         if 'lr_scheduler' in optim_cfg_dict:
             self.lr_scheduler = eval_config(optim_cfg_dict.pop('lr_scheduler', None))
@@ -187,7 +194,7 @@ class PostHocExperiment(TrainExperiment):
         self.optim = eval_config(optim_cfg_dict)
 
         # If there is a pretrained model, then load the optimizer state.
-        if "pretrained_dir" in train_cfg_dict:
+        if "pretrained_dir" in train_cfg_dict and exp_cfg_dict.get("restart", False):
             checkpoint_dir = f'{train_cfg_dict["pretrained_dir"]}/checkpoints/{train_cfg_dict["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
             checkpoint = torch.load(checkpoint_dir, map_location=self.device)

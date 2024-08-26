@@ -84,10 +84,13 @@ class CalibrationExperiment(TrainExperiment):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
+
         # Get the model and data configs.
         data_config = total_config["data"]
         train_config = total_config["train"]
         model_config = total_config["model"]
+        exp_config = total_config["experiment"]
+
         # transfer the arguments to the model config.
         if "in_channels" in data_config:
             model_config["in_channels"] = data_config.pop("in_channels")
@@ -103,7 +106,7 @@ class CalibrationExperiment(TrainExperiment):
         self.properties["num_params"] = num_params(self.model)
 
         # If there is a pretrained model, load it.
-        if "pretrained_dir" in train_config:
+        if "pretrained_dir" in train_config and exp_config.get("restart", False):
             checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
             checkpoint = torch.load(checkpoint_dir, map_location=self.device)
@@ -115,6 +118,7 @@ class CalibrationExperiment(TrainExperiment):
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
         train_cfg_dict = self.config["train"].to_dict()
+        exp_cfg_dict = self.config["experiment"].to_dict()
 
         if 'lr_scheduler' in optim_cfg_dict:
             self.lr_scheduler = eval_config(optim_cfg_dict.pop('lr_scheduler', None))
@@ -129,7 +133,7 @@ class CalibrationExperiment(TrainExperiment):
         self.optim = eval_config(optim_cfg_dict)
 
         # If there is a pretrained model, then load the optimizer state.
-        if "pretrained_dir" in train_cfg_dict:
+        if "pretrained_dir" in train_cfg_dict and exp_cfg_dict.get("restart", False):
             checkpoint_dir = f'{train_cfg_dict["pretrained_dir"]}/checkpoints/{train_cfg_dict["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
             checkpoint = torch.load(checkpoint_dir, map_location=self.device)
