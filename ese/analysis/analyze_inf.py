@@ -6,6 +6,7 @@ import pickle
 import hashlib
 import pandas as pd
 from pathlib import Path
+from pprint import pprint
 from pydantic import validate_arguments
 # ionpy imports
 from ionpy.util.config import HDict, valmap
@@ -151,8 +152,8 @@ def load_cal_inference_stats(
                     logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
                     # If there was a pretraining class, then we additionally add its config.
                     if results_cfg["options"].get('load_pretrained_cfg', True)\
-                        and 'train.pretrained_dir' in logset_flat_cfg:
-                        pretrained_cfg_dir = Path(logset_flat_cfg['train.pretrained_dir']) / "config.yml"
+                        and 'train.base_pretrained_dir' in logset_flat_cfg:
+                        pretrained_cfg_dir = Path(logset_flat_cfg['train.base_pretrained_dir']) / "config.yml"
                         pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
                         # Add 'pretraining' to the keys of the pretrained config.
                         pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
