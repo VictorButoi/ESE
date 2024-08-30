@@ -37,13 +37,8 @@ def ShowPredictionsCallback(
         x = batch["x"]
         y = batch["y_true"]
     
-    # If x is 5 dimensionsal, we need to take the midslice of the last dimension
-    if len(x.shape) == 5:
-        x = x[..., x.shape[-1] // 2]
-        y = y[..., y.shape[-1] // 2]
-    
     # Transfer image and label to the cpu.
-    x = x.detach().cpu().permute(0, 2, 3, 1) # Move channel dimension to last.
+    x = x.detach().cpu()
     y = y.detach().cpu() 
 
     # Get the predicted label
@@ -69,6 +64,13 @@ def ShowPredictionsCallback(
     else:
         img_cmap = "gray"
 
+    # If x is 5 dimensionsal, we need to take the midslice of the last dimension of all 
+    # of our tensors.
+    if len(x.shape) == 5:
+        x = x[..., x.shape[-1] // 2]
+        y = y[..., y.shape[-1] // 2]
+        y_hat = y_hat[..., y_hat.shape[-1] // 2]
+
     if num_pred_classes > 1:
         if pred_cls == "y_logits":
             y_hat = torch.softmax(y_hat, dim=1)
@@ -80,9 +82,9 @@ def ShowPredictionsCallback(
         if pred_cls == "y_logits":
             y_hat = torch.sigmoid(y_hat)
         y_hard = (y_hat > threshold).int()
-    
+
     # Squeeze all tensors in prep.
-    x = x.numpy().squeeze()
+    x = x.permute(0, 2, 3, 1).numpy().squeeze() # Move channel dimension to last.
     y = y.numpy().squeeze()
     y_hard = y_hard.numpy().squeeze()
     y_hat = y_hat.squeeze()

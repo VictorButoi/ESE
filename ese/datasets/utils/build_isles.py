@@ -1,4 +1,5 @@
 import os
+import ast
 import cv2
 import time
 import pathlib
@@ -113,60 +114,79 @@ def thunderify_ISLES(
     isl_prc_root = proc_root / 'derivatives'
 
     ## Iterate through each datacenter, axis  and build it as a task
-    with ThunderDB.open(str(dst_dir), "c") as db:
-        # Iterate through the examples.
-        # Key track of the ids
-        subjects = [] 
-        subj_list = list(os.listdir(isl_raw_root))
-        for subj_name in tqdm(os.listdir(isl_raw_root), total=len(subj_list)):
+    # with ThunderDB.open(str(dst_dir), "c") as db:
+            
+    # Iterate through the examples.
+    # Key track of the ids
+    subjects = [] 
+    subj_list = list(os.listdir(isl_raw_root))
+    for subj_name in tqdm(os.listdir(isl_raw_root), total=len(subj_list)):
 
-            # Paths to the image and segmentation
-            img_dir = isl_raw_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_dwi.nii.gz' 
-            seg_dir = isl_prc_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_lesion-msk.nii.gz'
+        # Paths to the image and segmentation
+        img_dir = isl_raw_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_dwi.nii.gz' 
+        seg_dir = isl_prc_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_lesion-msk.nii.gz'
 
-            # Load the image and segmentation.
-            vol = vx.load_volume(img_dir)
-            seg = vx.load_volume(seg_dir)
+        # Load the image and segmentation.
+        vol = vx.load_volume(img_dir)
+        seg = vx.load_volume(seg_dir)
 
-            # Crop the image to non-zero values
-            cropped_img_vol_obj = vol.crop_to_nonzero()
-            cropped_seg_vol_obj = seg.resample_like(cropped_img_vol_obj, mode='nearest')
+        # Crop the image to non-zero values
+        cropped_img_vol_obj = vol.crop_to_nonzero()
+        cropped_seg_vol_obj = seg.resample_like(cropped_img_vol_obj, mode='nearest')
 
-            # Get out the tensors as numpy arrays
-            img_vol_arr = cropped_img_vol_obj.tensor.numpy().squeeze()
-            seg_vol_arr = cropped_seg_vol_obj.tensor.numpy().squeeze()
+        # Get the spacing 
+        if 'resample' in config:
+            new_res = config['resample']
+            # Parse this string as a tuple
+            new_res_tuple = ast.literal_eval(new_res)
+            # Resample the image and segmentation
+            resized_img_vol_obj = cropped_img_vol_obj.resample(new_res_tuple)
+            resized_seg_vol_obj = cropped_seg_vol_obj.resample(new_res_tuple)
 
-            # Normalize the img_vol_arr to be between 0 and 1
-            img_vol_arr = (img_vol_arr - img_vol_arr.min()) / (img_vol_arr.max() - img_vol_arr.min())
+        # Get out the tensors as numpy arrays
+        img_vol_arr = resized_img_vol_obj.tensor.numpy().squeeze()
+        seg_vol_arr = resized_seg_vol_obj.tensor.numpy().squeeze()
 
-            ## Save the datapoint to the database
-            db[subj_name] = {
-                "img": img_vol_arr, 
-                "seg": seg_vol_arr
-            } 
-            subjects.append(subj_name)
+        # Normalize the img_vol_arr to be between 0 and 1
+        img_vol_arr = (img_vol_arr - img_vol_arr.min()) / (img_vol_arr.max() - img_vol_arr.min())
 
-        subjects = sorted(subjects)
-        splits = data_splits(subjects, splits_ratio, splits_seed)
-        splits = dict(zip(("train", "cal", "val", "test"), splits))
+        # Visualize the middle slice of the last axis of the image and segmentation
+        print(subj_name)
+        plt.figure(figsize=(10, 10))
+        plt.subplot(1, 2, 1)
+        plt.imshow(img_vol_arr[..., img_vol_arr.shape[-1] // 2], cmap='gray')
+        plt.title(f"Image")
+        plt.subplot(1, 2, 2)
+        plt.imshow(seg_vol_arr[..., seg_vol_arr.shape[-1] // 2], cmap='gray')
+        plt.title(f"Segmentation")
+        plt.show()
 
-        for split_key in splits:
-            print(f"{split_key}: {len(splits[split_key])} samples")
+        # ## Save the datapoint to the database
+        # db[subj_name] = {
+        #     "img": img_vol_arr, 
+        #     "seg": seg_vol_arr
+        # } 
+        # subjects.append(subj_name)
 
-        # Save the metadata
-        db["_subjects"] = subjects
-        db["_splits"] = splits
-        db["_splits_kwarg"] = {
-            "ratio": splits_ratio, 
-            "seed": splits_seed
-            }
-        attrs = dict(
-            dataset="ISLES",
-            version=version,
-        )
-        db["_subjects"] = subjects
-        db["_samples"] = subjects
-        db["_splits"] = splits
-        db["_attrs"] = attrs
+        # subjects = sorted(subjects)
+        # splits = data_splits(subjects, splits_ratio, splits_seed)
+        # splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-        
+        # for split_key in splits:
+        #     print(f"{split_key}: {len(splits[split_key])} samples")
+
+        # # Save the metadata
+        # db["_subjects"] = subjects
+        # db["_splits"] = splits
+        # db["_splits_kwarg"] = {
+        #     "ratio": splits_ratio, 
+        #     "seed": splits_seed
+        #     }
+        # attrs = dict(
+        #     dataset="ISLES",
+        #     version=version,
+        # )
+        # db["_subjects"] = subjects
+        # db["_samples"] = subjects
+        # db["_splits"] = splits
+        # db["_attrs"] = attrs
