@@ -1,11 +1,14 @@
 import os
 import cv2
 import time
-import matplotlib.pyplot as plt
 import pathlib
 import voxel as vx
+import numpy as np
+import nibabel as nib
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 from ionpy.util import Config
+from thunderpack import ThunderDB
 
 from typing import List, Tuple
 from sklearn.model_selection import train_test_split
@@ -104,120 +107,66 @@ def thunderify_ISLES(
 
     # Append version to our paths
     proc_root = pathlib.Path(config["root"]) / 'raw_data' / 'organized_data'
-    dst_dir = pathlib.Path(config["dst_folder"]) / version
+    dst_dir = pathlib.Path(config["root"]) / config["dst_folder"] / version
 
     isl_raw_root = proc_root / 'raw_data'
     isl_prc_root = proc_root / 'derivatives'
 
-    # Iterate through each datacenter, axis  and build it as a task
-    # with ThunderDB.open(str(dst_dir), "c") as db:
-    # Key track of the ids
-    subjects = [] 
-    # Iterate through the examples.
-    subj_list = list(os.listdir(isl_raw_root))
-    for subj_name in tqdm(os.listdir(isl_raw_root), total=len(subj_list)):
+    ## Iterate through each datacenter, axis  and build it as a task
+    with ThunderDB.open(str(dst_dir), "c") as db:
+        # Iterate through the examples.
+        # Key track of the ids
+        subjects = [] 
+        subj_list = list(os.listdir(isl_raw_root))
+        for subj_name in tqdm(os.listdir(isl_raw_root), total=len(subj_list)):
 
-        # Paths to the image and segmentation
-        img_dir = isl_raw_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_dwi.nii.gz' 
-        seg_dir = isl_prc_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_lesion-msk.nii.gz'
+            # Paths to the image and segmentation
+            img_dir = isl_raw_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_dwi.nii.gz' 
+            seg_dir = isl_prc_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_lesion-msk.nii.gz'
 
-        # Load the image and segmentation.
-        print(vx.__file__)
-        vol = vx.load_volume(img_dir)
-        print(vol.geometry.spacing)
+            # Load the image and segmentation.
+            vol = vx.load_volume(img_dir)
+            seg = vx.load_volume(seg_dir)
 
-        raise ValueError
+            # Crop the image to non-zero values
+            cropped_img_vol_obj = vol.crop_to_nonzero()
+            cropped_seg_vol_obj = seg.resample_like(cropped_img_vol_obj, mode='nearest')
 
-        # We need to normalize our volume to be between 0 and 1.
-        raw_img_volume = (raw_img_volume - raw_img_volume.min()) / (raw_img_volume.max() - raw_img_volume.min())
+            # Get out the tensors as numpy arrays
+            img_vol_arr = cropped_img_vol_obj.tensor.numpy().squeeze()
+            seg_vol_arr = cropped_seg_vol_obj.tensor.numpy().squeeze()
 
-        # Visualize the slice corresponding to most amount of label in raw_seg
-        # lab_amounts = croppped_seg_volume.sum(axis=(0, 1))
-        # max_slice_idx = np.argmax(lab_amounts)
-        midslice = cropped_img_volume.shape[2] // 2 
-        cropped_img = croppped_img_volume[:, :, midslice]
-        cropped_seg = croppped_seg_volume[:, :, midslice]
-        # Visualize using matpltolib
-        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-        im = ax[0].imshow(cropped_img, cmap='gray')
-        sg = ax[1].imshow(cropped_seg, cmap='gray')
-        # Add colorbars
-        fig.colorbar(im, ax=ax[0])
-        fig.colorbar(sg, ax=ax[1])
-        plt.show()
-        time.sleep(2)
+            # Normalize the img_vol_arr to be between 0 and 1
+            img_vol_arr = (img_vol_arr - img_vol_arr.min()) / (img_vol_arr.max() - img_vol_arr.min())
 
+            ## Save the datapoint to the database
+            db[subj_name] = {
+                "img": img_vol_arr, 
+                "seg": seg_vol_arr
+            } 
+            subjects.append(subj_name)
 
-    #     # For this dataset, as it is non-binary, we have to do something more clever.
-    #     # First we need to map our segmentation to a binary segmentation.
-    #     unique_labels = np.unique(raw_seg)
-    #     mask_dict = {} 
-    #     gt_prop_dict = {}
+        subjects = sorted(subjects)
+        splits = data_splits(subjects, splits_ratio, splits_seed)
+        splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-    #     # If the unique labels are greater than 2, then we have to do some work.
-    #     square_img = square_pad(raw_img)
-    #     square_raw_seg = square_pad(raw_seg)
+        for split_key in splits:
+            print(f"{split_key}: {len(splits[split_key])} samples")
 
-    #     # Remove the axes and ticks
-    #     if square_img.shape[0] != config["resize_to"]:
-    #         square_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
+        # Save the metadata
+        db["_subjects"] = subjects
+        db["_splits"] = splits
+        db["_splits_kwarg"] = {
+            "ratio": splits_ratio, 
+            "seed": splits_seed
+            }
+        attrs = dict(
+            dataset="ISLES",
+            version=version,
+        )
+        db["_subjects"] = subjects
+        db["_samples"] = subjects
+        db["_splits"] = splits
+        db["_attrs"] = attrs
 
-    #     for lab in unique_labels:
-    #         # If the lab != 0, then we make a binary mask.
-    #         if lab != 0:
-    #             # Make a binary mask.
-    #             binary_mask = (square_raw_seg == lab).astype(np.float32)
-
-    #             # Get the proportion of the binary mask.
-    #             gt_prop = np.count_nonzero(binary_mask) / binary_mask.size
-    #             gt_prop_dict[lab] = gt_prop
-
-    #             # If we are resizing then we need to smooth the mask.
-    #             if square_raw_seg.shape[0] != config["resize_to"]:
-    #                 smooth_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
-    #                 # Now we process the mask in our standard way.
-    #                 proc_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
-    #             else:
-    #                 proc_mask = binary_mask
-
-    #             # Renormalize the mask to be between 0 and 1.
-    #             norm_mask = (proc_mask - proc_mask.min()) / (proc_mask.max() - proc_mask.min())
-
-    #             # Store the mask in the mask_dict.
-    #             mask_dict[lab] = norm_mask.astype(np.float32)
-            
-    #     assert square_img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {square_img.shape}"
-
-    #     # Save the datapoint to the database
-    #     # db[key] = {
-    #     #     "img": square_img, 
-    #     #     "seg": mask_dict,
-    #     #     "gt_proportion": gt_prop_dict 
-    #     # } 
-    #     subjects.append(key)
-
-    # subjects = sorted(subjects)
-    # splits = data_splits(subjects, splits_ratio, splits_seed)
-    # splits = dict(zip(("train", "cal", "val", "test"), splits))
-    # print(splits)
-    # # for split_key in splits:
-    # #     print(f"{split_key}: {len(splits[split_key])} samples")
-
-    # # # Save the metadata
-    # # db["_subjects"] = subjects
-    # # db["_splits"] = splits
-    # # db["_splits_kwarg"] = {
-    # #     "ratio": splits_ratio, 
-    # #     "seed": splits_seed
-    # #     }
-    # # attrs = dict(
-    # #     dataset="OCTA_6M",
-    # #     version=version,
-    # #     resolution=config["resize_to"],
-    # # )
-    # # db["_subjects"] = subjects
-    # # db["_samples"] = subjects
-    # # db["_splits"] = splits
-    # # db["_attrs"] = attrs
-
-    
+        
