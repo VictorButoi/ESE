@@ -37,6 +37,11 @@ def ShowPredictionsCallback(
         x = batch["x"]
         y = batch["y_true"]
     
+    # If x is 5 dimensionsal, we need to take the midslice of the last dimension
+    if len(x.shape) == 5:
+        x = x[..., x.shape[-1] // 2]
+        y = y[..., y.shape[-1] // 2]
+    
     # Transfer image and label to the cpu.
     x = x.detach().cpu().permute(0, 2, 3, 1) # Move channel dimension to last.
     y = y.detach().cpu() 

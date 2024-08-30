@@ -40,6 +40,7 @@ class UNet(nn.Module):
         self.dec_blocks = nn.ModuleList()
 
         conv_kws = self.conv_kws or {}
+        conv_kws["dims"] = self.dims # add dims to conv_kws
 
         for in_ch, out_ch in zip([self.in_channels] + filters[:-1], filters):
             c = ConvBlock(in_ch, [out_ch] * self.convs_per_block, **conv_kws)

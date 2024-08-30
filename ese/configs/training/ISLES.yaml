@@ -29,8 +29,8 @@ log:
       from_logits: True
 
 model:
-  filters: [64, 64, 64, 64, 64]
-  convs_per_block: 3
+  filters: [64, 64, 64, 64]
+  convs_per_block: 2
   dims: 3
 
 train:
