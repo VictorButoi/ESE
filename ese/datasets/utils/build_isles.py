@@ -16,58 +16,43 @@ from sklearn.model_selection import train_test_split
 from pydantic import validate_arguments
 
 
-def resize_with_aspect_ratio(image, target_size=256):
+def pad_to_square_resolution(arr, target_size):
     """
-    Resize the image so that its shortest side is of the target size 
-    while maintaining the aspect ratio.
-    
-    :param image: numpy array of shape (height, width, channels)
-    :param target_size: desired size for the shortest side of the image
-    :return: resized image
+    Pads a 2D numpy array to the given square target_size.
+
+    Parameters:
+    arr (numpy.ndarray): 2D numpy array to be padded.
+    target_size (int): Desired size for the square padding.
+
+    Returns:
+    numpy.ndarray: Padded 2D array.
     """
+    # Get the current dimensions of the array
+    current_size = arr.shape
+
+    if len(current_size) != 2:
+        raise ValueError("Input array must be 2D.")
+
+    # Assert that neither of the dimensions are larger than the target size
+    assert current_size[0] <= target_size, "Height of the image is larger than the target size."
+    assert current_size[1] <= target_size, "Width of the image is larger than the target size."
     
-    # Get the current dimensions of the image
-    height, width = image.shape[:2]
-
-    # Calculate the scaling factor
-    if height < width:
-        scaling_factor = target_size / height
-        new_height = target_size
-        new_width = int(width * scaling_factor)
-    else:
-        scaling_factor = target_size / width
-        new_width = target_size
-        new_height = int(height * scaling_factor)
-
-    # Resize the image
-    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-
-    # Center-crop the longer side
-    if resized_image.shape[:2] != (target_size, target_size):
-        height, width = resized_image.shape[:2]
-        y1 = (height - target_size) // 2
-        y2 = y1 + target_size
-        x1 = (width - target_size) // 2
-        x2 = x1 + target_size
-        cropped_image = resized_image[y1:y2, x1:x2]
-    else:
-        cropped_image = resized_image
-
-    # Ensure that it's square
-    assert cropped_image.shape[:2] == (target_size, target_size), f"Image shape is {cropped_image.shape}."
+    # Check if target size is large enough
+    if target_size < max(current_size):
+        raise ValueError("Target size must be greater than or equal to the current array size.")
     
-    return cropped_image 
-
-
-def square_pad(img):
-    if img.shape[0] != img.shape[1]:
-        pad = abs(img.shape[0] - img.shape[1]) // 2
-        if img.shape[0] > img.shape[1]:
-            img = cv2.copyMakeBorder(img, 0, 0, pad, pad, cv2.BORDER_CONSTANT, value=0)
-        else:
-            img = cv2.copyMakeBorder(img, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=0)
-    return img
-
+    # Calculate the padding needed on each side
+    pad_y = (target_size - current_size[0]) // 2
+    pad_x = (target_size - current_size[1]) // 2
+    
+    # Create padding dimensions: ((top, bottom), (left, right))
+    padding = ((pad_y, target_size - current_size[0] - pad_y), 
+               (pad_x, target_size - current_size[1] - pad_x))
+    
+    # Pad the array with zeros
+    padded_arr = np.pad(arr, padding, mode='constant', constant_values=0)
+    
+    return padded_arr
 
 @validate_arguments
 def data_splits(
@@ -107,86 +92,82 @@ def thunderify_ISLES(
     splits_ratio = (0.6, 0.2, 0.1, 0.1)
 
     # Append version to our paths
-    proc_root = pathlib.Path(config["root"]) / 'raw_data' / 'organized_data'
+    proc_root = pathlib.Path(config["root"]) / 'raw_data' / 'ISLES_22'
     dst_dir = pathlib.Path(config["root"]) / config["dst_folder"] / version
 
-    isl_raw_root = proc_root / 'raw_data'
-    isl_prc_root = proc_root / 'derivatives'
+    isl_img_root = proc_root / 'cropped_images'
+    isl_seg_root = proc_root / 'unzipped_archive' / 'derivatives'
 
     ## Iterate through each datacenter, axis  and build it as a task
-    # with ThunderDB.open(str(dst_dir), "c") as db:
+    with ThunderDB.open(str(dst_dir), "c") as db:
+                
+        # Iterate through the examples.
+        # Key track of the ids
+        subjects = [] 
+        subj_list = list(os.listdir(isl_img_root))
+        for subj_name in tqdm(subj_list, total=len(subj_list)):
+
+            # Paths to the image and segmentation
+            img_dir = isl_img_root / subj_name / 'ses-0001' / 'dwi' / f'{subj_name}_ses-0001_dwi_cropped.nii.gz' 
+            seg_dir = isl_seg_root / subj_name / 'ses-0001' / f'{subj_name}_ses-0001_msk.nii.gz' 
+
+            # Load the volumes using voxel
+            img_vol = vx.load_volume(img_dir)
+            # Load the seg and process to match the image
+            raw_seg_vol = vx.load_volume(seg_dir)
+            seg_vol = raw_seg_vol.resample_like(img_vol, mode='nearest')
+
+            # Get the tensors from the vol objects
+            img_vol_arr = img_vol.tensor.numpy().squeeze()
+            seg_vol_arr = seg_vol.tensor.numpy().squeeze()
             
-    # Iterate through the examples.
-    # Key track of the ids
-    subjects = [] 
-    subj_list = list(os.listdir(isl_raw_root))
-    for subj_name in tqdm(os.listdir(isl_raw_root), total=len(subj_list)):
+            # Get the maxslice of the seg_vol along the last axis
+            label_per_slice = np.sum(seg_vol_arr, axis=(0, 1))
+            max_slice_idx = np.argmax(label_per_slice)
 
-        # Paths to the image and segmentation
-        img_dir = isl_raw_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_dwi.nii.gz' 
-        seg_dir = isl_prc_root / subj_name / 'ses-02' / f'{subj_name}_ses-02_lesion-msk.nii.gz'
+            # Get the image and segmentation as numpy arrays
+            max_img = img_vol_arr[..., max_slice_idx]
+            max_seg = seg_vol_arr[..., max_slice_idx]
 
-        # Load the image and segmentation.
-        vol = vx.load_volume(img_dir)
-        seg = vx.load_volume(seg_dir)
+            # Normalize the image to be between 0 and 1
+            max_img = (max_img - max_img.min()) / (max_img.max() - max_img.min())
 
-        # Crop the image to non-zero values
-        cropped_img_vol_obj = vol.crop_to_nonzero()
-        cropped_seg_vol_obj = seg.resample_like(cropped_img_vol_obj, mode='nearest')
+            # If we have a pad then pad the image and segmentation
+            if 'pad_to' in config:
+                pad_size = config['pad_to']
+                max_img = pad_to_square_resolution(max_img, pad_size)
+                max_seg = pad_to_square_resolution(max_seg, pad_size)
+            
+            # Get the proportion of the binary mask.
+            gt_prop = np.count_nonzero(max_seg) / max_seg.size
 
-        # Get the spacing 
-        if 'resample' in config:
-            new_res = config['resample']
-            # Parse this string as a tuple
-            new_res_tuple = ast.literal_eval(new_res)
-            # Resample the image and segmentation
-            resized_img_vol_obj = cropped_img_vol_obj.resample(new_res_tuple)
-            resized_seg_vol_obj = cropped_seg_vol_obj.resample(new_res_tuple)
+            ## Save the datapoint to the database
+            db[subj_name] = {
+                "img": img_vol_arr, 
+                "seg": seg_vol_arr,
+                "gt_propotion": gt_prop
+            } 
+            subjects.append(subj_name)
 
-        # Get out the tensors as numpy arrays
-        img_vol_arr = resized_img_vol_obj.tensor.numpy().squeeze()
-        seg_vol_arr = resized_seg_vol_obj.tensor.numpy().squeeze()
+        subjects = sorted(subjects)
+        splits = data_splits(subjects, splits_ratio, splits_seed)
+        splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-        # Normalize the img_vol_arr to be between 0 and 1
-        img_vol_arr = (img_vol_arr - img_vol_arr.min()) / (img_vol_arr.max() - img_vol_arr.min())
+        for split_key in splits:
+            print(f"{split_key}: {len(splits[split_key])} samples")
 
-        # Visualize the middle slice of the last axis of the image and segmentation
-        print(subj_name)
-        plt.figure(figsize=(10, 10))
-        plt.subplot(1, 2, 1)
-        plt.imshow(img_vol_arr[..., img_vol_arr.shape[-1] // 2], cmap='gray')
-        plt.title(f"Image")
-        plt.subplot(1, 2, 2)
-        plt.imshow(seg_vol_arr[..., seg_vol_arr.shape[-1] // 2], cmap='gray')
-        plt.title(f"Segmentation")
-        plt.show()
-
-        # ## Save the datapoint to the database
-        # db[subj_name] = {
-        #     "img": img_vol_arr, 
-        #     "seg": seg_vol_arr
-        # } 
-        # subjects.append(subj_name)
-
-        # subjects = sorted(subjects)
-        # splits = data_splits(subjects, splits_ratio, splits_seed)
-        # splits = dict(zip(("train", "cal", "val", "test"), splits))
-
-        # for split_key in splits:
-        #     print(f"{split_key}: {len(splits[split_key])} samples")
-
-        # # Save the metadata
-        # db["_subjects"] = subjects
-        # db["_splits"] = splits
-        # db["_splits_kwarg"] = {
-        #     "ratio": splits_ratio, 
-        #     "seed": splits_seed
-        #     }
-        # attrs = dict(
-        #     dataset="ISLES",
-        #     version=version,
-        # )
-        # db["_subjects"] = subjects
-        # db["_samples"] = subjects
-        # db["_splits"] = splits
-        # db["_attrs"] = attrs
+        # Save the metadata
+        db["_subjects"] = subjects
+        db["_splits"] = splits
+        db["_splits_kwarg"] = {
+            "ratio": splits_ratio, 
+            "seed": splits_seed
+            }
+        attrs = dict(
+            dataset="ISLES",
+            version=version,
+        )
+        db["_subjects"] = subjects
+        db["_samples"] = subjects
+        db["_splits"] = splits
+        db["_attrs"] = attrs
