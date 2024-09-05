@@ -2,8 +2,11 @@
 from ionpy import slite
 from ionpy.util import Config
 # misc imports
+from pathlib import Path
 from pydantic import validate_arguments
 from typing import List, Optional, Any, Callable
+# ESE imports
+from ese.analysis.analysis_utils.helpers import log_exp_config_objs
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -67,13 +70,29 @@ def run_ese_exp(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def submit_ese_exps(
+    group: str,
+    base_cfg: dict,
+    exp_cfg: dict,
     config_list: List[Config],
+    add_date: bool = True,
     track_wandb: bool = False,
     available_gpus: List[str] = ["0"],
+    job_func: Optional[Callable] = None,
     experiment_class: Optional[Any] = None,
-    job_func: Optional[Callable] = None
+    scratch_root: Path = Path("/storage/vbutoi/scratch/ESE"),
 ):
+    # Checkjob_func if the input is valid.
     submit_input_check(experiment_class, job_func)
+
+    # Save the experiment configs so we can know what we ran.
+    log_exp_config_objs(
+        exp_cfg=exp_cfg, 
+        base_cfg=base_cfg, 
+        group=group, 
+        add_date=add_date, 
+        scratch_root=scratch_root
+    )
+
     # Modify a few things relating to callbacks.
     modified_cfgs = [] 
     for config in config_list:

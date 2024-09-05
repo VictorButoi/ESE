@@ -26,13 +26,8 @@ def get_ese_training_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
-    train_exp_root = save_exp_cfg(
-        exp_cfg, 
-        exp_name=exp_name,
-        group="training", 
-        add_date=add_date, 
-        scratch_root=scratch_root
-    )
+    train_exp_root = get_exp_root(exp_name, group="training", add_date=add_date, scratch_root=scratch_root)
+
     # Flatten the experiment config.
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
 
@@ -48,7 +43,7 @@ def get_ese_training_configs(
         print(f"No base config found for dataset: {train_dataset_name}. Using default base config.")
 
     # Save the new base config. Load the dataset specific config and update the base config.
-    autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
+    # autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
     
     # Get the information about seeds.
     seed = flat_exp_cfg_dict.pop('experiment.seed', 40)
@@ -64,8 +59,9 @@ def get_ese_training_configs(
     # Get the configs
     cfgs = get_option_product(exp_name, option_set, base_cfg)
 
-    # Return the train configs.
-    return cfgs
+    # Return the configs and the base config.
+    base_cfg_dict = base_cfg.to_dict()
+    return base_cfg_dict, cfgs
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -80,13 +76,7 @@ def get_ese_calibration_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
-    calibration_exp_root = save_exp_cfg(
-        exp_cfg, 
-        exp_name=exp_name,
-        group="calibration", 
-        add_date=add_date, 
-        scratch_root=scratch_root
-    )
+    calibration_exp_root = get_exp_root(exp_name, group="calibration", add_date=add_date, scratch_root=scratch_root)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     flat_exp_cfg_dict = listify_dict(flat_exp_cfg_dict) # Make it compatible to our product function.
@@ -106,8 +96,6 @@ def get_ese_calibration_configs(
             print(f"No base config found for dataset: {calibration_dataset_name}. Using default base config.")
     else:
         print(f"No base config found. Using default base config.")
-
-    autosave(base_cfg.to_dict(), calibration_exp_root / "base.yml") # SAVE #2: Base config
 
     # We want to load the base calibrator model configs (from yaml file) and 
     # then update it with the new calibration model configs.
@@ -155,8 +143,9 @@ def get_ese_calibration_configs(
         # Replace the Config object with the new config dict.
         cfgs[c_idx] = Config(cfg_dict)
 
-    # Return the train configs.
-    return cfgs
+    # Return the configs and the base config.
+    base_cfg_dict = base_cfg.to_dict()
+    return base_cfg_dict, cfgs
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -172,13 +161,7 @@ def get_ese_inference_configs(
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
     exp_name = exp_cfg.pop('name')
-    inference_exp_root = save_exp_cfg(
-        exp_cfg, 
-        exp_name=exp_name,
-        group="inference", 
-        add_date=add_date, 
-        scratch_root=scratch_root
-    )
+    inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_datasets = flat_exp_cfg_dict.pop('inference_data._class')
@@ -195,7 +178,6 @@ def get_ese_inference_configs(
         cal_metrics_cfg = yaml.safe_load(file)
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
-    autosave(base_cfg.to_dict(), inference_exp_root / "base.yml") # SAVE #2: Base config
 
     # for each power set key, we replace the list of options with its power set.
     if power_set_keys is not None:
@@ -216,8 +198,9 @@ def get_ese_inference_configs(
 
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
+
     # Keep a list of all the run configuration options.
-    inference_opt_list = []
+    cfgs = []
 
     # If datasets is not a list, make it a list.
     if not isinstance(inference_datasets, list):
@@ -272,10 +255,11 @@ def get_ese_inference_configs(
                 # Verify it's a valid config
                 check_missing(cfg)
                 # Add it to the total list of inference options.
-                inference_opt_list.append(cfg)
+                cfgs.append(cfg)
 
-    # Return the list of different configs.
-    return inference_opt_list
+    # Return the configs and the base config.
+    base_cfg_dict = base_cfg.to_dict()
+    return base_cfg_dict, cfgs
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -289,13 +273,7 @@ def get_ese_restart_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
-    restart_exp_root = save_exp_cfg(
-        exp_cfg, 
-        exp_name=exp_name,
-        group="restarted", 
-        add_date=add_date, 
-        scratch_root=scratch_root
-    )
+    restart_exp_root = get_exp_root(exp_name, group="restarted", add_date=add_date, scratch_root=scratch_root)
 
     # Get the flat version of the experiment config.
     restart_cfg_dict = flatten_cfg2dict(exp_cfg)
@@ -328,7 +306,7 @@ def get_ese_restart_configs(
     }
     
     # Go through all the pretrained models and add the new options for the restart.
-    restart_cfgs = []
+    cfgs = []
     for pt_dir in all_pre_models:
         # Load the pre-trained model config.
         with open(f"{pt_dir}/config.yml", 'r') as file:
@@ -340,7 +318,8 @@ def get_ese_restart_configs(
         pt_restart_base_cfg = pt_exp_cfg.update([base_cfg])
         pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_base_cfg)
         # Append the list of configs for this pre-trained model.
-        restart_cfgs += pt_cfgs
+        cfgs += pt_cfgs
 
-    # Return the train configs.
-    return restart_cfgs
+    # Return the configs and the base config.
+    base_cfg_dict = base_cfg.to_dict()
+    return base_cfg_dict, cfgs

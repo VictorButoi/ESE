@@ -121,53 +121,69 @@ def thunderify_ISLES(
             img_vol_arr = img_vol.tensor.numpy().squeeze()
             seg_vol_arr = seg_vol.tensor.numpy().squeeze()
             
-            # Get the maxslice of the seg_vol along the last axis
-            label_per_slice = np.sum(seg_vol_arr, axis=(0, 1))
-            max_slice_idx = np.argmax(label_per_slice)
+            def get_max_slice_on_axis(img, seg, axis):
+                all_axes = [0, 1, 2]
+                # pop the axis from the list
+                all_axes.pop(axis)
+                # Get the maxslice of the seg_vol along the last axis
+                label_per_slice = np.sum(seg, axis=tuple(all_axes))
+                max_slice_idx = np.argmax(label_per_slice)
+                # Get the image and segmentation as numpy arrays
+                max_img = np.take(img, max_slice_idx, axis=axis)
+                max_seg = np.take(seg, max_slice_idx, axis=axis)
+                return max_img, max_seg 
 
-            # Get the image and segmentation as numpy arrays
-            max_img = img_vol_arr[..., max_slice_idx]
-            max_seg = seg_vol_arr[..., max_slice_idx]
+            # Display the image and segmentation for each axis is a 2x3 grid.
+            fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+            # Loop through the axes, plot the image and seg for each axis
+            for ax in range(3):
+                max_img, max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
+                axs[0, ax].imshow(max_img, cmap='gray')
+                axs[0, ax].set_title(f"Image on axis {ax}")
+                axs[1, ax].imshow(max_seg, cmap='gray')
+                axs[1, ax].set_title(f"Segmentation on axis {ax}")
+            plt.show()
 
-            # Normalize the image to be between 0 and 1
-            max_img = (max_img - max_img.min()) / (max_img.max() - max_img.min())
 
-            # If we have a pad then pad the image and segmentation
-            if 'pad_to' in config:
-                pad_size = config['pad_to']
-                max_img = pad_to_square_resolution(max_img, pad_size)
-                max_seg = pad_to_square_resolution(max_seg, pad_size)
+        #     # Normalize the image to be between 0 and 1
+        #     max_img = (max_img - max_img.min()) / (max_img.max() - max_img.min())
+
+        #     # If we have a pad then pad the image and segmentation
+        #     if 'pad_to' in config:
+        #         pad_size = config['pad_to']
+        #         max_img = pad_to_square_resolution(max_img, pad_size)
+        #         max_seg = pad_to_square_resolution(max_seg, pad_size)
             
-            # Get the proportion of the binary mask.
-            gt_prop = np.count_nonzero(max_seg) / max_seg.size
+        #     # Get the proportion of the binary mask.
+        #     gt_prop = np.count_nonzero(max_seg) / max_seg.size
 
-            ## Save the datapoint to the database
-            db[subj_name] = {
-                "img": img_vol_arr, 
-                "seg": seg_vol_arr,
-                "gt_propotion": gt_prop
-            } 
-            subjects.append(subj_name)
+        #     ## Save the datapoint to the database
+        #     db[subj_name] = {
+        #         "img": max_img, 
+        #         "seg": max_seg,
+        #         "gt_propotion": gt_prop
+        #     } 
+        #     subjects.append(subj_name)
 
-        subjects = sorted(subjects)
-        splits = data_splits(subjects, splits_ratio, splits_seed)
-        splits = dict(zip(("train", "cal", "val", "test"), splits))
+        # subjects = sorted(subjects)
+        # splits = data_splits(subjects, splits_ratio, splits_seed)
+        # splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-        for split_key in splits:
-            print(f"{split_key}: {len(splits[split_key])} samples")
+        # for split_key in splits:
+        #     print(f"{split_key}: {len(splits[split_key])} samples")
 
-        # Save the metadata
-        db["_subjects"] = subjects
-        db["_splits"] = splits
-        db["_splits_kwarg"] = {
-            "ratio": splits_ratio, 
-            "seed": splits_seed
-            }
-        attrs = dict(
-            dataset="ISLES",
-            version=version,
-        )
-        db["_subjects"] = subjects
-        db["_samples"] = subjects
-        db["_splits"] = splits
-        db["_attrs"] = attrs
+        # # Save the metadata
+        # db["_subjects"] = subjects
+        # db["_splits"] = splits
+        # db["_splits_kwarg"] = {
+        #     "ratio": splits_ratio, 
+        #     "seed": splits_seed
+        #     }
+        # attrs = dict(
+        #     dataset="ISLES",
+        #     version=version,
+        # )
+        # db["_subjects"] = subjects
+        # db["_samples"] = subjects
+        # db["_splits"] = splits
+        # db["_attrs"] = attrs
