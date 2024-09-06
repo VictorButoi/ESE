@@ -16,43 +16,51 @@ from sklearn.model_selection import train_test_split
 from pydantic import validate_arguments
 
 
-def pad_to_square_resolution(arr, target_size):
+def pad_to_resolution(arr, target_size):
     """
-    Pads a 2D numpy array to the given square target_size.
+    Pads a numpy array to the given target size, which can be either a single number (same for all dimensions)
+    or a tuple/list of integers corresponding to each dimension.
 
     Parameters:
-    arr (numpy.ndarray): 2D numpy array to be padded.
-    target_size (int): Desired size for the square padding.
+    arr (numpy.ndarray): N-dimensional numpy array to be padded.
+    target_size (int or tuple/list): Desired size for the padding. If a single integer is provided, 
+                                     the array will be padded equally in all dimensions. If a tuple or 
+                                     list is provided, it will pad each dimension accordingly.
 
     Returns:
-    numpy.ndarray: Padded 2D array.
+    numpy.ndarray: Padded array.
     """
     # Get the current dimensions of the array
     current_size = arr.shape
 
-    if len(current_size) != 2:
-        raise ValueError("Input array must be 2D.")
+    if len(current_size) == 0:
+        raise ValueError("Input array must have at least one dimension.")
 
-    # Assert that neither of the dimensions are larger than the target size
-    assert current_size[0] <= target_size, "Height of the image is larger than the target size."
-    assert current_size[1] <= target_size, "Width of the image is larger than the target size."
-    
-    # Check if target size is large enough
-    if target_size < max(current_size):
-        raise ValueError("Target size must be greater than or equal to the current array size.")
-    
-    # Calculate the padding needed on each side
-    pad_y = (target_size - current_size[0]) // 2
-    pad_x = (target_size - current_size[1]) // 2
-    
-    # Create padding dimensions: ((top, bottom), (left, right))
-    padding = ((pad_y, target_size - current_size[0] - pad_y), 
-               (pad_x, target_size - current_size[1] - pad_x))
-    
+    # Handle the case where target_size is a single integer (same padding for all dimensions)
+    if isinstance(target_size, int):
+        target_size = [target_size] * len(current_size)
+    elif isinstance(target_size, (tuple, list)):
+        if len(target_size) != len(current_size):
+            raise ValueError("Target size must have the same number of dimensions as the input array.")
+    else:
+        raise ValueError("Target size must be an integer or a tuple/list of integers.")
+
+    # Assert that none of the dimensions are larger than the corresponding target sizes
+    for i in range(len(current_size)):
+        assert current_size[i] <= target_size[i], f"Dimension {i} of the array is larger than the target size."
+
+    # Calculate the padding needed on each side for each dimension
+    padding = []
+    for i in range(len(current_size)):
+        pad_before = (target_size[i] - current_size[i]) // 2
+        pad_after = target_size[i] - current_size[i] - pad_before
+        padding.append((pad_before, pad_after))
+
     # Pad the array with zeros
     padded_arr = np.pad(arr, padding, mode='constant', constant_values=0)
-    
+
     return padded_arr
+
 
 @validate_arguments
 def data_splits(
@@ -90,7 +98,7 @@ def get_max_slice_on_axis(img, seg, axis):
     # Get the image and segmentation as numpy arrays
     axis_max_img = np.take(img, max_slice_idx, axis=axis)
     axis_max_seg = np.take(seg, max_slice_idx, axis=axis)
-    return max_img, max_seg 
+    return axis_max_img, axis_max_seg 
 
 
 def thunderify_ISLES(
@@ -118,6 +126,10 @@ def thunderify_ISLES(
         # Key track of the ids
         subjects = [] 
         subj_list = list(os.listdir(isl_img_root))
+
+        # keep track of the largest dimensions
+        max_shape = [0, 0, 0]
+
         for subj_name in tqdm(subj_list, total=len(subj_list)):
 
             # Paths to the image and segmentation
@@ -134,29 +146,32 @@ def thunderify_ISLES(
             img_vol_arr = img_vol.tensor.numpy().squeeze()
             seg_vol_arr = seg_vol.tensor.numpy().squeeze()
 
-            # # Display the image and segmentation for each axis is a 2x3 grid.
-            # fig, axs = plt.subplots(2, 3, figsize=(15, 10))
-            # # Loop through the axes, plot the image and seg for each axis
-            # for ax in range(3):
-            #     ax_max_img, ax_max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
-            #     axs[0, ax].imshow(ax_max_img, cmap='gray')
-            #     axs[0, ax].set_title(f"Image on axis {ax}")
-            #     axs[1, ax].imshow(ax_max_seg, cmap='gray')
-            #     axs[1, ax].set_title(f"Segmentation on axis {ax}")
-            # plt.show()
+            # If we have a pad then pad the image and segmentation
+            if 'pad_to' in config:
+                # If 'pad_to' is a string then we need to convert it to a tuple
+                if isinstance(config['pad_to'], str):
+                    config['pad_to'] = ast.literal_eval(config['pad_to'])
+                img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
+                seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
+
+            if config.get('show_examples', False):
+                # Display the image and segmentation for each axis is a 2x3 grid.
+                fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+                # Loop through the axes, plot the image and seg for each axis
+                for ax in range(3):
+                    ax_max_img, ax_max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
+                    axs[0, ax].imshow(ax_max_img, cmap='gray')
+                    axs[0, ax].set_title(f"Image on axis {ax}")
+                    axs[1, ax].imshow(ax_max_seg, cmap='gray')
+                    axs[1, ax].set_title(f"Segmentation on axis {ax}")
+                plt.show()
 
             # Get the max slice on the z axis
-            max_img, max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
+            if 'max_axis' in config:
+                max_img_slice, max_seg_slice = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
 
             # Normalize the image to be between 0 and 1
             max_img = (max_img - max_img.min()) / (max_img.max() - max_img.min())
-
-            # If we have a pad then pad the image and segmentation
-            if 'pad_to' in config:
-                pad_size = config['pad_to']
-                max_img = pad_to_square_resolution(max_img, pad_size)
-                max_seg = pad_to_square_resolution(max_seg, pad_size)
-            
             # Get the proportion of the binary mask.
             gt_prop = np.count_nonzero(max_seg) / max_seg.size
 
