@@ -20,6 +20,7 @@ class ISLES(ThunderDataset, DatapathMixin):
     preload: bool = False
     return_data_id: bool = False
     transforms: Optional[Any] = None
+    return_gt_proportion: bool = False
     num_examples: Optional[int] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
@@ -70,6 +71,11 @@ class ISLES(ThunderDataset, DatapathMixin):
         }
 
         # Add some additional information.
+        # Add some additional information.
+        if self.return_gt_proportion:
+            # NOTE: The key is mispelled in version 0.1
+            return_dict["gt_proportion"] = example_obj["gt_propotion"]
+
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
         
