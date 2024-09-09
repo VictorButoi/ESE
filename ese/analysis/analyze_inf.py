@@ -151,14 +151,21 @@ def load_cal_inference_stats(
                     logset_config_dir = log_set / "config.yml"
                     logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
                     # If there was a pretraining class, then we additionally add its config.
-                    if results_cfg["options"].get('load_pretrained_cfg', True)\
-                        and 'train.base_pretrained_dir' in logset_flat_cfg:
-                        pretrained_cfg_dir = Path(logset_flat_cfg['train.base_pretrained_dir']) / "config.yml"
-                        pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
-                        # Add 'pretraining' to the keys of the pretrained config.
-                        pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
-                        # Update the logset_flat_cfg with the pretrained config.
-                        logset_flat_cfg.update(pt_flat_cfg)
+                    # TODO: When restarting models, we use pretrained_dir as the name and when finetuning we use
+                    # base_pretrained dir, this causes some issues that need to be resolved.
+                    if results_cfg["options"].get('load_pretrained_cfg', True):
+                        # There are two possible dirs for this atm.
+                        base_pt_key = 'train.base_pretrained_dir' 
+                        ft_pt_key = 'train.pretrained_dir'
+                        # Check if either is in the logset_flat_cfg (if they aren't we can't load the pretrained config).
+                        if (base_pt_key in logset_flat_cfg) or (ft_pt_key in logset_flat_cfg):
+                            pt_load_key = base_pt_key if base_pt_key in logset_flat_cfg else ft_pt_key # We prefer to use the base key as it is newer.
+                            pretrained_cfg_dir = Path(logset_flat_cfg[pt_load_key]) / "config.yml"
+                            pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
+                            # Add 'pretraining' to the keys of the pretrained config.
+                            pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
+                            # Update the logset_flat_cfg with the pretrained config.
+                            logset_flat_cfg.update(pt_flat_cfg)
                     # Append the df of the dictionary.
                     metadata_pd_collection.append(logset_flat_cfg)
         # Finally, concatenate all of the metadata dataframes.

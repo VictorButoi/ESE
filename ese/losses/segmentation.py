@@ -113,10 +113,6 @@ def area_estimation_error(
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
-    # Check that the shapes are correct
-    assert len(y_pred.shape) == 4, f"y_pred must have 4 dimensions, got {y_pred.shape}"
-    assert len(y_true.shape) == 4, f"y_pred must have 4 dimensions, got {y_true.shape}"
-
     # Quick check to see if we are dealing with binary segmentation
     y_pred, y_true = _inputs_as_onehot(
         y_pred, 

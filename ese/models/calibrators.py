@@ -39,15 +39,17 @@ class Temperature_Scaling(nn.Module):
         self.temp.data.fill_(1)
     
     def get_temp_map(self, logits):
-        B, _, H, W = logits.shape
-        temp_map = self.temp.repeat(B, H, W)
-        return temp_map
+        all_dims = list(logits.shape)
+        all_dims.pop(1) # remove the channel dimension
+        return self.temp.repeat(*all_dims)
 
     def forward(self, logits, **kwargs):
-        _, C, _, _ = logits.shape
+        C = logits.shape[1]
         temp_map = self.get_temp_map(logits)
         # Expand the shape of temp map to match the shape of the logits
-        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1)
+        num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
+        repeat_factors = [1, C] + [1] * num_spatial_dims
+        temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors)
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
