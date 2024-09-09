@@ -48,12 +48,20 @@ def bin_stats_init(
     from_logits: bool = False,
     neighborhood_width: Optional[int] = None
 ):
+    # Convert to float64 for precision.
+    C = y_pred.shape[1]
     y_pred = y_pred.to(torch.float64) # Get precision for calibration.
     y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
-    C = y_pred.shape[1]
-    
-    print("looking at shapes")
-    print(y_pred.shape, y_true.shape)  
+
+    # if the shape of y_pred is 5D then we need to move the last dim to the front.
+    if len(y_pred.shape) == 5 and len(y_true.shape) == 4:
+        y_pred = y_pred.permute(0, 4, 1, 2, 3)
+        y_true = y_true.permute(0, 3, 1, 2)
+        # Collapse the first and second dimensions.
+        # Reshape (B, C, H, W, D) to (BC, H, W, D)
+        B, D, C, H, W = y_pred.shape
+        y_pred = y_pred.reshape((B * D, C, H, W))
+        y_true = y_true.reshape((B * D, H, W))
 
     assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
         f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
