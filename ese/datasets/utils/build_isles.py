@@ -146,42 +146,48 @@ def thunderify_ISLES(
             img_vol_arr = img_vol.tensor.numpy().squeeze()
             seg_vol_arr = seg_vol.tensor.numpy().squeeze()
 
-            # If we have a pad then pad the image and segmentation
-            if 'pad_to' in config:
-                # If 'pad_to' is a string then we need to convert it to a tuple
-                if isinstance(config['pad_to'], str):
-                    config['pad_to'] = ast.literal_eval(config['pad_to'])
-                img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
-                seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
+            # Get the amount of segmentation in the image
+            label_amount = np.count_nonzero(seg_vol_arr)
+            if label_amount >= config.get('min_label_amount', 0):
 
-            if config.get('show_examples', False):
-                # Display the image and segmentation for each axis is a 2x3 grid.
-                fig, axs = plt.subplots(2, 3, figsize=(15, 10))
-                # Loop through the axes, plot the image and seg for each axis
-                for ax in range(3):
-                    ax_max_img, ax_max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
-                    axs[0, ax].imshow(ax_max_img, cmap='gray')
-                    axs[0, ax].set_title(f"Image on axis {ax}")
-                    axs[1, ax].imshow(ax_max_seg, cmap='gray')
-                    axs[1, ax].set_title(f"Segmentation on axis {ax}")
-                plt.show()
+                # If we have a pad then pad the image and segmentation
+                if 'pad_to' in config:
+                    # If 'pad_to' is a string then we need to convert it to a tuple
+                    if isinstance(config['pad_to'], str):
+                        config['pad_to'] = ast.literal_eval(config['pad_to'])
+                    img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
+                    seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
 
-            # Get the max slice on the z axis
-            if 'max_axis' in config:
-                max_img_slice, max_seg_slice = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
+                if config.get('show_examples', False):
+                    # Display the image and segmentation for each axis is a 2x3 grid.
+                    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+                    # Loop through the axes, plot the image and seg for each axis
+                    for ax in range(3):
+                        ax_max_img, ax_max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
+                        axs[0, ax].imshow(ax_max_img, cmap='gray')
+                        axs[0, ax].set_title(f"Image on axis {ax}")
+                        axs[1, ax].imshow(ax_max_seg, cmap='gray')
+                        axs[1, ax].set_title(f"Segmentation on axis {ax}")
+                    plt.show()
 
-            # Normalize the image to be between 0 and 1
-            max_img = (max_img - max_img.min()) / (max_img.max() - max_img.min())
-            # Get the proportion of the binary mask.
-            gt_prop = np.count_nonzero(max_seg) / max_seg.size
+                # Get the max slice on the z axis
+                if 'max_axis' in config:
+                    img, seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
+                else:
+                    img, seg = img_vol_arr, seg_vol_arr
 
-            ## Save the datapoint to the database
-            db[subj_name] = {
-                "img": max_img, 
-                "seg": max_seg,
-                "gt_proportion": gt_prop
-            } 
-            subjects.append(subj_name)
+                # Normalize the image to be between 0 and 1
+                normalized_img = (img - img.min()) / (img.max() - img.min())
+                # Get the proportion of the binary mask.
+                gt_prop = np.count_nonzero(seg) / seg.size
+
+                ## Save the datapoint to the database
+                db[subj_name] = {
+                    "img": normalized_img, 
+                    "seg": seg,
+                    "gt_proportion": gt_prop
+                } 
+                subjects.append(subj_name)
 
         subjects = sorted(subjects)
         splits = data_splits(subjects, splits_ratio, splits_seed)
