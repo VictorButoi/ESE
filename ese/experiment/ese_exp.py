@@ -4,6 +4,7 @@ from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 # IonPy imports
 from ionpy.util import Config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
@@ -177,18 +178,30 @@ class CalibrationExperiment(TrainExperiment):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
+
+        # Zero out the gradients.
+        self.optim.zero_grad()
         
         # Make a prediction with a forward pass of the model.
-        yhat = self.model(x)
-
-        # Let's visualize the predictions and the ground truth.
-        loss = self.loss_func(yhat, y)
-
-        # If backward then backprop the gradients.
-        if backward:
-            loss.backward()
-            self.optim.step()
-            self.optim.zero_grad()
+        if self.config['experiment'].get('torch_mixed_precision', False):
+            with autocast():
+                yhat = self.model(x)
+                loss = self.loss_func(yhat, y)
+            # If backward then backprop the gradients.
+            if backward:
+                # Scale the loss and backpropagate
+                self.grad_scaler.scale(loss).backward()
+                # Step the optimizer using the scaler
+                self.grad_scaler.step(self.optim)
+                # Update the scale for next iteration
+                self.grad_scaler.update() 
+        else:
+            yhat = self.model(x)
+            loss = self.loss_func(yhat, y)
+            # If backward then backprop the gradients.
+            if backward:
+                loss.backward()
+                self.optim.step()
 
         # Run step-wise callbacks if you have them.
         forward_batch = {

@@ -238,6 +238,7 @@ class LocalTS(nn.Module):
         use_image: bool = True,
         use_logits: bool = True, 
         convs_per_block: int = 1,
+        dims: int = 2,
         eps=1e-12, 
         **kwargs
     ):
@@ -247,6 +248,7 @@ class LocalTS(nn.Module):
             in_channels=(num_classes + img_channels if use_image else num_classes), 
             out_channels=1, # For the temp map.
             filters=filters,
+            dims=dims,
             convs_per_block=convs_per_block,
         )
         self.use_image = use_image
@@ -266,7 +268,7 @@ class LocalTS(nn.Module):
         if self.use_image:
             cal_input = torch.cat([cal_input, image], dim=1)
         # Pass through the UNet.
-        unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x H x W
+        unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x Spat. Dims
         # Add ones so the temperature starts near 1.
         unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
         # Clip the values to be positive and add epsilon for smoothing.
@@ -275,11 +277,13 @@ class LocalTS(nn.Module):
         return temp_map
 
     def forward(self, logits, image, **kwargs):
-        _, C, _, _ = logits.shape
+        C = logits.shape[1]
         # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x H x W
+        temp_map = self.get_temp_map(logits, image) # B x Spatial Dims
         # Repeat the temperature map for all classes.
-        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+        num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
+        repeat_factors = [1, C] + [1] * num_spatial_dims
+        temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
