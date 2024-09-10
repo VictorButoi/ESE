@@ -145,6 +145,10 @@ def get_ese_calibration_configs(
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
+
+    pprint(cfgs[0].to_dict())
+    raise ValueError
+
     return base_cfg_dict, cfgs
 
 

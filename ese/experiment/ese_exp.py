@@ -3,8 +3,8 @@ from .utils import process_pred_map, filter_args_by_class
 from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
+from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
 # IonPy imports
 from ionpy.util import Config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay

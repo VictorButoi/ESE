@@ -3,6 +3,7 @@ from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name, filter_args_by_class
 # torch imports
 import torch
+from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 # IonPy imports
 from ionpy.util import Config
@@ -231,24 +232,46 @@ class PostHocExperiment(TrainExperiment):
         else:
             x, y = batch[0], batch[1]
 
+        # Zero out the gradients.
+        self.optim.zero_grad()
+
         # Forward pass
-        with torch.no_grad():
-            yhat = self.base_model(x)
-        
-        # Calibrate the predictions.
-        if self.model_class is None:
-            yhat_cal = self.model(yhat)
+        print(self.config['experiment'])
+
+        if self.config['experiment'].get('torch_mixed_precision', False):
+            raise NotImplementedError("Mixed precision training is not yet supported for post-hoc calibration.")
+            with autocast():
+                with torch.no_grad():
+                    yhat = self.base_model(x)        
+                # Calibrate the predictions.
+                if self.model_class is None:
+                    yhat_cal = self.model(yhat)
+                else:
+                    yhat_cal = self.model(yhat, image=x)
+                # Calculate the loss between the pred and original preds.
+                loss = self.loss_func(yhat_cal, y)
+            if backward:
+                # Scale the loss and backpropagate
+                self.grad_scaler.scale(loss).backward()
+                # Step the optimizer using the scaler
+                self.grad_scaler.step(self.optim)
+                # Update the scale for next iteration
+                self.grad_scaler.update() 
         else:
-            yhat_cal = self.model(yhat, image=x)
+            with torch.no_grad():
+                yhat = self.base_model(x)
+            # Calibrate the predictions.
+            if self.model_class is None:
+                yhat_cal = self.model(yhat)
+            else:
+                yhat_cal = self.model(yhat, image=x)
+            # Calculate the loss between the pred and original preds.
+            loss = self.loss_func(yhat_cal, y)
+            # If backward then backprop the gradients.
+            if backward:
+                loss.backward()
+                self.optim.step()
 
-        # Calculate the loss between the pred and original preds.
-        loss = self.loss_func(yhat_cal, y)
-
-        # If backward then backprop the gradients.
-        if backward:
-            loss.backward()
-            self.optim.step()
-            self.optim.zero_grad()
         # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,
@@ -259,6 +282,7 @@ class PostHocExperiment(TrainExperiment):
             "batch_idx": batch_idx,
         }
         self.run_callbacks("step", batch=forward_batch)
+
         return forward_batch
 
     def predict(
