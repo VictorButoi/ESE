@@ -170,44 +170,44 @@ def thunderify_ISLES(
                         axs[1, ax].set_title(f"Segmentation on axis {ax}")
                     plt.show()
 
-                # Get the max slice on the z axis
-                if 'max_axis' in config:
-                    img, seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
-                else:
-                    img, seg = img_vol_arr, seg_vol_arr
+        #         # Get the max slice on the z axis
+        #         if 'max_axis' in config:
+        #             img, seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
+        #         else:
+        #             img, seg = img_vol_arr, seg_vol_arr
 
-                # Normalize the image to be between 0 and 1
-                normalized_img = (img - img.min()) / (img.max() - img.min())
-                # Get the proportion of the binary mask.
-                gt_prop = np.count_nonzero(seg) / seg.size
+        #         # Normalize the image to be between 0 and 1
+        #         normalized_img = (img - img.min()) / (img.max() - img.min())
+        #         # Get the proportion of the binary mask.
+        #         gt_prop = np.count_nonzero(seg) / seg.size
 
-                ## Save the datapoint to the database
-                db[subj_name] = {
-                    "img": normalized_img, 
-                    "seg": seg,
-                    "gt_proportion": gt_prop
-                } 
-                subjects.append(subj_name)
+        #         ## Save the datapoint to the database
+        #         db[subj_name] = {
+        #             "img": normalized_img, 
+        #             "seg": seg,
+        #             "gt_proportion": gt_prop
+        #         } 
+        #         subjects.append(subj_name)
 
-        subjects = sorted(subjects)
-        splits = data_splits(subjects, splits_ratio, splits_seed)
-        splits = dict(zip(("train", "cal", "val", "test"), splits))
+        # subjects = sorted(subjects)
+        # splits = data_splits(subjects, splits_ratio, splits_seed)
+        # splits = dict(zip(("train", "cal", "val", "test"), splits))
 
-        for split_key in splits:
-            print(f"{split_key}: {len(splits[split_key])} samples")
+        # for split_key in splits:
+        #     print(f"{split_key}: {len(splits[split_key])} samples")
 
-        # Save the metadata
-        db["_subjects"] = subjects
-        db["_splits"] = splits
-        db["_splits_kwarg"] = {
-            "ratio": splits_ratio, 
-            "seed": splits_seed
-            }
-        attrs = dict(
-            dataset="ISLES",
-            version=version,
-        )
-        db["_subjects"] = subjects
-        db["_samples"] = subjects
-        db["_splits"] = splits
-        db["_attrs"] = attrs
+        # # Save the metadata
+        # db["_subjects"] = subjects
+        # db["_splits"] = splits
+        # db["_splits_kwarg"] = {
+        #     "ratio": splits_ratio, 
+        #     "seed": splits_seed
+        #     }
+        # attrs = dict(
+        #     dataset="ISLES",
+        #     version=version,
+        # )
+        # db["_subjects"] = subjects
+        # db["_samples"] = subjects
+        # db["_splits"] = splits
+        # db["_attrs"] = attrs

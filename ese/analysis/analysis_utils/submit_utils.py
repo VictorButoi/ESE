@@ -68,8 +68,8 @@ def get_ese_training_configs(
 def get_ese_calibration_configs(
     exp_cfg: dict,
     base_cfg: Config,
+    calibration_model_cfgs: dict,
     add_date: bool = True,
-    calibration_model_cfgs: dict = {},
     code_root: Path = Path("/storage/vbutoi/projects/ESE"),
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE")
 ): 
@@ -97,14 +97,6 @@ def get_ese_calibration_configs(
     else:
         print(f"No base config found. Using default base config.")
 
-    # We want to load the base calibrator model configs (from yaml file) and 
-    # then update it with the new calibration model configs.
-    with open(cfg_root / "defaults" / "Calibrator_Models.yaml", 'r') as file:
-        base_cal_models_cfg = yaml.safe_load(file)
-    # Update base_cal_models_cfg with calibration_model_cfgs
-    cal_model_cfgs = base_cal_models_cfg.copy()
-    cal_model_cfgs.update(calibration_model_cfgs)
-    
     # We need to make sure that these are models and not model folders.
     all_pre_models = []
     for pre_model_dir in flat_exp_cfg_dict['train.base_pretrained_dir']:
@@ -133,11 +125,11 @@ def get_ese_calibration_configs(
         # Replace the model with the dict from calibration model cfgs.
         cal_model = cfg_dict.pop('model')
         if isinstance(cal_model, dict):
-            model_cfg = cal_model_cfgs[cal_model.pop('class_name')].copy()
+            model_cfg = calibration_model_cfgs[cal_model.pop('class_name')].copy()
             # Update with the new params and put it back in the cfg.
             model_cfg.update(cal_model)
         else:
-            model_cfg = cal_model_cfgs[cal_model].copy()
+            model_cfg = calibration_model_cfgs[cal_model].copy()
         # Put the model cfg back in the cfg_dict.
         cfg_dict['model'] = model_cfg 
         # Replace the Config object with the new config dict.
@@ -145,9 +137,6 @@ def get_ese_calibration_configs(
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
-
-    pprint(cfgs[0].to_dict())
-    raise ValueError
 
     return base_cfg_dict, cfgs
 

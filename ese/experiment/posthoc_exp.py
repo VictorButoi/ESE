@@ -161,8 +161,13 @@ class PostHocExperiment(TrainExperiment):
         ########################################################################
         # Get the tuned calibration parameters.
         self.properties["num_params"] = num_params(self.model)
+
         # Set the new experiment params as the old ones.
-        total_cfg_dict['experiment'] = pretrained_total_cfg_dict['experiment']
+        old_exp_cfg = pretrained_total_cfg_dict['experiment']
+        old_exp_cfg.update(total_cfg_dict['experiment'])
+        new_exp_cfg = old_exp_cfg.copy()
+        total_cfg_dict['experiment'] = new_exp_cfg
+
         # Save the new config because we edited it and reset self.config
         autosave(total_cfg_dict, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_cfg_dict)
@@ -239,7 +244,6 @@ class PostHocExperiment(TrainExperiment):
         print(self.config['experiment'])
 
         if self.config['experiment'].get('torch_mixed_precision', False):
-            raise NotImplementedError("Mixed precision training is not yet supported for post-hoc calibration.")
             with autocast():
                 with torch.no_grad():
                     yhat = self.base_model(x)        
