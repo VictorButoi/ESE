@@ -258,6 +258,7 @@ def get_bins(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_bin_per_sample(
     pred_map: Tensor, 
+    n_spatial_dims: int,
     class_wise: bool = False,
     num_prob_bins: Optional[int] = None,
     int_start: Optional[float] = None,
@@ -279,36 +280,43 @@ def get_bin_per_sample(
     # Ensure that the bin_starts and bin_widths tensors have the same shape
     assert (num_prob_bins is not None and int_start is not None and int_end is not None)\
         ^ (bin_starts is not None and bin_widths is not None), "Either num_bins, start, and end or bin_starts and bin_widths must be provided."
-    # Define the device by the prediction device.
-    pred_device = pred_map.device 
+    assert n_spatial_dims in [2, 3], "Spatial dimensions should be 2 or 3."
+
     # If num_bins, start, and end are provided, generate bin_starts and bin_widths
     if num_prob_bins is not None:
         bin_starts, bin_widths = get_bins(
             num_prob_bins=num_prob_bins, 
             int_start=int_start, 
             int_end=int_end, 
-            device=pred_device
+            device=pred_map.device
         )
     else:
         assert bin_starts.shape == bin_widths.shape, "bin_starts and bin_widths should have the same shape."
+
     # If class-wise, then we want to get the bin indices for each class. 
     if class_wise:
-        assert len(pred_map.shape) == 4, f"pred_map must be (B, C, H, W). Got: {pred_map.shape}"
-        bin_ownership_map = torch.stack([
+        if n_spatial_dims == 2:
+            assert len(pred_map.shape) == 4, f"pred_map must be (B, C, H, W). Got: {pred_map.shape}"
+        else: 
+            assert len(pred_map.shape) == 5, f"pred_map must be (B, C, H, W, D). Got: {pred_map.shape}"
+        bin_ownership_map = torch.concatenate([
             _bin_per_val(
-                pred_map=pred_map[:, l_idx, ...], # B x H x W
+                pred_map=pred_map[:, l_idx, ...],
                 bin_starts=bin_starts,
                 bin_widths=bin_widths,
-                device=pred_device,
-            )
-        for l_idx in range(pred_map.shape[1])]).permute(1, 0, 2, 3) # B x C x H x W
+                device=pred_map.device
+            ).unsqueeze(1) # B x 1 x Spatial Dims
+        for l_idx in range(pred_map.shape[1])], axis=1) # B x C x Spatial Dims
     else:
-        assert len(pred_map.shape) == 3, f"pred_map must be (B, H, W). Got: {pred_map.shape}"
+        if n_spatial_dims == 2:
+            assert len(pred_map.shape) == 3, f"pred_map must be (B, H, W). Got: {pred_map.shape}"
+        else: 
+            assert len(pred_map.shape) == 4, f"pred_map must be (B, H, W, D). Got: {pred_map.shape}"
         bin_ownership_map = _bin_per_val(
             pred_map=pred_map, 
             bin_starts=bin_starts, 
             bin_widths=bin_widths,
-            device=pred_device
+            device=pred_map.device
         )
 
     return bin_ownership_map
@@ -337,18 +345,21 @@ def _bin_per_val(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def agg_neighbors_preds(
-    pred_map: Tensor,
-    neighborhood_width: int,
     discrete: bool,
-    class_wise: bool = False,
+    pred_map: Tensor,
+    n_spatial_dims: int,
+    neighborhood_width: int,
     binary: bool = True,
-    kernel: Literal['mean', 'gaussian'] = 'mean',
-    num_classes: Optional[int] = None
+    class_wise: bool = False,
+    kernel: Literal['mean', 'gaussian'] = 'mean'
 ):
     assert neighborhood_width % 2 == 1,\
         "Neighborhood width should be an odd number."
     assert neighborhood_width >= 3,\
         "Neighborhood width should be at least 3."
+    assert n_spatial_dims in [2, 3],\
+        "Spatial dimensions should be 2 or 3."
+
     # Do some type checking, if we are discrete than lab_map has to be a long tensor
     # Otherwise it has to be a float32 or float64 tensor.
     if discrete:
@@ -358,15 +369,16 @@ def agg_neighbors_preds(
     else:
         assert pred_map.dtype in [torch.float32, torch.float64],\
             "Continuous pred maps must be float32 or float64 tensors."
+
     # Define a count kernel which is just a ones tensor.
-    k_shape = tuple([1, 1, *(len(pred_map.shape) * [neighborhood_width])])
+    k_shape = tuple([1, 1, *(n_spatial_dims * [neighborhood_width])])
     kernel = torch.ones(k_shape, device=pred_map.device)
 
     # Set the center pixel to zero to exclude it from the count.
     half_neighb = (neighborhood_width - 1) // 2
-    if len(pred_map.shape) == 2:
+    if n_spatial_dims == 2:
         kernel[:, :, half_neighb, half_neighb] = 0
-    elif len(pred_map.shape) == 3:
+    elif n_spatial_dims == 3:
         kernel[:, :, half_neighb, half_neighb, half_neighb] = 0
     else:
         raise ValueError(f"Invalid pred_map shape: {pred_map.shape}.")
@@ -377,6 +389,15 @@ def agg_neighbors_preds(
 
     # If class_wise, then we want to get the neighbor predictions for each class.
     if class_wise:
+        if n_spatial_dims == 2:
+            assert len(pred_map.shape) == 4, f"For agg_neighbors using class_wise=True and n_spatial_dims=4,\
+                pred_map must be (B, C, H, W). Got: {pred_map.shape}"
+        else:
+            assert len(pred_map.shape) == 5, f"For agg_neighbors using class_wise=True and n_spatial_dims=5,\
+                pred_map must be (B, C, H, W, D). Got: {pred_map.shape}"
+        # Get the channel dimension
+        C = pred_map.shape[1]
+        # Go through each label and get the neighbor predictions.
         return torch.stack([
             _proc_neighbor_map(
                 pred_map=pred_map[:, l_idx, ...], 
@@ -385,8 +406,14 @@ def agg_neighbors_preds(
                 binary=binary,
                 discrete=False,
             )
-        for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
+        for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
     else:
+        if n_spatial_dims == 2:
+            assert len(pred_map.shape) == 3, f"For agg_neighbors using class_wise=False and n_spatial_dims=4,\
+                pred_map must be (B, H, W). Got: {pred_map.shape}"
+        else:
+            assert len(pred_map.shape) == 4, f"For agg_neighbors using class_wise=False and n_spatial_dims=5,\
+                pred_map must be (B, H, W, D). Got: {pred_map.shape}"
         return _proc_neighbor_map(
             pred_map=pred_map, 
             neighborhood_width=neighborhood_width, 
@@ -435,22 +462,25 @@ def _bin_matching_neighbors(
     neighborhood_width: int, 
 ):
     # Convert mask to float tenso
-    mask = mask.float()
-    # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
-    mask_unsqueezed = mask.unsqueeze(1)
+    mask_unsqueezed = mask.unsqueeze(1).float() # B x 1 x Spatial Dims
+
     # Calculate the mask padding depending on the neighborhood width
     half_neighb = (neighborhood_width - 1) // 2
     # Apply padding
-    if len(mask.shape) == 2:
+    if len(mask.shape) == 3:
         padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
         neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
-    elif len(mask.shape) == 3:
+    elif len(mask.shape) == 4:
         print(half_neighb)
         padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
         neighbor_count = F.conv3d(padded_mask, kernel, padding=0)
+    else:
+        raise ValueError(f"Invalid mask shape: {mask.shape}.")
+
     # Squeeze the result back to the original shape
     neighbor_count_squeezed = neighbor_count.squeeze(1)
     assert neighbor_count_squeezed.shape == mask.shape, f"Expected shape: {mask.shape}, got: {neighbor_count_squeezed.shape}."
+
     return neighbor_count_squeezed
 
 

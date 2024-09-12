@@ -51,21 +51,8 @@ def bin_stats_init(
     # Convert to float64 for precision.
     C = y_pred.shape[1]
     y_pred = y_pred.to(torch.float64) # Get precision for calibration.
-    y_true = y_true.squeeze(1).to(torch.float64) # Remove the channel dimension.
+    y_true = y_true.to(torch.float64) # Remove the channel dimension.
 
-    # if the shape of y_pred is 5D then we need to move the last dim to the front.
-    if len(y_pred.shape) == 5 and len(y_true.shape) == 4:
-        y_pred = y_pred.permute(0, 4, 1, 2, 3)
-        y_true = y_true.permute(0, 3, 1, 2)
-        # Collapse the first and second dimensions.
-        # Reshape (B, C, H, W, D) to (BC, H, W, D)
-        B, D, C, H, W = y_pred.shape
-        y_pred = y_pred.reshape((B * D, C, H, W))
-        y_true = y_true.reshape((B * D, H, W))
-
-    assert len(y_pred.shape) == 4 and len(y_true.shape) == 3,\
-        f"After prep, y_pred and y_true must be 4D and 3D tensors, respectively. Got {y_pred.shape} and {y_true.shape}."
-    
     # If from logits, apply softmax along channels of y pred.
     if from_logits:
         if C == 1:
@@ -73,73 +60,75 @@ def bin_stats_init(
         else:
             y_pred = torch.softmax(y_pred, dim=1)
 
-
     # Get the max probabilities and the hard predictions.
     if C == 1: 
-        y_max_prob_map = y_pred.squeeze(1) # B x H x W
+        y_prob_map = y_pred.squeeze(1) # B x Spatial Dimensions
     else:
-        y_max_prob_map = y_pred.max(dim=1).values # B x H x W
+        y_prob_map = y_pred.max(dim=1).values # B x Spatial Dimensions
 
     # Get the hard predictions and the max confidences.
     if C == 1:
-        y_hard = (y_pred > threshold).long().squeeze(1) # B x H x W Remove the channel dimension.
+        y_hard = (y_pred > threshold).long().squeeze(1) # B x Spatial Dimensions 
     else:
         if y_pred.shape[1] == 2 and threshold != 0.5:
-            y_hard = (y_pred[:, 1, ...] > threshold).long() # B x H x W
+            y_hard = (y_pred[:, 1, ...] > threshold).long() # B x Spatial Dimensions
         else:
-            y_hard = y_pred.argmax(dim=1) # B x H x W
-
+            y_hard = y_pred.argmax(dim=1) # B x Spatial Dimensions
+    
     conf_bin_args = {
-        "num_prob_bins": num_prob_bins,
         "int_start": 0.0,
         "int_end": 1.0,
+        "n_spatial_dims": y_pred.ndim - 2,
+        "num_prob_bins": num_prob_bins
     }
+
     top_prob_bin_map = get_bin_per_sample(
-        pred_map=y_max_prob_map,
+        pred_map=y_prob_map,
         class_wise=False,
         **conf_bin_args
-    ) # B x H x W
+    ) # B x Spatial Dimensions
 
     classwise_prob_bin_map = get_bin_per_sample(
         pred_map=y_pred,
         class_wise=True,
         **conf_bin_args
-    ) # B x H x W
+    ) # B x Spatial Dimensions
 
     # Get a map of which pixels match their neighbors and how often.
     if neighborhood_width is not None:
         nn_args = {
-            "neighborhood_width": neighborhood_width,
             "discrete": True,
+            "n_spatial_dims": y_pred.ndim - 2,
+            "neighborhood_width": neighborhood_width,
         }
         # Predicted map
         top_pred_neighbors_map = agg_neighbors_preds(
-                                pred_map=y_hard,
-                                class_wise=False,
-                                binary=False,
-                                **nn_args
-                            )
+                                    pred_map=y_hard,
+                                    class_wise=False,
+                                    binary=False,
+                                    **nn_args
+                                )
         # True map
         top_true_neighbors_map = agg_neighbors_preds(
-                                pred_map=y_true.long(),
-                                class_wise=False,
-                                binary=False,
-                                **nn_args
-                            )
+                                    pred_map=y_true.long(),
+                                    class_wise=False,
+                                    binary=False,
+                                    **nn_args
+                                )
         # Predicted map
         classwise_pred_neighbors_map = agg_neighbors_preds(
-                                pred_map=y_hard,
-                                class_wise=True,
-                                num_classes=C,
-                                **nn_args
-                            )
+                                        pred_map=y_hard,
+                                        class_wise=True,
+                                        num_classes=C,
+                                        **nn_args
+                                    )
         # True map
         classwise_true_neighbors_map = agg_neighbors_preds(
-                                pred_map=y_true.long(),
-                                class_wise=True,
-                                num_classes=C,
-                                **nn_args
-                            )
+                                        pred_map=y_true.long(),
+                                        class_wise=True,
+                                        num_classes=C,
+                                        **nn_args
+                                    )
     else:
         top_pred_neighbors_map = None
         top_true_neighbors_map = None 
@@ -159,7 +148,7 @@ def bin_stats_init(
     # Wrap this into a dictionary.
     return {
         "y_pred": y_pred.to(torch.float64), # "to" is for precision.
-        "y_max_prob_map": y_max_prob_map.to(torch.float64),
+        "y_max_prob_map": y_prob_map.to(torch.float64),
         "y_hard": y_hard.to(torch.float64),
         "y_true": y_true.to(torch.float64),
         "top_frequency_map": top_frequency_map.to(torch.float64),

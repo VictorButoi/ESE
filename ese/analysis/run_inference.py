@@ -266,7 +266,7 @@ def standard_image_forward_loop(
                 if output_res_cfg:
                     # Resize the image
                     exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
-                
+
         # Get through all the batch elements.
         inference_batch_size = image.shape[0] 
         for batch_inference_idx in range(inference_batch_size):
