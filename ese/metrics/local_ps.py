@@ -7,37 +7,12 @@ from typing import Any, Optional
 from pydantic import validate_arguments
 # local imports 
 from .utils import (
+    calc_bin_info,
     pair_to_tensor,
     get_conf_region, 
     get_bin_per_sample,
     agg_neighbors_preds 
 )
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def calc_bin_info(
-    prob_map: Tensor,
-    frequency_map: Tensor,
-    bin_conf_region: Tensor,
-    square_diff: bool,
-):
-    bin_num_samples = bin_conf_region.sum() 
-    avg_bin_confidence = prob_map[bin_conf_region].sum() / bin_num_samples
-    avg_bin_frequency = frequency_map[bin_conf_region].sum() / bin_num_samples
-
-    # Calculate the calibration error.
-    if square_diff:
-        cal_error = (avg_bin_confidence - avg_bin_frequency).square()
-    else:
-        cal_error = (avg_bin_confidence - avg_bin_frequency).abs()
-
-    return {
-        "avg_conf": avg_bin_confidence,
-        "avg_freq": avg_bin_frequency,
-        "cal_error": cal_error,
-        "num_samples": bin_num_samples
-    }
-
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats_init(
@@ -102,6 +77,7 @@ def bin_stats_init(
             "neighborhood_width": neighborhood_width,
         }
         # Predicted map
+        print(y_hard.shape)
         top_pred_neighbors_map = agg_neighbors_preds(
                                     pred_map=y_hard,
                                     class_wise=False,
