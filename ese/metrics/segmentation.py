@@ -195,17 +195,17 @@ def hd95(
 def boundary_iou(
     y_pred: Tensor,
     y_true: Tensor,
+    eps: float = 1e-7,
+    smooth: float = 1e-7,
+    threshold: float = 0.5,
     boundary_width: int = 1,
     mode: InputMode = "auto",
-    smooth: float = 1e-7,
-    eps: float = 1e-7,
-    threshold: float = 0.5,
+    from_logits: bool = False,
     reduction: Reduction = "mean",
+    ignore_empty_labels: bool = True,
+    ignore_index: Optional[int] = None,
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
-    ignore_empty_labels: bool = True,
-    from_logits: bool = False,
-    ignore_index: Optional[int] = None,
 ) -> Tensor:
     # Quick check to see if we are dealing with binary segmentation
     if y_pred.shape[1] == 1:
@@ -217,30 +217,34 @@ def boundary_iou(
         else:
             y_pred = torch.softmax(y_pred, dim=1) # Label channels are 1 by default.
 
-    B, C, _, _ = y_pred.shape
+    B, C, = y_pred.shape[:2]
 
-    y_true = y_true.squeeze(1) # B x H x W
+    assert y_true.shape[1] == 1, "y_true must be a single channel label map."
+    y_true = y_true.squeeze(1)
     if C == 1:
-        y_hard = (y_pred > threshold).squeeze(1) # B x H x W
+        y_hard = (y_pred > threshold).squeeze(1)
     else:
-        y_hard = y_pred.argmax(dim=1) # B x H x W
+        y_hard = y_pred.argmax(dim=1)
 
     n_width = 2*boundary_width + 1 # The width of the neighborhood.
     neighb_args = {
-        "class_wise": True,
         "binary": False, # Include background a having num neighbors.
-        "neighborhood_width": n_width,
         "discrete": True,
-        "num_classes": C
+        "num_classes": C,
+        "class_wise": True,
+        "neighborhood_width": n_width,
     }
+    # Get the local accumulations.
     true_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_true.long(), # B x H x W
+                            pred_map=y_true.long(),
                             **neighb_args
-                        ) # B x C x H x W
+                        )
     pred_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_hard.long(), # B x H x W
+                            pred_map=y_hard.long(),
                             **neighb_args
-                        ) # B x C x H x W
+                        )
+
+    print(true_num_neighb_map.shape, pred_num_neighb_map.shape)
 
     # Get the non-center pixels.
     max_matching_neighbors = (n_width**2 - 1) # The center pixel is not counted.

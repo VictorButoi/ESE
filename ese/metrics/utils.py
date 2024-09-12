@@ -359,45 +359,34 @@ def agg_neighbors_preds(
         assert pred_map.dtype in [torch.float32, torch.float64],\
             "Continuous pred maps must be float32 or float64 tensors."
     # Define a count kernel which is just a ones tensor.
-    kernel = torch.ones((1, 1, neighborhood_width, neighborhood_width), device=pred_map.device)
+    k_shape = tuple([1, 1, *(len(pred_map.shape) * [neighborhood_width])])
+    kernel = torch.ones(k_shape, device=pred_map.device)
+
     # Set the center pixel to zero to exclude it from the count.
-    kernel[:, :, (neighborhood_width - 1) // 2, (neighborhood_width - 1) // 2] = 0
+    half_neighb = (neighborhood_width - 1) // 2
+    if len(pred_map.shape) == 2:
+        kernel[:, :, half_neighb, half_neighb] = 0
+    elif len(pred_map.shape) == 3:
+        kernel[:, :, half_neighb, half_neighb, half_neighb] = 0
+    else:
+        raise ValueError(f"Invalid pred_map shape: {pred_map.shape}.")
+
     # If not discrete, then we want to normalize the kernel so that it sums to 1.
     if not discrete:
         kernel = kernel / kernel.sum()
+
     # If class_wise, then we want to get the neighbor predictions for each class.
     if class_wise:
-        assert len(pred_map.shape) in [3, 4],\
-            f"Pred map shape should be: (B, C, H, W) or (B, H, W), got shape: {pred_map.shape}."
-        if len(pred_map.shape) == 4:
-            assert not discrete, "If class-wise with dim = 4, then we must be continuous."
-            return torch.stack([
-                _proc_neighbor_map(
-                    pred_map=pred_map[:, l_idx, ...], 
-                    neighborhood_width=neighborhood_width, 
-                    kernel=kernel,
-                    binary=binary,
-                    discrete=False,
-                )
-            for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
-        else:
-            assert discrete, "If class-wise with dim = 3, then we must be discrete."
-            assert num_classes is not None, "If class-wise with dim = 3, then we must provide num_classes."
-            return torch.stack([
-                _proc_neighbor_map(
-                    pred_map=(pred_map == l_idx).long(),
-                    neighborhood_width=neighborhood_width, 
-                    kernel=kernel,
-                    binary=binary,
-                    discrete=True,
-                )
-            for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
+        return torch.stack([
+            _proc_neighbor_map(
+                pred_map=pred_map[:, l_idx, ...], 
+                neighborhood_width=neighborhood_width, 
+                kernel=kernel,
+                binary=binary,
+                discrete=False,
+            )
+        for l_idx in range(num_classes)]).permute(1, 0, 2, 3) # B x C x H x W
     else:
-        assert len(pred_map.shape) == 3,\
-            f"Pred map shape should be: (B, H, W), got shape: {pred_map.shape}."
-        if binary and discrete:
-            assert len(torch.unique(pred_map)) in [1, 2],\
-                "If binary, then we must have 1 or 2 unique values in the pred_map."
         return _proc_neighbor_map(
             pred_map=pred_map, 
             neighborhood_width=neighborhood_width, 
@@ -421,7 +410,6 @@ def  _proc_neighbor_map(
                     pred_map, 
                     neighborhood_width=neighborhood_width, 
                     kernel=kernel,
-                    discrete=discrete
                 )
     else:
         assert discrete, "Can't do continuous with multiple labels."
@@ -432,8 +420,7 @@ def  _proc_neighbor_map(
             neighbor_count_squeezed = _bin_matching_neighbors(
                 lab_map, 
                 neighborhood_width=neighborhood_width, 
-                kernel=kernel,
-                discrete=True
+                kernel=kernel
             )
             # Update the count_array where the y_true matches the current label
             count_array[lab_map] = neighbor_count_squeezed[lab_map]
@@ -444,27 +431,27 @@ def  _proc_neighbor_map(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def _bin_matching_neighbors(
     mask: Tensor, 
-    neighborhood_width: int, 
     kernel: Tensor, 
-    discrete: bool
+    neighborhood_width: int, 
 ):
-    # Convert mask to float tensor
+    # Convert mask to float tenso
     mask = mask.float()
     # Unsqueeze masks to fit conv2d expected input (Batch Size, Channels, Height, Width)
     mask_unsqueezed = mask.unsqueeze(1)
     # Calculate the mask padding depending on the neighborhood width
-    mask_padding = (neighborhood_width - 1) // 2
+    half_neighb = (neighborhood_width - 1) // 2
     # Apply padding
-    padded_mask = F.pad(mask_unsqueezed, pad=(mask_padding, mask_padding, mask_padding, mask_padding), mode='reflect')
-    # Convolve the mask with the kernel to get the neighbor count using 2D convolution
-    neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
-    # Squeeze the result back to the original shape (B x H x W)
+    if len(mask.shape) == 2:
+        padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
+        neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
+    elif len(mask.shape) == 3:
+        print(half_neighb)
+        padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
+        neighbor_count = F.conv3d(padded_mask, kernel, padding=0)
+    # Squeeze the result back to the original shape
     neighbor_count_squeezed = neighbor_count.squeeze(1)
-    # Either return the discrete or continuous neighbor count.
-    if discrete:
-        return neighbor_count_squeezed.long()
-    else:
-        return neighbor_count_squeezed
+    assert neighbor_count_squeezed.shape == mask.shape, f"Expected shape: {mask.shape}, got: {neighbor_count_squeezed.shape}."
+    return neighbor_count_squeezed
 
 
 # Get a distribution of per-pixel accuracy as a function of the size of the instance that it was 
