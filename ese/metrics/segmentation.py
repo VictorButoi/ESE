@@ -101,11 +101,11 @@ def hd95(
     y_true: Tensor,
     threshold: float = 0.5,
     from_logits: bool = False,
-    ignore_empty_labels: bool = False,
     reduction: Reduction = "mean",
+    ignore_empty_labels: bool = False,
+    ignore_index: Optional[int] = None,
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
-    ignore_index: Optional[int] = None
 ):
     # Quick check to see if we are dealing with binary segmentation
     if y_pred.shape[1] == 1:
@@ -114,10 +114,10 @@ def hd95(
     """
     Calculates the 95th percentile Hausdorff Distance for a predicted label map. 
     """
-    assert len(y_pred.shape) == 4 and len(y_true.shape) == 4,\
-        "y_pred and y_true must be 4D tensors."
+    assert len(y_pred.shape) == len(y_true.shape) and len(y_pred.shape) >= 4,\
+        f"y_pred and y_true must be at least 4D tensors and have the same shape, got: {y_pred.shape} and {y_true.shape}."
 
-    B, C = y_pred.shape[:2]
+    B, C = y_pred.shape[:2] # Batch and Channels are always the first two dimensions.
     if from_logits:
         if C == 1:
             y_pred = torch.sigmoid(y_pred)
@@ -127,28 +127,29 @@ def hd95(
     # Get the preds with highest probs and the label map.
     if y_pred.shape[1] > 1:
         if y_pred.shape[1] == 2 and threshold != 0.5:
-            y_pred = (y_pred[:, 1, ...] > threshold).long()
+            y_hard = (y_pred[:, 1, ...] > threshold).long()
         else:
-            y_pred = y_pred.argmax(dim=1)
+            y_hard = y_pred.argmax(dim=1)
     else:
-        y_pred = (y_pred > threshold).long()
+        y_hard = (y_pred > threshold).long()
     
     # If C isn't 1, we need to convert these to one hot tensors.
     if C != 1:
         # Convert these to one hot tensors.
-        y_pred = F.one_hot(y_pred.squeeze(dim=1), num_classes=C).permute(0, 3, 1, 2)
-        y_true = F.one_hot(y_true.squeeze(dim=1), num_classes=C).permute(0, 3, 1, 2)
+        num_dims = y_hard.ndim
+        y_hard = F.one_hot(y_hard.squeeze(dim=1), num_classes=C).permute(0, -1, *range(1, num_dims-1))
+        y_true = F.one_hot(y_true.squeeze(dim=1), num_classes=C).permute(0, -1, *range(1, num_dims-1))
 
     # Unfortunately we have to convert these to numpy arrays to work with the medpy func.
-    y_pred_cpu = y_pred.cpu().numpy()
+    y_hard_cpu = y_hard.cpu().numpy()
     y_true_cpu = y_true.cpu().numpy()
 
     # Iterate through the labels, and set the batch scores corresponding to that label.
     hd_scores = torch.zeros(B, C) 
     for batch_idx in range(B):
         for lab_idx in range(C):
-            label_pred = y_pred_cpu[batch_idx, lab_idx, :, :]
-            label_gt = y_true_cpu[batch_idx, lab_idx, :, :]
+            label_pred = y_hard_cpu[batch_idx, lab_idx, ...]
+            label_gt = y_true_cpu[batch_idx, lab_idx, ...]
             # If they both have pixels, calculate the hausdorff distance.
             if label_pred.sum() > 0 and label_gt.sum() > 0:
                 hd_scores[batch_idx, lab_idx] = HausdorffDist95(
