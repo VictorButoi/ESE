@@ -16,8 +16,22 @@ from ionpy.experiment.util import absolute_import, eval_config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 # misc imports
 import os
+import time
 from typing import Optional
 import matplotlib.pyplot as plt
+
+
+def calculate_tensor_memory_in_gb(tensor):
+    # Get the number of elements in the tensor
+    num_elements = tensor.numel()
+    # Get the size of each element in bytes based on the dtype
+    dtype_size = tensor.element_size()  # size in bytes for the tensor's dtype
+    # Total memory in bytes
+    total_memory_bytes = num_elements * dtype_size
+    # Convert bytes to gigabytes (1 GB = 1e9 bytes)
+    total_memory_gb = total_memory_bytes / 1e9
+    
+    return total_memory_gb
 
 
 class PostHocExperiment(TrainExperiment):
@@ -139,8 +153,14 @@ class PostHocExperiment(TrainExperiment):
             # Edit the model_config.
             total_cfg_dict['model']['_class'] = parse_class_name(str(self.base_model.__class__))
         else:
+            # Get the pretrained model out of the old experiment.
             self.base_model = self.pretrained_exp.model
+
+            # Prepare the pretrained model.
             self.base_model.eval()
+            for param in self.base_model.parameters():
+                param.requires_grad = False
+
             # Get the old in and out channels from the pretrained model.
             # TODO: Kind of hardcoded to binary greyscale segmentation...
             model_cfg_dict["num_classes"] = pretrained_model_cfg_dict.get('out_channels', 1)
@@ -181,6 +201,12 @@ class PostHocExperiment(TrainExperiment):
         
         # Put the model on the device here.
         self.to_device()
+
+        # Compile optimizes our run speed by fusing operations.
+        if self.config['experiment'].get('torch_compile', False):
+            self.base_model = torch.compile(self.base_model)
+            if self.model_class is not None:
+                self.model = torch.compile(self.model)
 
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
@@ -228,6 +254,8 @@ class PostHocExperiment(TrainExperiment):
             self.loss_func = eval_config(Config(loss_cfg))
     
     def run_step(self, batch_idx, batch, backward, **kwargs):
+        start_time = time.time()
+
         # Send data and labels to device.
         batch = to_device(batch, self.device)
 
@@ -236,12 +264,9 @@ class PostHocExperiment(TrainExperiment):
             x, y = batch["img"], batch["label"]
         else:
             x, y = batch[0], batch[1]
-
+        
         # Zero out the gradients.
         self.optim.zero_grad()
-
-        # Forward pass
-        print(self.config['experiment'])
 
         if self.config['experiment'].get('torch_mixed_precision', False):
             with autocast():
@@ -254,6 +279,8 @@ class PostHocExperiment(TrainExperiment):
                     yhat_cal = self.model(yhat, image=x)
                 # Calculate the loss between the pred and original preds.
                 loss = self.loss_func(yhat_cal, y)
+
+            # If backward then backprop the gradients.
             if backward:
                 # Scale the loss and backpropagate
                 self.grad_scaler.scale(loss).backward()
@@ -262,19 +289,33 @@ class PostHocExperiment(TrainExperiment):
                 # Update the scale for next iteration
                 self.grad_scaler.update() 
         else:
+            time1 = time.time()
             with torch.no_grad():
                 yhat = self.base_model(x)
+            fp = time.time() - time1
+
             # Calibrate the predictions.
+            time2 = time.time()
             if self.model_class is None:
                 yhat_cal = self.model(yhat)
             else:
                 yhat_cal = self.model(yhat, image=x)
+            ph = time.time() - time2
+
+            time3 = time.time()
             # Calculate the loss between the pred and original preds.
             loss = self.loss_func(yhat_cal, y)
             # If backward then backprop the gradients.
             if backward:
                 loss.backward()
                 self.optim.step()
+            bp = time.time() - time3
+
+            # Print summary of times.
+            print(f"Forward pass time: {fp}")
+            print(f"Posthoc pass time: {ph}")
+            print(f"Backward pass time: {bp}")
+            print()
 
         # Run step-wise callbacks if you have them.
         forward_batch = {

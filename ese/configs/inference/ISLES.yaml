@@ -3,7 +3,7 @@ log:
 
 inference_data:
   split: '?'
-  input_type: image 
+  version: '?'
   return_gt_proportion: True
 
 global_calibration:

@@ -433,9 +433,7 @@ def filter_by_min_lab(
     label_map, 
     min_pix: int = 0
 ):
-    # If we have don't have a minimum number of foreground pixels, then we skip this image.
-    # Because we allow for larger batchsizes, ie the label is B x 1 x H x W, we will get a vector of size B
-    # where each element is the number of foreground pixels in the label map.
-    valid_indices = torch.sum(label_map != 0, dim=(1, 2, 3)) >= min_pix 
+    # We want to sum over everything except the batch dimension.
+    valid_indices = torch.sum(label_map != 0, tuple(range(1, len(label_map.shape)))) >= min_pix
     #  Return the valid indices.
     return valid_indices.cpu()

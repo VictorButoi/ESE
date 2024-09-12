@@ -16,7 +16,7 @@ from ionpy.util.validation import validate_arguments_init
 class ISLES(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
-    version: float = 0.1
+    version: float # 0.1 is maxslice, 1.0 is 3D
     preload: bool = False
     return_data_id: bool = False
     transforms: Optional[Any] = None
@@ -74,7 +74,8 @@ class ISLES(ThunderDataset, DatapathMixin):
         # Add some additional information.
         if self.return_gt_proportion:
             # NOTE: The key is mispelled in version 0.1
-            return_dict["gt_proportion"] = example_obj["gt_propotion"]
+            return_dict["gt_proportion"] = example_obj["gt_proportion"] if "gt_proportion" in example_obj\
+                else example_obj["gt_proportion"]
 
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
