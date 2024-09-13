@@ -311,11 +311,11 @@ class PostHocExperiment(TrainExperiment):
                 self.optim.step()
             bp = time.time() - time3
 
-            # Print summary of times.
-            print(f"Forward pass time: {fp}")
-            print(f"Posthoc pass time: {ph}")
-            print(f"Backward pass time: {bp}")
-            print()
+            # # Print summary of times.
+            # print(f"Forward pass time: {fp}")
+            # print(f"Posthoc pass time: {ph}")
+            # print(f"Backward pass time: {bp}")
+            # print()
 
         # Run step-wise callbacks if you have them.
         forward_batch = {
