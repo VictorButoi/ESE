@@ -6,11 +6,11 @@ data:
   preload: False 
 
 dataloader:
-  batch_size: 8
-  num_workers: 1
+  batch_size: 4
+  num_workers: 2 # 3D data can be a bottleneck
 
 optim:
-  lr: 1.0e-4
+  lr: 2.0e-5
 
 log:
   root: '?'
@@ -21,18 +21,18 @@ log:
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
       from_logits: True
-    ece_loss:
-      _fn: ese.metrics.image_ece_loss
-      num_prob_bins: 15
-      from_logits: True
-    edge_ece_loss:
-      _fn: ese.metrics.image_edge_ece_loss
-      num_prob_bins: 15
-      neighborhood_width: 3
-      from_logits: True
+    # ece_loss:
+    #   _fn: ese.metrics.image_ece_loss
+    #   num_prob_bins: 15
+    #   from_logits: True
+    # edge_ece_loss:
+    #   _fn: ese.metrics.image_edge_ece_loss
+    #   num_prob_bins: 15
+    #   neighborhood_width: 3
+    #   from_logits: True
 
 model:
-  filters: [64, 64, 64, 64, 64]
+  filters: [64, 64, 64, 64, 64, 64, 64]
   convs_per_block: 3
 
 train:

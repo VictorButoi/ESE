@@ -17,6 +17,7 @@ from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 # misc imports
 import os
 import time
+import voxynth
 from typing import Optional
 import matplotlib.pyplot as plt
 
@@ -36,14 +37,33 @@ def calculate_tensor_memory_in_gb(tensor):
 
 class PostHocExperiment(TrainExperiment):
 
+
+    def build_augmentations(self):
+        super().build_augmentations()
+        if "augmentations" in self.config:
+            augs = self.config.to_dict()["augmentations"]
+            use_mask = augs.pop("use_mask", False)
+
+            def aug_func(x_batch, y_batch):
+                if y_batch.ndim != x_batch.ndim - 1:
+                    # Try to squeeze out the channel dimension.
+                    y_batch = y_batch.squeeze(1)
+                if use_mask:
+                    return torch.stack([voxynth.image_augment(x, y, **augs) for x, y in zip(x_batch, y_batch)])
+                else:
+                    return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
+
+            self.aug_pipeline = aug_func
+
     def build_data(self, load_data):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
+        new_data_cfg_dict = total_config.get("data", {})
         # Get the data and transforms we want to apply
         pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
         # Update the old cfg with new cfg (if it exists).
-        pretrained_data_cfg.update(total_config.get("data", {}))
+        pretrained_data_cfg.update(new_data_cfg_dict)
         new_data_cfg = pretrained_data_cfg.copy()
         # Finally update the data config with the copy. 
         total_config["data"] = new_data_cfg 
@@ -55,11 +75,11 @@ class PostHocExperiment(TrainExperiment):
         # Get the dataset class and build the transforms
         # TODO: BACKWARDS COMPATIBILITY STOPGAP
         dataset_cls_name = new_data_cfg.pop("_class").replace("ese.experiment", "ese")
-
         dataset_cls = absolute_import(dataset_cls_name)
+
         # Build the augmentation pipeline.
-        augmentation_list = total_config.get("augmentations", None)
-        if augmentation_list is not None:
+        if new_data_cfg_dict != {} and new_data_cfg.get("augmentations", None):
+            augmentation_list = new_data_cfg.get("augmentations", None)
             train_transforms = augmentations_from_config(augmentation_list.get("train", None))
             val_transforms = augmentations_from_config(augmentation_list.get("val", None))
             self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
@@ -253,7 +273,7 @@ class PostHocExperiment(TrainExperiment):
             loss_cfg["_class"] = loss_cfg["_class"].replace("ese.experiment", "ese")
             self.loss_func = eval_config(Config(loss_cfg))
     
-    def run_step(self, batch_idx, batch, backward, **kwargs):
+    def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
         start_time = time.time()
 
         # Send data and labels to device.
@@ -264,6 +284,12 @@ class PostHocExperiment(TrainExperiment):
             x, y = batch["img"], batch["label"]
         else:
             x, y = batch[0], batch[1]
+
+        # Apply the augmentation on the GPU.
+        if augmentation:
+            with torch.no_grad():
+                # For now only the image gets augmented.
+                x = self.aug_pipeline(x, y)
         
         # Zero out the gradients.
         self.optim.zero_grad()
@@ -289,33 +315,21 @@ class PostHocExperiment(TrainExperiment):
                 # Update the scale for next iteration
                 self.grad_scaler.update() 
         else:
-            time1 = time.time()
             with torch.no_grad():
                 yhat = self.base_model(x)
-            fp = time.time() - time1
 
             # Calibrate the predictions.
-            time2 = time.time()
             if self.model_class is None:
                 yhat_cal = self.model(yhat)
             else:
                 yhat_cal = self.model(yhat, image=x)
-            ph = time.time() - time2
 
-            time3 = time.time()
             # Calculate the loss between the pred and original preds.
             loss = self.loss_func(yhat_cal, y)
             # If backward then backprop the gradients.
             if backward:
                 loss.backward()
                 self.optim.step()
-            bp = time.time() - time3
-
-            # # Print summary of times.
-            # print(f"Forward pass time: {fp}")
-            # print(f"Posthoc pass time: {ph}")
-            # print(f"Backward pass time: {bp}")
-            # print()
 
         # Run step-wise callbacks if you have them.
         forward_batch = {

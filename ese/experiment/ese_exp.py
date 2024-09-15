@@ -14,6 +14,7 @@ from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
 import einops
+import voxynth
 import numpy as np
 import seaborn as sns
 from pprint import pprint
@@ -23,6 +24,23 @@ from typing import Literal, Optional
 
 
 class CalibrationExperiment(TrainExperiment):
+
+    def build_augmentations(self):
+        super().build_augmentations()
+        if "augmentations" in self.config:
+            augs = self.config.to_dict()["augmentations"]
+            use_mask = augs.pop("use_mask", False)
+
+            def aug_func(x_batch, y_batch):
+                if y_batch.ndim != x_batch.ndim - 1:
+                    # Try to squeeze out the channel dimension.
+                    y_batch = y_batch.squeeze(1)
+                if use_mask:
+                    return torch.stack([voxynth.image_augment(x, y, **augs) for x, y in zip(x_batch, y_batch)])
+                else:
+                    return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
+
+            self.aug_pipeline = aug_func
 
     def build_data(self, load_data):
         # Get the data and transforms we want to apply
@@ -34,11 +52,10 @@ class CalibrationExperiment(TrainExperiment):
 
         # Get the dataset class and build the transforms
         dataset_cls = absolute_import(dataset_cls_name)
-        # Build the augmentation pipeline.
-        augmentation_list = total_config.get("augmentations", None)
-        if augmentation_list is not None:
-            print(augmentation_list.get("train", None))
 
+        # Build the augmentation pipeline.
+        augmentation_list = data_cfg.get("augmentations", None)
+        if augmentation_list is not None:
             train_transforms = augmentations_from_config(augmentation_list.get("train", None))
             val_transforms = augmentations_from_config(augmentation_list.get("val", None))
             self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
@@ -115,6 +132,10 @@ class CalibrationExperiment(TrainExperiment):
         
         # Put the model on the device here.
         self.to_device()
+
+        # Compile optimizes our run speed by fusing operations.
+        if self.config['experiment'].get('torch_compile', False):
+            self.model = torch.compile(self.model)
     
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
@@ -163,7 +184,7 @@ class CalibrationExperiment(TrainExperiment):
 
             self.loss_func = eval_config(Config(loss_cfg))
     
-    def run_step(self, batch_idx, batch, backward, **kwargs):
+    def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
 
@@ -178,6 +199,12 @@ class CalibrationExperiment(TrainExperiment):
             # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
             x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
             y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
+
+        # Apply the augmentation on the GPU.
+        if augmentation:
+            with torch.no_grad():
+                # For now only the image gets augmented.
+                x = self.aug_pipeline(x, y)
 
         # Zero out the gradients.
         self.optim.zero_grad()
@@ -244,91 +271,3 @@ class CalibrationExperiment(TrainExperiment):
             'y_probs': prob_map, 
             'y_hard': pred_map 
         }
-
-    def vis_loss_curves(
-        self,
-        x='epoch',  
-        y='dice_score',
-        height=12,
-    ):
-        # Show a lineplot of the loss curves.
-        g = sns.relplot(
-            data=self.logs,
-            x=x,
-            y=y,
-            col='phase',
-            kind='line',
-            height=height,
-            )
-        # Set column spacing
-        g.fig.subplots_adjust(wspace=0.05)
-        g.set(ylim=(0, 1))
-    
-    def vis_predictions(
-        self,
-        phase: Literal['train', 'val', 'cal'],
-        seg_type: Literal['binary', 'multi-class'],
-        num_examples: int = 5,
-        width: int = 4,
-        height: int = 4,
-        ):
-        # Get the dataloader.
-        if not hasattr(self, "train_dl"):
-            dl_cfg = self.config["dataloader"].to_dict()
-            dl_cfg['batch_size'] = 1 
-            self.build_dataloader(dl_cfg)
-        dataloader = self.val_dl if phase == 'val' else self.train_dl
-        # Set the model to eval mode.
-        self.model.eval()
-        # Get the examples.
-        examples = []
-        for idx, batch in enumerate(dataloader):
-            # Get the predictions
-            with torch.no_grad():
-                # Get an image and label and predict for it.
-                x, y = to_device(batch, self.device)
-                pred_map = self.predict(x)
-                # Prepare the data for plotting.
-                x = x.permute(0, 2, 3, 1).squeeze().cpu().numpy()
-                # If x is rgb
-                if x.shape[-1] == 3:
-                    x = x.astype(np.uint8)
-                    img_cm = None
-                else:
-                    img_cm = "gray"
-                # Prepare the label and prediction for plotting. 
-                y = y.squeeze().cpu().numpy()
-                pred_map = pred_map.squeeze().cpu().numpy()
-                # Add the example to the list.
-                examples.append((x, y, pred_map))
-            if idx >= num_examples - 1:
-                break
-        # Get the number of classes.
-        if seg_type == "binary":
-            num_pred_classes = 2
-        else:
-            num_pred_classes = self.config['model']['out_channels']
-        # Generate a list of random colors, starting with black for background
-        if num_pred_classes == 2:
-            colors = [(0, 0, 0), (1, 1, 1)]
-        else:
-            colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
-        # Define the colormap
-        cmap_name = "seg_map"
-        label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
-        # Visualize the examples in 3 rows (imags, labels, preds).
-        f, ax = plt.subplots(num_examples, 3, figsize=(width * height, num_examples * height))
-        for idx, (x, y, pred_map) in enumerate(examples):
-            # image
-            ax[idx, 0].imshow(x, cmap=img_cm, interpolation='None')
-            ax[idx, 0].set_title(f"Example {idx}")
-            # label
-            ax[idx, 1].imshow(y, cmap=label_cm, interpolation='None')
-            ax[idx, 1].set_title(f"Label {idx}")
-            # prediction
-            ax[idx, 2].imshow(pred_map, cmap=label_cm, interpolation='None')
-            ax[idx, 2].set_title(f"Prediction {idx}")
-            # Set the axes off.
-            ax[idx, 0].axis('off')
-            ax[idx, 1].axis('off')
-            ax[idx, 2].axis('off')
