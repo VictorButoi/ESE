@@ -64,13 +64,7 @@ def ShowPredictionsCallback(
     else:
         img_cmap = "gray"
 
-    # If x is 5 dimensionsal, we need to take the midslice of the last dimension of all 
-    # of our tensors.
-    if len(x.shape) == 5:
-        x = x[..., x.shape[-1] // 2]
-        y = y[..., y.shape[-1] // 2]
-        y_hat = y_hat[..., y_hat.shape[-1] // 2]
-
+    # Make a hard prediction.
     if num_pred_classes > 1:
         if pred_cls == "y_logits":
             y_hat = torch.softmax(y_hat, dim=1)
@@ -82,6 +76,22 @@ def ShowPredictionsCallback(
         if pred_cls == "y_logits":
             y_hat = torch.sigmoid(y_hat)
         y_hard = (y_hat > threshold).int()
+
+    # If x is 5 dimensionsal, we need to take the midslice of the last dimension of all 
+    # of our tensors.
+    if len(x.shape) == 5:
+        # We want to look at the slice corresponding to the maximum amount of label.
+        # y shape here is (B, C, Spatial Dims)
+        y_squeezed = y.squeeze(1) # (B, Spatial Dims)
+        # Sum over the spatial dims that aren't the last one.
+        lab_per_slice = y_squeezed.sum(dim=tuple(range(1, len(y_squeezed.shape) - 1)))
+        # Get the max slices per batch item.
+        max_slices = torch.argmax(lab_per_slice, dim=1)
+        # Index into our 3D tensors with this.
+        x = torch.stack([x[i, ...,  max_slices[i]] for i in range(bs)]) 
+        y = torch.stack([y[i, ..., max_slices[i]] for i in range(bs)])
+        y_hat = torch.stack([y_hat[i, ..., max_slices[i]] for i in range(bs)])
+        y_hard = torch.stack([y_hard[i, ..., max_slices[i]] for i in range(bs)])
 
     # Squeeze all tensors in prep.
     x = x.permute(0, 2, 3, 1).numpy().squeeze() # Move channel dimension to last.
