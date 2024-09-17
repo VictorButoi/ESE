@@ -141,14 +141,11 @@ def dataloader_loop(
             }
 
             # Run the forward loop
-            input_type = inf_cfg_dict['inference_data'].get('input_type', 'image')
-            if input_type == 'volume':
+            if inf_cfg_dict['inference_data'].get('inf_slice_by_slice', False):
                 volume_forward_loop(**forward_item)
-            elif input_type == 'image':
-                standard_image_forward_loop(**forward_item)
             else:
-                raise ValueError(f"Input type {input_type} not recognized.")
-
+                standard_image_forward_loop(**forward_item)
+        # Raise an error if something happens in the batch.
         except Exception as e:
             raise e
 
@@ -287,9 +284,7 @@ def standard_image_forward_loop(
                     output_dict[mdata_key] = mdata[batch_inference_idx].item()
                 else:
                     output_dict[mdata_key] = mdata
-            
-            # TODO: this currently does not work for 3D volumes. They will only have one slice saved,
-            # will need to figure out a better way to save the slices.
+                
             # If we are logging the predictions, then we need to do that here.
             if inf_cfg_dict['log']["save_preds"]:
                 predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
@@ -330,6 +325,8 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
+    
+    raise ValueError
 
     ########################
     # IMAGE LEVEL TRACKING #

@@ -170,20 +170,20 @@ def ShowPredictionsCallback(
             f.colorbar(im6, ax=axarr[5], orientation='vertical')
 
             # Plot the reliability diagram for the binary case of the foreground.
-            # cal_info = bin_stats(
-            #     y_pred=y_hat[None, None, ...],
-            #     y_true=y[None, None, ...],
-            #     num_prob_bins=num_prob_bins
-            # )
-            # reliability_diagram(
-            #     calibration_info=cal_info,
-            #     title="Reliability Diagram",
-            #     num_prob_bins=num_prob_bins,
-            #     class_type="Binary",
-            #     plot_type="bar",
-            #     bar_color="blue",
-            #     ax=axarr[6]
-            # )
+            cal_info = bin_stats(
+                y_pred=y_hat[None, None, ...],
+                y_true=y[None, None, ...],
+                num_prob_bins=num_prob_bins
+            )
+            reliability_diagram(
+                calibration_info=cal_info,
+                title="Reliability Diagram",
+                num_prob_bins=num_prob_bins,
+                class_type="Binary",
+                plot_type="bar",
+                bar_color="blue",
+                ax=axarr[6]
+            )
 
             # turn off the axis and grid
             for x_idx, ax in enumerate(axarr):

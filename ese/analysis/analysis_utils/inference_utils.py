@@ -361,24 +361,18 @@ def load_inference_exp_from_cfg(inference_cfg):
     inf_model_cfg = inference_cfg['model']
 
     # Get the configs of the experiment
-    if inf_model_cfg.get('ensemble', False) and inf_model_cfg['_type'] != "incontext":
-        inference_exp = EnsembleInferenceExperiment.from_config(inference_cfg)
-        save_root = Path(inference_exp.path)
-    elif "Binning" in inference_cfg['calibrator']['_name']:
-        inference_exp = BinningInferenceExperiment.from_config(inference_cfg)
-        save_root = Path(inference_exp.path)
-    else:
-        load_exp_args = {
-            "checkpoint": inf_model_cfg['checkpoint'],
-            "load_data": False,
-            "set_seed": False,
-            **get_exp_load_info(inference_cfg['experiment']['model_dir']),
-        }
-        if "_attr" in inf_model_cfg:
-            load_exp_args['attr_dict'] = inf_model_cfg['_attr']
-        # Load the experiment directly if you give a sub-path.
-        inference_exp = load_experiment(**load_exp_args)
-        save_root = None
+    load_exp_args = {
+        "checkpoint": inf_model_cfg['checkpoint'],
+        "load_data": False,
+        "set_seed": False,
+        **get_exp_load_info(inference_cfg['experiment']['model_dir']),
+    }
+    if "_attr" in inf_model_cfg:
+        load_exp_args['attr_dict'] = inf_model_cfg['_attr']
+
+    # Load the experiment directly if you give a sub-path.
+    inference_exp = load_experiment(**load_exp_args)
+    save_root = None
 
     # Make a new value for the pretrained seed, so we can differentiate between
     # members of ensemble
