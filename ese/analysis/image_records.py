@@ -33,11 +33,6 @@ def get_image_stats(
         "preloaded_obj_dict": bin_stats_init(qual_input_config['y_pred'], **bin_stat_args),
         **qual_input_config
     }
-    # Dicts for storing ensemble scores.
-    grouped_scores_dict = {
-        "calibration": {},
-        "quality": {}
-    }
 
     #############################################################
     # CALCULATE QUALITY METRICS

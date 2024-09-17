@@ -5,6 +5,8 @@ from .utils import load_experiment, process_pred_map, parse_class_name, filter_a
 import torch
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
+import torch._dynamo # For compile
+torch._dynamo.config.suppress_errors = True
 # IonPy imports
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
