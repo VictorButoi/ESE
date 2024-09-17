@@ -77,32 +77,32 @@ def bin_stats_init(
             "neighborhood_width": neighborhood_width,
         }
         # Predicted map
-        print(y_hard.shape)
+        y_hard_long = y_hard.long()
+        y_true_long = y_true.long()
+
         top_pred_neighbors_map = agg_neighbors_preds(
-                                    pred_map=y_hard,
+                                    pred_map=y_hard_long,
                                     class_wise=False,
                                     binary=False,
                                     **nn_args
                                 )
         # True map
         top_true_neighbors_map = agg_neighbors_preds(
-                                    pred_map=y_true.long(),
+                                    pred_map=y_true_long.squeeze(1),
                                     class_wise=False,
                                     binary=False,
                                     **nn_args
                                 )
         # Predicted map
         classwise_pred_neighbors_map = agg_neighbors_preds(
-                                        pred_map=y_hard,
+                                        pred_map=y_hard_long.unsqueeze(1),
                                         class_wise=True,
-                                        num_classes=C,
                                         **nn_args
                                     )
         # True map
         classwise_true_neighbors_map = agg_neighbors_preds(
-                                        pred_map=y_true.long(),
+                                        pred_map=y_true_long,
                                         class_wise=True,
-                                        num_classes=C,
                                         **nn_args
                                     )
     else:
@@ -115,11 +115,14 @@ def bin_stats_init(
     # Otherwise, we use the traditional definition of calibration as frequency of actual ground truth. 
     # (as opposed to frequency of correctness).
     if C == 1:
-        top_frequency_map = y_true.float()
-        classwise_frequency_map = top_frequency_map.unsqueeze(1) # Add a channel dimension.
+        top_frequency_map = y_true.squeeze(1)
+        classwise_frequency_map = top_frequency_map # Add a channel dimension.
     else:
-        top_frequency_map = (y_hard == y_true).float()
-        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).float().permute(0, 3, 1, 2)
+        top_frequency_map = (y_hard == y_true)
+        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).permute(0, 3, 1, 2)
+    # These need to have the same shape as each other.
+    assert top_frequency_map.shape == y_prob_map.shape,\
+        f"Frequency map shape {top_frequency_map.shape} does not match prob map shape {y_prob_map.shape}."
     
     # Wrap this into a dictionary.
     return {

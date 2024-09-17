@@ -222,39 +222,37 @@ def boundary_iou(
     assert y_true.shape[1] == 1, "y_true must be a single channel label map."
     y_true = y_true.squeeze(1)
     if C == 1:
-        y_hard = (y_pred > threshold).squeeze(1)
+        y_hard = (y_pred > threshold).squeeze(1) # B x Spatial dims
     else:
-        y_hard = y_pred.argmax(dim=1)
+        y_hard = y_pred.argmax(dim=1) # B x Spatial dims
 
     n_width = 2*boundary_width + 1 # The width of the neighborhood.
     neighb_args = {
-        "binary": False, # Include background a having num neighbors.
+        "binary": True, # Include background a having num neighbors.
         "discrete": True,
-        "num_classes": C,
         "class_wise": True,
         "neighborhood_width": n_width,
+        "n_spatial_dims": len(y_hard.shape) - 1 # Number of spatial dimensions is all but the batch dim.
     }
     # Get the local accumulations.
     true_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_true.long(),
+                            pred_map=y_true.long().unsqueeze(1),
                             **neighb_args
                         )
     pred_num_neighb_map = agg_neighbors_preds(
-                            pred_map=y_hard.long(),
+                            pred_map=y_hard.long().unsqueeze(1),
                             **neighb_args
                         )
 
-    print(true_num_neighb_map.shape, pred_num_neighb_map.shape)
-
     # Get the non-center pixels.
     max_matching_neighbors = (n_width**2 - 1) # The center pixel is not counted.
-    boundary_pred = (pred_num_neighb_map < max_matching_neighbors) # B x C x H x W
-    boundary_true = (true_num_neighb_map < max_matching_neighbors) # B x C x H x W
+    boundary_pred = (pred_num_neighb_map < max_matching_neighbors) # B x C x Spatial dims
+    boundary_true = (true_num_neighb_map < max_matching_neighbors) # B x C x Spatial dims
 
     # Get the one hot tensors if multi-class, or just add a channel dimension if binary.
     if C != 1:
-        y_pred = F.one_hot(y_hard, num_classes=C).permute(0, 3, 1, 2).float()
-        y_true = F.one_hot(y_true, num_classes=C).permute(0, 3, 1, 2).float()
+        y_pred = F.one_hot(y_hard, num_classes=C).permute(0, -1, *range(1, len(y_pred.shape)-1)).float()
+        y_true = F.one_hot(y_true, num_classes=C).permute(0, -1, *range(1, len(y_pred.shape)-1)).float()
     else:
         y_pred = y_hard.unsqueeze(1).float()
         y_true = y_true.unsqueeze(1).float()

@@ -19,7 +19,7 @@ def volume_error(
     threshold: Optional[float] = 0.5,
     batch_reduction: Reduction = "mean",
 ):
-    assert len(y_pred.shape) == len(y_true.shape) == 4, "Input tensors must be 4D"
+    assert len(y_pred.shape) == len(y_true.shape), "Input tensors must have the same dimensionality."
 
     # Note this only really makes sense in non-binary contexts.
     if from_logits:

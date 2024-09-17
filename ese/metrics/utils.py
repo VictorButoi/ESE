@@ -423,15 +423,15 @@ def agg_neighbors_preds(
         # Get the channel dimension
         C = pred_map.shape[1]
         # Go through each label and get the neighbor predictions.
-        return torch.stack([
+        return torch.cat([
             _proc_neighbor_map(
                 pred_map=pred_map[:, l_idx, ...], 
                 neighborhood_width=neighborhood_width, 
                 kernel=kernel,
                 binary=binary,
                 discrete=False,
-            )
-        for l_idx in range(C)]).permute(1, 0, 2, 3) # B x C x H x W
+            ).unsqueeze(1)
+        for l_idx in range(C)], axis=1)
     else:
         if n_spatial_dims == 2:
             assert len(pred_map.shape) == 3, f"For agg_neighbors using class_wise=False and n_spatial_dims=4,\
@@ -465,7 +465,7 @@ def  _proc_neighbor_map(
                 )
     else:
         assert discrete, "Can't do continuous with multiple labels."
-        count_array = torch.zeros_like(pred_map)
+        count_array = torch.zeros_like(pred_map, dtype=torch.float32)
         for label in pred_map.unique():
             # Create a binary mask for the current label
             lab_map = (pred_map == label)
@@ -496,7 +496,6 @@ def _bin_matching_neighbors(
         padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
         neighbor_count = F.conv2d(padded_mask, kernel, padding=0)  # No additional padding needed
     elif len(mask.shape) == 4:
-        print(half_neighb)
         padded_mask = F.pad(mask_unsqueezed, pad=(half_neighb, half_neighb, half_neighb, half_neighb, half_neighb, half_neighb), mode='reflect')
         neighbor_count = F.conv3d(padded_mask, kernel, padding=0)
     else:
