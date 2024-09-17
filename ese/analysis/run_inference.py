@@ -325,8 +325,6 @@ def get_calibration_item_info(
             output_dict, 
             inference_cfg=inference_cfg
         )
-    
-    raise ValueError
 
     ########################
     # IMAGE LEVEL TRACKING #
@@ -337,17 +335,6 @@ def get_calibration_item_info(
             inference_cfg=inference_cfg,
             image_stats=trackers["image_stats"]
         ) 
-
-    ###############################################################################################
-    # If we are ensembling, then we need to reduce the predictions of the individual predictions. #
-    ###############################################################################################
-    if inference_cfg["model"].get("ensemble", False):
-        # Get the reduced predictions
-        ensembled_pred = reduce_ensemble_preds(
-                            output_dict, 
-                            inference_cfg=inference_cfg,
-                        )
-        output_dict.update(ensembled_pred)
 
     #################################################################
     # CALIBRATION METRICS FOR THIS IMAGE (TOP-LABEL AND CLASS-WISE) #

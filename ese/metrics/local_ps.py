@@ -119,7 +119,9 @@ def bin_stats_init(
         classwise_frequency_map = top_frequency_map # Add a channel dimension.
     else:
         top_frequency_map = (y_hard == y_true)
-        classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C).permute(0, 3, 1, 2)
+        raw_classwise_frequency_map = torch.nn.functional.one_hot(y_true.long(), C)
+        classwise_frequency_map = raw_classwise_frequency_map.permute(0, -1, *range(1, raw_classwise_frequency_map.ndim-1))
+
     # These need to have the same shape as each other.
     assert top_frequency_map.shape == y_prob_map.shape,\
         f"Frequency map shape {top_frequency_map.shape} does not match prob map shape {y_prob_map.shape}."
