@@ -85,6 +85,42 @@ def display_subj(
         else:
             plane_img = img
             plane_lab = lab
+        # Normalize the image and label to be between 0 and 1.
+        plane_img = (plane_img - plane_img.min()) / (plane_img.max() - plane_img.min())
+        plane_lab = (plane_lab - plane_lab.min()) / (plane_lab.max() - plane_lab.min())
+        
+        # We want to crop the image/lab to the region where there is brain + 5 pixels.
+        # This is to make the images more interpretable.
+        plane_shape = plane_img.shape
+        min_y, min_x = 0, 0
+        max_y, max_x = plane_shape[0], plane_shape[1]
+
+        # Find indices where brain is present along x-axis, y-axis
+        intensities_per_row = np.sum(plane_img, axis=1)
+        min_row_intensity = intensities_per_row.min()
+        indices_y = np.where(intensities_per_row > min_row_intensity)[0]
+
+        intensities_per_col = np.sum(plane_img, axis=0)
+        min_col_intensity = intensities_per_col.min()
+        indices_x = np.where(intensities_per_col > min_col_intensity)[0]
+
+        # If we have valid indices, do the crop! (with buffer of 5 pixels) 
+        if indices_x.size > 0:
+            # Calculate min and max x-values with padding, ensuring they stay within bounds
+            min_x = max(indices_x.min() - 5, 0)
+            max_x = min(indices_x.max() + 5, max_x)
+        if indices_y.size > 0:
+            # Calculate min and max y-values with padding, ensuring they stay within bounds
+            min_y = max(indices_y.min() - 5, 0)
+            max_y = min(indices_y.max() + 5, max_y)
+        
+        # Do a crop of the image and label.
+        def crop_img(img, min_x, max_x, min_y, max_y):
+            return img[min_y:max_y, min_x:max_x]
+
+        # Crop the img and label to the boundary of the brain
+        plane_img = crop_img(plane_img, min_x, max_x, min_y, max_y)
+        plane_lab = crop_img(plane_lab, min_x, max_x, min_y, max_y)
             
         for s_idx, seed in enumerate(seeds):
             # Get the predictions corresponding to this seed.
@@ -101,15 +137,21 @@ def display_subj(
                         method_plane_pred = methods_dict[method].take(slice_idx, axis=plane)
                     else:
                         method_plane_pred = methods_dict[method]
+                    # Crop the method plane pred.
+                    method_plane_pred = crop_img(method_plane_pred, min_x, max_x, min_y, max_y)
                     axarr[m_idx + 2].imshow(method_plane_pred, cmap='gray')
                     axarr[m_idx + 2].set_title(method + f", seed={seed}")
+
                 # Custom looking at the dif from soft to LTS.  
                 dif_img = (methods_dict["LTS soft"] - methods_dict["None soft"])
                 if plane is not None:
                     dif_plane = dif_img.take(slice_idx, axis=plane)
                 else: 
                     dif_plane = dif_img
-                dif_plt = axarr[-1].imshow(dif_plane)
+                # Crop the dif image.
+                dif_plane = crop_img(dif_plane, min_x, max_x, min_y, max_y)
+
+                dif_plt = axarr[-1].imshow(dif_plane, cmap='RdBu_r', vmin=-0.1, vmax=0.1)
                 f.colorbar(dif_plt, ax=axarr[-1])
                 axarr[-1].set_title(f"Diff, seed={seed}")
             else:
@@ -123,15 +165,21 @@ def display_subj(
                         method_plane_pred = methods_dict[method].take(slice_idx, axis=plane)
                     else:
                         method_plane_pred = methods_dict[method]
+                    # Crop the method plane pred.
+                    method_plane_pred = crop_img(method_plane_pred, min_x, max_x, min_y, max_y)
                     axarr[s_idx, m_idx + 2].imshow(method_plane_pred, cmap='gray')
                     axarr[s_idx, m_idx + 2].set_title(method + f", seed={seed}")
+
                 # Custom looking at the dif from soft to LTS.  
                 dif_img = (methods_dict["LTS soft"] - methods_dict["None soft"])
                 if plane is not None:
                     dif_plane = dif_img.take(slice_idx, axis=plane)
                 else: 
                     dif_plane = dif_img
-                dif_plt = axarr[s_idx, -1].imshow(dif_plane)
+                # Crop the dif image.
+                dif_plane = crop_img(dif_plane, min_x, max_x, min_y, max_y)
+
+                dif_plt = axarr[s_idx, -1].imshow(dif_plane, cmap='RdBu_r', vmin=-0.1, vmax=0.1)
                 f.colorbar(dif_plt, ax=axarr[s_idx, -1])
                 axarr[s_idx, -1].set_title(f"Diff, seed={seed}")
         # Turn off all of the ticks.
@@ -143,5 +191,6 @@ def display_subj(
         for plane in planes:
             display_ims(plane=plane)
             plt.show()
+        print("--------------------------------------------------------------------------------")
     else:
         display_ims()

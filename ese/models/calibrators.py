@@ -221,6 +221,7 @@ class ImageBasedTS(nn.Module):
         temp_map = self.get_temp_map(logits, image) # B x H x W
         # Repeat the temperature map for all classes.
         temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+        assert temp_map >=0, "Temperature map must be positive."
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
@@ -284,6 +285,7 @@ class LocalTS(nn.Module):
         num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
         repeat_factors = [1, C] + [1] * num_spatial_dims
         temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
+        assert temp_map >=0, "Temperature map must be positive."
         # Finally, scale the logits by the temperatures.
         return logits / temp_map
 
