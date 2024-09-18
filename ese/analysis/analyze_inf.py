@@ -135,7 +135,8 @@ def load_cal_inference_stats(
                         # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
                         if "submitit" in sub_exp_group_folders:
                             # Check to make sure this log wasn't the result of a crash.
-                            verify_graceful_exit(sub_exp_log_path, log_root=log_root)
+                            if results_cfg["options"].get('verify_graceful_exit', True):
+                                verify_graceful_exit(sub_exp_log_path, log_root=log_root)
                             # Check to make sure that this log wasn't the result of a crash.
                             all_inference_log_paths.append(sub_exp_log_path)
         # Loop through every configuration in the log directory.

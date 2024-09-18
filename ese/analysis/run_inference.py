@@ -43,10 +43,7 @@ def get_cal_stats(
     fix_seed(inference_cfg_dict['experiment']['inference_seed'])
 
     # Initialize all the objects needed for inference.
-    inference_init_obj = cal_stats_init(
-        inference_cfg_dict, 
-        yaml_cfg_dir="/storage/vbutoi/projects/ESE"
-    )
+    inference_init_obj = cal_stats_init(inference_cfg_dict)
 
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
@@ -245,6 +242,10 @@ def standard_image_forward_loop(
         
         # Do a forward pass.
         with torch.no_grad():
+            # If we have augs to apply on the image (on the GPU), then we need to do that here.
+            if inf_init_obj.get('aug_pipeline', None): 
+                image = inf_init_obj['aug_pipeline'](image)
+            # Forward pass through the model.
             exp_output =  exp.predict(
                 image, 
                 multi_class=False,

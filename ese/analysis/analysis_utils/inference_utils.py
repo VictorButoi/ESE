@@ -5,6 +5,7 @@ import ast
 import yaml
 import torch
 import pickle
+import voxynth
 import itertools
 import numpy as np
 import pandas as pd
@@ -18,17 +19,10 @@ from ionpy.util import Config
 from ionpy.util.ioutil import autosave
 from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
-# UniverSeg imports if universeg.experiment is installed
-try:
-    from universeg.experiment.datasets import Segment2D
-    from universeg.experiment.datasets.support import RandomSupport
-except:
-    pass
 # local imports
 from ese.utils.general import save_records, save_dict
 from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment, get_exp_load_info
-from ...experiment import EnsembleInferenceExperiment, BinningInferenceExperiment
 
 
 def save_trackers(output_root, trackers):
@@ -236,10 +230,8 @@ def get_average_unet_baselines(
     return average_seed_unet
 
 
-def cal_stats_init(
-    cfg_dict,
-    yaml_cfg_dir: Optional[str] = None
-):
+def cal_stats_init(cfg_dict):
+
     cal_init_obj_dict = {}
     ###################
     # BUILD THE MODEL #
@@ -290,32 +282,29 @@ def cal_stats_init(
         cfg_dict=inference_cfg,
         save_root=save_root
     )
+    print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
 
     # Compile everything into a dictionary.
     cal_init_obj_dict = {
         "data_counter": 0,
         "dloaders": data_objs['dataloaders'],
         "output_root": task_root,
-        "supports": data_objs['supports'],
         "support_transforms": None, # This is set later.
         "trackers": trackers,
         **cal_init_obj_dict
     }
 
-    # We can also add augmentation at inference to boost performance.
-    support_aug_cfg = inference_cfg['experiment'].get('support_augs', None)
-    if support_aug_cfg is not None and len(support_aug_cfg) > 0:
-        # Open the yaml file corresponding to the augmentations
-        with open(f"{yaml_cfg_dir}/ese/experiment/configs/inference/aug_cfg_bank.yaml", 'r') as f:
-            aug_cfg_almanac = yaml.safe_load(f)
-        aug_dict_list = []
-        for sup_aug in support_aug_cfg:
-            assert sup_aug in aug_cfg_almanac.keys(),\
-                f"Augmentation must be defined in the yaml file. Got target aug: {sup_aug} and support is for keys: {aug_cfg_almanac.keys()}."   
-            aug_dict_list.append(aug_cfg_almanac[sup_aug])
-        cal_init_obj_dict['support_transforms'] = augmentations_from_config(aug_dict_list)
-    
-    print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
+    ###########################################################
+    # Build the augmentation pipeline if we want augs on GPU. #
+    ###########################################################
+    if 'inference_augs' in inference_cfg.keys():
+        augs = inference_cfg['inference_augs'] 
+        # Define the augmentation function.
+        def inf_aug_func(x_batch):
+            return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
+        # Place the augmentation function into our inference object.
+        cal_init_obj_dict['aug_pipeline'] = inf_aug_func
+
     ##################################
     # INITIALIZE THE QUALITY METRICS #
     ##################################
