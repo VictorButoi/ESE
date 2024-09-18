@@ -3,7 +3,7 @@ from .utils import process_pred_map, filter_args_by_class
 from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from torch.utils.data import DataLoader
 import torch._dynamo # For compile
 torch._dynamo.config.suppress_errors = True
@@ -213,7 +213,7 @@ class CalibrationExperiment(TrainExperiment):
         
         # Make a prediction with a forward pass of the model.
         if self.config['experiment'].get('torch_mixed_precision', False):
-            with autocast():
+            with autocast('cuda'):
                 yhat = self.model(x)
                 loss = self.loss_func(yhat, y)
             # If backward then backprop the gradients.

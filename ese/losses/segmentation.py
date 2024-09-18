@@ -107,6 +107,7 @@ def area_estimation_error(
     y_pred: Tensor,
     y_true: Tensor,
     square_diff: bool,
+    relative: bool = False,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
@@ -124,11 +125,15 @@ def area_estimation_error(
     # Sum over the last dimension to get the area
     y_pred_areas = y_pred.sum(dim=-1)
     y_true_areas = y_true.sum(dim=-1)
+    # Get the diff between the predicted and true areas
+    loss = y_pred_areas - y_true_areas
+    
+    # If we are doing relative error, divide by the true area
+    if relative:
+        loss = loss / y_true_areas
 
     if square_diff:
-        loss = (y_pred_areas - y_true_areas)**2
-    else:
-        loss = (y_pred_areas - y_true_areas)
+        loss = loss**2
 
     # Remove the ignore index if it is present
     if ignore_index is not None:
