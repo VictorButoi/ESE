@@ -104,10 +104,10 @@ def pixel_focal_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def area_estimation_error(
-    y_pred: Tensor, # 1 x C x H x W
-    y_true: Tensor, # 1 x 1 x H x W
+    y_pred: Tensor,
+    y_true: Tensor,
+    square_diff: bool,
     mode: InputMode = "auto",
-    square_diff: bool = True,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None,
@@ -128,13 +128,13 @@ def area_estimation_error(
     if square_diff:
         loss = (y_pred_areas - y_true_areas)**2
     else:
-        loss = y_pred_areas - y_true_areas
+        loss = (y_pred_areas - y_true_areas)
 
     # Remove the ignore index if it is present
     if ignore_index is not None:
         valid_indices = torch.arange(loss.shape[1])
         valid_indices = valid_indices[valid_indices != ignore_index]
-        loss = loss[:, valid_indices]
+        loss = loss[:, valid_indices, :]
 
     if reduction == "mean":
         loss = loss.mean(dim=-1)

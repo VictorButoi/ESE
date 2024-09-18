@@ -340,7 +340,7 @@ class PostHocExperiment(TrainExperiment):
             "y_pred": yhat_cal,
             "y_logits": yhat_cal, # Used for visualization functions.
             "loss": loss,
-            "batch_idx": batch_idx,
+            "batch_idx": batch_idx
         }
         self.run_callbacks("step", batch=forward_batch)
 
