@@ -283,6 +283,8 @@ def get_ese_restart_configs(
         
     # This is a required key. We want to get all of the models and vary everything else.
     pretrained_dir_list = restart_cfg_dict.pop('train.pretrained_dir') 
+    if not isinstance(pretrained_dir_list, list):
+        pretrained_dir_list = [pretrained_dir_list]
 
     # Now we need to go through all the pre-trained models and gather THEIR configs.
     all_pre_models = []

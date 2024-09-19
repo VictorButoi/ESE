@@ -124,20 +124,19 @@ class CalibrationExperiment(TrainExperiment):
 
         self.model = eval_config(Config(model_cfg))
         self.properties["num_params"] = num_params(self.model)
-
-        # If there is a pretrained model, load it.
-        if "pretrained_dir" in train_config and exp_config.get("restart", False):
-            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
-            # Load the checkpoint dir and set the model to the state dict.
-            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
-            self.model.load_state_dict(checkpoint["model"])
-        
         # Put the model on the device here.
         self.to_device()
 
         # Compile optimizes our run speed by fusing operations.
         if self.config['experiment'].get('torch_compile', False):
             self.model = torch.compile(self.model)
+
+        # If there is a pretrained model, load it.
+        if ("pretrained_dir" in train_config) and (exp_config.get("restart", False)):
+            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
     
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()

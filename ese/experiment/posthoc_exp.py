@@ -3,7 +3,7 @@ from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name, filter_args_by_class
 # torch imports
 import torch
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from torch.utils.data import DataLoader
 import torch._dynamo # For compile
 torch._dynamo.config.suppress_errors = True
@@ -43,17 +43,40 @@ class PostHocExperiment(TrainExperiment):
     def build_augmentations(self):
         super().build_augmentations()
         if "augmentations" in self.config:
-            augs = self.config.to_dict()["augmentations"]
-            use_mask = augs.pop("use_mask", False)
+            augs_dict = self.config.to_dict()["augmentations"]
+            # Get the list of augs to apply.
+            spatial_augs = augs_dict.pop("spatial", None)
+            visual_augs = augs_dict.pop("visual", None)
+            if visual_augs is not None:
+                use_mask = visual_augs.pop("use_mask", False)
 
             def aug_func(x_batch, y_batch):
-                if y_batch.ndim != x_batch.ndim - 1:
-                    # Try to squeeze out the channel dimension.
-                    y_batch = y_batch.squeeze(1)
-                if use_mask:
-                    return torch.stack([voxynth.image_augment(x, y, **augs) for x, y in zip(x_batch, y_batch)])
+                # Apply augmentations that affect the spatial properties of the image, by applying warps.
+                if spatial_augs is not None:
+                    trf = voxynth.transform.random_transform(x_batch.shape[2:]) # We avoid the batch and channels dims.
+                    # Put the trf on the device.
+                    trf = trf.to(x_batch.device)
+                    # Apply the spatial deformation to each elemtn of the batch.  
+                    spat_aug_x = torch.stack([voxynth.transform.spatial_transform(x, trf) for x in x_batch])
+                    spat_aug_y = torch.stack([voxynth.transform.spatial_transform(y, trf) for y in y_batch])
                 else:
-                    return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
+                    spat_aug_x, spat_aug_y = x_batch, y_batch
+
+                # Apply augmentations that affect the visual properties of the image, but maintain originally
+                # ground truth mapping.
+                if visual_augs is not None:
+                    if use_mask:
+                        # Voxynth methods require that the channel dim is squeezed to apply the intensity augmentations.
+                        if y_batch.ndim != x_batch.ndim - 1:
+                            # Try to squeeze out the channel dimension.
+                            y_batch = y_batch.squeeze(1)
+                        aug_x = torch.stack([voxynth.image_augment(x, y, **visual_augs) for x, y in zip(spat_aug_x, spat_aug_y)])
+                    else:
+                        aug_x = torch.stack([voxynth.image_augment(x, **visual_augs) for x in spat_aug_x])
+                else:
+                    aug_x = spat_aug_x
+                
+                return aug_x, spat_aug_y 
 
             self.aug_pipeline = aug_func
 
@@ -187,10 +210,7 @@ class PostHocExperiment(TrainExperiment):
             # TODO: Kind of hardcoded to binary greyscale segmentation...
             model_cfg_dict["num_classes"] = pretrained_model_cfg_dict.get('out_channels', 1)
             model_cfg_dict["image_channels"] = pretrained_model_cfg_dict.get('in_channels', 1)
-
-            # TODO: BACKWARDS COMPATIBILITY STOPGAP
-            model_cfg_dict["_class"] = model_cfg_dict["_class"].replace("ese.experiment", "ese")
-
+    
             self.model = eval_config(Config(model_cfg_dict))
             # If the model has a weights_init method, call it to initialize the weights.
             if hasattr(self.model, "weights_init"):
@@ -213,15 +233,6 @@ class PostHocExperiment(TrainExperiment):
         # Save the new config because we edited it and reset self.config
         autosave(total_cfg_dict, self.path / "config.yml") # Save the new config because we edited it.
         self.config = Config(total_cfg_dict)
-
-        # If there is a pretrained model, load it.
-        if "pretrained_dir" in train_config and exp_config.get("restart", False):
-            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
-            # Load the checkpoint dir and set the model to the state dict.
-            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
-            self.model.load_state_dict(checkpoint["model"])
-        
-        # Put the model on the device here.
         self.to_device()
 
         # Compile optimizes our run speed by fusing operations.
@@ -229,6 +240,14 @@ class PostHocExperiment(TrainExperiment):
             self.base_model = torch.compile(self.base_model)
             if self.model_class is not None:
                 self.model = torch.compile(self.model)
+
+        # If there is a pretrained model, load it.
+        if ("pretrained_dir" in train_config) and (exp_config.get("restart", False)):
+            checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
+            # Load the checkpoint dir and set the model to the state dict.
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+        
 
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
@@ -291,13 +310,13 @@ class PostHocExperiment(TrainExperiment):
         if augmentation:
             with torch.no_grad():
                 # For now only the image gets augmented.
-                x = self.aug_pipeline(x, y)
+                x, y = self.aug_pipeline(x, y)
         
         # Zero out the gradients.
         self.optim.zero_grad()
 
         if self.config['experiment'].get('torch_mixed_precision', False):
-            with autocast():
+            with autocast('cuda'):
                 with torch.no_grad():
                     yhat = self.base_model(x)        
                 # Calibrate the predictions.
