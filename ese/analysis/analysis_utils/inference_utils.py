@@ -15,14 +15,21 @@ from typing import Optional, List
 from pydantic import validate_arguments 
 from torch.utils.data import DataLoader
 # ionpy imports
+# ionpy imports
 from ionpy.util import Config
 from ionpy.util.ioutil import autosave
-from ionpy.util.config import config_digest
+from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ese.utils.general import save_records, save_dict
 from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment, get_exp_load_info
+
+
+def list2tuple(val):
+    if isinstance(val, list):
+        return tuple(map(list2tuple, val))
+    return val
 
 
 def save_trackers(output_root, trackers):
@@ -33,31 +40,6 @@ def save_trackers(output_root, trackers):
             tracker.to_pickle(output_root / f"{key}.pkl")
         else:
             save_records(tracker, output_root / f"{key}.pkl")
-
-def aug_support(sx_cpu, sy_cpu, inference_init_obj):
-    sx_cpu_np = sx_cpu.numpy() # S 1 H W
-    sy_cpu_np = sy_cpu.numpy() # S 1 H W
-    # Augment each member of the support set individually.
-    aug_sx = []    
-    aug_sy = []
-    for sup_idx in range(sx_cpu_np.shape[0]):
-        img_slice = sx_cpu_np[sup_idx, 0, ...]
-        lab_slice = sy_cpu_np[sup_idx, 0, ...]
-        # Apply the augmentation to the support set.
-        aug_pair = inference_init_obj['support_transforms'](
-            image=img_slice,
-            mask=lab_slice
-        )
-        aug_sx.append(aug_pair['image'][np.newaxis, ...])
-        aug_sy.append(aug_pair['mask'][np.newaxis, ...])
-    # Concatenate the augmented support set.
-    sx_cpu_np = np.stack(aug_sx, axis=0)
-    sy_cpu_np = np.stack(aug_sy, axis=0)
-    # Convert to torch tensors.
-    sx_cpu = torch.from_numpy(sx_cpu_np)
-    sy_cpu = torch.from_numpy(sy_cpu_np)
-    # Return the augmented support sets.
-    return sx_cpu, sy_cpu
 
 
 def verify_graceful_exit(log_path: str, log_root: str):
@@ -78,62 +60,6 @@ def verify_graceful_exit(log_path: str, log_root: str):
                 raise ValueError(f"Found non-success result in file {result_log_file}: {result}.")
         except Exception as e:
             print(f"Error loading result log file: {e}")
-
-
-def add_dice_loss_rows(inference_df, opts_cfg):
-    # Get the rows corresponding to the Dice metric.
-    dice_rows = inference_df[inference_df['image_metric'] == 'Dice']
-    # Make a copy of the rows.
-    dice_loss_rows = dice_rows.copy()
-    # Change the metric score to 1 - metric_score.
-    dice_loss_rows['metric_score'] = 1 - dice_loss_rows['metric_score']
-    # Change the image metric to Dice Loss.
-    dice_loss_rows['image_metric'] = 'Dice Loss'
-    # If groupavg metrics are present, then change those as well.
-    if 'groupavg_image_metric' in dice_loss_rows.keys():
-        if opts_cfg.get('load_groupavg_metrics', False):
-            # First replace Dice in the groupavg metric with 'Dice Loss'
-            dice_loss_rows['groupavg_image_metric'] = dice_loss_rows['groupavg_image_metric'].str.replace('Dice', 'Dice_Loss')
-            dice_loss_rows['groupavg_metric_score'] = 1 - dice_loss_rows['groupavg_metric_score']
-    # Add the new rows to the inference df.
-    return pd.concat([inference_df, dice_loss_rows], axis=0, ignore_index=True)
-
-
-# Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
-def load_upperbound_df(log_cfg):
-    # Load the pickled df corresponding to the upper-bound of the uncalibrated UNets
-    upperbound_dir = f"{log_cfg['root']}/{log_cfg['inference_group']}/ensemble_upper_bounds/"
-    # Get the runs in the upper bound dir
-    try:
-        run_names = os.listdir(upperbound_dir)
-        for remove_dir_name in ["submitit", "debug"]:
-            if remove_dir_name in run_names:
-                run_names.remove(remove_dir_name)
-        assert len(run_names) == 1, f"Expected 1 run in upperbound dir, found: {len(run_names)}."
-        # Get the run name
-        upperbound_file = upperbound_dir + f"{run_names[0]}/image_stats.pkl"
-        # load the pickle
-        with open(upperbound_file, 'rb') as f:
-            upperbound_df = pickle.load(f)
-        # Fill the column corresponding to slice_idx with string 'None'
-        upperbound_df['slice_idx'] = upperbound_df['slice_idx'].fillna('None')
-        # If we have a minimum number of pixels, then filter out the slices that don't have enough pixels.
-        if "min_fg_pixels" in log_cfg:
-            # Get the names of all columns that have "num_lab" in them.
-            num_lab_cols = [col for col in upperbound_df.columns if "num_lab" in col]
-            # Remove num_lab_0_pixels because it is background
-            num_lab_cols.remove("num_lab_0_pixels")
-            # Make a new column that is the sum of all the num_lab columns.
-            upperbound_df['num_fg_pixels'] = upperbound_df[num_lab_cols].sum(axis=1)
-            upperbound_df = upperbound_df[upperbound_df['num_fg_pixels'] >= log_cfg["min_fg_pixels"]]
-        # Add the dice loss rows if we want to.
-        if log_cfg['add_dice_loss_rows']:
-            upperbound_df = add_dice_loss_rows(upperbound_df)
-        # Return the upperbound df
-        return upperbound_df
-    except Exception as e:
-        print(f"Error loading upperbound df: {e}")
-        return None
 
 
 # This function will take in a dictionary of pixel meters and a metadata dataframe
@@ -168,99 +94,34 @@ def save_inference_metadata(cfg_dict, save_root: Optional[Path] = None):
     return path
     
 
-def get_average_unet_baselines(
-    total_df: pd.DataFrame,
-    per_calibrator: bool = True,
-    num_seeds: Optional[int] = None,
-    group_metrics: Optional[List[str]] = None
-) -> pd.DataFrame:
-    # Collect all the individual networks.
-    unet_info_df = total_df[total_df['ensemble'] == False].reset_index(drop=True)
-    # These are the keys we want to group by.
-    unet_group_keys = [
-       'data_id',
-       'slice_idx',
-       'split',
-       'normalize',
-       'cal_stats_split',
-       'joint_data_slice_id',
-       'ensemble',
-       'model_class',
-       'model_type',
-       'calibrator',
-       '_pretrained_class',
-       'image_metric',
-       'metric_type',
-       'groupavg_image_metric',
-    ]
-    # Only keep the keys that are actually in the columns of unet_info_df.
-    unet_group_keys = [key for key in unet_group_keys if key in unet_info_df.keys()]
-    # Assert that none of our grouping columns have NaNs in them.
-    for unet_key in unet_group_keys:
-        assert unet_info_df[unet_key].isna().sum() == 0, f"Found NaNs in {unet_key} column."
-    # Run a check, that when you group by these keys, you get a unique row.
-    num_rows_per_group = unet_info_df.groupby(unet_group_keys).size()
-    # If num seeds is provided then we need to match it exactly (sanity check).
-    if num_seeds is not None:
-        assert (num_rows_per_group.max() == num_seeds) and (num_rows_per_group.min() == num_seeds),\
-            f"Grouping by these keys does not give the required number of rows per seed ({num_seeds})."\
-                + f" Got max {num_rows_per_group.max()} and min {num_rows_per_group.min()}. Rows look like: {num_rows_per_group}."
-    # Group everything we need. 
-    total_group_metrics = ['metric_score', 'groupavg_metric_score']
-    if group_metrics is not None:
-        total_group_metrics += group_metrics
-    total_group_metrics = [gm for gm in total_group_metrics if gm in unet_info_df.keys()]
-    
-    average_seed_unet = unet_info_df.groupby(unet_group_keys).agg({met_name: 'mean' for met_name in total_group_metrics}).reset_index()
-    # Set some useful variables.
-    average_seed_unet['experiment.pretrained_seed'] = 'Average'
-    average_seed_unet['ensemble_hash'] = 'Average' # Now this is a group of results
-    average_seed_unet['pretrained_seed'] = 'Average'
-    average_seed_unet['model_type'] = 'group' # Now this is a group of results
-    average_seed_unet['method_name'] = 'Average UNet' # Now this is a group of results
-
-    if not per_calibrator:
-        average_seed_unet['calibrator'] = 'None'
-
-    def configuration(method_name, calibrator):
-        return f"{method_name}_{calibrator}"
-
-    average_seed_unet.augment(configuration)
-
-    return average_seed_unet
-
-
 def cal_stats_init(cfg_dict):
 
-    cal_init_obj_dict = {}
     ###################
     # BUILD THE MODEL #
     ###################
-    inference_exp, inference_cfg, save_root = load_inference_exp_from_cfg(
+    inference_exp, inference_cfg = load_inference_exp_from_cfg(
         inference_cfg=cfg_dict
     )
     inference_exp.to_device()
-    cal_init_obj_dict['exp'] = inference_exp
-    exp_total_config = inference_exp.config.to_dict()
+    inference_exp_total_cfg_dict = inference_exp.config.to_dict()
+    # Update important keys in the inference cfg.
+    inference_cfg['train'] = inference_exp_total_cfg_dict['train']
+    inference_cfg['loss_func'] = inference_exp_total_cfg_dict['loss_func']
+    inference_cfg['training_data'] = inference_exp_total_cfg_dict['data'] 
 
     #####################
     # BUILD THE DATASET #
     #####################
     # Rebuild the experiments dataset with the new cfg modifications.
-    inference_dset_options = inference_cfg['inference_data'].copy()
-    input_type = inference_dset_options.pop("input_type", "image")
+    inference_data_cfg = inference_cfg['inference_data'].copy()
+    input_type = inference_data_cfg.pop("input_type", "image")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    training_data_cfg = exp_total_config['data']
     data_objs = dataloader_from_exp( 
-        inf_data_cfg=inference_dset_options, 
+        inf_data_cfg=inference_data_cfg, 
         dataloader_cfg=inference_cfg['dataloader'],
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
-    # Update important keys in the inference cfg.
-    inference_cfg['train'] = exp_total_config['train']
-    inference_cfg['loss_func'] = exp_total_config['loss_func']
-    inference_cfg['training_data'] = training_data_cfg
     #############################
     trackers = {
         "image_stats": [],
@@ -275,35 +136,45 @@ def cal_stats_init(cfg_dict):
             trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
             trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
 
+    ###########################################################
+    # Build the augmentation pipeline if we want augs on GPU. #
+    ###########################################################
+    if 'augmentations' in inference_exp_total_cfg_dict.keys():
+        inf_exp_aug_cfg = inference_exp_total_cfg_dict['augmentations']
+        flat_exp_aug_cfg = valmap(list2tuple, HDict(inf_exp_aug_cfg).flatten())
+        norm_augs = {exp_key: exp_val for exp_key, exp_val in flat_exp_aug_cfg.items() if 'normalize' in exp_key}
+    else:
+        norm_augs = None
+    # Assemble the augmentation pipeline.
+    if ('augmentations' in inference_cfg.keys()) or (norm_augs is not None):
+        inference_augs = inference_cfg.get('augmentations', {})
+        inference_augs.update(norm_augs)
+        # Update the inference cfg with the new augmentations.
+        inference_cfg['augmentations'] = inference_augs
+        # Define the augmentation function.
+        def inf_aug_func(x_batch):
+            return torch.stack([voxynth.image_augment(x, **inference_augs) for x in x_batch])
+        # Place the augmentation function into our inference object.
+        aug_pipeline = inf_aug_func
+    else:
+        aug_pipeline = None
+
     #####################
     # SAVE THE METADATA #
     #####################
-    task_root = save_inference_metadata(
-        cfg_dict=inference_cfg,
-        save_root=save_root
-    )
+    task_root = save_inference_metadata(inference_cfg)
     print(f"Running:\n\n{str(yaml.safe_dump(Config(inference_cfg)._data, indent=0))}")
 
     # Compile everything into a dictionary.
     cal_init_obj_dict = {
         "data_counter": 0,
-        "dloaders": data_objs['dataloaders'],
+        "exp": inference_exp,
+        "trackers": trackers,
+        "aug_pipeline": aug_pipeline,
         "output_root": task_root,
         "support_transforms": None, # This is set later.
-        "trackers": trackers,
-        **cal_init_obj_dict
+        "dloaders": data_objs['dataloaders'],
     }
-
-    ###########################################################
-    # Build the augmentation pipeline if we want augs on GPU. #
-    ###########################################################
-    if 'inference_augs' in inference_cfg.keys():
-        augs = inference_cfg['inference_augs'] 
-        # Define the augmentation function.
-        def inf_aug_func(x_batch):
-            return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
-        # Place the augmentation function into our inference object.
-        cal_init_obj_dict['aug_pipeline'] = inf_aug_func
 
     ##################################
     # INITIALIZE THE QUALITY METRICS #
@@ -361,15 +232,13 @@ def load_inference_exp_from_cfg(inference_cfg):
 
     # Load the experiment directly if you give a sub-path.
     inference_exp = load_experiment(**load_exp_args)
-    save_root = None
-
     # Make a new value for the pretrained seed, so we can differentiate between
     # members of ensemble
     old_inference_cfg = inference_exp.config.to_dict()
     inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
     # Update the model cfg to include old model cfg.
     inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
-    return inference_exp, inference_cfg, save_root
+    return inference_exp, inference_cfg
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

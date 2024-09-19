@@ -14,7 +14,6 @@ from ionpy.util.config import HDict, valmap
 from .analysis_utils.inference_utils import (
     add_dice_loss_rows,
     verify_graceful_exit,
-    get_average_unet_baselines,
     preload_calibration_metrics,
 )
 
