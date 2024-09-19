@@ -5,6 +5,3 @@ from .segmentation import (
     boundary_iou,
     pixel_accuracy
 )
-from .measurements import (
-    volume_error
-)

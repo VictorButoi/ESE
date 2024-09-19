@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.nn import functional as F
 # misc imports
 from pydantic import validate_arguments
-from typing import Optional, Union
+from typing import Optional, Union, Literal
 # local imports
 from .weights import get_pixel_weights
 from .functional import soft_binary_cross_entropy, focal_loss
@@ -106,12 +106,12 @@ def pixel_focal_loss(
 def area_estimation_error(
     y_pred: Tensor,
     y_true: Tensor,
-    square_diff: bool,
     relative: bool = False,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None,
+    diff_mode: Optional[Literal["square", "abs"]] = None, 
     from_logits: bool = False,
 ):
     # Quick check to see if we are dealing with binary segmentation
@@ -128,12 +128,15 @@ def area_estimation_error(
     # Get the diff between the predicted and true areas
     loss = y_pred_areas - y_true_areas
     
-    # If we are doing relative error, divide by the true area
+    # If we are doing relative error, divide by the true area.
     if relative:
         loss = loss / y_true_areas
 
-    if square_diff:
+    # If we are processing the difference in a specific way.
+    if diff_mode == "square":
         loss = loss**2
+    elif diff_mode == "abs":
+        loss = loss.abs()
 
     # Remove the ignore index if it is present
     if ignore_index is not None:
