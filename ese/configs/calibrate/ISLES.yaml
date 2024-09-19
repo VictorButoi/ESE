@@ -20,10 +20,10 @@ log:
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
       from_logits: True
-    # ece_loss:
-    #   _fn: ese.metrics.image_ece_loss
-    #   num_prob_bins: 15
-    #   from_logits: True
+    ece_loss:
+      _fn: ese.metrics.image_ece_loss
+      num_prob_bins: 15
+      from_logits: True
     area_estimation_error:
       _fn: ese.losses.area_estimation_error
       from_logits: True

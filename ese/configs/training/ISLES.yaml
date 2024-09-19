@@ -21,15 +21,14 @@ log:
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
       from_logits: True
-    # ece_loss:
-    #   _fn: ese.metrics.image_ece_loss
-    #   num_prob_bins: 15
-    #   from_logits: True
-    # edge_ece_loss:
-    #   _fn: ese.metrics.image_edge_ece_loss
-    #   num_prob_bins: 15
-    #   neighborhood_width: 3
-    #   from_logits: True
+    ece_loss:
+      _fn: ese.metrics.image_ece_loss
+      num_prob_bins: 15
+      from_logits: True
+    area_estimation_error:
+      _fn: ese.losses.area_estimation_error
+      from_logits: True
+      square_diff: False
 
 model:
   filters: [64, 64, 64, 64, 64, 64, 64]
