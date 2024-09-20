@@ -12,7 +12,6 @@ from pydantic import validate_arguments
 from ionpy.util.config import HDict, valmap
 # local imports
 from .analysis_utils.inference_utils import (
-    add_dice_loss_rows,
     verify_graceful_exit,
     preload_calibration_metrics,
 )
@@ -256,11 +255,6 @@ def load_cal_inference_stats(
         inference_df = pd.concat([inference_df, pd.DataFrame(new_columns)], axis=1)
         # Delete the old keys
         inference_df.drop(columns=[col for col in inference_df.columns if col in old_raw_keys], inplace=True)
-
-        # We want to add a bunch of new rows for Dice Loss that are the same as Dice but with a different metric score
-        # that is 1 - metric_score.
-        if results_cfg["options"].get('add_dice_loss_rows', True):
-            inference_df = add_dice_loss_rows(inference_df, opts_cfg=results_cfg["options"])
 
         # If precomputed_results_path doesn't exist, create it.
         if not os.path.exists(os.path.dirname(precomputed_results_path)):

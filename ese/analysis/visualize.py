@@ -34,11 +34,18 @@ def build_subj_dict(df, npz_dict):
                     pred_probs = sigmoid(pred_logits)
 
                     # If this is a HARD estimator, then we need to threshold the predictions at the experiment_threshold
-                    if "hard" in e_tor:
-                        pred_probs = (pred_probs > 0.5)
+                    if 'LTS' in e_tor:
+                        for est_mat in ['soft', 'hard']:
+                            if est_mat == 'hard':
+                                pred_probs = (pred_probs > 0.5)
+                            # Place this in the dict.
+                            subj_dict[data_id][pre_loss_fn][seed][f'LTS {est_mat}'] = pred_probs
 
-                    # Place this in the dict.
-                    subj_dict[data_id][pre_loss_fn][seed][e_tor] = pred_probs
+                    else:
+                        if "hard" in e_tor:
+                            pred_probs = (pred_probs > 0.5)
+                        # Place this in the dict.
+                        subj_dict[data_id][pre_loss_fn][seed][e_tor] = pred_probs
     # Return the built dict.
     return subj_dict
 
@@ -127,10 +134,14 @@ def display_subj(
             methods_dict = seed_preds_dict[seed]
 
             if num_rows == 1:
-                axarr[0].imshow(plane_img, cmap='gray')
+                im_ax = axarr[0].imshow(plane_img, cmap='gray')
                 axarr[0].set_title(data_id)
-                axarr[1].imshow(plane_lab, cmap='gray')
+                f.colorbar(im_ax, ax=axarr[0])
+
+                lab_ax = axarr[1].imshow(plane_lab, cmap='gray')
                 axarr[1].set_title("Label")
+                f.colorbar(lab_ax, ax=axarr[1])
+
                 assert set(method_order) == set(methods_dict.keys())
                 for m_idx, method in enumerate(method_order):
                     if plane is not None:
@@ -139,8 +150,11 @@ def display_subj(
                         method_plane_pred = methods_dict[method]
                     # Crop the method plane pred.
                     method_plane_pred = crop_img(method_plane_pred, min_x, max_x, min_y, max_y)
-                    axarr[m_idx + 2].imshow(method_plane_pred, cmap='gray')
+
+                    meth_ax = axarr[m_idx + 2].imshow(method_plane_pred, cmap='gray')
                     axarr[m_idx + 2].set_title(method + f", seed={seed}")
+                    f.colorbar(meth_ax, ax=axarr[m_idx + 2])
+
 
                 # Custom looking at the dif from soft to LTS.  
                 dif_img = (methods_dict["LTS soft"] - methods_dict["None soft"])
@@ -155,10 +169,14 @@ def display_subj(
                 f.colorbar(dif_plt, ax=axarr[-1])
                 axarr[-1].set_title(f"Diff, seed={seed}")
             else:
-                axarr[s_idx, 0].imshow(plane_img, cmap='gray')
+                im_ax = axarr[s_idx, 0].imshow(plane_img, cmap='gray')
                 axarr[s_idx, 0].set_title("Image")
-                axarr[s_idx, 1].imshow(plane_lab, cmap='gray')
+                f.colorbar(im_ax, ax=axarr[s_idx, 0])
+
+                lab_ax = axarr[s_idx, 1].imshow(plane_lab, cmap='gray')
                 axarr[s_idx, 1].set_title("Label")
+                f.colorbar(lab_ax, ax=axarr[s_idx, 1])
+
                 assert set(method_order) == set(methods_dict.keys())
                 for m_idx, method in enumerate(method_order):
                     if plane is not None:
@@ -167,8 +185,10 @@ def display_subj(
                         method_plane_pred = methods_dict[method]
                     # Crop the method plane pred.
                     method_plane_pred = crop_img(method_plane_pred, min_x, max_x, min_y, max_y)
-                    axarr[s_idx, m_idx + 2].imshow(method_plane_pred, cmap='gray')
+
+                    meth_ax = axarr[s_idx, m_idx + 2].imshow(method_plane_pred, cmap='gray')
                     axarr[s_idx, m_idx + 2].set_title(method + f", seed={seed}")
+                    f.colorbar(meth_ax, ax=axarr[s_idx, m_idx + 2])
 
                 # Custom looking at the dif from soft to LTS.  
                 dif_img = (methods_dict["LTS soft"] - methods_dict["None soft"])
