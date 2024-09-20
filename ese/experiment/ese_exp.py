@@ -1,5 +1,6 @@
 # local imports
 from .utils import process_pred_map, filter_args_by_class
+from ..augmentation.pipeline import build_aug_pipeline
 from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
@@ -30,19 +31,7 @@ class CalibrationExperiment(TrainExperiment):
     def build_augmentations(self):
         super().build_augmentations()
         if "augmentations" in self.config:
-            augs = self.config.to_dict()["augmentations"]
-            use_mask = augs.pop("use_mask", False)
-
-            def aug_func(x_batch, y_batch):
-                if y_batch.ndim != x_batch.ndim - 1:
-                    # Try to squeeze out the channel dimension.
-                    y_batch = y_batch.squeeze(1)
-                if use_mask:
-                    return torch.stack([voxynth.image_augment(x, y, **augs) for x, y in zip(x_batch, y_batch)])
-                else:
-                    return torch.stack([voxynth.image_augment(x, **augs) for x in x_batch])
-
-            self.aug_pipeline = aug_func
+            self.aug_pipeline = build_aug_pipeline(self.config.to_dict()["augmentations"])
 
     def build_data(self, load_data):
         # Get the data and transforms we want to apply

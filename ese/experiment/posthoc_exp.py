@@ -1,6 +1,7 @@
 # local imports
-from ..augmentation.gather import augmentations_from_config
 from .utils import load_experiment, process_pred_map, parse_class_name, filter_args_by_class
+from ..augmentation.pipeline import build_aug_pipeline
+from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
 from torch.amp import autocast
@@ -12,6 +13,7 @@ from ionpy.util import Config
 from ionpy.util.ioutil import autosave
 from ionpy.util.hash import json_digest
 from ionpy.analysis import ResultsLoader
+from ionpy.util.config import HDict, valmap
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
@@ -20,8 +22,15 @@ from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 import os
 import time
 import voxynth
+from pprint import pprint
 from typing import Optional
 import matplotlib.pyplot as plt
+
+
+def list2tuple(val):
+    if isinstance(val, list):
+        return tuple(map(list2tuple, val))
+    return val
 
 
 def calculate_tensor_memory_in_gb(tensor):
@@ -39,46 +48,10 @@ def calculate_tensor_memory_in_gb(tensor):
 
 class PostHocExperiment(TrainExperiment):
 
-
     def build_augmentations(self):
         super().build_augmentations()
         if "augmentations" in self.config:
-            augs_dict = self.config.to_dict()["augmentations"]
-            # Get the list of augs to apply.
-            spatial_augs = augs_dict.pop("spatial", None)
-            visual_augs = augs_dict.pop("visual", None)
-            if visual_augs is not None:
-                use_mask = visual_augs.pop("use_mask", False)
-
-            def aug_func(x_batch, y_batch):
-                # Apply augmentations that affect the spatial properties of the image, by applying warps.
-                if spatial_augs is not None:
-                    trf = voxynth.transform.random_transform(x_batch.shape[2:]) # We avoid the batch and channels dims.
-                    # Put the trf on the device.
-                    trf = trf.to(x_batch.device)
-                    # Apply the spatial deformation to each elemtn of the batch.  
-                    spat_aug_x = torch.stack([voxynth.transform.spatial_transform(x, trf) for x in x_batch])
-                    spat_aug_y = torch.stack([voxynth.transform.spatial_transform(y, trf) for y in y_batch])
-                else:
-                    spat_aug_x, spat_aug_y = x_batch, y_batch
-
-                # Apply augmentations that affect the visual properties of the image, but maintain originally
-                # ground truth mapping.
-                if visual_augs is not None:
-                    if use_mask:
-                        # Voxynth methods require that the channel dim is squeezed to apply the intensity augmentations.
-                        if y_batch.ndim != x_batch.ndim - 1:
-                            # Try to squeeze out the channel dimension.
-                            y_batch = y_batch.squeeze(1)
-                        aug_x = torch.stack([voxynth.image_augment(x, y, **visual_augs) for x, y in zip(spat_aug_x, spat_aug_y)])
-                    else:
-                        aug_x = torch.stack([voxynth.image_augment(x, **visual_augs) for x in spat_aug_x])
-                else:
-                    aug_x = spat_aug_x
-                
-                return aug_x, spat_aug_y 
-
-            self.aug_pipeline = aug_func
+            self.aug_pipeline = build_aug_pipeline(self.config.to_dict()["augmentations"])
 
     def build_data(self, load_data):
         # Move the information about channels to the model config.
@@ -179,18 +152,31 @@ class PostHocExperiment(TrainExperiment):
                 **load_exp_args
             )
         # Now we can access the old total config. 
-        pretrained_total_cfg_dict = self.pretrained_exp.config.to_dict()
+        pt_exp_cfg_dict = self.pretrained_exp.config.to_dict()
 
+        #######################################
+        #  Add any preprocessing augs from pt #
+        #######################################
+        if ('augmentations' in pt_exp_cfg_dict.keys()) and\
+            total_cfg_dict['train'].get('use_pretrained_norm_augs', False):
+            flat_exp_aug_cfg = valmap(list2tuple, HDict(pt_exp_cfg_dict['augmentations']).flatten())
+            norm_augs = {exp_key: exp_val for exp_key, exp_val in flat_exp_aug_cfg.items() if 'normalize' in exp_key}
+            # If this experiment already has an augmentations key, then add the normalization augs to it.
+            if 'augmentations' in total_cfg_dict.keys():
+                if 'visual' in total_cfg_dict['augmentations'].keys():
+                    total_cfg_dict['augmentations']['visual'].update(norm_augs)
+                else:
+                    total_cfg_dict['augmentations']['visual'] = norm_augs
+            else:
+                total_cfg_dict['augmentations'] = {
+                    'visual': norm_augs,
+                }
+        
         #########################################
         #            Model Creation             #
         #########################################
-
-        train_config = total_cfg_dict['train']
-        model_cfg_dict = total_cfg_dict['model']
-        exp_config = total_cfg_dict.get('experiment', {})
-        pretrained_model_cfg_dict = pretrained_total_cfg_dict['model']
-
         # Either keep training the network, or use a post-hoc calibrator.
+        model_cfg_dict = total_cfg_dict['model']
         self.model_class = model_cfg_dict['_class']
         if self.model_class is None:
             self.base_model = torch.nn.Identity() # Therh is no learned calibrator.
@@ -208,8 +194,8 @@ class PostHocExperiment(TrainExperiment):
 
             # Get the old in and out channels from the pretrained model.
             # TODO: Kind of hardcoded to binary greyscale segmentation...
-            model_cfg_dict["num_classes"] = pretrained_model_cfg_dict.get('out_channels', 1)
-            model_cfg_dict["image_channels"] = pretrained_model_cfg_dict.get('in_channels', 1)
+            model_cfg_dict["num_classes"] = pt_exp_cfg_dict['model'].get('out_channels', 1)
+            model_cfg_dict["image_channels"] = pt_exp_cfg_dict['model'].get('in_channels', 1)
     
             self.model = eval_config(Config(model_cfg_dict))
             # If the model has a weights_init method, call it to initialize the weights.
@@ -225,7 +211,7 @@ class PostHocExperiment(TrainExperiment):
         self.properties["num_params"] = num_params(self.model)
 
         # Set the new experiment params as the old ones.
-        old_exp_cfg = pretrained_total_cfg_dict['experiment']
+        old_exp_cfg = pt_exp_cfg_dict['experiment']
         old_exp_cfg.update(total_cfg_dict['experiment'])
         new_exp_cfg = old_exp_cfg.copy()
         total_cfg_dict['experiment'] = new_exp_cfg
@@ -242,12 +228,13 @@ class PostHocExperiment(TrainExperiment):
                 self.model = torch.compile(self.model)
 
         # If there is a pretrained model, load it.
-        if ("pretrained_dir" in train_config) and (exp_config.get("restart", False)):
+        train_config = total_cfg_dict['train']
+        if ("pretrained_dir" in train_config) and\
+            (total_cfg_dict.get('experiment', {}).get("restart", False)):
             checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
             checkpoint = torch.load(checkpoint_dir, map_location=self.device)
             self.model.load_state_dict(checkpoint["model"])
-        
 
     def build_optim(self):
         optim_cfg_dict = self.config["optim"].to_dict()
