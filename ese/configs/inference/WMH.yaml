@@ -43,14 +43,3 @@ qual_metrics:
     - Accuracy:
         _fn: ese.metrics.pixel_accuracy
         metric_type: quality
-    - SoftVolumeError:
-        _fn: ese.metrics.volume_error
-        do_threshold: False 
-        batch_reduction: 'mean' 
-        metric_type: quality
-    - HardVolumeError:
-        _fn: ese.metrics.volume_error
-        do_threshold: True
-        threshold: 0.5
-        batch_reduction: 'mean' 
-        metric_type: quality
