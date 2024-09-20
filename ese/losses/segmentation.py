@@ -106,12 +106,13 @@ def pixel_focal_loss(
 def area_estimation_error(
     y_pred: Tensor,
     y_true: Tensor,
+    abs_diff: bool = False,
     relative: bool = False,
+    square_diff: bool = False,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
     ignore_index: Optional[int] = None,
-    diff_mode: Optional[Literal["square", "abs"]] = None, 
     from_logits: bool = False,
 ):
     # Quick check to see if we are dealing with binary segmentation
@@ -128,14 +129,12 @@ def area_estimation_error(
     # Get the diff between the predicted and true areas
     loss = y_pred_areas - y_true_areas
     
-    # If we are doing relative error, divide by the true area.
+    # There are a few options of how we can look at this diff.
     if relative:
         loss = loss / y_true_areas
-
-    # If we are processing the difference in a specific way.
-    if diff_mode == "square":
+    if square_diff:
         loss = loss**2
-    elif diff_mode == "abs":
+    if abs_diff:
         loss = loss.abs()
 
     # Remove the ignore index if it is present
