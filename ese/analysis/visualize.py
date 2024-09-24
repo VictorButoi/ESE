@@ -12,10 +12,20 @@ def build_subj_dict(df, npz_dict):
     for data_id in df['data_id'].unique():
         subj_dict[data_id] = {}
 
-        for pre_loss_fn in df['pretrain_loss_fn'].unique():
-            
+        # Unique pretrained loss functions
+        if 'pretrain_loss_fn' not in df.columns:
+            unique_pt_loss_fns = [None]
+        else:
+            unique_pt_loss_fns = df['pretrain_loss_fn'].unique()
+
+        for pre_loss_fn in unique_pt_loss_fns:
             # For each unique pretraining loss func
-            loss_fn_df = df[df['pretrain_loss_fn'] == pre_loss_fn]
+            if pre_loss_fn is None:
+                loss_fn_df = df
+                pre_loss_fn = 'None'
+            else:
+                loss_fn_df = df[df['pretrain_loss_fn'] == pre_loss_fn]
+
             subj_dict[data_id][pre_loss_fn] = {}
 
             for seed in loss_fn_df['experiment_pretrained_seed'].unique():
@@ -142,7 +152,9 @@ def display_subj(
                 axarr[1].set_title("Label")
                 f.colorbar(lab_ax, ax=axarr[1])
 
-                assert set(method_order) == set(methods_dict.keys())
+                assert set(method_order) == set(methods_dict.keys()),\
+                    f"Got {set(method_order)} and {set(methods_dict.keys())}." 
+
                 for m_idx, method in enumerate(method_order):
                     if plane is not None:
                         method_plane_pred = methods_dict[method].take(slice_idx, axis=plane)

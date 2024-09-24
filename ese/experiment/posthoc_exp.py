@@ -365,17 +365,17 @@ class PostHocExperiment(TrainExperiment):
     ):
         # Predict with the base model.
         with torch.no_grad():
-            yhat = self.base_model(x)
+            uncal_yhat = self.base_model(x)
 
         # Apply post-hoc calibration.
         if self.model_class is None:
-            logit_map = self.model(yhat)
+            cal_logit_map = self.model(uncal_yhat)
         else:
-            logit_map = self.model(yhat, image=x)
+            cal_logit_map = self.model(uncal_yhat, image=x)
 
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
-            logit_map, 
+            cal_logit_map, 
             multi_class=multi_class, 
             threshold=threshold,
             from_logits=True
@@ -383,12 +383,16 @@ class PostHocExperiment(TrainExperiment):
 
         # If label is not None, then only return the predictions for that label.
         if label is not None:
-            logit_map = logit_map[:, label, ...].unsqueeze(1)
+            cal_logit_map = cal_logit_map[:, label, ...].unsqueeze(1)
             prob_map = prob_map[:, label, ...].unsqueeze(1)
+        
+        # Assert that the hard prediction is unchanged.
+        assert (pred_map == (torch.sigmoid(uncal_yhat)> 0.5)).all(),\
+            "The hard prediction should not change after calibration."
 
         # Return the outputs
         return {
-            'y_logits': logit_map,
+            'y_logits': cal_logit_map,
             'y_probs': prob_map, 
             'y_hard': pred_map 
         }

@@ -3,7 +3,7 @@ train:
   eval_freq: 10
 
 data:
-  iters_per_epoch: 100
+  iters_per_epoch: null 
 
 dataloader:
   batch_size: '?' 

@@ -22,10 +22,10 @@ def build_aug_pipeline(
         trf = None
         spat_aug_x, spat_aug_y = x_batch, y_batch
         # Apply spatial augmentations if they exist.
-        if spatial_augs:
+        if spatial_augs is not None:
             trf = voxynth.transform.random_transform(x_batch.shape[2:], **spatial_augs) # We avoid the batch and channels dims.
             # We get the randomly generated transformation and apply it to the batch.
-            if trf:
+            if trf is not None:
                 # Put the trf on the device.
                 trf = trf.to(x_batch.device)
                 # Apply the spatial deformation to each elemtn of the batch.  
@@ -35,7 +35,7 @@ def build_aug_pipeline(
         # Apply augmentations that affect the visual properties of the image, but maintain originally
         # ground truth mapping.
         aug_x = spat_aug_x
-        if visual_augs:
+        if visual_augs is not None:
             if use_mask:
                 # Voxynth methods require that the channel dim is squeezed to apply the intensity augmentations.
                 if y_batch.ndim != x_batch.ndim - 1:
