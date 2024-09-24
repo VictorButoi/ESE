@@ -11,8 +11,7 @@ def build_aug_pipeline(
     if visual_augs is not None:
         use_mask = visual_augs.get('use_mask', False)
 
-    def aug_func(x_batch, y_batch):
-        
+    def aug_func(x_batch, y_batch=None):
         # Apply augmentations that affect the spatial properties of the image, by applying warps.
         if spatial_augs is not None:
             trf = voxynth.transform.random_transform(x_batch.shape[2:]) # We avoid the batch and channels dims.
@@ -23,7 +22,6 @@ def build_aug_pipeline(
             spat_aug_y = torch.stack([voxynth.transform.spatial_transform(y, trf) for y in y_batch])
         else:
             spat_aug_x, spat_aug_y = x_batch, y_batch
-
         # Apply augmentations that affect the visual properties of the image, but maintain originally
         # ground truth mapping.
         if visual_augs is not None:
@@ -37,7 +35,10 @@ def build_aug_pipeline(
                 aug_x = torch.stack([voxynth.image_augment(x, **visual_augs) for x in spat_aug_x])
         else:
             aug_x = spat_aug_x
-        
-        return aug_x, spat_aug_y 
+        # Sometimes we return just the augmented x.
+        if y_batch is None:
+            return aug_x 
+        else:  
+            return aug_x, spat_aug_y 
     
     return aug_func

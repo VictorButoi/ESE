@@ -22,6 +22,7 @@ from ionpy.util.config import config_digest, HDict, valmap
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ese.utils.general import save_records, save_dict
+from ...augmentation.pipeline import build_aug_pipeline
 from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment, get_exp_load_info
 
@@ -151,11 +152,8 @@ def cal_stats_init(cfg_dict):
         inference_augs.update(norm_augs)
         # Update the inference cfg with the new augmentations.
         inference_cfg['augmentations'] = inference_augs
-        # Define the augmentation function.
-        def inf_aug_func(x_batch):
-            return torch.stack([voxynth.image_augment(x, **inference_augs) for x in x_batch])
         # Place the augmentation function into our inference object.
-        aug_pipeline = inf_aug_func
+        aug_pipeline = build_aug_pipeline(inference_augs)
     else:
         aug_pipeline = None
 
