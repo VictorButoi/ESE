@@ -17,6 +17,8 @@ def build_aug_pipeline(
         # Apply augmentations that affect the spatial properties of the image, by applying warps.
         if spatial_augs is not None:
             trf = voxynth.transform.random_transform(x_batch.shape[2:], **spatial_augs) # We avoid the batch and channels dims.
+        # We get the randomly generated transformation and apply it to the batch.
+        if trf is not None:
             # Put the trf on the device.
             trf = trf.to(x_batch.device)
             # Apply the spatial deformation to each elemtn of the batch.  
