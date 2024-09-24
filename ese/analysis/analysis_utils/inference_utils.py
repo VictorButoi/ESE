@@ -1,4 +1,4 @@
-#misc imports
+''#misc imports
 import re
 import os
 import ast
@@ -140,16 +140,17 @@ def cal_stats_init(cfg_dict):
     ###########################################################
     # Build the augmentation pipeline if we want augs on GPU. #
     ###########################################################
+    inf_norm_augs = None
     if 'augmentations' in inference_exp_total_cfg_dict.keys():
-        inf_exp_aug_cfg = inference_exp_total_cfg_dict['augmentations']
-        flat_exp_aug_cfg = valmap(list2tuple, HDict(inf_exp_aug_cfg).flatten())
-        norm_augs = {exp_key: exp_val for exp_key, exp_val in flat_exp_aug_cfg.items() if 'normalize' in exp_key}
-    else:
-        norm_augs = None
+        if 'visual' in inference_exp_total_cfg_dict['augmentations'].keys():
+            visual_aug_cfg = inference_exp_total_cfg_dict['augmentations']['visual']
+            inf_norm_augs = {
+                "visual": {exp_key: exp_val for exp_key, exp_val in visual_aug_cfg.items() if 'normalize' in exp_key}
+            }
     # Assemble the augmentation pipeline.
-    if ('augmentations' in inference_cfg.keys()) or (norm_augs is not None):
+    if ('augmentations' in inference_cfg.keys()) or (inf_norm_augs is not None):
         inference_augs = inference_cfg.get('augmentations', {})
-        inference_augs.update(norm_augs)
+        inference_augs.update(inf_norm_augs)
         # Update the inference cfg with the new augmentations.
         inference_cfg['augmentations'] = inference_augs
         # Place the augmentation function into our inference object.
@@ -221,8 +222,11 @@ def load_inference_exp_from_cfg(inference_cfg):
     # Get the configs of the experiment
     load_exp_args = {
         "checkpoint": inf_model_cfg['checkpoint'],
-        "load_data": False,
-        "set_seed": False,
+        "exp_kwargs": {
+            "set_seed": False,
+            "load_data": False,
+            "load_aug_pipeline": False
+        },
         **get_exp_load_info(inference_cfg['experiment']['model_dir']),
     }
     if "_attr" in inf_model_cfg:
