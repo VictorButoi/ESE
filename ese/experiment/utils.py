@@ -114,12 +114,11 @@ def reduce_ensemble_preds(
 def load_experiment(
     checkpoint: str,
     device: str = "cuda",
-    set_seed: bool = True,
-    load_data: bool = True,
     df: Optional[Any] = None, 
     path: Optional[str] = None,
-    attr_dict: Optional[dict] = None,
+    exp_kwargs: Optional[dict] = {},
     exp_class: Optional[str] = None,
+    attr_dict: Optional[dict] = None,
     selection_metric: Optional[str] = None,
 ):
     if path is None:
@@ -151,8 +150,7 @@ def load_experiment(
     exp_obj = exp_class(
         exp_path, 
         init_metrics=False, 
-        load_data=load_data,
-        set_seed=set_seed
+        **exp_kwargs
     )
 
     # Load the experiment

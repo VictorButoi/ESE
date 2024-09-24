@@ -48,9 +48,9 @@ def calculate_tensor_memory_in_gb(tensor):
 
 class PostHocExperiment(TrainExperiment):
 
-    def build_augmentations(self):
+    def build_augmentations(self, load_aug_pipeline):
         super().build_augmentations()
-        if "augmentations" in self.config:
+        if "augmentations" in self.config and load_aug_pipeline:
             self.aug_pipeline = build_aug_pipeline(self.config.to_dict()["augmentations"])
 
     def build_data(self, load_data):
@@ -131,8 +131,12 @@ class PostHocExperiment(TrainExperiment):
         # Get the configs of the experiment
         load_exp_args = {
             "device": "cuda",
-            "load_data": False, # Important, we might want to modify the data construction.
-            "checkpoint": total_cfg_dict['train'].get('base_checkpoint', 'max-val-dice_score')
+            "checkpoint": total_cfg_dict['train'].get('base_checkpoint', 'max-val-dice_score'),
+            "exp_kwargs": {
+                "load_data": False, # Important, we might want to modify the data construction.
+                "load_aug_pipeline": False, # Important, we might want to modify the augmentation pipeline.
+                "set_seed": True, # Important, we want to use the same seed.
+            }
         }
             
         # Backwards compatibility for the pretrained directory.

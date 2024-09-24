@@ -8,13 +8,15 @@ def build_aug_pipeline(
 ):
     spatial_augs = augs_dict.get('spatial', None)
     visual_augs = augs_dict.get('visual', None)
+    assert not (spatial_augs is None and visual_augs is None), "At least one of spatial or visual augmentations must be provided."
+
     if visual_augs is not None:
-        use_mask = visual_augs.get('use_mask', False)
+        use_mask = visual_augs.pop('use_mask', False)
 
     def aug_func(x_batch, y_batch=None):
         # Apply augmentations that affect the spatial properties of the image, by applying warps.
         if spatial_augs is not None:
-            trf = voxynth.transform.random_transform(x_batch.shape[2:]) # We avoid the batch and channels dims.
+            trf = voxynth.transform.random_transform(x_batch.shape[2:], **spatial_augs) # We avoid the batch and channels dims.
             # Put the trf on the device.
             trf = trf.to(x_batch.device)
             # Apply the spatial deformation to each elemtn of the batch.  

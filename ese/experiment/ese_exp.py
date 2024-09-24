@@ -28,9 +28,9 @@ from typing import Literal, Optional
 
 class CalibrationExperiment(TrainExperiment):
 
-    def build_augmentations(self):
+    def build_augmentations(self, load_aug_pipeline):
         super().build_augmentations()
-        if "augmentations" in self.config:
+        if "augmentations" in self.config and load_aug_pipeline:
             self.aug_pipeline = build_aug_pipeline(self.config.to_dict()["augmentations"])
 
     def build_data(self, load_data):
@@ -194,7 +194,7 @@ class CalibrationExperiment(TrainExperiment):
         if augmentation:
             with torch.no_grad():
                 # For now only the image gets augmented.
-                x = self.aug_pipeline(x, y)
+                x, y = self.aug_pipeline(x, y)
 
         # Zero out the gradients.
         self.optim.zero_grad()
