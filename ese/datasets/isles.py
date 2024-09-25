@@ -22,6 +22,7 @@ class ISLES(ThunderDataset, DatapathMixin):
     transforms: Optional[Any] = None
     return_gt_proportion: bool = False
     num_examples: Optional[int] = None
+    examples: Optional[List[str]] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
 
@@ -34,10 +35,18 @@ class ISLES(ThunderDataset, DatapathMixin):
         self.samples = subjects
         self.subjects = subjects
         # Limit the number of examples available if necessary.
+        assert not (self.num_examples and self.examples), "Only one of num_examples and examples can be set."
+
+        if self.examples is not None:
+            self.samples = [subj for subj in self.samples if subj in self.examples]
+            self.subjects = self.samples
+
         if self.num_examples is not None:
             self.samples = self.samples[:self.num_examples]
+            self.subjects = self.samples
+
         # Control how many samples are in each epoch.
-        self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
+        self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
 
     def __len__(self):
         return self.num_samples

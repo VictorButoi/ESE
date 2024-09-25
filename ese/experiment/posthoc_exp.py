@@ -85,24 +85,28 @@ class PostHocExperiment(TrainExperiment):
             train_transforms, val_transforms = None, None
 
         if load_data:
-            train_split = new_data_cfg.pop("train_splits", None)
-            val_split = new_data_cfg.pop("val_splits", None)
+            # If we are limiting the number of examples, then pop the number of examples.   
             num_examples = new_data_cfg.pop("num_examples", None)
 
-            splits_defined = train_split is not None and val_split is not None
+            # If we are using specific examples, then pop the examples.
+            train_examples = new_data_cfg.pop("train_examples", None)
+            val_examples = new_data_cfg.pop("val_examples", None)
 
             # We need to filter the arguments that are not needed for the dataset class.
             filtered_new_data_cfg = filter_args_by_class(dataset_cls, new_data_cfg)
+
             # Initialize the dataset classes.
             self.train_dataset = dataset_cls(
-                split=train_split if splits_defined else "train",
+                split=new_data_cfg["train_splits"],
                 transforms=train_transforms, 
+                examples=train_examples,
                 num_examples=num_examples,
                 **filtered_new_data_cfg
             )
             self.val_dataset = dataset_cls(
-                split=val_split if splits_defined else "val",
+                split=new_data_cfg["val_splits"],
                 transforms=val_transforms, 
+                examples=val_examples,
                 **filtered_new_data_cfg
             )
 
@@ -116,8 +120,17 @@ class PostHocExperiment(TrainExperiment):
         if batch_size is not None:
             dl_cfg["batch_size"] =  batch_size
         
-        self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
-        self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
+        self.train_dl = DataLoader(
+            self.train_dataset, 
+            shuffle=True, 
+            **dl_cfg
+        )
+        self.val_dl = DataLoader(
+            self.val_dataset, 
+            shuffle=False, 
+            drop_last=False, 
+            **dl_cfg
+        )
 
     def build_model(self):
 
