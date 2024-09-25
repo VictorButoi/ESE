@@ -35,5 +35,5 @@ model:
   convs_per_block: 3
 
 train:
-  epochs: 1000
-  eval_freq: 10 
+  epochs: 3000
+  eval_freq: 30 

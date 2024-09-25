@@ -322,12 +322,12 @@ class PostHocExperiment(TrainExperiment):
         if self.config['experiment'].get('torch_mixed_precision', False):
             with autocast('cuda'):
                 with torch.no_grad():
-                    yhat = self.base_model(x)        
+                    yhat_uncal = self.base_model(x)        
                 # Calibrate the predictions.
                 if self.model_class is None:
-                    yhat_cal = self.model(yhat)
+                    yhat_cal = self.model(yhat_uncal)
                 else:
-                    yhat_cal = self.model(yhat, image=x)
+                    yhat_cal = self.model(yhat_uncal, image=x)
                 # Calculate the loss between the pred and original preds.
                 loss = self.loss_func(yhat_cal, y)
 
@@ -341,13 +341,13 @@ class PostHocExperiment(TrainExperiment):
                 self.grad_scaler.update() 
         else:
             with torch.no_grad():
-                yhat = self.base_model(x)
+                yhat_uncal = self.base_model(x)
 
             # Calibrate the predictions.
             if self.model_class is None:
-                yhat_cal = self.model(yhat)
+                yhat_cal = self.model(yhat_uncal)
             else:
-                yhat_cal = self.model(yhat, image=x)
+                yhat_cal = self.model(yhat_uncal, image=x)
 
             # Calculate the loss between the pred and original preds.
             loss = self.loss_func(yhat_cal, y)
