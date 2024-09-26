@@ -16,6 +16,7 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
+import time
 import einops
 import voxynth
 import numpy as np
@@ -177,25 +178,17 @@ class CalibrationExperiment(TrainExperiment):
     def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
-
+        
         # Get the image and label.
         if isinstance(batch, dict):
             x, y = batch["img"], batch["label"]
         else:
             x, y = batch[0], batch[1]
-
-        # For volume datasets, sometimes want to treat different slices as a batch.
-        if self.config["data"].get("num_slices", 1) != 1:
-            # This lets you potentially use multiple slices from 3D volumes by mixing them into a big batch.
-            x = einops.rearrange(x, "b c h w -> (b c) 1 h w")
-            y = einops.rearrange(y, "b c h w -> (b c) 1 h w")
-
+        
         # Apply the augmentation on the GPU.
         if augmentation:
             with torch.no_grad():
-                # For now only the image gets augmented.
                 x, y = self.aug_pipeline(x, y)
-
         # Zero out the gradients.
         self.optim.zero_grad()
         
@@ -213,7 +206,9 @@ class CalibrationExperiment(TrainExperiment):
                 # Update the scale for next iteration
                 self.grad_scaler.update() 
         else:
+            # Forward pass
             yhat = self.model(x)
+            # Calculate the loss
             loss = self.loss_func(yhat, y)
             # If backward then backprop the gradients.
             if backward:
