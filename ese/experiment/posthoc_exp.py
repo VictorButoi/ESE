@@ -178,16 +178,17 @@ class PostHocExperiment(TrainExperiment):
             total_cfg_dict['train'].get('use_pretrained_norm_augs', False):
             flat_exp_aug_cfg = valmap(list2tuple, HDict(pt_exp_cfg_dict['augmentations']).flatten())
             norm_augs = {exp_key: exp_val for exp_key, exp_val in flat_exp_aug_cfg.items() if 'normalize' in exp_key}
-            # If this experiment already has an augmentations key, then add the normalization augs to it.
-            if 'augmentations' in total_cfg_dict.keys():
-                if 'visual' in total_cfg_dict['augmentations'].keys():
-                    total_cfg_dict['augmentations']['visual'].update(norm_augs)
+            # If the pretrained experiment used normalization augmentations, then add them to the new experiment.``
+            if norm_augs != {}:
+                if ('augmentations' in total_cfg_dict.keys()):
+                    if 'visual' in total_cfg_dict['augmentations'].keys():
+                        total_cfg_dict['augmentations']['visual'].update(norm_augs)
+                    else:
+                        total_cfg_dict['augmentations']['visual'] = norm_augs
                 else:
-                    total_cfg_dict['augmentations']['visual'] = norm_augs
-            else:
-                total_cfg_dict['augmentations'] = {
-                    'visual': norm_augs,
-                }
+                    total_cfg_dict['augmentations'] = {
+                        'visual': norm_augs,
+                    }
         
         #########################################
         #            Model Creation             #
