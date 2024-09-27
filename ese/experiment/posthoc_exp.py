@@ -4,8 +4,8 @@ from ..augmentation.pipeline import build_aug_pipeline
 from ..augmentation.gather import augmentations_from_config
 # torch imports
 import torch
-from torch.amp import autocast
 from torch.utils.data import DataLoader
+from torch.amp import autocast, GradScaler
 import torch._dynamo # For compile
 torch._dynamo.config.suppress_errors = True
 # IonPy imports
@@ -414,3 +414,52 @@ class PostHocExperiment(TrainExperiment):
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
         self.model = to_device(self.model, self.device, channels_last=False)
+
+    def run(self):
+        print(f"Running {str(self)}")
+        epochs: int = self.config["train.epochs"]
+
+        # If using mixed precision, then create a GradScaler to scale gradients during mixed precision training.
+        if self.config.get('experiment.torch_mixed_precision', False):
+            self.grad_scaler = GradScaler('cuda')
+
+        self.build_dataloader()
+        self.build_callbacks()
+
+        last_epoch: int = self.properties.get("epoch", -1)
+        if last_epoch >= 0:
+            self.load(tag="last")
+            df = self.metrics.df
+            autosave(df[df.epoch < last_epoch], self.path / "metrics.jsonl")
+        else:
+            self.build_initialization()
+
+        checkpoint_freq: int = self.config.get("log.checkpoint_freq", 1)
+        eval_freq: int = self.config.get("train.eval_freq", 1)
+
+        for epoch in range(last_epoch + 1, epochs):
+            self._epoch = epoch
+
+            # Either we run a validation epoch first and then do a round of training...
+            if not self.config['experiment'].get('val_first', False):
+                print(f"Start training epoch {epoch}.")
+                self.run_phase("train", epoch)
+
+            # Evaluate the model on the validation set.
+            if eval_freq > 0 and (epoch % eval_freq == 0 or epoch == epochs - 1):
+                print(f"Start validation round at {epoch}.")
+                self.run_phase("val", epoch)
+
+            # ... or we run a training epoch first and then do a round of validation.
+            if self.config['experiment'].get('val_first', False):
+                print(f"Start training epoch {epoch}.")
+                self.run_phase("train", epoch)
+
+            if checkpoint_freq > 0 and epoch % checkpoint_freq == 0:
+                self.checkpoint()
+
+            self.run_callbacks("epoch", epoch=epoch)
+
+        self.checkpoint(tag="last")
+        self.run_callbacks("wrapup")
+

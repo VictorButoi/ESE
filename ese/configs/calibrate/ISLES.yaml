@@ -1,6 +1,6 @@
 train:
-  epochs: 1000
-  eval_freq: 10
+  epochs: 2000
+  eval_freq: 20
 
 data:
   iters_per_epoch: null 
