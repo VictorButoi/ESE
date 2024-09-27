@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torchvision.models import resnet18
 # misc imports
 import math
-from typing import Literal
+from typing import Any, Literal, Optional
 # local imports
 from .unet import UNet
 from .utils import create_gaussian_tensor
@@ -242,6 +242,7 @@ class LocalTS(nn.Module):
         convs_per_block: int = 1,
         dims: int = 2,
         eps=1e-12, 
+        unet_conv_kws: Optional[dict[str, Any]] = None,
         **kwargs
     ):
         super(LocalTS, self).__init__()
@@ -252,6 +253,7 @@ class LocalTS(nn.Module):
             filters=filters,
             dims=dims,
             convs_per_block=convs_per_block,
+            conv_kws=unet_conv_kws
         )
         self.use_image = use_image
         self.use_logits = use_logits
