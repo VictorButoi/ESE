@@ -242,18 +242,17 @@ class LocalTS(nn.Module):
         convs_per_block: int = 1,
         dims: int = 2,
         eps=1e-12, 
-        unet_conv_kws: Optional[dict[str, Any]] = None,
+        unet_conv_kwargs: Optional[dict[str, Any]] = None,
         **kwargs
     ):
         super(LocalTS, self).__init__()
-
         self.calibrator_unet = UNet(
             in_channels=(num_classes + img_channels if use_image else num_classes), 
             out_channels=1, # For the temp map.
             filters=filters,
             dims=dims,
             convs_per_block=convs_per_block,
-            conv_kws=unet_conv_kws
+            conv_kws=unet_conv_kwargs
         )
         self.use_image = use_image
         self.use_logits = use_logits
