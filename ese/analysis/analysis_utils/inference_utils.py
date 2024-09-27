@@ -147,12 +147,15 @@ def cal_stats_init(cfg_dict):
             inf_norm_augs = {
                 "visual": {exp_key: exp_val for exp_key, exp_val in visual_aug_cfg.items() if 'normalize' in exp_key}
             }
+            # It's possible we used other visual augs that weren't normalization.
+            if len(inf_norm_augs['visual'].keys()) == 0:
+                inf_norm_augs = None
     # Assemble the augmentation pipeline.
-    if ('augmentations' in inference_cfg.keys()) or (inf_norm_augs is not None):
-        inference_augs = inference_cfg.get('augmentations', {})
+    if ('inference_augmentations' in inference_cfg.keys()) or (inf_norm_augs is not None):
+        inference_augs = inference_cfg.get('inference_augmentations', {})
         inference_augs.update(inf_norm_augs)
         # Update the inference cfg with the new augmentations.
-        inference_cfg['augmentations'] = inference_augs
+        inference_cfg['inference_augmentations'] = inference_augs
         # Place the augmentation function into our inference object.
         aug_pipeline = build_aug_pipeline(inference_augs)
     else:
