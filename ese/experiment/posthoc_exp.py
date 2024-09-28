@@ -251,7 +251,7 @@ class PostHocExperiment(TrainExperiment):
             (total_cfg_dict.get('experiment', {}).get("restart", False)):
             checkpoint_dir = f'{train_config["pretrained_dir"]}/checkpoints/{train_config["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
-            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint["model"])
 
     def build_optim(self):
@@ -275,7 +275,7 @@ class PostHocExperiment(TrainExperiment):
         if "pretrained_dir" in train_cfg_dict and exp_cfg_dict.get("restart", False):
             checkpoint_dir = f'{train_cfg_dict["pretrained_dir"]}/checkpoints/{train_cfg_dict["load_chkpt"]}.pt'
             # Load the checkpoint dir and set the model to the state dict.
-            checkpoint = torch.load(checkpoint_dir, map_location=self.device)
+            checkpoint = torch.load(checkpoint_dir, map_location=self.device, weights_only=True)
             self.optim.load_state_dict(checkpoint["optim"])
         else:
             # Zero out the gradients as initialization 

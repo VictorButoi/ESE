@@ -1,5 +1,5 @@
 train:
-  epochs: 2000
+  epochs: 3000
   eval_freq: 20
 
 data:
