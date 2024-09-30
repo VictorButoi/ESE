@@ -199,11 +199,11 @@ def get_exp_load_info(pretrained_exp_root):
 
 def show_inference_examples(
     batch,
-    inference_cfg,
     size_per_image: int = 5,
     num_prob_bins: int = 15,
+    threshold: float = 0.5,
+    temperature: Optional[float] = None
 ):
-    threshold = inference_cfg['experiment']['pred_threshold']
     # If our pred has a different batchsize than our inputs, we
     # need to tile the input and label to match the batchsize of
     # the prediction.
@@ -249,6 +249,10 @@ def show_inference_examples(
         img_cmap = None
     else:
         img_cmap = "gray"
+    
+    # If we are using a temperature, divide the logits by the temperature.
+    if temperature is not None:
+        y_hat = y_hat / temperature
 
     # Make a hard prediction.
     if num_pred_classes > 1:

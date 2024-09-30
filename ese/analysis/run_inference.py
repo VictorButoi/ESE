@@ -3,8 +3,8 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 # ionpy imports
-from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
+from ionpy.util import Config, dict_product
 from ionpy.util.torchutils import to_device
 # local imports
 from .checks import global_cal_sanity_check
@@ -23,10 +23,12 @@ from ..experiment.utils import (
     reduce_ensemble_preds
 )
 # Misc imports
+import ast
 import math
 import einops
 import numpy as np
 import pandas as pd
+from pprint import pprint
 import matplotlib.pyplot as plt
 from typing import Any, Optional
 from pydantic import validate_arguments
@@ -240,73 +242,99 @@ def standard_image_forward_loop(
                 # Resize the image
                 image = resize_image(input_res_cfg, image)
         
-        # Do a forward pass.
-        with torch.no_grad():
-            # If we have augs to apply on the image (on the GPU), then we need to do that here.
-            if inf_init_obj.get('aug_pipeline', None): 
-                image = inf_init_obj['aug_pipeline'](image)
-            # Forward pass through the model.
-            exp_output =  exp.predict(
-                image, 
-                multi_class=False,
-                label=inf_cfg_dict['model'].get('pred_label', None),
-                threshold=inf_cfg_dict['experiment'].get('pred_threshold', 0.5),
-                temperature=inf_cfg_dict['experiment'].get('pred_temperature', 1.0)
-            )
-        
-        # Go through the exp_output and see if they are None or not.
-        for out_key, out_tensor in exp_output.items():
-            # If the value is None, then drop the key.
-            if out_tensor is None:
-                exp_output.pop(out_key)
-            # If we are resizing, then we need to resize the output.
-            if resolution_cfg: 
-                output_res_cfg = resolution_cfg.get('output', None)
-                if output_res_cfg:
-                    # Resize the image
-                    exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
+        # If there are inference kwargs, then we need to do a forward pass with those kwargs.
+        inf_kwarg_opts = inf_cfg_dict['experiment'].get('inf_kwargs', None)
+        if inf_kwarg_opts is not None:
+            # Go through each, and if they are strings representing tuples, then we need to convert them to tuples.
+            for inf_key, inf_val in inf_kwarg_opts.items(): 
+                if isinstance(inf_val, str):
+                    lit_eval_val = ast.literal_eval(inf_val)
+                    if isinstance(lit_eval_val, tuple):
+                        inf_kwarg_opts[inf_key] = list(lit_eval_val)
+                # Ensure this is a list.
+                new_inf_val = inf_kwarg_opts[inf_key]
+                if not isinstance(new_inf_val, list):
+                    inf_kwarg_opts[inf_key] = [new_inf_val]
+            # Now we need to do a grid of the options, similar to how we build configs.
+            inf_kwarg_grid = list(dict_product(inf_kwarg_opts))
+        else:
+            inf_kwarg_grid = [{}]
 
-        # Get through all the batch elements.
-        inference_batch_size = image.shape[0] 
-        for batch_inference_idx in range(inference_batch_size):
-            # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
-            outputs_dict = {
-                tensor_type: out_tensor[batch_inference_idx, None, ...] for tensor_type, out_tensor in exp_output.items()
-            }
-            # Wrap the outputs into a dictionary.
-            output_dict = {
-                "x": image[batch_inference_idx][None],
-                "y_true": label_map[batch_inference_idx][None],
-                **outputs_dict
-            }
-            # Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
-            for mdata_key in batch.keys():
-                mdata = batch[mdata_key]
-                if isinstance(mdata, (torch.Tensor, np.ndarray)):
-                    output_dict[mdata_key] = mdata[batch_inference_idx].item()
-                else:
-                    output_dict[mdata_key] = mdata
+        # Iterate through each of the inference kwargs.
+        for inf_kwarg_setting_dict in inf_kwarg_grid:
+            # Do a forward pass.
+            with torch.no_grad():
+                # If we have augs to apply on the image (on the GPU), then we need to do that here.
+                if inf_init_obj.get('aug_pipeline', None): 
+                    image = inf_init_obj['aug_pipeline'](image)
+                # Forward pass through the model.
+                exp_output =  exp.predict(
+                    image, 
+                    multi_class=False,
+                    label=inf_cfg_dict['model'].get('pred_label', None),
+                    **inf_kwarg_setting_dict
+                )
+            
+            # Go through the exp_output and see if they are None or not.
+            for out_key, out_tensor in exp_output.items():
+                # If the value is None, then drop the key.
+                if out_tensor is None:
+                    exp_output.pop(out_key)
+                # If we are resizing, then we need to resize the output.
+                if resolution_cfg: 
+                    output_res_cfg = resolution_cfg.get('output', None)
+                    if output_res_cfg:
+                        # Resize the image
+                        exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
+
+            # Get through all the batch elements.
+            inference_batch_size = image.shape[0] 
+            for batch_inference_idx in range(inference_batch_size):
+                # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
+                outputs_dict = {
+                    tensor_type: out_tensor[batch_inference_idx, None, ...] for tensor_type, out_tensor in exp_output.items()
+                }
+                # Wrap the outputs into a dictionary.
+                output_dict = {
+                    "x": image[batch_inference_idx][None],
+                    "y_true": label_map[batch_inference_idx][None],
+                    **outputs_dict,
+                    **inf_kwarg_setting_dict
+                }
+                # Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
+                for mdata_key, mdata_val in batch.items():
+                    if isinstance(mdata_val, (torch.Tensor, np.ndarray)):
+                        output_dict[mdata_key] = mdata_val[batch_inference_idx].item()
+                    else:
+                        output_dict[mdata_key] = mdata_val
+                    
+                # If we are logging the predictions, then we need to do that here.
+                if inf_cfg_dict['log']["save_preds"]:
+                    predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
                 
-            # If we are logging the predictions, then we need to do that here.
-            if inf_cfg_dict['log']["save_preds"]:
-                predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
+                ###########################
+                # VISUALIZING IMAGE PREDS #
+                ###########################
+                if inf_cfg_dict["log"].get("show_examples", False):
+                    show_inference_examples(output_dict)
 
-            # Get the calibration item info.  
-            get_calibration_item_info(
-                output_dict=output_dict,
-                inference_cfg=inf_cfg_dict,
-                trackers=inf_init_obj['trackers'],
-            )
+                # Get the calibration item info.  
+                gather_output_dict_stats(
+                    output_dict=output_dict,
+                    inference_cfg=inf_cfg_dict,
+                    trackers=inf_init_obj['trackers'],
+                )
 
-            # Save the records every so often, to get intermediate results. Note, because of data_ids
-            # this can contain fewer than 'log interval' many items.
-            if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
-                save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+                # Save the records every so often, to get intermediate results. Note, because of data_ids
+                # this can contain fewer than 'log interval' many items.
+                if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
+                    save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+            # Increment the data counter.
             inf_init_obj['data_counter'] += 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_calibration_item_info(
+def gather_output_dict_stats(
     output_dict,
     inference_cfg,
     trackers
@@ -318,15 +346,6 @@ def get_calibration_item_info(
         assert output_dict["y_probs"].shape[1] == 1, "Only binary segmentation is supported for now."
     if "y_logits" in output_dict and output_dict["y_logits"] is not None:
         assert output_dict["y_logits"].shape[1] == 1, "Only binary segmentation is supported for now."
-
-    ###########################
-    # VISUALIZING IMAGE PREDS #
-    ###########################
-    if inference_cfg["log"].get("show_examples", False):
-        show_inference_examples(
-            output_dict, 
-            inference_cfg=inference_cfg
-        )
 
     ########################
     # IMAGE LEVEL TRACKING #
@@ -341,21 +360,19 @@ def get_calibration_item_info(
     #################################################################
     # CALIBRATION METRICS FOR THIS IMAGE (TOP-LABEL AND CLASS-WISE) #
     #################################################################
-    cal_args = {
-        "output_dict": output_dict,
-        "calibration_cfg": inference_cfg['global_calibration'],
-    }
     # Top-label 
     if "tl_pixel_meter_dict" in trackers:
         image_tl_pixel_meter_dict = update_toplabel_pixel_meters(
+            output_dict=output_dict,
+            calibration_cfg=inference_cfg['global_calibration'],
             record_dict=trackers['tl_pixel_meter_dict'][output_dict['data_cfg_str']],
-            **cal_args
         )
     # Class-wise 
     if "cw_pixel_meter_dict" in trackers:
         image_cw_pixel_meter_dict = update_cw_pixel_meters(
+            output_dict=output_dict,
+            calibration_cfg=inference_cfg['global_calibration'],
             record_dict=trackers['cw_pixel_meter_dict'][output_dict['data_cfg_str']],
-            **cal_args
         )
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #

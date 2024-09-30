@@ -118,7 +118,7 @@ def cal_stats_init(cfg_dict):
     input_type = inference_data_cfg.pop("input_type", "image")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    data_objs = dataloader_from_exp( 
+    dataloaders = dataloaders_from_exp( 
         inf_data_cfg=inference_data_cfg, 
         dataloader_cfg=inference_cfg['dataloader'],
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
@@ -133,7 +133,7 @@ def cal_stats_init(cfg_dict):
         "cw_pixel_meter_dict": {}
         })
         # Add trackers per split
-        for data_cfg_opt in data_objs['dataloaders']:
+        for data_cfg_opt in dataloaders:
             trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
             trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
 
@@ -172,10 +172,9 @@ def cal_stats_init(cfg_dict):
         "data_counter": 0,
         "exp": inference_exp,
         "trackers": trackers,
-        "aug_pipeline": aug_pipeline,
+        "dloaders": dataloaders,
         "output_root": task_root,
-        "support_transforms": None, # This is set later.
-        "dloaders": data_objs['dataloaders'],
+        "aug_pipeline": aug_pipeline,
     }
 
     ##################################
@@ -247,7 +246,7 @@ def load_inference_exp_from_cfg(inference_cfg):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def dataloader_from_exp(
+def dataloaders_from_exp(
     inf_data_cfg, 
     dataloader_cfg,
     aug_cfg_list: Optional[List[dict]] = None,
@@ -297,6 +296,7 @@ def dataloader_from_exp(
     for key in list(inf_data_cfg.keys()):
         if is_tuple_string(inf_data_cfg[key]):
             opt_dict[key] = list(ast.literal_eval(inf_data_cfg.pop(key)))
+
     # Get the cartesian product of the options in the dictionary using itertools.
     data_cfg_vals = opt_dict.values()
     # Create a list of dictionaries from the Cartesian product
@@ -306,7 +306,6 @@ def dataloader_from_exp(
     # 1) The dataloaders corresponding to each set of examples for inference.
     # 2) The support sets for each run configuration.
     dataloaders = {}
-    supports = {} # use for ICL
     for d_cfg_opt in data_cfgs:
         # Load the dataset with modified arguments.
         d_data_cfg = inf_data_cfg.copy()
@@ -327,13 +326,8 @@ def dataloader_from_exp(
             shuffle=False,
             drop_last=False
         )
-    # Build a dictionary of our data objs
-    data_obj_dict = {
-        "dataloaders": dataloaders,
-        "supports": supports,
-    }
     # Return the dataloaders and the modified data cfg.
-    return data_obj_dict
+    return dataloaders 
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
