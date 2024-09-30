@@ -142,6 +142,15 @@ def get_ese_calibration_configs(
     return base_cfg_dict, cfgs
 
 
+def get_range_from_str(val):
+    trimmed_range = val[1:-1] # Remove the parantheses on the ends.
+    range_args = trimmed_range.split(',')
+    assert len(range_args) == 4, f"Range sweeping requires format like (start, ..., end, interval). Got {len(range_args)}."
+    arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
+    # Finally stick this back in as a string tuple version.
+    return str(tuple(arg_vals))
+
+
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ese_inference_configs(
     exp_cfg: dict,
@@ -167,13 +176,14 @@ def get_ese_inference_configs(
 
     # Sometimes we want to do a range of values to sweep over, we will know this by ... in it.
     for key, val in flat_exp_cfg_dict.items():
-        if isinstance(val, str) and  '...' in val:
-            trimmed_range = val[1:-1] # Remove the parantheses on the ends.
-            range_args = trimmed_range.split(',')
-            assert len(range_args) == 4, f"Range sweeping requires format like (start, ..., end, interval). Got {len(range_args)}."
-            arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
+        if isinstance(val, list):
+            for idx, val_list_item in enumerate(val):
+                if isinstance(val_list_item, str) and '...' in val_list_item:
+                    # Replace the string with a range.
+                    flat_exp_cfg_dict[key][idx] = get_range_from_str(val_list_item)
+        elif isinstance(val, str) and  '...' in val:
             # Finally stick this back in as a string tuple version.
-            flat_exp_cfg_dict[key] = str(tuple(arg_vals))
+            flat_exp_cfg_dict[key] = get_range_from_str(val)
 
     # Load the inference cfg from local.
     ##################################################
