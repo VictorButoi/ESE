@@ -250,7 +250,8 @@ def standard_image_forward_loop(
                 image, 
                 multi_class=False,
                 label=inf_cfg_dict['model'].get('pred_label', None),
-                threshold=inf_cfg_dict['experiment'].get('pred_threshold', 0.5)
+                threshold=inf_cfg_dict['experiment'].get('pred_threshold', 0.5),
+                temperature=inf_cfg_dict['experiment'].get('pred_temperature', 1.0)
             )
         
         # Go through the exp_output and see if they are None or not.

@@ -231,8 +231,9 @@ class CalibrationExperiment(TrainExperiment):
     def predict(
         self, 
         x, 
-        multi_class,
-        threshold = 0.5,
+        multi_class: bool,
+        threshold: float = 0.5,
+        temperature: Optional[float] = None,
         label: Optional[int] = None,
     ):
         # Get the label predictions
@@ -241,9 +242,10 @@ class CalibrationExperiment(TrainExperiment):
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             logit_map, 
-            multi_class=multi_class, 
-            threshold=threshold,
             from_logits=True,
+            threshold=threshold,
+            temperature=temperature,
+            multi_class=multi_class 
         )
 
         if label is not None:

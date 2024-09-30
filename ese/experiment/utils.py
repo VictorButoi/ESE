@@ -35,7 +35,12 @@ def process_pred_map(
     multi_class: bool, 
     from_logits: bool,
     threshold: float = 0.5, 
-    ):
+    temperature: Optional[float] = None
+):
+    # If we are using temperature scaling, then we need to apply it.
+    if temperature is not None:
+        conf_map = conf_map / temperature
+
     # Dealing with multi-class segmentation.
     if conf_map.shape[1] > 1:
         # Get the probabilities
@@ -50,6 +55,7 @@ def process_pred_map(
         pred_map = (conf_map >= threshold).float()
         if multi_class:
             conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0].unsqueeze(1)
+
     # Return the outputs probs and predicted label map.
     return conf_map, pred_map
 

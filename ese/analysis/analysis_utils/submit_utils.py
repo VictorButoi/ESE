@@ -2,6 +2,7 @@
 import os
 import yaml
 import itertools
+import numpy as np
 from pathlib import Path
 from pprint import pprint
 from typing import List, Optional
@@ -158,10 +159,21 @@ def get_ese_inference_configs(
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_datasets = flat_exp_cfg_dict.pop('inference_data._class')
+
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
-    for key in flat_exp_cfg_dict:
-        if isinstance(flat_exp_cfg_dict[key], tuple):
-            flat_exp_cfg_dict[key] = list(flat_exp_cfg_dict[key])
+    for key, val in flat_exp_cfg_dict.items():
+        if isinstance(val, tuple):
+            flat_exp_cfg_dict[key] = list(val)
+
+    # Sometimes we want to do a range of values to sweep over, we will know this by ... in it.
+    for key, val in flat_exp_cfg_dict.items():
+        if isinstance(val, str) and  '...' in val:
+            trimmed_range = val[1:-1] # Remove the parantheses on the ends.
+            range_args = trimmed_range.split(',')
+            assert len(range_args) == 4, f"Range sweeping requires format like (start, ..., end, interval). Got {len(range_args)}."
+            arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
+            # Finally stick this back in as a string tuple version.
+            flat_exp_cfg_dict[key] = str(tuple(arg_vals))
 
     # Load the inference cfg from local.
     ##################################################

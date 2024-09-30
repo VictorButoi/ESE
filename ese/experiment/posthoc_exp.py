@@ -370,47 +370,6 @@ class PostHocExperiment(TrainExperiment):
 
         return forward_batch
 
-    def predict(
-        self, 
-        x, 
-        multi_class,
-        threshold = 0.5,
-        label: Optional[int] = None,
-    ):
-        # Predict with the base model.
-        with torch.no_grad():
-            uncal_yhat = self.base_model(x)
-
-        # Apply post-hoc calibration.
-        if self.model_class is None:
-            cal_logit_map = self.model(uncal_yhat)
-        else:
-            cal_logit_map = self.model(uncal_yhat, image=x)
-
-        # Get the hard prediction and probabilities
-        prob_map, pred_map = process_pred_map(
-            cal_logit_map, 
-            multi_class=multi_class, 
-            threshold=threshold,
-            from_logits=True
-        )
-
-        # If label is not None, then only return the predictions for that label.
-        if label is not None:
-            cal_logit_map = cal_logit_map[:, label, ...].unsqueeze(1)
-            prob_map = prob_map[:, label, ...].unsqueeze(1)
-        
-        # Assert that the hard prediction is unchanged.
-        assert (pred_map == (torch.sigmoid(uncal_yhat)> 0.5)).all(),\
-            "The hard prediction should not change after calibration."
-
-        # Return the outputs
-        return {
-            'y_logits': cal_logit_map,
-            'y_probs': prob_map, 
-            'y_hard': pred_map 
-        }
-
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
         self.model = to_device(self.model, self.device, channels_last=False)
@@ -463,3 +422,45 @@ class PostHocExperiment(TrainExperiment):
         self.checkpoint(tag="last")
         self.run_callbacks("wrapup")
 
+    def predict(
+        self, 
+        x, 
+        multi_class: bool,
+        threshold: float = 0.5,
+        temperature: Optional[float] = None,
+        label: Optional[int] = None,
+    ):
+        # Predict with the base model.
+        with torch.no_grad():
+            uncal_yhat = self.base_model(x)
+
+        # Apply post-hoc calibration.
+        if self.model_class is None:
+            cal_logit_map = self.model(uncal_yhat)
+        else:
+            cal_logit_map = self.model(uncal_yhat, image=x)
+
+        # Get the hard prediction and probabilities
+        prob_map, pred_map = process_pred_map(
+            cal_logit_map, 
+            from_logits=True,
+            threshold=threshold,
+            temperature=temperature,
+            multi_class=multi_class
+        )
+
+        # If label is not None, then only return the predictions for that label.
+        if label is not None:
+            cal_logit_map = cal_logit_map[:, label, ...].unsqueeze(1)
+            prob_map = prob_map[:, label, ...].unsqueeze(1)
+        
+        # Assert that the hard prediction is unchanged.
+        assert (pred_map == (torch.sigmoid(uncal_yhat)> 0.5)).all(),\
+            "The hard prediction should not change after calibration."
+
+        # Return the outputs
+        return {
+            'y_logits': cal_logit_map,
+            'y_probs': prob_map, 
+            'y_hard': pred_map 
+        }
