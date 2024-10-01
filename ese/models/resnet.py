@@ -81,13 +81,15 @@ class SubConTS(nn.Module):
 
         # Define the set of blocks
         self.in_planes = filters[0]
-        self.layer1 = self._make_layer(filters=filters[0], num_blocks=blocks_per_layer)
-        self.layer2 = self._make_layer(filters=filters[1], num_blocks=blocks_per_layer, stride=2)
-        self.layer3 = self._make_layer(filters=filters[2], num_blocks=blocks_per_layer, stride=2)
-        self.layer4 = self._make_layer(filters=filters[3], num_blocks=blocks_per_layer, stride=2)
+        self.layer_dict = nn.ModuleDict()
+        for i, f in enumerate(filters):
+            if i == 0:
+                self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer)
+            else:
+                self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer, stride=2)
 
         # The final fully connected layer.
-        self.fc = nn.Linear(512, num_classes)
+        self.fc = nn.Linear(32, num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -102,7 +104,6 @@ class SubConTS(nn.Module):
                 ),
                 self.bn_cls(filters) if self.use_norm else nn.Identity(),
             )
-
         layers = []
         layers.append(
             BasicBlock(
@@ -131,36 +132,27 @@ class SubConTS(nn.Module):
         pass
 
     def get_temp_map(self, logits, image):
+
         # Concatenate the image if we are using it.
         if self.use_image:
             cal_input = torch.cat([logits, image], dim=1)
         else:
             cal_input = logits 
-        print(cal_input.shape)
+
         # Pass through the ResNet Blocks 
         x = F.relu(self.bn1(self.conv1(cal_input)))
-        print(x.shape)
         if self.dims == 3:
             x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
         else:
             x = F.max_pool2d(x, kernel_size=3, stride=2, padding=1)
-        print(x.shape)
-        x = self.layer1(x)
-        print(x.shape)
-        x = self.layer2(x)
-        print(x.shape)
-        x = self.layer2(x)
-        print(x.shape)
-        x = self.layer3(x)
-        print(x.shape)
-        x = self.layer4(x)
-        print(x.shape)
+
+        # Go through the layers.
+        for i in range(len(self.layer_dict)):
+            x = self.layer_dict[f"layer_{i}"](x)
+
         x = self.avgpool(x)
-        print(x.shape)
         x = torch.flatten(x, 1)
-        print(x.shape)
         unnorm_temp = self.fc(x)
-        print(unnorm_temp.shape)
         # Add ones so the temperature starts near 1.
         unnorm_temp += torch.ones(1, device=unnorm_temp.device)
         # Finally normalize it to be positive and add epsilon for smoothing.
