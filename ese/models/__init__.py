@@ -1,3 +1,3 @@
 from .unet import UNet
-from .resnet import SubConTS
+from .resnet import SCTS
 from .calibrators import *

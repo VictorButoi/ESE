@@ -43,7 +43,7 @@ class BasicBlock(nn.Module):
         return out
 
 
-class SubConTS(nn.Module):
+class SCTS(nn.Module):
 
     def __init__(
         self, 
@@ -57,7 +57,7 @@ class SubConTS(nn.Module):
         blocks_per_layer: int = 2,
         **kwargs
     ):
-        super(SubConTS, self).__init__()
+        super(SCTS, self).__init__()
         # Determine the classes we need to use based on the dimensionality of the input.
         self.conv_cls = nn.Conv3d if dims == 3 else nn.Conv2d
         self.bn_cls = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
@@ -89,7 +89,7 @@ class SubConTS(nn.Module):
                 self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer, stride=2)
 
         # The final fully connected layer.
-        self.fc = nn.Linear(32, num_classes)
+        self.fc = nn.Linear(filters[-1], num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -157,19 +157,23 @@ class SubConTS(nn.Module):
         unnorm_temp += torch.ones(1, device=unnorm_temp.device)
         # Finally normalize it to be positive and add epsilon for smoothing.
         temp = F.relu(unnorm_temp) + self.eps
-        # Clip the values to be positive and add epsilon for smoothing.
-        rep_dims = [1] + list(logits.shape[2:])
-        temp_map = temp.unsqueeze(1).repeat(*rep_dims)
+        # Repeat the temperature map for all classes.
+        B = logits.shape[0]
+        new_temp_map_shape = [B] + [1]*len(logits.shape[2:])
+        expanded_temp_map = temp.view(new_temp_map_shape)
+        # Reshape the temp map to match the logits.
+        target_shape = [B] + list(logits.shape[2:])
+        reshaped_temp_map = expanded_temp_map.expand(*target_shape)
         # Return the temp map.
-        return temp_map
+        return reshaped_temp_map.unsqueeze(1) # Unsqueeze channel dim.
 
     def forward(self, logits, image=None, **kwargs):
         C = logits.shape[1] # B, C, spatial dims
         # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x spatial dims
+        temp_map = self.get_temp_map(logits, image) # B x 1 x spatial dims
         # Repeat the temperature map for all classes.
         rep_dims = [1, C] + [1] * (len(logits.shape) - 2)
-        temp_map = temp_map.unsqueeze(1).repeat(*rep_dims) # B x C x spatial dims
+        temp_map = temp_map.repeat(*rep_dims) # B x C x spatial dims
         # Assert that every position in the temp_map is positive.
         assert torch.all(temp_map >= 0), "Temperature map must be positive."
         # Finally, scale the logits by the temperatures.
