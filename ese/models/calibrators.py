@@ -78,69 +78,6 @@ class Popcorn_Scaling(nn.Module):
         raise NotImplementedError("Popcorn_Scaling is not implemented yet.")
 
 
-class ImageBasedTS(nn.Module):
-    def __init__(
-        self, 
-        img_channels: int,
-        num_classes: int, 
-        use_image: bool = True,
-        use_logits: bool = True, 
-        eps=1e-12, 
-        **kwargs
-    ):
-        super(ImageBasedTS, self).__init__()
-
-        self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
-        self.temp_predictor = resnet18()
-        # Replace the last fully-connected layer to output a single number.
-        self.temp_predictor.fc = nn.Linear(512, 1)
-        # Track some info about this calibrator.
-        self.use_image = use_image
-        self.use_logits = use_logits
-        self.eps = eps 
-
-    def weights_init(self):
-        pass
-
-    def get_temp_map(self, logits, image):
-        _, _, H, W = logits.shape
-        # Either passing into probs or logits into UNet, can affect optimization.
-        if not self.use_logits:
-            cal_input = torch.softmax(logits, dim=1)
-        else:
-            cal_input = logits
-        # Concatenate the image if we are using it.
-        if self.use_image:
-            cal_input = torch.cat([cal_input, image], dim=1)
-        # Pass through the in conv
-        x = self.in_conv(cal_input)
-        # Pass through the UNet
-        unnorm_temp = self.temp_predictor(x) # B x 1
-        # Add ones so the temperature starts near 1.
-        unnorm_temp += torch.ones(1, device=unnorm_temp.device)
-        # Finally normalize it to be positive and add epsilon for smoothing.
-        temp = F.relu(unnorm_temp) + self.eps
-        # Clip the values to be positive and add epsilon for smoothing.
-        temp_map = temp.unsqueeze(1).repeat(1, H, W)
-        # Return the temp map.
-        return temp_map
-
-    def forward(self, logits, image, **kwargs):
-        _, C, _, _ = logits.shape
-        # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x H x W
-        # Repeat the temperature map for all classes.
-        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
-        # Assert that every position in the temp_map is positive.
-        assert torch.all(temp_map >= 0), "Temperature map must be positive."
-        # Finally, scale the logits by the temperatures.
-        return logits / temp_map
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-        
 class LocalTS(nn.Module):
     def __init__(
         self, 
@@ -148,10 +85,9 @@ class LocalTS(nn.Module):
         num_classes: int, 
         filters: list[int],
         use_image: bool = True,
-        use_logits: bool = True, 
         convs_per_block: int = 1,
         dims: int = 2,
-        eps=1e-12, 
+        eps: float = 1e-12, 
         unet_conv_kwargs: Optional[dict[str, Any]] = None,
         **kwargs
     ):
@@ -165,21 +101,17 @@ class LocalTS(nn.Module):
             conv_kws=unet_conv_kwargs
         )
         self.use_image = use_image
-        self.use_logits = use_logits
         self.eps = eps 
 
     def weights_init(self):
         pass
 
-    def get_temp_map(self, logits, image):
-        # Either passing into probs or logits into UNet, can affect optimization.
-        if not self.use_logits:
-            cal_input = torch.softmax(logits, dim=1)
-        else:
-            cal_input = logits
+    def get_temp_map(self, logits, image=None):
         # Concatenate the image if we are using it.
         if self.use_image:
             cal_input = torch.cat([cal_input, image], dim=1)
+        else:
+            cal_input = logits
         # Pass through the UNet.
         unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x Spat. Dims
         # Add ones so the temperature starts near 1.
@@ -189,7 +121,7 @@ class LocalTS(nn.Module):
         # Return the temp map.
         return temp_map
 
-    def forward(self, logits, image, **kwargs):
+    def forward(self, logits, image=None, **kwargs):
         C = logits.shape[1]
         # Get the temperature map.
         temp_map = self.get_temp_map(logits, image) # B x Spatial Dims

@@ -47,7 +47,8 @@ def verify_graceful_exit(log_path: str, log_root: str):
     submitit_dir = os.path.join(log_root, log_path, "submitit")
     # Check that the submitit directory exists if it doesnt then return.
     try:
-        unique_logs = list(set([logfile.split("_")[0] for logfile in os.listdir(submitit_dir)]))
+        result_pickl_files = [logfile for logfile in os.listdir(submitit_dir) if logfile.endswith("_result.pkl")]
+        unique_logs = list(set([logfile.split("_")[0] for logfile in result_pickl_files]))
     except:
         print(f"Error loading submitit directory: {submitit_dir}")
         return
