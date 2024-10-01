@@ -28,6 +28,7 @@ import math
 import einops
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from pprint import pprint
 import matplotlib.pyplot as plt
 from typing import Any, Optional
@@ -261,7 +262,7 @@ def standard_image_forward_loop(
             inf_kwarg_grid = [{}]
 
         # Iterate through each of the inference kwargs.
-        for inf_kwarg_setting_dict in inf_kwarg_grid:
+        for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid):
             # Do a forward pass.
             with torch.no_grad():
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
