@@ -65,107 +65,17 @@ class Popcorn_Scaling(nn.Module):
         init_mode: Literal['delta', 'uniform', 'gaussian'] = 'delta',
         **kwargs
     ):
-        super(Popcorn_Scaling, self).__init__()
-        assert ksize % 2 == 1, "Kernel size must be odd."
-        self.ksize = ksize
-        self.init_mode = init_mode
-        self.temperature_kernel = nn.Parameter(torch.ones(ksize, ksize))
+        raise NotImplementedError("Popcorn_Scaling is not implemented yet.")
 
     def weights_init(self):
-        if self.init_mode == 'random':
-            # Randomly initialize the kernel weights
-            self.temperature_kernel.data.normal_(0, 0.01)
-        elif self.init_mode == 'delta':
-            self.temperature_kernel.data.fill_(0)
-            self.temperature_kernel.data[self.ksize//2, self.ksize//2] = 1
-        elif self.init_mode == 'uniform':
-            # Initialize the kernel as uniform with each element being 1/ksize^2
-            self.temperature_kernel.data.fill_(1 / (self.ksize**2))
-        elif self.init_mode == 'gaussian':
-            # Initialize the kernel as a guassian centered at the middle pixel.
-            self.temperature_kernel = nn.Parameter(create_gaussian_tensor(mu=0.0, sigma=1.0, ksize=self.ksize))
-        else:
-            raise ValueError(f"Invalid init_mode: {self.init_mode}")
+        raise NotImplementedError("Popcorn_Scaling is not implemented yet.")
         
     def forward(self, logits, **kwargs):
-        # Expand the shape of the kernel to match the shape of the logits.
-        temperature_kernel = self.temperature_kernel[None, None, ...]
-        # Convolve the logits with the temperature kernel.
-        tempered_logits = F.conv2d(logits, temperature_kernel, padding=self.ksize//2) 
-        # Finally, scale the logits by the temperatures.
-        return tempered_logits
+        raise NotImplementedError("Popcorn_Scaling is not implemented yet.")
 
     @property
     def device(self):
-        return next(self.parameters()).device
-
-
-class Gaussian_Temperature_Scaling(nn.Module):
-    def __init__(self, ksize, **kwargs):
-        super(Gaussian_Temperature_Scaling, self).__init__()
-        assert ksize % 2 == 1, "Kernel size must be odd."
-        # Initialize the kernel with a Gaussian distribution.
-        self.mu = nn.Parameter(torch.ones(1))
-        self.sigma = nn.Parameter(torch.zeros(1))
-        self.ksize = ksize
-    
-    def forward(self, logits, **kwargs):
-        gaussian_temp_kernel = create_gaussian_tensor(
-            mu=self.mu,
-            sigma=self.sigma,
-            ksize=self.ksize 
-        )[None, None, ...]
-        # Expand the shape of temp map to match the shape of the logits
-        tempered_logits = F.conv2d(logits, gaussian_temp_kernel, padding=self.ksize//2) 
-        # Finally, scale the logits by the temperatures.
-        return tempered_logits
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-class Vector_Scaling(nn.Module):
-    def __init__(self, num_classes, **kwargs):
-        super(Vector_Scaling, self).__init__()
-        self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
-        self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
-
-    def weights_init(self):
-        self.vector_parameters.data.fill_(1)
-        self.vector_offset.data.fill_(0)
-
-    def forward(self, logits, **kwargs):
-        return (self.vector_parameters * logits) + self.vector_offset
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-class Dirichlet_Scaling(nn.Module):
-    def __init__(self, num_classes, eps=1e-19, **kwargs):
-        super(Dirichlet_Scaling, self).__init__()
-        self.dirichlet_linear = nn.Linear(num_classes, num_classes)
-        self.eps = eps
-
-    def weights_init(self):
-        self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
-        self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
-
-    def forward(self, logits, **kwargs):
-        probs = torch.softmax(logits, dim=1)
-        ln_probs = torch.log(probs + self.eps) # B x C x H x W
-        # Move channel dim to the back (for broadcasting)
-        ln_probs = ln_probs.permute(0,2,3,1).contiguous() # B x H x W x C
-        ds_probs = self.dirichlet_linear(ln_probs)
-        ds_probs = ds_probs.permute(0,3,1,2).contiguous() # B x C x H x W
-        # Return scaled log probabilities
-        return ds_probs
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
+        raise NotImplementedError("Popcorn_Scaling is not implemented yet.")
 
 
 class ImageBasedTS(nn.Module):
