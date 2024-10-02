@@ -25,6 +25,7 @@ from ..experiment.utils import (
 # Misc imports
 import ast
 import math
+import time
 import einops
 import numpy as np
 import pandas as pd
@@ -262,7 +263,7 @@ def standard_image_forward_loop(
             inf_kwarg_grid = [{}]
 
         # Iterate through each of the inference kwargs.
-        for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid):
+        for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid, disable=(len(inf_kwarg_grid) == 1)):
             # Do a forward pass.
             with torch.no_grad():
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
@@ -375,6 +376,7 @@ def gather_output_dict_stats(
             calibration_cfg=inference_cfg['global_calibration'],
             record_dict=trackers['cw_pixel_meter_dict'][output_dict['data_cfg_str']],
         )
+
     ##################################################################
     # SANITY CHECK THAT THE CALIBRATION METRICS AGREE FOR THIS IMAGE #
     ##################################################################

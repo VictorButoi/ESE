@@ -1,11 +1,9 @@
-# Torch imports
+# torch imports
 import torch
-from torch.nn import functional as F
 # Local imports
-from ..utils.general import save_dict 
 from ..metrics.local_ps import bin_stats_init
-from ..experiment.utils import reduce_ensemble_preds
 # Misc imports
+import time
 from pprint import pprint
 from pydantic import validate_arguments
     
@@ -40,7 +38,6 @@ def get_image_stats(
     qual_metric_scores_dict = {}
     for qual_metric_name, qual_metric_dict in inference_cfg["qual_metrics"].items():
         qual_metric_scores_dict[qual_metric_name] = qual_metric_dict['_fn'](**qual_input_config)
-
     #############################################################
     # CALCULATE CALIBRATION METRICS
     #############################################################

@@ -1,10 +1,6 @@
 # torch imports
 import torch
 from torch import Tensor
-# misc imports
-import matplotlib.pyplot as plt
-from typing import Any, Optional
-from pydantic import validate_arguments
 # local imports 
 from .utils import (
     calc_bin_info,
@@ -13,6 +9,11 @@ from .utils import (
     get_bin_per_sample,
     agg_neighbors_preds 
 )
+# misc imports
+import time
+import matplotlib.pyplot as plt
+from typing import Any, Optional
+from pydantic import validate_arguments
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def bin_stats_init(
@@ -125,7 +126,7 @@ def bin_stats_init(
     # These need to have the same shape as each other.
     assert top_frequency_map.shape == y_prob_map.shape,\
         f"Frequency map shape {top_frequency_map.shape} does not match prob map shape {y_prob_map.shape}."
-    
+
     # Wrap this into a dictionary.
     return {
         "y_pred": y_pred.to(torch.float64), # "to" is for precision.
