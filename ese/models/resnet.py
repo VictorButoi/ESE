@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 # misc imports
-from typing import Any, Literal, Optional
+import ast
+from typing import Any, Literal, Optional, Tuple
 
 
 class BasicBlock(nn.Module):
@@ -55,6 +56,7 @@ class SCTS(nn.Module):
         use_image: bool = True,
         eps: float = 1e-4, 
         blocks_per_layer: int = 2,
+        temp_range: Optional[Any] = None,
         **kwargs
     ):
         super(SCTS, self).__init__()
@@ -62,11 +64,15 @@ class SCTS(nn.Module):
         self.conv_cls = nn.Conv3d if dims == 3 else nn.Conv2d
         self.bn_cls = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
 
-        self.dims = dims
         self.eps = eps
+        self.dims = dims
         self.use_norm = use_norm
         self.use_image = use_image
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
+        # If we want to constrain the output.
+        if isinstance(temp_range, str):
+            temp_range = ast.literal_eval(temp_range)
+        self.temp_range = temp_range
 
         # Define the first convolutional layer.
         self.conv1 = self.conv_cls(
@@ -153,8 +159,11 @@ class SCTS(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         unnorm_temp = self.fc(x)
-        # Finally normalize it to be positive and add epsilon for smoothing.
-        temp = torch.abs(unnorm_temp) + self.eps
+        # We need to normalize our temperature to be positive.
+        if self.temp_range is not None:
+            temp = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]
+        else:
+            temp = torch.abs(unnorm_temp) + self.eps
 
         print("Predicted Batch Temps: ", temp)
         # Repeat the temperature map for all classes.
