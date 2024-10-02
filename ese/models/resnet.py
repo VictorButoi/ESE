@@ -135,12 +135,12 @@ class SCTS(nn.Module):
 
         # Concatenate the image if we are using it.
         if self.use_image:
-            cal_input = torch.cat([logits, image], dim=1)
+            x = torch.cat([logits, image], dim=1)
         else:
-            cal_input = logits 
+            x = logits 
 
-        # Pass through the ResNet Blocks 
-        x = F.relu(self.bn1(self.conv1(cal_input)))
+        # Pass through the ResNet Block 
+        x = F.relu(self.bn1(self.conv1(x)))
         if self.dims == 3:
             x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
         else:

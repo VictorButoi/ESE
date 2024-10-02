@@ -109,7 +109,7 @@ class LocalTS(nn.Module):
     def get_temp_map(self, logits, image=None):
         # Concatenate the image if we are using it.
         if self.use_image:
-            cal_input = torch.cat([cal_input, image], dim=1)
+            cal_input = torch.cat([logits, image], dim=1)
         else:
             cal_input = logits
         # Pass through the UNet.
