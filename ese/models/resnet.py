@@ -53,6 +53,7 @@ class SCTS(nn.Module):
         dims: int = 2,
         use_norm: bool = False,
         use_image: bool = True,
+        eps: float = 1e-4, 
         blocks_per_layer: int = 2,
         **kwargs
     ):
@@ -62,6 +63,7 @@ class SCTS(nn.Module):
         self.bn_cls = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
 
         self.dims = dims
+        self.eps = eps
         self.use_norm = use_norm
         self.use_image = use_image
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
@@ -152,7 +154,7 @@ class SCTS(nn.Module):
         x = torch.flatten(x, 1)
         unnorm_temp = self.fc(x)
         # Finally normalize it to be positive and add epsilon for smoothing.
-        temp = torch.abs(unnorm_temp)
+        temp = torch.abs(unnorm_temp) + self.eps
 
         print("Predicted Batch Temps: ", temp)
         # Repeat the temperature map for all classes.

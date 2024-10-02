@@ -85,9 +85,10 @@ class LocalTS(nn.Module):
         num_classes: int, 
         filters: list[int],
         use_image: bool = True,
+        abs_output: bool = False,
         convs_per_block: int = 1,
         dims: int = 2,
-        eps: float = 1e-12, 
+        eps: float = 1e-4, 
         unet_conv_kwargs: Optional[dict[str, Any]] = None,
         **kwargs
     ):
@@ -100,6 +101,7 @@ class LocalTS(nn.Module):
             convs_per_block=convs_per_block,
             conv_kws=unet_conv_kwargs
         )
+        self.abs_output = abs_output
         self.use_image = use_image
         self.eps = eps 
 
@@ -114,10 +116,16 @@ class LocalTS(nn.Module):
             cal_input = logits
         # Pass through the UNet.
         unnorm_temp_map = self.calibrator_unet(cal_input).squeeze(1) # B x Spat. Dims
-        # Add ones so the temperature starts near 1.
-        unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
-        # Clip the values to be positive and add epsilon for smoothing.
-        temp_map = F.relu(unnorm_temp_map) + self.eps
+        # Either we just abs value the output or we can do a complicated operation.
+        if self.abs_output:
+            temp_map = torch.abs(unnorm_temp_map)
+        else:
+            # Add ones so the temperature starts near 1.
+            unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
+            # Clip the values to be positive and add epsilon for smoothing.
+            temp_map = F.relu(unnorm_temp_map)
+        # Smooth with epsilon.
+        temp_map += self.eps
         # Return the temp map.
         return temp_map
 
