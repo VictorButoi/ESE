@@ -24,7 +24,3 @@ log:
       _fn: ese.metrics.image_ece_loss
       num_prob_bins: 15
       from_logits: True
-    area_estimation_error:
-      _fn: ese.losses.area_estimation_error
-      from_logits: True
-      square_diff: False
