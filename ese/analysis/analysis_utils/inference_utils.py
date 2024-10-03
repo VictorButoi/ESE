@@ -96,20 +96,25 @@ def save_inference_metadata(cfg_dict, save_root: Optional[Path] = None):
     return path
     
 
-def cal_stats_init(cfg_dict):
+def cal_stats_init(inference_cfg):
 
     ###################
     # BUILD THE MODEL #
     ###################
-    inference_exp, inference_cfg = load_inference_exp_from_cfg(
-        inference_cfg=cfg_dict
+    inference_exp = load_inference_exp(
+        model_dir=inference_cfg['experiment']['model_dir'],
+        checkpoint=inference_cfg['model']['checkpoint'],
+        to_device=True,
     )
-    inference_exp.to_device()
-    inference_exp_total_cfg_dict = inference_exp.config.to_dict()
+
     # Update important keys in the inference cfg.
+    inference_exp_total_cfg_dict = inference_exp.config.to_dict()
     inference_cfg['train'] = inference_exp_total_cfg_dict['train']
     inference_cfg['loss_func'] = inference_exp_total_cfg_dict['loss_func']
     inference_cfg['training_data'] = inference_exp_total_cfg_dict['data'] 
+    inference_cfg['experiment']['pretrained_seed'] = inference_exp_total_cfg_dict['experiment']['seed']
+    # Update the model cfg to include old model cfg.
+    inference_cfg['model'].update(inference_exp_total_cfg_dict['model']) # Ideally everything the same but adding new keys.
 
     #####################
     # BUILD THE DATASET #
@@ -219,31 +224,32 @@ def cal_stats_init(cfg_dict):
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def load_inference_exp_from_cfg(inference_cfg): 
-    inf_model_cfg = inference_cfg['model']
-
+def load_inference_exp(
+    model_dir,
+    checkpoint: str = "max-val-dice_score",
+    to_device: bool = False,
+    inf_kwargs: Optional[dict] = {},
+): 
     # Get the configs of the experiment
     load_exp_args = {
-        "checkpoint": inf_model_cfg['checkpoint'],
+        "checkpoint": checkpoint,
         "exp_kwargs": {
             "set_seed": False,
             "load_data": False,
             "load_aug_pipeline": False
         },
-        **get_exp_load_info(inference_cfg['experiment']['model_dir']),
+        **inf_kwargs,
+        **get_exp_load_info(model_dir),
     }
-    if "_attr" in inf_model_cfg:
-        load_exp_args['attr_dict'] = inf_model_cfg['_attr']
 
     # Load the experiment directly if you give a sub-path.
     inference_exp = load_experiment(**load_exp_args)
-    # Make a new value for the pretrained seed, so we can differentiate between
-    # members of ensemble
-    old_inference_cfg = inference_exp.config.to_dict()
-    inference_cfg['experiment']['pretrained_seed'] = old_inference_cfg['experiment']['seed']
-    # Update the model cfg to include old model cfg.
-    inference_cfg['model'].update(old_inference_cfg['model']) # Ideally everything the same but adding new keys.
-    return inference_exp, inference_cfg
+
+    # Optionally, move the model to the device.
+    if to_device:
+        inference_exp.to_device()
+
+    return inference_exp
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
