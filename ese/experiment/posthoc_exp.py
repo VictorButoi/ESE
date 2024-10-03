@@ -211,11 +211,6 @@ class PostHocExperiment(TrainExperiment):
             self.base_model.eval()
             for param in self.base_model.parameters():
                 param.requires_grad = False
-
-            # Get the old in and out channels from the pretrained model.
-            # TODO: Kind of hardcoded to binary greyscale segmentation...
-            model_cfg_dict["num_classes"] = pt_exp_cfg_dict['model'].get('out_channels', 1)
-            model_cfg_dict["image_channels"] = pt_exp_cfg_dict['model'].get('in_channels', 1)
     
             self.model = eval_config(Config(model_cfg_dict))
             # If the model has a weights_init method, call it to initialize the weights.

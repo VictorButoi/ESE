@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# ionpy imports
+from ionpy.nn.nonlinearity import get_nonlinearity
 # misc imports
 import ast
 from typing import Any, Literal, Optional, Tuple
@@ -15,12 +17,17 @@ class BasicBlock(nn.Module):
         dims: int, 
         stride: int = 1, 
         use_norm: bool = False,
+        activation: Optional[str] = "ReLU",
         downsample: Optional[Any] = None,
     ):
         super(BasicBlock, self).__init__()
         # Determine the classes we need to use based on the dimensionality of the input.
         conv = nn.Conv3d if dims == 3 else nn.Conv2d
         bn = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
+
+        # Get the nonlinearity we'll be using.
+        self.nonlin_fn = get_nonlinearity(activation)()
+
         # Define the layers. (2 convs)
         self.conv1 = conv(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=not use_norm)
         self.bn1 = bn(out_channels) if use_norm else nn.Identity()
@@ -33,14 +40,16 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         residual = x
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
+        out = self.bn1(self.conv1(x))
+        out = self.nonlin_fn(out)
 
+        out = self.bn2(self.conv2(out))
         if self.downsample is not None:
             residual = self.downsample(x)
-        
-        out += residual
-        out = F.relu(out)
+
+        out = out + residual
+        out = self.nonlin_fn(out)
+
         return out
 
 
@@ -57,7 +66,7 @@ class SCTS(nn.Module):
         eps: float = 1e-4, 
         blocks_per_layer: int = 2,
         temp_range: Optional[Any] = None,
-        **kwargs
+        conv_kws: Optional[dict[str, Any]] = {}
     ):
         super(SCTS, self).__init__()
         # Determine the classes we need to use based on the dimensionality of the input.
@@ -66,6 +75,7 @@ class SCTS(nn.Module):
 
         self.eps = eps
         self.dims = dims
+        self.conv_kws = conv_kws
         self.use_norm = use_norm
         self.use_image = use_image
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
@@ -84,6 +94,7 @@ class SCTS(nn.Module):
             bias=not use_norm
         )
         self.bn1 = self.bn_cls(filters[0]) if use_norm else nn.Identity()
+        self.act1 = get_nonlinearity(conv_kws.get("activation", "ReLU"))()
 
         # Define the set of blocks
         self.in_planes = filters[0]
@@ -118,7 +129,8 @@ class SCTS(nn.Module):
                 stride=stride, 
                 dims=self.dims, 
                 use_norm=self.use_norm,
-                downsample=downsample
+                downsample=downsample,
+                **self.conv_kws
             )
         )
         self.in_planes = filters 
@@ -128,7 +140,8 @@ class SCTS(nn.Module):
                     in_channels=filters, 
                     out_channels=filters, 
                     dims=self.dims, 
-                    use_norm=self.use_norm
+                    use_norm=self.use_norm,
+                    **self.conv_kws
                 )
             )
 
@@ -146,7 +159,7 @@ class SCTS(nn.Module):
             x = logits 
 
         # Pass through the ResNet Block 
-        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.act1(self.bn1(self.conv1(x)))
         if self.dims == 3:
             x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
         else:
