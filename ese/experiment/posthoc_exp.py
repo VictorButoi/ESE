@@ -85,22 +85,22 @@ class PostHocExperiment(TrainExperiment):
             train_transforms, val_transforms = None, None
 
         if load_data:
-            # If we are limiting the number of examples, then pop the number of examples.   
-            num_examples = new_data_cfg.pop("num_examples", None)
-
             # If we are using specific examples, then pop the examples.
-            train_examples = new_data_cfg.pop("train_examples", None)
-            val_examples = new_data_cfg.pop("val_examples", None)
+            train_examples = new_data_cfg.get("train_examples", None)
+            val_examples = new_data_cfg.get("val_examples", None)
 
-            # We need to filter the arguments that are not needed for the dataset class.
+            # We need to filter the arguments that are not needed for the dataset class,
+            # but also nt use the above keys as they are different between training and validation.
             filtered_new_data_cfg = filter_args_by_class(dataset_cls, new_data_cfg)
+            for gotten_key in ['train_examples', 'val_examples']:
+                if gotten_key in filtered_new_data_cfg:
+                    filtered_new_data_cfg.pop(gotten_key)
 
             # Initialize the dataset classes.
             self.train_dataset = dataset_cls(
                 split=new_data_cfg["train_splits"],
                 transforms=train_transforms, 
                 examples=train_examples,
-                num_examples=num_examples,
                 **filtered_new_data_cfg
             )
             self.val_dataset = dataset_cls(
