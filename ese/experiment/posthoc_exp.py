@@ -143,12 +143,11 @@ class PostHocExperiment(TrainExperiment):
         #######################
         # Get the configs of the experiment
         load_exp_args = {
-            "device": "cuda",
             "checkpoint": total_cfg_dict['train'].get('base_checkpoint', 'max-val-dice_score'),
             "exp_kwargs": {
+                "set_seed": True, # Important, we want to use the same seed.
                 "load_data": False, # Important, we might want to modify the data construction.
                 "load_aug_pipeline": False, # Important, we might want to modify the augmentation pipeline.
-                "set_seed": True, # Important, we want to use the same seed.
             }
         }
             
@@ -168,6 +167,9 @@ class PostHocExperiment(TrainExperiment):
                 selection_metric=total_cfg_dict['train']['base_pt_select_metric'],
                 **load_exp_args
             )
+        # Send the pretrained experiment to the device.
+        self.pretrained_exp.to_device()
+
         # Now we can access the old total config. 
         pt_exp_cfg_dict = self.pretrained_exp.config.to_dict()
 

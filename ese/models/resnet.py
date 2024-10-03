@@ -78,8 +78,9 @@ class SCTS(nn.Module):
         self.conv1 = self.conv_cls(
             (num_classes + img_channels if use_image else num_classes), 
             filters[0], 
-            kernel_size=3, 
-            padding=1, 
+            kernel_size=7, 
+            stride=2, 
+            padding=3, 
             bias=not use_norm
         )
         self.bn1 = self.bn_cls(filters[0]) if use_norm else nn.Identity()
@@ -94,8 +95,7 @@ class SCTS(nn.Module):
                 self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer, stride=2)
 
         # The final fully connected layer.
-        # this is hard coded, but we can change it later.
-        self.fc = nn.Linear(5760, num_classes)
+        self.fc = nn.Linear(filters[-1], num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -144,20 +144,20 @@ class SCTS(nn.Module):
             x = torch.cat([logits, image], dim=1)
         else:
             x = logits 
-        print(x.shape)
 
         # Pass through the ResNet Block 
         x = F.relu(self.bn1(self.conv1(x)))
-        print(x.shape)
+        if self.dims == 3:
+            x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
+        else:
+            x = F.max_pool2d(x, kernel_size=3, stride=2, padding=1)
 
         # Go through the layers.
         for i in range(len(self.layer_dict)):
             x = self.layer_dict[f"layer_{i}"](x)
-            print(x.shape)
 
-        # x = self.avgpool(x)
+        x = self.avgpool(x)
         x = torch.flatten(x, 1)
-
         unnorm_temp = self.fc(x)
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
