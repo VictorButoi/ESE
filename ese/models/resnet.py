@@ -63,7 +63,7 @@ class SCTS(nn.Module):
         dims: int = 2,
         use_norm: bool = False,
         use_image: bool = True,
-        eps: float = 1e-4, 
+        eps: float = 1e-6, 
         blocks_per_layer: int = 2,
         temp_range: Optional[Any] = None,
         conv_kws: Optional[dict[str, Any]] = {}
@@ -106,7 +106,8 @@ class SCTS(nn.Module):
                 self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer, stride=2)
 
         # The final fully connected layer.
-        self.fc = nn.Linear(filters[-1], num_classes)
+        # self.fc = nn.Linear(filters[-1], num_classes)
+        self.fc = nn.Linear(2880, num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -169,14 +170,16 @@ class SCTS(nn.Module):
         for i in range(len(self.layer_dict)):
             x = self.layer_dict[f"layer_{i}"](x)
 
-        x = self.avgpool(x)
+        # x = self.avgpool(x)
         x = torch.flatten(x, 1)
         unnorm_temp = self.fc(x)
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
             temp = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]
         else:
-            temp = torch.abs(unnorm_temp) + self.eps
+            temp = torch.abs(unnorm_temp)
+        # Add eps as a precaution so we don't div by zero.
+        temp += self.eps
 
         print("Predicted Batch Temps: ", temp)
         # Repeat the temperature map for all classes.

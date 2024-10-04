@@ -88,7 +88,7 @@ class LocalTS(nn.Module):
         abs_output: bool = False,
         convs_per_block: int = 1,
         dims: int = 2,
-        eps: float = 1e-4, 
+        eps: float = 1e-6, 
         unet_conv_kwargs: Optional[dict[str, Any]] = None,
         **kwargs
     ):
