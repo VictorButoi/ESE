@@ -77,6 +77,14 @@ def ShowPredictionsCallback(
             y_hat = torch.sigmoid(y_hat)
         y_hard = (y_hat > threshold).int()
 
+    # Gather some bin statistics. We do this here because we then slice our volumes after this
+    # and need them to be 3D (if volumes).
+    cal_info = bin_stats(
+        y_pred=y_hat,
+        y_true=y,
+        num_prob_bins=num_prob_bins
+    )
+
     # If x is 5 dimensionsal, we need to take the midslice of the last dimension of all 
     # of our tensors.
     if len(x.shape) == 5:
@@ -92,6 +100,7 @@ def ShowPredictionsCallback(
         y = torch.stack([y[i, ..., max_slices[i]] for i in range(bs)])
         y_hat = torch.stack([y_hat[i, ..., max_slices[i]] for i in range(bs)])
         y_hard = torch.stack([y_hard[i, ..., max_slices[i]] for i in range(bs)])
+    
 
     # Squeeze all tensors in prep.
     x = x.permute(0, 2, 3, 1).numpy().squeeze() # Move channel dimension to last.
@@ -170,11 +179,6 @@ def ShowPredictionsCallback(
             f.colorbar(im6, ax=axarr[5], orientation='vertical')
 
             # Plot the reliability diagram for the binary case of the foreground.
-            cal_info = bin_stats(
-                y_pred=y_hat[None, None, ...],
-                y_true=y[None, None, ...],
-                num_prob_bins=num_prob_bins
-            )
             reliability_diagram(
                 calibration_info=cal_info,
                 title="Reliability Diagram",

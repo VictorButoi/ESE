@@ -24,6 +24,13 @@ def bin_stats_init(
     from_logits: bool = False,
     neighborhood_width: Optional[int] = None
 ):
+    # Note here about shapes:
+    # It should either be B x C x H x W or B x C x H x W x D.
+    assert y_pred.ndim in [4, 5],\
+        f"y_pred must have 4 or 5 dimensions. Got {y_pred.ndim}."
+    assert y_true.ndim in [4, 5],\
+        f"y_true must have 4 or 5 dimensions. Got {y_true.ndim}."
+
     # Convert to float64 for precision.
     C = y_pred.shape[1]
     y_pred = y_pred.to(torch.float64) # Get precision for calibration.
