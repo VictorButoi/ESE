@@ -17,7 +17,7 @@ class BasicBlock(nn.Module):
         dims: int, 
         stride: int = 1, 
         use_norm: bool = False,
-        activation: Optional[str] = "ReLU",
+        activation: Optional[str] = "LeakyReLU",
         downsample: Optional[Any] = None,
     ):
         super(BasicBlock, self).__init__()
@@ -62,6 +62,7 @@ class SCTS(nn.Module):
         filters: list[int],
         dims: int = 2,
         use_norm: bool = False,
+        use_probs: bool = False,
         use_image: bool = True,
         eps: float = 1e-6, 
         blocks_per_layer: int = 2,
@@ -77,6 +78,7 @@ class SCTS(nn.Module):
         self.dims = dims
         self.conv_kws = conv_kws
         self.use_norm = use_norm
+        self.use_probs = use_probs
         self.use_image = use_image
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
         # If we want to constrain the output.
@@ -94,7 +96,7 @@ class SCTS(nn.Module):
             bias=not use_norm
         )
         self.bn1 = self.bn_cls(filters[0]) if use_norm else nn.Identity()
-        self.act1 = get_nonlinearity(conv_kws.get("activation", "ReLU"))()
+        self.act1 = get_nonlinearity(conv_kws.get("activation", "LeakyReLU"))()
 
         # Define the set of blocks
         self.in_planes = filters[0]
@@ -106,8 +108,8 @@ class SCTS(nn.Module):
                 self.layer_dict[f"layer_{i}"] = self._make_layer(f, blocks_per_layer, stride=2)
 
         # The final fully connected layer.
-        # self.fc = nn.Linear(filters[-1], num_classes)
-        self.fc = nn.Linear(2880, num_classes)
+        self.fc = nn.Linear(filters[-1], num_classes)
+        # self.fc = nn.Linear(2880, num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -152,12 +154,16 @@ class SCTS(nn.Module):
         pass
 
     def get_temp_map(self, logits, image):
-
-        # Concatenate the image if we are using it.
-        if self.use_image:
-            x = torch.cat([logits, image], dim=1)
+        
+        # Optionally: Use the probabilities instead of the logits.
+        if self.use_probs:
+            x = F.softmax(logits, dim=1)
         else:
-            x = logits 
+            x = logits
+
+        # Optionally: Concatenate the image if we are using it.
+        if self.use_image:
+            x = torch.cat([x, image], dim=1)
 
         # Pass through the ResNet Block 
         x = self.act1(self.bn1(self.conv1(x)))
@@ -170,9 +176,11 @@ class SCTS(nn.Module):
         for i in range(len(self.layer_dict)):
             x = self.layer_dict[f"layer_{i}"](x)
 
-        # x = self.avgpool(x)
+        # Average pool the resolution dimension and then pass through the final FC layer.
+        x = self.avgpool(x)
         x = torch.flatten(x, 1)
         unnorm_temp = self.fc(x)
+
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
             temp = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]

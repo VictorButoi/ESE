@@ -114,6 +114,7 @@ class CalibrationExperiment(TrainExperiment):
 
         self.model = eval_config(Config(model_cfg))
         self.properties["num_params"] = num_params(self.model)
+
         # Put the model on the device here.
         self.to_device()
 

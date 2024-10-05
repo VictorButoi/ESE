@@ -349,6 +349,11 @@ class PostHocExperiment(TrainExperiment):
 
             # Calculate the loss between the pred and original preds.
             loss = self.loss_func(yhat_cal, y)
+            if 'data_id' in batch:
+                print(f"Data ID: {batch['data_id']}")
+            print("Loss: ", loss)
+            print()
+
             # If backward then backprop the gradients.
             if backward:
                 loss.backward()

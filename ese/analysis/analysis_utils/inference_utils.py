@@ -104,7 +104,7 @@ def cal_stats_init(inference_cfg):
     inference_exp = load_inference_exp(
         model_dir=inference_cfg['experiment']['model_dir'],
         checkpoint=inference_cfg['model']['checkpoint'],
-        to_device=True,
+        to_device=True
     )
 
     # Update important keys in the inference cfg.
@@ -113,6 +113,7 @@ def cal_stats_init(inference_cfg):
     inference_cfg['loss_func'] = inference_exp_total_cfg_dict['loss_func']
     inference_cfg['training_data'] = inference_exp_total_cfg_dict['data'] 
     inference_cfg['experiment']['pretrained_seed'] = inference_exp_total_cfg_dict['experiment']['seed']
+
     # Update the model cfg to include old model cfg.
     inference_cfg['model'].update(inference_exp_total_cfg_dict['model']) # Ideally everything the same but adding new keys.
 
@@ -133,7 +134,7 @@ def cal_stats_init(inference_cfg):
     trackers = {
         "image_stats": [],
     }
-    if cfg_dict['log']['log_pixel_stats']:
+    if inference_cfg['log']['log_pixel_stats']:
         trackers.update({
         "tl_pixel_meter_dict": {},
         "cw_pixel_meter_dict": {}
@@ -230,6 +231,11 @@ def load_inference_exp(
     to_device: bool = False,
     inf_kwargs: Optional[dict] = {},
 ): 
+    # If we are passing to the device, we need to set the 'device' of
+    # our init to 'gpu'.
+    if to_device:
+        inf_kwargs['device'] = 'cuda'
+
     # Get the configs of the experiment
     load_exp_args = {
         "checkpoint": checkpoint,

@@ -269,7 +269,8 @@ def standard_image_forward_loop(
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
                 if inf_init_obj.get('aug_pipeline', None): 
                     image = inf_init_obj['aug_pipeline'](image)
-                # Forward pass through the model.
+
+                # Get the devices that the  exp, image, and label_map are on.
                 exp_output =  exp.predict(
                     image, 
                     multi_class=False,
