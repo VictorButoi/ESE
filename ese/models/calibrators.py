@@ -49,9 +49,11 @@ class Temperature_Scaling(nn.Module):
         # Expand the shape of temp map to match the shape of the logits
         num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
         repeat_factors = [1, C] + [1] * num_spatial_dims
-        temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors)
+        repeated_temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors)
         # Finally, scale the logits by the temperatures.
-        return logits / temp_map
+        tempered_logits = logits / repeated_temp_map
+        # Return the tempered logits and the predicts temperatures.
+        return tempered_logits, self.temp 
 
     @property
     def device(self):
@@ -132,15 +134,17 @@ class LocalTS(nn.Module):
     def forward(self, logits, image=None, **kwargs):
         C = logits.shape[1]
         # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x Spatial Dims
+        temps = self.get_temp_map(logits, image) # B x Spatial Dims
         # Repeat the temperature map for all classes.
         num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
         repeat_factors = [1, C] + [1] * num_spatial_dims
-        temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
+        repeated_temp_map = temps.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
         # Assert that every position in the temp_map is positive.
-        assert torch.all(temp_map >= 0), "Temperature map must be positive."
+        assert torch.all(repeated_temp_map >= 0), "Temperature map must be positive."
         # Finally, scale the logits by the temperatures.
-        return logits / temp_map
+        tempered_logits = logits / repeated_temp_map
+        # Return the tempered logits and the predicts temperatures.
+        return tempered_logits, temps
 
     @property
     def device(self):

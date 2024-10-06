@@ -153,8 +153,7 @@ class SCTS(nn.Module):
     def weights_init(self):
         pass
 
-    def get_temp_map(self, logits, image):
-        
+    def pred_temps(self, logits, image):
         # Optionally: Use the probabilities instead of the logits.
         if self.use_probs:
             x = F.softmax(logits, dim=1)
@@ -187,27 +186,33 @@ class SCTS(nn.Module):
         else:
             temp = torch.abs(unnorm_temp)
         # Add eps as a precaution so we don't div by zero.
-        temp += self.eps
-
-        print("Predicted Batch Temps: ", temp)
+        temps += self.eps
+        # Return the temperature map.
+        return temps
+    
+    def get_temp_map(self, temps, pred_shape=None):
         # Repeat the temperature map for all classes.
-        B = logits.shape[0]
-        new_temp_map_shape = [B] + [1]*len(logits.shape[2:])
-        expanded_temp_map = temp.view(new_temp_map_shape)
+        B = pred_shape[0]
+        new_temp_map_shape = [B] + [1]*len(pred_shape[2:])
+        expanded_temp_map = temps.view(new_temp_map_shape)
         # Reshape the temp map to match the logits.
-        target_shape = [B] + list(logits.shape[2:])
+        target_shape = [B] + list(pred_shape[2:])
         reshaped_temp_map = expanded_temp_map.expand(*target_shape)
         # Return the temp map.
         return reshaped_temp_map.unsqueeze(1) # Unsqueeze channel dim.
 
     def forward(self, logits, image=None, **kwargs):
-        C = logits.shape[1] # B, C, spatial dims
-        # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x 1 x spatial dims
+        C = logits.shape[1] # Input looks like B, C, spatial dims
+        # First we predict the temperatures.
+        temps = self.pred_temps(logits, image) # B 
+        # Then use the predicted temperatures to get the temperature map.
+        temp_map = self.get_temp_map(temps, pred_shape=logits.shape) # B x 1 x spatial dims
         # Repeat the temperature map for all classes.
         rep_dims = [1, C] + [1] * (len(logits.shape) - 2)
         temp_map = temp_map.repeat(*rep_dims) # B x C x spatial dims
         # Assert that every position in the temp_map is positive.
         assert torch.all(temp_map >= 0), "Temperature map must be positive."
         # Finally, scale the logits by the temperatures.
-        return logits / temp_map
+        tempered_logits = logits / temp_map
+        # Return the tempered logits and the predicted temperatures.
+        return tempered_logits, temps
