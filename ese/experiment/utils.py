@@ -16,13 +16,28 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from pydantic import validate_arguments
 # local imports
-from ..models.ensemble_utils import get_combine_fn
-
-from ..metrics.utils import (
-    get_bin_per_sample, 
-)
 from ..metrics.local_ps import bin_stats
+from ..metrics.utils import get_bin_per_sample
+from ..models.ensemble_utils import get_combine_fn
 from ..analysis.cal_plots.reliability_plots import reliability_diagram
+
+
+def list2tuple(val):
+    if isinstance(val, list):
+        return tuple(map(list2tuple, val))
+    return val
+
+
+def calculate_tensor_memory_in_gb(tensor):
+    # Get the number of elements in the tensor
+    num_elements = tensor.numel()
+    # Get the size of each element in bytes based on the dtype
+    dtype_size = tensor.element_size()  # size in bytes for the tensor's dtype
+    # Total memory in bytes
+    total_memory_bytes = num_elements * dtype_size
+    # Convert bytes to gigabytes (1 GB = 1e9 bytes)
+    total_memory_gb = total_memory_bytes / 1e9
+    return total_memory_gb
 
 
 def parse_class_name(class_name):

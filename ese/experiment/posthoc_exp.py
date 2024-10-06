@@ -1,12 +1,18 @@
 # local imports
-from .utils import load_experiment, process_pred_map, parse_class_name, filter_args_by_class
 from ..augmentation.pipeline import build_aug_pipeline
 from ..augmentation.gather import augmentations_from_config
+from .utils import (
+    list2tuple,
+    load_experiment, 
+    process_pred_map, 
+    parse_class_name, 
+    filter_args_by_class
+)
 # torch imports
 import torch
+import torch._dynamo # For compile
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
-import torch._dynamo # For compile
 torch._dynamo.config.suppress_errors = True
 # IonPy imports
 from ionpy.util import Config
@@ -25,25 +31,6 @@ import voxynth
 from pprint import pprint
 from typing import Optional
 import matplotlib.pyplot as plt
-
-
-def list2tuple(val):
-    if isinstance(val, list):
-        return tuple(map(list2tuple, val))
-    return val
-
-
-def calculate_tensor_memory_in_gb(tensor):
-    # Get the number of elements in the tensor
-    num_elements = tensor.numel()
-    # Get the size of each element in bytes based on the dtype
-    dtype_size = tensor.element_size()  # size in bytes for the tensor's dtype
-    # Total memory in bytes
-    total_memory_bytes = num_elements * dtype_size
-    # Convert bytes to gigabytes (1 GB = 1e9 bytes)
-    total_memory_gb = total_memory_bytes / 1e9
-    
-    return total_memory_gb
 
 
 class PostHocExperiment(TrainExperiment):
@@ -91,23 +78,26 @@ class PostHocExperiment(TrainExperiment):
 
             # We need to filter the arguments that are not needed for the dataset class,
             # but also nt use the above keys as they are different between training and validation.
-            filtered_new_data_cfg = filter_args_by_class(dataset_cls, new_data_cfg)
+            data_cfg_kwargs = filter_args_by_class(dataset_cls, new_data_cfg)
             for gotten_key in ['train_examples', 'val_examples']:
-                if gotten_key in filtered_new_data_cfg:
-                    filtered_new_data_cfg.pop(gotten_key)
+                if gotten_key in data_cfg_kwargs:
+                    data_cfg_kwargs.pop(gotten_key)
+            # If we are using temps as targets, need to add where they are. 
+            if (data_cfg_kwargs['target'] == 'temp') and ('opt_temps_dir' not in data_cfg_kwargs):
+                data_cfg_kwargs['opt_temps_dir'] = f'{self.pt_model_path}/opt_temps.json'
 
             # Initialize the dataset classes.
             self.train_dataset = dataset_cls(
                 split=new_data_cfg["train_splits"],
                 transforms=train_transforms, 
                 examples=train_examples,
-                **filtered_new_data_cfg
+                **data_cfg_kwargs
             )
             self.val_dataset = dataset_cls(
                 split=new_data_cfg["val_splits"],
                 transforms=val_transforms, 
                 examples=val_examples,
-                **filtered_new_data_cfg
+                **data_cfg_kwargs
             )
 
     def build_dataloader(self, batch_size=None):
@@ -155,15 +145,16 @@ class PostHocExperiment(TrainExperiment):
         base_pt_key = 'pretrained_dir' if 'base_pretrained_dir' not in total_cfg_dict['train']\
             else 'base_pretrained_dir'
         # Either select from a set of experiments in a common directory OR choose a particular experiment to load.
-        if "config.yml" in os.listdir(total_cfg_dict['train'][base_pt_key]):
+        self.pt_model_path = total_cfg_dict['train'][base_pt_key]
+        if "config.yml" in os.listdir(self.pt_model_path):
             self.pretrained_exp = load_experiment(
-                path=total_cfg_dict['train'][base_pt_key],
+                path=self.pt_model_path,
                 **load_exp_args
             )
         else:
             rs = ResultsLoader()
             self.pretrained_exp = load_experiment(
-                df=rs.load_metrics(rs.load_configs(total_cfg_dict['train'][base_pt_key], properties=False)),
+                df=rs.load_metrics(rs.load_configs(self.pt_model_path, properties=False)),
                 selection_metric=total_cfg_dict['train']['base_pt_select_metric'],
                 **load_exp_args
             )

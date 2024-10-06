@@ -1,6 +1,7 @@
 # torch imports
 import torch
 # random imports
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ class ISLES(ThunderDataset, DatapathMixin):
     return_gt_proportion: bool = False
     transforms: Optional[Any] = None
     num_examples: Optional[int] = None
+    opt_temps_dir: Optional[str] = None
     examples: Optional[List[str]] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
@@ -48,6 +50,13 @@ class ISLES(ThunderDataset, DatapathMixin):
 
         # Control how many samples are in each epoch.
         self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
+
+        # If opt temps dir is provided, then we need to load the optimal temperatures.
+        if self.opt_temps_dir is not None:
+            # Load the optimal temperatures from the json
+            with open(self.opt_temps_dir, "r") as f:
+                opt_temps_dict = json.load(f)
+            self.opt_temps = {subj: torch.tensor(opt_temps_dict[subj])for subj in self.subjects}
 
     def __len__(self):
         return self.num_samples
@@ -86,7 +95,7 @@ class ISLES(ThunderDataset, DatapathMixin):
         if self.target == "seg":
             return_dict["label"] = gt_seg
         elif self.target == "temp":
-            return_dict["label"] = torch.tensor([1.0]) 
+            return_dict["label"] = self.opt_temps[subj_name]
             return_dict["gt_seg"] = gt_seg
         else:
             raise ValueError(f"Unknown target: {self.target}")
