@@ -303,6 +303,9 @@ class PostHocExperiment(TrainExperiment):
         # Get the image and label.
         x, y = batch["img"], batch["label"]
 
+        if 'data_id' in batch:
+            print(f"Data ID: {batch['data_id']}")
+
         # Apply the augmentation on the GPU.
         if augmentation:
             with torch.no_grad():
@@ -313,13 +316,9 @@ class PostHocExperiment(TrainExperiment):
         self.optim.zero_grad()
 
         if self.config['experiment'].get('torch_mixed_precision', False):
+            # Run the forward and loss computation with autocast.
             with autocast('cuda'):
-                with torch.no_grad():
-                    y_hat_uncal = self.base_model(x)        
-                # Calibrate the predictions.
-                y_hat = self.model(y_hat_uncal, image=x)
-                # Calculate the loss between the pred and original preds.
-                loss = self.loss_func(y_hat, y)
+                y_hat, loss = self.run_forward(x, y)
             # If backward then backprop the gradients.
             if backward:
                 # Scale the loss and backpropagate
@@ -329,25 +328,12 @@ class PostHocExperiment(TrainExperiment):
                 # Update the scale for next iteration
                 self.grad_scaler.update() 
         else:
-            with torch.no_grad():
-                y_hat_uncal = self.base_model(x)
-            # Calibrate the predictions.
-            y_hat = self.model(y_hat_uncal, image=x)
-            # Calculate the loss between the pred and original preds.
-            loss = self.loss_func(y_hat, y)
-
-            if 'data_id' in batch:
-                print(f"Data ID: {batch['data_id']}")
-            print("Loss: ", loss)
-            print()
-
+            # Run the forward pass.
+            y_hat, loss = self.run_forward(x, y)
             # If backward then backprop the gradients.
             if backward:
                 loss.backward()
                 self.optim.step()
-        
-        # If our calibrator predicts an optimal temperature, then we need to use it to
-        # produce the prediction maps.
 
         # Run step-wise callbacks if you have them.
         forward_batch = {
@@ -360,6 +346,28 @@ class PostHocExperiment(TrainExperiment):
         self.run_callbacks("step", batch=forward_batch)
 
         return forward_batch
+    
+    def run_forward(self, x, y):
+        with torch.no_grad():
+            y_hat_uncal = self.base_model(x)
+
+        # Calibrate the predictions.
+        y_hat, y_hat_temps = self.model(y_hat_uncal, image=x)
+
+        # Get the target type and then calculate the loss for the necessary quantity.
+        target = self.config["data"].get("target", "seg")
+        if target == "seg":
+            loss = self.loss_func(y_hat, y)
+        elif target == "temp":
+            loss = self.loss_func(y_hat_temps, y)
+        else:
+            raise ValueError(f"Target type {target} not recognized.")
+
+        print("Loss: ", loss)
+        print("Predicted Batch Temps: ", y_hat_temps)
+        print()
+
+        return y_hat, loss
 
     def to_device(self):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
