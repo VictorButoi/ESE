@@ -297,16 +297,11 @@ class PostHocExperiment(TrainExperiment):
             self.loss_func = eval_config(Config(loss_cfg))
     
     def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
-        start_time = time.time()
-
         # Send data and labels to device.
         batch = to_device(batch, self.device)
 
         # Get the image and label.
-        if isinstance(batch, dict):
-            x, y = batch["img"], batch["label"]
-        else:
-            x, y = batch[0], batch[1]
+        x, y = batch["img"], batch["label"]
 
         # Apply the augmentation on the GPU.
         if augmentation:
@@ -320,15 +315,11 @@ class PostHocExperiment(TrainExperiment):
         if self.config['experiment'].get('torch_mixed_precision', False):
             with autocast('cuda'):
                 with torch.no_grad():
-                    yhat_uncal = self.base_model(x)        
+                    y_hat_uncal = self.base_model(x)        
                 # Calibrate the predictions.
-                if self.model_class is None:
-                    yhat_cal = self.model(yhat_uncal)
-                else:
-                    yhat_cal = self.model(yhat_uncal, image=x)
+                y_hat = self.model(y_hat_uncal, image=x)
                 # Calculate the loss between the pred and original preds.
-                loss = self.loss_func(yhat_cal, y)
-
+                loss = self.loss_func(y_hat, y)
             # If backward then backprop the gradients.
             if backward:
                 # Scale the loss and backpropagate
@@ -339,16 +330,12 @@ class PostHocExperiment(TrainExperiment):
                 self.grad_scaler.update() 
         else:
             with torch.no_grad():
-                yhat_uncal = self.base_model(x)
-
+                y_hat_uncal = self.base_model(x)
             # Calibrate the predictions.
-            if self.model_class is None:
-                yhat_cal = self.model(yhat_uncal)
-            else:
-                yhat_cal = self.model(yhat_uncal, image=x)
-
+            y_hat = self.model(y_hat_uncal, image=x)
             # Calculate the loss between the pred and original preds.
-            loss = self.loss_func(yhat_cal, y)
+            loss = self.loss_func(y_hat, y)
+
             if 'data_id' in batch:
                 print(f"Data ID: {batch['data_id']}")
             print("Loss: ", loss)
@@ -358,14 +345,16 @@ class PostHocExperiment(TrainExperiment):
             if backward:
                 loss.backward()
                 self.optim.step()
+        
+        # If our calibrator predicts an optimal temperature, then we need to use it to
+        # produce the prediction maps.
 
         # Run step-wise callbacks if you have them.
         forward_batch = {
             "x": x,
             "y_true": y,
-            "y_pred": yhat_cal,
-            "y_logits": yhat_cal, # Used for visualization functions.
             "loss": loss,
+            "y_logits": y_hat, # Used for visualization functions.
             "batch_idx": batch_idx
         }
         self.run_callbacks("step", batch=forward_batch)

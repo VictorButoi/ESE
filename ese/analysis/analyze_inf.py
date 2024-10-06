@@ -213,7 +213,7 @@ def load_cal_inference_stats(
         if "slice_idx" not in inference_df.columns:
             inference_df["slice_idx"] = "None"
         # Drop the rows corresponding to NaNs in metric_score
-        if results_cfg["options"].get('drop_nan_metric_rows', True):
+        if results_cfg["options"].get('drop_nan_metric_rows', False):
             # Get the triples of (data_idx, slice_idx, metric_name) where metric_score is NaN.
             unique_nan_triples = inference_df[inference_df['metric_score'].isna()][['data_id', 'slice_idx', 'image_metric']].drop_duplicates()
             # Drop the rows which match the triples.
@@ -273,26 +273,6 @@ def load_cal_inference_stats(
     print("Finished loading inference stats.")
     print(f"Log amounts: {final_num_rows_per_log_set}")
 
-    # Prepare the final object
-    inference_obj = {
-        "df": inference_df,
-        "preds": None,
-        "dataset": None
-    }
-
-    # Get some arguments.
-    load_preds = results_cfg["options"].get("load_predictions", False)
-    load_inf_dataset = results_cfg["options"].get("load_inference_dataset", False)
-
-    if load_preds:
-        pass
-
-    if load_inf_dataset:
-        raise NotImplementedError("Loading the inference dataset is not yet implemented.")
-    
     # Finally, return the dictionary of inference info.
-    if not load_preds and not load_inf_dataset:
-        return inference_df
-    else:
-        return inference_obj 
+    return inference_df 
 

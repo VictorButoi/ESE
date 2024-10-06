@@ -220,9 +220,8 @@ class CalibrationExperiment(TrainExperiment):
         forward_batch = {
             "x": x,
             "y_true": y,
-            "y_pred": yhat,
-            "y_logits": yhat, # Used for visualization functions.
             "loss": loss,
+            "y_logits": yhat, # Used for visualization functions.
             "batch_idx": batch_idx,
         }
         self.run_callbacks("step", batch=forward_batch)
