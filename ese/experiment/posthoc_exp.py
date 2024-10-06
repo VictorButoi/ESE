@@ -352,10 +352,10 @@ class PostHocExperiment(TrainExperiment):
         if target == "seg":
             loss = self.loss_func(y_hat, y)
         elif target == "temp":
+            print("Predicted Batch Temps:", y_hat_temps, "with shape:", y_hat_temps.shape)
+            print("GT Temps:", y, "with shape:", y.shape)
             loss = self.loss_func(y_hat_temps, y)
             print("Loss:", loss)
-            print("Predicted Batch Temps:", y_hat_temps)
-            print("GT Temps:", y)
             print()
         else:
             raise ValueError(f"Target type {target} not recognized.")

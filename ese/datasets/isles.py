@@ -56,7 +56,7 @@ class ISLES(ThunderDataset, DatapathMixin):
             # Load the optimal temperatures from the json
             with open(self.opt_temps_dir, "r") as f:
                 opt_temps_dict = json.load(f)
-            self.opt_temps = {subj: torch.tensor(opt_temps_dict[subj])for subj in self.subjects}
+            self.opt_temps = {subj: torch.tensor([opt_temps_dict[subj]])for subj in self.subjects}
 
     def __len__(self):
         return self.num_samples
