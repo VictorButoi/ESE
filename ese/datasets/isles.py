@@ -78,11 +78,16 @@ class ISLES(ThunderDataset, DatapathMixin):
         return_dict = {
             "img": torch.from_numpy(img).float()
         }
-        # Determine which target we are optimizing for.
+        gt_seg = torch.from_numpy(mask).float()
+
+        # Determine which target we are optimizing for we want to always include
+        # the ground truth segmentation, but sometimes as the prediction target
+        # and sometimes as the label.
         if self.target == "seg":
-            return_dict["label"] = torch.from_numpy(mask).float
+            return_dict["label"] = gt_seg
         elif self.target == "temp":
-            return_dict["label"] = example_obj["opt_temp"]
+            return_dict["label"] = torch.tensor([1.0]) 
+            return_dict["gt_seg"] = gt_seg
         else:
             raise ValueError(f"Unknown target: {self.target}")
 

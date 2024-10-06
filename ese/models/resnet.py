@@ -182,13 +182,13 @@ class SCTS(nn.Module):
 
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
-            temp = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]
+            temps = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]
         else:
-            temp = torch.abs(unnorm_temp)
+            temps = torch.abs(unnorm_temp) # If we don't have a range, need to at least set to [0, inf)
         # Add eps as a precaution so we don't div by zero.
-        temps += self.eps
+        smoothed_temps = temps + self.eps
         # Return the temperature map.
-        return temps
+        return smoothed_temps
     
     def get_temp_map(self, temps, pred_shape=None):
         # Repeat the temperature map for all classes.

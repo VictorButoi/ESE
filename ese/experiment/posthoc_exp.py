@@ -334,14 +334,16 @@ class PostHocExperiment(TrainExperiment):
             if backward:
                 loss.backward()
                 self.optim.step()
-
-        # Run step-wise callbacks if you have them.
+        
+        # For the ground truth segmentation, if 'gt_seg' is in our batch,
+        # we will use that, otherwise we will use the 'label'.
         forward_batch = {
             "x": x,
-            "y_true": y,
+            "y_true": batch.get('gt_seg', y),
             "loss": loss,
-            "y_logits": y_hat, # Used for visualization functions.
-            "batch_idx": batch_idx
+            "y_pred": y_hat, # Used for visualization functions.
+            "batch_idx": batch_idx,
+            "from_logits": True
         }
         self.run_callbacks("step", batch=forward_batch)
 
@@ -360,12 +362,12 @@ class PostHocExperiment(TrainExperiment):
             loss = self.loss_func(y_hat, y)
         elif target == "temp":
             loss = self.loss_func(y_hat_temps, y)
+            print("Loss:", loss)
+            print("Predicted Batch Temps:", y_hat_temps)
+            print("GT Temps:", y)
+            print()
         else:
             raise ValueError(f"Target type {target} not recognized.")
-
-        print("Loss: ", loss)
-        print("Predicted Batch Temps: ", y_hat_temps)
-        print()
 
         return y_hat, loss
 
