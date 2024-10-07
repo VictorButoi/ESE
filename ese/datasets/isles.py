@@ -69,18 +69,8 @@ class ISLES(ThunderDataset, DatapathMixin):
         return self.num_samples
 
     def __getitem__(self, key):
-        print(key)
         key = key % len(self.samples) # Done for oversampling in the same epoch. This is the IDX of the sample.
-        print(key)
         subject_name = self.subjects[key]
-        
-        # If using aug, then, sample a random number between 0 and self.num_aug_examples
-        if np.random.rand() < self.aug_data_prob:
-            aug_idx = np.random.randint(0, self.num_aug_examples)
-            subject_name += f"_aug_{aug_idx}"
-        
-        print(subject_name)
-        raise ValueError("Stop here")
 
         # Get the image and mask
         example_obj = super().__getitem__(key)

@@ -427,8 +427,8 @@ def filter_args_by_class(cls, args_dict):
 
 def load_exp_dataset_objs(data_cfg, properties_dict=None):
     # Get the split specific arguments.
-    train_kwargs = data_cfg.pop("train_kwargs", {})
-    val_kwargs = data_cfg.pop("val_kwargs", {})
+    train_kwargs = data_cfg.get("train_kwargs", {})
+    val_kwargs = data_cfg.get("val_kwargs", {})
     # Initialize the dataset class.
     dataset_cls = absolute_import(data_cfg.pop("_class"))
     # We need to filter the arguments that are not needed for the dataset class.
