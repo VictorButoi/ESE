@@ -17,32 +17,6 @@ except ImportError:
     pass
 
 
-@validate_arguments
-def data_splits(
-    values: List[str], 
-    splits: Tuple[float, float, float, float], 
-    seed: int
-) -> Tuple[List[str], List[str], List[str], List[str]]:
-
-    if len(set(values)) != len(values):
-        raise ValueError(f"Duplicate entries found in values")
-
-    train_size, cal_size, val_size, test_size = splits
-    values = sorted(values)
-    # First get the size of the test splut
-    traincalval, test = train_test_split(values, test_size=test_size, random_state=seed)
-    # Next size of the val split
-    val_ratio = val_size / (train_size + cal_size + val_size)
-    traincal, val = train_test_split(traincalval, test_size=val_ratio, random_state=seed)
-    # Next size of the cal split
-    cal_ratio = cal_size / (train_size + cal_size)
-    train, cal = train_test_split(traincal, test_size=cal_ratio, random_state=seed)
-
-    assert sorted(train + cal + val + test) == values, "Missing Values"
-
-    return (train, cal, val, test)
-
-
 def thunderify_Shapes(
     cfg: Config
 ):

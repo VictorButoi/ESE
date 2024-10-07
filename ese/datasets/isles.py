@@ -19,6 +19,7 @@ class ISLES(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "val", "test"]
     target: Literal['seg', 'temp'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0 # 0.1 is maxslice, 1.0 is 3D
+    aug_data_prob: float = 0.0 # By default, we don't use augmented data.
     preload: bool = False
     return_data_id: bool = False
     return_gt_proportion: bool = False
@@ -62,8 +63,15 @@ class ISLES(ThunderDataset, DatapathMixin):
         return self.num_samples
 
     def __getitem__(self, key):
-        key = key % len(self.samples)
-        subj_name = self.subjects[key]
+        key = key % len(self.samples) # Done for oversampling in the same epoch.
+        
+        # Sample whether or not we use auged data.
+        use_aug = np.random.binomial(n=1, p=self.aug_data_prob)
+
+        # If using aug, then, sample which of the auged versions we use.
+        if use_aug:
+            aug_idx = np.random.choice(4) # TODO: Replace this with augs per subj
+            key = f"{key}_aug{aug_idx}"
 
         # Get the image and mask
         example_obj = super().__getitem__(key)
@@ -76,18 +84,13 @@ class ISLES(ThunderDataset, DatapathMixin):
         # Get the class name
         if self.transforms:
             transform_obj = self.transforms(image=img, mask=mask)
-            img = transform_obj["image"]
-            mask = transform_obj["mask"]
-
-        # Add channel dimension to the mask
-        img = np.expand_dims(img, axis=0)
-        mask = np.expand_dims(mask, axis=0)
+            img, mask = transform_obj["image"], transform_obj["mask"]
         
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img).float()
+            "img": torch.from_numpy(img[None]).float()
         }
-        gt_seg = torch.from_numpy(mask).float()
+        gt_seg = torch.from_numpy(mask[None]).float()
 
         # Determine which target we are optimizing for we want to always include
         # the ground truth segmentation, but sometimes as the prediction target
@@ -95,7 +98,7 @@ class ISLES(ThunderDataset, DatapathMixin):
         if self.target == "seg":
             return_dict["label"] = gt_seg
         elif self.target == "temp":
-            return_dict["label"] = self.opt_temps[subj_name]
+            return_dict["label"] = self.opt_temps[self.subjects[key]]
             return_dict["gt_seg"] = gt_seg
         else:
             raise ValueError(f"Unknown target: {self.target}")
@@ -105,7 +108,7 @@ class ISLES(ThunderDataset, DatapathMixin):
             return_dict["gt_proportion"] = example_obj["gt_proportion"]
         # Optionally: We can add the data_id to the return dictionary.
         if self.return_data_id:
-            return_dict["data_id"] = subj_name 
+            return_dict["data_id"] = self.subjects[key] 
         
         return return_dict
 
