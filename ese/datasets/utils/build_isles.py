@@ -1,34 +1,62 @@
+# Misc imports
 import os
 import ast
-import cv2
 import time
+import torch
 import pathlib
 import voxel as vx
 import numpy as np
-import nibabel as nib
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from ionpy.util import Config
 from thunderpack import ThunderDB
-
 from typing import List, Tuple, Optional
-from sklearn.model_selection import train_test_split
-from pydantic import validate_arguments
-from ...augmentation.gather import augmentations_from_config
+# Ionpy imports
+from ionpy.util import Config
+# Local imports
+from ...augmentation.pipeline import build_aug_pipeline
+from .utils_for_build import (
+    data_splits,
+    normalize_image,
+    pad_to_resolution,
+    get_max_slice_on_axis
+)
+
+
+def pairwise_aug_npy(img_arr, seg_arr, aug_pipeline):
+    # Convert image and label to tensor because our aug function works on gpu.
+    normalized_img_tensor = torch.from_numpy(img_arr).unsqueeze(0).unsqueeze(0).float().cuda()
+    seg_tensor = torch.from_numpy(seg_arr).unsqueeze(0).unsqueeze(0).float().cuda()
+    # Apply the augmentation pipeline
+    auged_img_tensor, auged_seg_tensor = aug_pipeline(normalized_img_tensor, seg_tensor)
+    # Renormalize the img tensor to be between 0 and 1
+    auged_img_tensor = (auged_img_tensor - auged_img_tensor.min()) / (auged_img_tensor.max() - auged_img_tensor.min())
+    # Convert the tensors back to numpy arrays
+    return auged_img_tensor.cpu().numpy().squeeze(), auged_seg_tensor.cpu().numpy().squeeze()
+
+
+def vis_3D_subject(img, seg):
+    # Display the image and segmentation for each axis is a 2x3 grid.
+    _, axs = plt.subplots(2, 3, figsize=(15, 10))
+    # Loop through the axes, plot the image and seg for each axis
+    for ax in range(3):
+        ax_max_img, ax_max_seg = get_max_slice_on_axis(img, seg, ax)
+        axs[0, ax].imshow(ax_max_img, cmap='gray')
+        axs[0, ax].set_title(f"Image on axis {ax}")
+        axs[1, ax].imshow(ax_max_seg, cmap='gray')
+        axs[1, ax].set_title(f"Segmentation on axis {ax}")
+    plt.show()
 
 
 def thunderify_ISLES(
     cfg: Config,
-    splits: Optional[dict] = None
+    splits: Optional[dict] = None,
+    splits_kwarg: Optional[dict] = None
 ):
     # Get the dictionary version of the config.
     config = cfg.to_dict()
 
     # Append version to our paths
     version = str(config["version"])
-    splits_seed = 42
-    splits_ratio = (0.6, 0.2, 0.1, 0.1)
-
     # Append version to our paths
     proc_root = pathlib.Path(config["root"]) / 'raw_data' / 'ISLES_22'
     dst_dir = pathlib.Path(config["root"]) / config["dst_folder"] / version
@@ -38,7 +66,9 @@ def thunderify_ISLES(
 
     # If we have augmentations in our config then we, need to make an aug pipeline
     if 'augmentations' in config:
-        aug_pipeline = build_aug_pipeline(["augmentations"])
+        aug_pipeline = build_aug_pipeline(config["augmentations"])
+    else:
+        aug_pipeline = None
 
     ## Iterate through each datacenter, axis  and build it as a task
     with ThunderDB.open(str(dst_dir), "c") as db:
@@ -46,6 +76,7 @@ def thunderify_ISLES(
         # Iterate through the examples.
         # Key track of the ids
         subjects = [] 
+        aug_split_samples = []
         subj_list = list(os.listdir(isl_img_root))
 
         for subj_name in tqdm(subj_list, total=len(subj_list)):
@@ -76,49 +107,68 @@ def thunderify_ISLES(
                     img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
                     seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
 
-                if config.get('show_examples', False):
-                    # Display the image and segmentation for each axis is a 2x3 grid.
-                    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
-                    # Loop through the axes, plot the image and seg for each axis
-                    for ax in range(3):
-                        ax_max_img, ax_max_seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, ax)
-                        axs[0, ax].imshow(ax_max_img, cmap='gray')
-                        axs[0, ax].set_title(f"Image on axis {ax}")
-                        axs[1, ax].imshow(ax_max_seg, cmap='gray')
-                        axs[1, ax].set_title(f"Segmentation on axis {ax}")
-                    plt.show()
-
-                # Get the max slice on the z axis
-                if 'max_axis' in config:
-                    img, seg = get_max_slice_on_axis(img_vol_arr, seg_vol_arr, 2)
-                else:
-                    img, seg = img_vol_arr, seg_vol_arr
-
                 # Normalize the image to be between 0 and 1
-                normalized_img = (img - img.min()) / (img.max() - img.min())
+                normalized_img_arr = normalize_image(img_vol_arr)
+
                 # Get the proportion of the binary mask.
-                gt_prop = np.count_nonzero(seg) / seg.size
+                gt_prop = np.count_nonzero(seg_vol_arr) / seg_vol_arr.size
 
-                # TODO: If we are applying augmentation that effectively makes
-                # synthetic data, then we need to do it here.
-                raise NotImplementedError("Augmentation not implemented yet.")
+                if config.get('show_examples', False):
+                    vis_3D_subject(normalized_img_arr, seg_vol_arr)
 
-                ## Save the datapoint to the database
+                # We actually can have a distinction between samples and subjects!!
+                # Splits are done at the subject level, so we need to keep track of the subjects.
                 db[subj_name] = {
-                    "img": normalized_img, 
-                    "seg": seg,
+                    "img": normalized_img_arr, 
+                    "seg": seg_vol_arr,
                     "gt_proportion": gt_prop
                 } 
                 subjects.append(subj_name)
 
+                #####################################################################################
+                # AUGMENTATION SECTION: USED FOR ADDING ADDITIONAL AUGMENTED SAMPLES TO THE DATASET #
+                #####################################################################################
+                # If we are applying augmentation that effectively makes
+                # synthetic data, then we need to do it here.
+                if aug_pipeline is not None:
+                    aug_split_samples.append(subj_name) # Add the original subject to the augmented split
+                    for aug_idx in range(config["aug_examples_per_subject"]):
+                        augmented_img_arr, augmented_seg_arr = pairwise_aug_npy(normalized_img_arr, seg_vol_arr, aug_pipeline)
+
+                        # Calculate the new proportion of the binary mask.
+                        aug_gt_prop = np.count_nonzero(augmented_seg_arr) / augmented_seg_arr.size
+
+                        if config.get('show_examples', False):
+                            vis_3D_subject(augmented_img_arr, augmented_seg_arr)
+
+                        # Modify the name of the subject to reflect that it is an augmented sample
+                        aug_subj_name = f"{subj_name}_aug_{aug_idx}"
+                        # We actually can have a distinction between samples and subjects!!
+                        # Splits are done at the subject level, so we need to keep track of the subjects.
+                        db[aug_subj_name] = {
+                            "img": augmented_img_arr, 
+                            "seg": augmented_seg_arr,
+                            "gt_proportion": aug_gt_prop
+                        } 
+                        aug_split_samples.append(aug_subj_name)
+
         subjects = sorted(subjects)
         # If splits aren't predefined then we need to create them.
         if splits is None:
+            splits_seed = 42
+            splits_ratio = (0.6, 0.2, 0.1, 0.1)
             db_splits = data_splits(subjects, splits_ratio, splits_seed)
             db_splits = dict(zip(("train", "cal", "val", "test"), splits))
         else:
+            splits_seed = splits_kwarg["seed"]
+            splits_ratio = splits_kwarg["ratio"]
             db_splits = splits
+        
+        # If aug_split_samples is not empty then we add to as its own split
+        if len(aug_split_samples) > 0:
+            db_splits["cal_aug"] = aug_split_samples
 
+        # Print the number of samples in each split for debugging purposes.
         for split_key in db_splits:
             print(f"{split_key}: {len(db_splits[split_key])} samples")
 
@@ -126,11 +176,17 @@ def thunderify_ISLES(
         db["_splits_kwarg"] = {
             "ratio": splits_ratio, 
             "seed": splits_seed
-            }
+        }
         attrs = dict(
             dataset="ISLES",
             version=version,
         )
+        db["_num_aug_examples"] = {
+            "train": 0,
+            "cal": config.get("aug_examples_per_subject", 0),
+            "val": 0,
+            "test": 0
+        }
         db["_subjects"] = subjects
         db["_samples"] = subjects
         db["_splits"] = db_splits

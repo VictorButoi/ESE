@@ -1,4 +1,19 @@
+# Misc imports
+import gzip
+import numpy as np
+from scipy import io
+import nibabel as nib
+from PIL import Image
+from typing import List, Tuple
+import nibabel.processing as nip
+from sklearn.model_selection import train_test_split
+from pydantic import validate_arguments
 
+
+def normalize_image(img):
+    return (img - np.min(img)) / (np.max(img) - np.min(img))
+
+    
 def pad_to_resolution(arr, target_size):
     """
     Pads a numpy array to the given target size, which can be either a single number (same for all dimensions)

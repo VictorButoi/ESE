@@ -441,7 +441,7 @@ def load_exp_dataset_objs(data_cfg, properties_dict=None):
         val_kwargs['transforms'] = augmentations_from_config(augmentation_list.get("val", None))
         if properties_dict is not None:
             properties_dict["aug_digest"] = json_digest(augmentation_list)[:8]
-
+    
     # Initialize the dataset classes.
     train_dataset = dataset_cls(
         **train_kwargs,

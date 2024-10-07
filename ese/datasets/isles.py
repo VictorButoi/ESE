@@ -16,7 +16,7 @@ from ionpy.util.validation import validate_arguments_init
 @dataclass
 class ISLES(ThunderDataset, DatapathMixin):
 
-    split: Literal["train", "cal", "val", "test"]
+    split: Literal["train", "cal", "cal_aug", "val", "test"]
     target: Literal['seg', 'temp'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0 # 0.1 is maxslice, 1.0 is 3D
     aug_data_prob: float = 0.0 # By default, we don't use augmented data.
@@ -35,9 +35,15 @@ class ISLES(ThunderDataset, DatapathMixin):
         super().__init__(self.path, preload=self.preload)
         super().supress_readonly_warning()
         # min_label_density
-        subjects: List[str] = self._db["_splits"][self.split]
+        subjects = self._db["_splits"][self.split]
+        # Set these attributes to the class.
         self.samples = subjects
         self.subjects = subjects
+        # Get the number of augmented examples, or set to 0 if not available.
+        try:
+            self.num_aug_examples = self._db["_num_aug_examples"][self.split]
+        except:
+            self.num_aug_examples = 0
         # Limit the number of examples available if necessary.
         assert not (self.num_examples and self.examples), "Only one of num_examples and examples can be set."
 
@@ -63,15 +69,18 @@ class ISLES(ThunderDataset, DatapathMixin):
         return self.num_samples
 
     def __getitem__(self, key):
-        key = key % len(self.samples) # Done for oversampling in the same epoch.
+        print(key)
+        key = key % len(self.samples) # Done for oversampling in the same epoch. This is the IDX of the sample.
+        print(key)
+        subject_name = self.subjects[key]
         
-        # Sample whether or not we use auged data.
-        use_aug = np.random.binomial(n=1, p=self.aug_data_prob)
-
-        # If using aug, then, sample which of the auged versions we use.
-        if use_aug:
-            aug_idx = np.random.choice(4) # TODO: Replace this with augs per subj
-            key = f"{key}_aug{aug_idx}"
+        # If using aug, then, sample a random number between 0 and self.num_aug_examples
+        if np.random.rand() < self.aug_data_prob:
+            aug_idx = np.random.randint(0, self.num_aug_examples)
+            subject_name += f"_aug_{aug_idx}"
+        
+        print(subject_name)
+        raise ValueError("Stop here")
 
         # Get the image and mask
         example_obj = super().__getitem__(key)
@@ -98,7 +107,7 @@ class ISLES(ThunderDataset, DatapathMixin):
         if self.target == "seg":
             return_dict["label"] = gt_seg
         elif self.target == "temp":
-            return_dict["label"] = self.opt_temps[self.subjects[key]]
+            return_dict["label"] = self.opt_temps[subject_name]
             return_dict["gt_seg"] = gt_seg
         else:
             raise ValueError(f"Unknown target: {self.target}")
@@ -108,7 +117,7 @@ class ISLES(ThunderDataset, DatapathMixin):
             return_dict["gt_proportion"] = example_obj["gt_proportion"]
         # Optionally: We can add the data_id to the return dictionary.
         if self.return_data_id:
-            return_dict["data_id"] = self.subjects[key] 
+            return_dict["data_id"] = subject_name
         
         return return_dict
 
