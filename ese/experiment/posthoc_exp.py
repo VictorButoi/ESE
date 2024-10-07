@@ -68,27 +68,14 @@ class PostHocExperiment(TrainExperiment):
             self.train_dataset = dset_objs['train']
             self.val_dataset = dset_objs['val']
 
-    def build_dataloader(self, batch_size=None):
+    def build_dataloader(self):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
             self.build_data()
         dl_cfg = self.config["dataloader"].to_dict()
-
-        # Optionally manually set the batch size.
-        if batch_size is not None:
-            dl_cfg["batch_size"] =  batch_size
         
-        self.train_dl = DataLoader(
-            self.train_dataset, 
-            shuffle=True, 
-            **dl_cfg
-        )
-        self.val_dl = DataLoader(
-            self.val_dataset, 
-            shuffle=False, 
-            drop_last=False, 
-            **dl_cfg
-        )
+        self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
+        self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
 
     def build_model(self):
 
@@ -201,6 +188,10 @@ class PostHocExperiment(TrainExperiment):
             if self.model_class is not None:
                 self.model = torch.compile(self.model)
 
+        # If using mixed precision, then create a GradScaler to scale gradients during mixed precision training.
+        if self.config.get('experiment.torch_mixed_precision', False):
+            self.grad_scaler = GradScaler('cuda')
+
         # If there is a pretrained model, load it.
         train_config = total_cfg_dict['train']
         if ("pretrained_dir" in train_config) and\
@@ -237,24 +228,6 @@ class PostHocExperiment(TrainExperiment):
             # Zero out the gradients as initialization 
             self.optim.zero_grad()
         
-    def build_loss(self):
-        # If there is a composition of losses, then combine them.
-        # else just build the loss normally.
-        if "classes" in self.config["loss_func"]: 
-            loss_classes = self.config["loss_func"]["classes"]
-            weights = torch.Tensor(self.config["loss_func"]["weights"]).to(self.device)
-            # Get the loss functions you're using.
-            loss_funcs = eval_config(loss_classes)
-            # Get the weights per loss and normalize to weights to 1.
-            loss_weights = (weights / torch.sum(weights))
-            # Build the loss function.
-            self.loss_func = lambda yhat, y: sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
-        else:
-            # TODO: BACKWARDS COMPATIBILITY STOPGAP
-            loss_cfg = self.config["loss_func"].to_dict()
-            loss_cfg["_class"] = loss_cfg["_class"].replace("ese.experiment", "ese")
-            self.loss_func = eval_config(Config(loss_cfg))
-    
     def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
@@ -268,7 +241,6 @@ class PostHocExperiment(TrainExperiment):
         # Apply the augmentation on the GPU.
         if augmentation:
             with torch.no_grad():
-                # For now only the image gets augmented.
                 x, y = self.aug_pipeline(x, y)
         
         # Zero out the gradients.
@@ -334,93 +306,30 @@ class PostHocExperiment(TrainExperiment):
         self.base_model = to_device(self.base_model, self.device, channels_last=False)
         self.model = to_device(self.model, self.device, channels_last=False)
 
-    def run(self):
-        print(f"Running {str(self)}")
-        epochs: int = self.config["train.epochs"]
-
-        # If using mixed precision, then create a GradScaler to scale gradients during mixed precision training.
-        if self.config.get('experiment.torch_mixed_precision', False):
-            self.grad_scaler = GradScaler('cuda')
-
-        self.build_dataloader()
-        self.build_callbacks()
-
-        last_epoch: int = self.properties.get("epoch", -1)
-        if last_epoch >= 0:
-            self.load(tag="last")
-            df = self.metrics.df
-            autosave(df[df.epoch < last_epoch], self.path / "metrics.jsonl")
-        else:
-            self.build_initialization()
-
-        checkpoint_freq: int = self.config.get("log.checkpoint_freq", 1)
-        eval_freq: int = self.config.get("train.eval_freq", 1)
-
-        for epoch in range(last_epoch + 1, epochs):
-            self._epoch = epoch
-
-            # Either we run a validation epoch first and then do a round of training...
-            if not self.config['experiment'].get('val_first', False):
-                print(f"Start training epoch {epoch}.")
-                self.run_phase("train", epoch)
-
-            # Evaluate the model on the validation set.
-            if eval_freq > 0 and (epoch % eval_freq == 0 or epoch == epochs - 1):
-                print(f"Start validation round at {epoch}.")
-                self.run_phase("val", epoch)
-
-            # ... or we run a training epoch first and then do a round of validation.
-            if self.config['experiment'].get('val_first', False):
-                print(f"Start training epoch {epoch}.")
-                self.run_phase("train", epoch)
-
-            if checkpoint_freq > 0 and epoch % checkpoint_freq == 0:
-                self.checkpoint()
-
-            self.run_callbacks("epoch", epoch=epoch)
-
-        self.checkpoint(tag="last")
-        self.run_callbacks("wrapup")
-
     def predict(
         self, 
         x, 
-        multi_class: bool,
         threshold: float = 0.5,
+        from_logits: bool = True,
         temperature: Optional[float] = None,
-        label: Optional[int] = None,
     ):
         # Predict with the base model.
-        with torch.no_grad():
-            uncal_yhat = self.base_model(x)
+        base_logit_map = self.base_model(x)
 
         # Apply post-hoc calibration.
-        if self.model_class is None:
-            cal_logit_map = self.model(uncal_yhat)
-        else:
-            cal_logit_map = self.model(uncal_yhat, image=x)
+        posthoc_pred_map = self.model(base_logit_map, image=x)
 
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
-            cal_logit_map, 
-            from_logits=True,
+            posthoc_pred_map, 
             threshold=threshold,
+            from_logits=from_logits,
             temperature=temperature,
-            multi_class=multi_class
         )
-
-        # If label is not None, then only return the predictions for that label.
-        if label is not None:
-            cal_logit_map = cal_logit_map[:, label, ...].unsqueeze(1)
-            prob_map = prob_map[:, label, ...].unsqueeze(1)
-        
-        # Assert that the hard prediction is unchanged.
-        assert (pred_map == (torch.sigmoid(uncal_yhat)> 0.5)).all(),\
-            "The hard prediction should not change after calibration."
 
         # Return the outputs
         return {
-            'y_logits': cal_logit_map,
+            'y_logits': posthoc_pred_map,
             'y_probs': prob_map, 
             'y_hard': pred_map 
         }

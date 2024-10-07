@@ -44,15 +44,11 @@ class CalibrationExperiment(TrainExperiment):
             self.train_dataset = dset_objs['train']
             self.val_dataset = dset_objs['val']
     
-    def build_dataloader(self, batch_size=None):
+    def build_dataloader(self):
         # If the datasets aren't built, build them
         if not hasattr(self, "train_dataset"):
             self.build_data()
         dl_cfg = self.config["dataloader"].to_dict()
-
-        # Optionally manually set the batch size.
-        if batch_size is not None:
-            dl_cfg["batch_size"] =  batch_size
 
         self.train_dl = DataLoader(self.train_dataset, shuffle=True, **dl_cfg)
         self.val_dl = DataLoader(self.val_dataset, shuffle=False, drop_last=False, **dl_cfg)
@@ -123,40 +119,18 @@ class CalibrationExperiment(TrainExperiment):
             # Zero out the gradients as initialization 
             self.optim.zero_grad()
     
-    def build_loss(self):
-        # If there is a composition of losses, then combine them.
-        # else just build the loss normally.
-        if "classes" in self.config["loss_func"]: 
-            loss_classes = self.config["loss_func"]["classes"]
-            weights = torch.Tensor(self.config["loss_func"]["weights"]).to(self.device)
-            # Get the loss functions you're using.
-            loss_funcs = eval_config(loss_classes)
-            # Get the weights per loss and normalize to weights to 1.
-            loss_weights = (weights / torch.sum(weights))
-            # Build the loss function.
-            self.loss_func = lambda yhat, y: sum([loss_weights[l_idx] * l_func(yhat, y) for l_idx, l_func in enumerate(loss_funcs)])
-        else:
-
-            # TODO: BACKWARDS COMPATIBILITY STOPGAP
-            loss_cfg = self.config["loss_func"].to_dict()
-            loss_cfg["_class"] = loss_cfg["_class"].replace("ese.experiment", "ese")
-
-            self.loss_func = eval_config(Config(loss_cfg))
-    
     def run_step(self, batch_idx, batch, backward, augmentation, **kwargs):
         # Send data and labels to device.
         batch = to_device(batch, self.device)
         
         # Get the image and label.
-        if isinstance(batch, dict):
-            x, y = batch["img"], batch["label"]
-        else:
-            x, y = batch[0], batch[1]
+        x, y = batch["img"], batch["label"]
         
         # Apply the augmentation on the GPU.
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
+
         # Zero out the gradients.
         self.optim.zero_grad()
         
@@ -188,8 +162,9 @@ class CalibrationExperiment(TrainExperiment):
             "x": x,
             "y_true": y,
             "loss": loss,
-            "y_logits": yhat, # Used for visualization functions.
+            "y_pred": yhat, # Used for visualization functions.
             "batch_idx": batch_idx,
+            "from_logits": True
         }
         self.run_callbacks("step", batch=forward_batch)
         
@@ -198,10 +173,9 @@ class CalibrationExperiment(TrainExperiment):
     def predict(
         self, 
         x, 
-        multi_class: bool,
         threshold: float = 0.5,
+        from_logits: bool = True,
         temperature: Optional[float] = None,
-        label: Optional[int] = None,
     ):
         # Get the label predictions
         logit_map = self.model(x) 
@@ -209,15 +183,10 @@ class CalibrationExperiment(TrainExperiment):
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(
             logit_map, 
-            from_logits=True,
             threshold=threshold,
-            temperature=temperature,
-            multi_class=multi_class 
+            from_logits=from_logits,
+            temperature=temperature
         )
-
-        if label is not None:
-            logit_map = logit_map[:, label, ...].unsqueeze(1)
-            prob_map = prob_map[:, label, ...].unsqueeze(1)
         
         # Return the outputs
         return {
