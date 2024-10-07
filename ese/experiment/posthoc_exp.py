@@ -1,12 +1,11 @@
 # local imports
 from ..augmentation.pipeline import build_aug_pipeline
-from ..augmentation.gather import augmentations_from_config
 from .utils import (
     list2tuple,
     load_experiment, 
     process_pred_map, 
     parse_class_name, 
-    filter_args_by_class
+    load_exp_dataset_objs
 )
 # torch imports
 import torch
@@ -44,61 +43,30 @@ class PostHocExperiment(TrainExperiment):
         # Move the information about channels to the model config.
         # by popping "in channels" and "out channesl" from the data config and adding them to the model config.
         total_config = self.config.to_dict()
-        new_data_cfg_dict = total_config.get("data", {})
-        # Get the data and transforms we want to apply
-        pretrained_data_cfg = self.pretrained_exp.config["data"].to_dict()
-        # Update the old cfg with new cfg (if it exists).
-        pretrained_data_cfg.update(new_data_cfg_dict)
-        new_data_cfg = pretrained_data_cfg.copy()
-        # Finally update the data config with the copy. 
-        total_config["data"] = new_data_cfg 
+        posthoc_data_cfg = total_config.get("data", {})
 
-         # Save the new config because we edited it.
+        # Get the data and transforms we want to apply
+        base_data_cfg = self.pretrained_exp.config["data"].to_dict()
+
+        # Update the old cfg with new cfg (if it exists) and make a copy.
+        base_data_cfg.update(posthoc_data_cfg)
+        data_cfg = base_data_cfg.copy()
+
+        # If we are using temps as targets, need to add where they are. 
+        if (data_cfg['target'] == 'temp') and ('opt_temps_dir' not in data_cfg):
+            data_cfg['opt_temps_dir'] = f'{self.pt_model_path}/opt_temps.json'
+
+        # Finally update the data config with the copy. 
+        total_config["data"] = data_cfg 
         autosave(total_config, self.path / "config.yml")
         self.config = Config(total_config)
 
-        # Get the dataset class and build the transforms
-        # TODO: BACKWARDS COMPATIBILITY STOPGAP
-        dataset_cls_name = new_data_cfg.pop("_class").replace("ese.experiment", "ese")
-        dataset_cls = absolute_import(dataset_cls_name)
-
-        # Build the augmentation pipeline.
-        if new_data_cfg_dict != {} and new_data_cfg.get("augmentations", None):
-            augmentation_list = new_data_cfg.get("augmentations", None)
-            train_transforms = augmentations_from_config(augmentation_list.get("train", None))
-            val_transforms = augmentations_from_config(augmentation_list.get("val", None))
-            self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
-        else:
-            train_transforms, val_transforms = None, None
-
         if load_data:
-            # If we are using specific examples, then pop the examples.
-            train_examples = new_data_cfg.get("train_examples", None)
-            val_examples = new_data_cfg.get("val_examples", None)
-
-            # We need to filter the arguments that are not needed for the dataset class,
-            # but also nt use the above keys as they are different between training and validation.
-            data_cfg_kwargs = filter_args_by_class(dataset_cls, new_data_cfg)
-            for gotten_key in ['train_examples', 'val_examples']:
-                if gotten_key in data_cfg_kwargs:
-                    data_cfg_kwargs.pop(gotten_key)
-            # If we are using temps as targets, need to add where they are. 
-            if (data_cfg_kwargs['target'] == 'temp') and ('opt_temps_dir' not in data_cfg_kwargs):
-                data_cfg_kwargs['opt_temps_dir'] = f'{self.pt_model_path}/opt_temps.json'
-
+            # Load the datasets.
+            dset_objs = load_exp_dataset_objs(data_cfg, self.properties) 
             # Initialize the dataset classes.
-            self.train_dataset = dataset_cls(
-                split=new_data_cfg["train_splits"],
-                transforms=train_transforms, 
-                examples=train_examples,
-                **data_cfg_kwargs
-            )
-            self.val_dataset = dataset_cls(
-                split=new_data_cfg["val_splits"],
-                transforms=val_transforms, 
-                examples=val_examples,
-                **data_cfg_kwargs
-            )
+            self.train_dataset = dset_objs['train']
+            self.val_dataset = dset_objs['val']
 
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them

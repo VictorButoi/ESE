@@ -1,6 +1,7 @@
 # torch imports
 import torch
 # ionpy imports
+from ionpy.util.hash import json_digest
 from ionpy.analysis import ResultsLoader
 from ionpy.experiment.util import absolute_import
 # misc imports
@@ -20,6 +21,7 @@ from ..metrics.local_ps import bin_stats
 from ..metrics.utils import get_bin_per_sample
 from ..models.ensemble_utils import get_combine_fn
 from ..analysis.cal_plots.reliability_plots import reliability_diagram
+from ..augmentation.gather import augmentations_from_config
 
 
 def list2tuple(val):
@@ -418,8 +420,39 @@ def show_inference_examples(
     plt.show()
 
 
-
-
 def filter_args_by_class(cls, args_dict):
     valid_args = set(inspect.signature(cls).parameters)
     return {k: v for k, v in args_dict.items() if k in valid_args}
+
+
+def load_exp_dataset_objs(data_cfg, properties_dict=None):
+    # Get the split specific arguments.
+    train_kwargs = data_cfg.pop("train_kwargs", {})
+    val_kwargs = data_cfg.pop("val_kwargs", {})
+    # Initialize the dataset class.
+    dataset_cls = absolute_import(data_cfg.pop("_class"))
+    # We need to filter the arguments that are not needed for the dataset class.
+    data_cfg_kwargs = filter_args_by_class(dataset_cls, data_cfg)
+
+    # Build the augmentation pipeline.
+    augmentation_list = data_cfg.get("augmentations", None)
+    if augmentation_list is not None:
+        train_kwargs['transforms'] = augmentations_from_config(augmentation_list.get("train", None))
+        val_kwargs['transforms'] = augmentations_from_config(augmentation_list.get("val", None))
+        if properties_dict is not None:
+            properties_dict["aug_digest"] = json_digest(augmentation_list)[:8]
+
+    # Initialize the dataset classes.
+    train_dataset = dataset_cls(
+        **train_kwargs,
+        **data_cfg_kwargs
+    )
+    val_dataset = dataset_cls(
+        **val_kwargs,
+        **data_cfg_kwargs
+    )
+    # Return a dictionary with each dataset as a key.
+    return {
+        "train": train_dataset,
+        "val": val_dataset
+    }

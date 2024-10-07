@@ -1,7 +1,6 @@
 # local imports
-from .utils import process_pred_map, filter_args_by_class
 from ..augmentation.pipeline import build_aug_pipeline
-from ..augmentation.gather import augmentations_from_config
+from .utils import process_pred_map, load_exp_dataset_objs 
 # torch imports
 import torch
 from torch.amp import autocast
@@ -11,7 +10,6 @@ torch._dynamo.config.suppress_errors = True
 # IonPy imports
 from ionpy.util import Config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
-from ionpy.util.hash import json_digest
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
@@ -23,7 +21,6 @@ import numpy as np
 import seaborn as sns
 from pprint import pprint
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from typing import Literal, Optional
 
 
@@ -39,43 +36,13 @@ class CalibrationExperiment(TrainExperiment):
         total_config = self.config.to_dict()
         data_cfg = total_config["data"]
 
-        # TODO: BACKWARDS COMPATIBILITY STOPGAP
-        dataset_cls_name = data_cfg.pop("_class").replace("ese.experiment", "ese")
-
-        # Get the dataset class and build the transforms
-        dataset_cls = absolute_import(dataset_cls_name)
-
-        # Build the augmentation pipeline.
-        augmentation_list = data_cfg.get("augmentations", None)
-        if augmentation_list is not None:
-            train_transforms = augmentations_from_config(augmentation_list.get("train", None))
-            val_transforms = augmentations_from_config(augmentation_list.get("val", None))
-            self.properties["aug_digest"] = json_digest(augmentation_list)[:8]
-        else:
-            train_transforms, val_transforms = None, None
-
         # Build the datasets, apply the transforms
         if load_data:
-            train_split = data_cfg.pop("train_splits", None)
-            val_split = data_cfg.pop("val_splits", None)
-            num_examples = data_cfg.pop("num_examples", None)
-
-            splits_defined = train_split is not None and val_split is not None
-
-            # We need to filter the arguments that are not needed for the dataset class.
-            filtered_data_cfg = filter_args_by_class(dataset_cls, data_cfg)
+            # Load the datasets.
+            dset_objs = load_exp_dataset_objs(data_cfg, self.properties) 
             # Initialize the dataset classes.
-            self.train_dataset = dataset_cls(
-                split=train_split if splits_defined else "train",
-                transforms=train_transforms, 
-                num_examples=num_examples,
-                **filtered_data_cfg
-            )
-            self.val_dataset = dataset_cls(
-                split=val_split if splits_defined else "val",
-                transforms=val_transforms, 
-                **filtered_data_cfg
-            )
+            self.train_dataset = dset_objs['train']
+            self.val_dataset = dset_objs['val']
     
     def build_dataloader(self, batch_size=None):
         # If the datasets aren't built, build them
