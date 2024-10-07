@@ -49,7 +49,6 @@ def parse_class_name(class_name):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def process_pred_map(
     conf_map: torch.Tensor, 
-    multi_class: bool, 
     from_logits: bool,
     threshold: float = 0.5, 
     temperature: Optional[float] = None
@@ -70,8 +69,6 @@ def process_pred_map(
         if from_logits:
             conf_map = torch.sigmoid(conf_map) # Note: This might be a bug for bigger batch-sizes.
         pred_map = (conf_map >= threshold).float()
-        if multi_class:
-            conf_map = torch.max(torch.cat([1 - conf_map, conf_map], dim=1), dim=1)[0].unsqueeze(1)
 
     # Return the outputs probs and predicted label map.
     return conf_map, pred_map

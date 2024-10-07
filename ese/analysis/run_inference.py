@@ -269,14 +269,8 @@ def standard_image_forward_loop(
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
                 if inf_init_obj.get('aug_pipeline', None): 
                     image = inf_init_obj['aug_pipeline'](image)
-
                 # Get the devices that the  exp, image, and label_map are on.
-                exp_output =  exp.predict(
-                    image, 
-                    multi_class=False,
-                    label=inf_cfg_dict['model'].get('pred_label', None),
-                    **inf_kwarg_setting_dict
-                )
+                exp_output =  exp.predict(image, **inf_kwarg_setting_dict)
             
             # Go through the exp_output and see if they are None or not.
             for out_key, out_tensor in exp_output.items():
