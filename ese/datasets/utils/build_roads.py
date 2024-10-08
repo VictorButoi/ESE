@@ -9,12 +9,11 @@ import cv2
 from PIL import Image
 from ionpy.util import Config
 
-from typing import List, Tuple
-from sklearn.model_selection import train_test_split
-from pydantic import validate_arguments
+# Local imports
+from .utils_for_build import data_splits
 
 
-def thunderify_OCTA(
+def thunderify_Roads(
     cfg: Config
 ):
     # Get the dictionary version of the config.
@@ -43,57 +42,24 @@ def thunderify_OCTA(
 
             # Paths to the image and segmentation
             img_dir = proc_root / "images" / example_name 
-            seg_dir = proc_root / "masks" / example_name
+            seg_dir = proc_root / "masks" / example_name.replace("tiff", "tif")
 
             # Load the image and segmentation.
-            raw_img = np.array(Image.open(img_dir))
-            raw_seg = np.array(Image.open(seg_dir))
+            img = np.array(Image.open(img_dir))
+            seg = np.array(Image.open(seg_dir))
 
-            # For this dataset, as it is non-binary, we have to do something more clever.
-            # First we need to map our segmentation to a binary segmentation.
-            unique_labels = np.unique(raw_seg)
-            mask_dict = {} 
-            gt_prop_dict = {}
+            # Get the proportion of the binary mask.
+            gt_prop = np.count_nonzero(seg) / seg.size
 
-            # If the unique labels are greater than 2, then we have to do some work.
-            square_img = square_pad(raw_img)
-            square_raw_seg = square_pad(raw_seg)
-
-            # Remove the axes and ticks
-            if square_img.shape[0] != config["resize_to"]:
-                square_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
-
-            for lab in unique_labels:
-                # If the lab != 0, then we make a binary mask.
-                if lab != 0:
-                    # Make a binary mask.
-                    binary_mask = (square_raw_seg == lab).astype(np.float32)
-
-                    # Get the proportion of the binary mask.
-                    gt_prop = np.count_nonzero(binary_mask) / binary_mask.size
-                    gt_prop_dict[lab] = gt_prop
-
-                    # If we are resizing then we need to smooth the mask.
-                    if square_raw_seg.shape[0] != config["resize_to"]:
-                        smooth_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
-                        # Now we process the mask in our standard way.
-                        proc_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
-                    else:
-                        proc_mask = binary_mask
-
-                    # Renormalize the mask to be between 0 and 1.
-                    norm_mask = (proc_mask - proc_mask.min()) / (proc_mask.max() - proc_mask.min())
-
-                    # Store the mask in the mask_dict.
-                    mask_dict[lab] = norm_mask.astype(np.float32)
-                
-            assert square_img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {square_img.shape}"
+            # Move the last channel of image to the first channel
+            img = np.moveaxis(img, -1, 0)
+            seg = seg[np.newaxis, ...]
 
             # Save the datapoint to the database
             db[key] = {
-                "img": square_img, 
-                "seg": mask_dict,
-                "gt_proportion": gt_prop_dict 
+                "img": img, 
+                "seg": seg,
+                "gt_proportion": gt_prop 
             } 
             subjects.append(key)
 
@@ -111,9 +77,8 @@ def thunderify_OCTA(
             "seed": splits_seed
             }
         attrs = dict(
-            dataset="OCTA_6M",
+            dataset="Roads",
             version=version,
-            resolution=config["resize_to"],
         )
         db["_subjects"] = subjects
         db["_samples"] = subjects
