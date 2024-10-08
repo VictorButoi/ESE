@@ -284,55 +284,48 @@ def standard_image_forward_loop(
                         # Resize the image
                         exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
 
-            ## Get through all the batch elements.
-            # inference_batch_size = image.shape[0] 
-            # for batch_inference_idx in range(inference_batch_size):
-            #     # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
-            #     outputs_dict = {
-            #         tensor_type: out_tensor[batch_inference_idx, None, ...] for tensor_type, out_tensor in exp_output.items()
-            #     }
-            ## Wrap the outputs into a dictionary.
-            #     output_dict = {
-            #         "x": image[batch_inference_idx][None],
-            #         "y_true": label_map[batch_inference_idx][None],
-            #         **outputs_dict,
-            #         **inf_kwarg_setting_dict
-            #     }
-            ## Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
-            # for mdata_key, mdata_val in batch.items():
-            #     if isinstance(mdata_val, (torch.Tensor, np.ndarray)):
-            #         output_dict[mdata_key] = mdata_val[batch_inference_idx].item()
-            #     else:
-            #         output_dict[mdata_key] = mdata_val
+            # Get through all the batch elements.
+            inference_batch_size = image.shape[0] 
+            for batch_inference_idx in range(inference_batch_size):
+                # For each of y_logits, y_probs, y_hard, we need to get the corresponding element.
+                outputs_dict = {
+                    tensor_type: out_tensor[batch_inference_idx, None, ...] for tensor_type, out_tensor in exp_output.items()
+                }
+                # Wrap the outputs into a dictionary.
+                output_dict = {
+                    "x": image[batch_inference_idx][None],
+                    "y_true": label_map[batch_inference_idx][None],
+                    **outputs_dict,
+                    **inf_kwarg_setting_dict
+                }
+                # Some of our meta-data is also batched, and we need to idx it by the batch_inference_idx.
+                for mdata_key, mdata_val in batch.items():
+                    if isinstance(mdata_val, (torch.Tensor, np.ndarray)):
+                        output_dict[mdata_key] = mdata_val[batch_inference_idx].item()
+                    else:
+                        output_dict[mdata_key] = mdata_val
 
-            output_dict = {
-                "x": image,
-                "y_true": label_map,
-                **exp_output,
-                **inf_kwarg_setting_dict
-            }
+                # If we are logging the predictions, then we need to do that here.
+                if inf_cfg_dict['log']["save_preds"]:
+                    predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
                 
-            # If we are logging the predictions, then we need to do that here.
-            if inf_cfg_dict['log']["save_preds"]:
-                predictions[output_dict['data_id']] = output_dict['y_logits'].cpu().numpy()
-            
-            ###########################
-            # VISUALIZING IMAGE PREDS #
-            ###########################
-            if inf_cfg_dict["log"].get("show_examples", False):
-                show_inference_examples(output_dict)
+                ###########################
+                # VISUALIZING IMAGE PREDS #
+                ###########################
+                if inf_cfg_dict["log"].get("show_examples", False):
+                    show_inference_examples(output_dict)
 
-            # Get the calibration item info.  
-            gather_output_dict_stats(
-                output_dict=output_dict,
-                inference_cfg=inf_cfg_dict,
-                trackers=inf_init_obj['trackers'],
-            )
+                # Get the calibration item info.  
+                gather_output_dict_stats(
+                    output_dict=output_dict,
+                    inference_cfg=inf_cfg_dict,
+                    trackers=inf_init_obj['trackers'],
+                )
 
-            # Save the records every so often, to get intermediate results. Note, because of data_ids
-            # this can contain fewer than 'log interval' many items.
-            if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
-                save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+                # Save the records every so often, to get intermediate results. Note, because of data_ids
+                # this can contain fewer than 'log interval' many items.
+                if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
+                    save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
 
             # Increment the data counter.
             inf_init_obj['data_counter'] += 1

@@ -1,10 +1,10 @@
 # torch imports
 import torch
 # random imports
-import numpy as np
-import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
+import numpy as np
+import matplotlib.pyplot as plt
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
@@ -13,11 +13,10 @@ from ionpy.util.validation import validate_arguments_init
 
 @validate_arguments_init
 @dataclass
-class OCTA_6M(ThunderDataset, DatapathMixin):
+class Roads(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
-    label: Literal[100, 255]
-    version: float
+    version: float = 0.1
     preload: bool = False
     return_data_id: bool = False
     return_gt_proportion: bool = False
@@ -47,9 +46,12 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
         key = key % len(self.samples)
         subj_name = self.subjects[key]
 
-        # Get the image and mask
+        # Get the img and mask
         example_obj = super().__getitem__(key)
-        img, mask = example_obj["img"], example_obj["seg"][self.label]
+        if isinstance(example_obj, dict):
+            img, mask = example_obj["img"], example_obj["seg"]
+        else:
+            img, mask = example_obj
 
         # Apply the label threshold
         if self.label_threshold is not None:
@@ -57,12 +59,11 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
 
         # Get the class name
         if self.transforms:
-            transform_obj = self.transforms(image=img, mask=mask)
-            img = transform_obj["image"]
+            transform_obj = self.transforms(img=img, mask=mask)
+            img = transform_obj["img"]
             mask = transform_obj["mask"]
 
         # Add channel dimension to the mask
-        img = np.expand_dims(img, axis=0)
         mask = np.expand_dims(mask, axis=0)
         
         # Prepare the return dictionary.
@@ -71,22 +72,22 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
             "label": torch.from_numpy(mask).float(),
         }
 
-        # Add some additional information.
+        # Print the shapes
         if self.return_gt_proportion:
-            return_dict["gt_proportion"] = example_obj["gt_proportion"][self.label]
+            return_dict["gt_proportion"] = example_obj["gt_proportion"]
         if self.return_data_id:
             return_dict["data_id"] = subj_name 
-        
+
         return return_dict
 
     @property
     def _folder_name(self):
-        return f"OCTA_6M/thunder_octa_6m/{self.version}"
+        return f"STARE/thunder_stare/{self.version}"
 
     @property
     def signature(self):
         return {
-            "dataset": "OCTA_6M",
+            "dataset": "STARE",
             "resolution": self.resolution,
             "split": self.split,
             "version": self.version,

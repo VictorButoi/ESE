@@ -16,40 +16,15 @@ from ionpy.util import Config
 from ...augmentation.pipeline import build_aug_pipeline
 from .utils_for_build import (
     data_splits,
+    vis_3D_subject,
     normalize_image,
-    pad_to_resolution,
-    get_max_slice_on_axis
+    pairwise_aug_npy,
+    pad_to_resolution
 )
-
-
-def pairwise_aug_npy(img_arr, seg_arr, aug_pipeline):
-    # Convert image and label to tensor because our aug function works on gpu.
-    normalized_img_tensor = torch.from_numpy(img_arr).unsqueeze(0).unsqueeze(0).float().cuda()
-    seg_tensor = torch.from_numpy(seg_arr).unsqueeze(0).unsqueeze(0).float().cuda()
-    # Apply the augmentation pipeline
-    auged_img_tensor, auged_seg_tensor = aug_pipeline(normalized_img_tensor, seg_tensor)
-    # Renormalize the img tensor to be between 0 and 1
-    auged_img_tensor = (auged_img_tensor - auged_img_tensor.min()) / (auged_img_tensor.max() - auged_img_tensor.min())
-    # Convert the tensors back to numpy arrays
-    return auged_img_tensor.cpu().numpy().squeeze(), auged_seg_tensor.cpu().numpy().squeeze()
-
-
-def vis_3D_subject(img, seg):
-    # Display the image and segmentation for each axis is a 2x3 grid.
-    _, axs = plt.subplots(2, 3, figsize=(15, 10))
-    # Loop through the axes, plot the image and seg for each axis
-    for ax in range(3):
-        ax_max_img, ax_max_seg = get_max_slice_on_axis(img, seg, ax)
-        axs[0, ax].imshow(ax_max_img, cmap='gray')
-        axs[0, ax].set_title(f"Image on axis {ax}")
-        axs[1, ax].imshow(ax_max_seg, cmap='gray')
-        axs[1, ax].set_title(f"Segmentation on axis {ax}")
-    plt.show()
-
 
 def thunderify_ISLES(
     cfg: Config,
-    splits: Optional[dict] = None,
+    splits: Optional[dict] = {},
     splits_kwarg: Optional[dict] = None
 ):
     # Get the dictionary version of the config.
@@ -130,7 +105,7 @@ def thunderify_ISLES(
                 #####################################################################################
                 # If we are applying augmentation that effectively makes
                 # synthetic data, then we need to do it here.
-                if aug_pipeline is not None:
+                if aug_pipeline is not None and subj_name in splits.get("cal", []):
                     aug_split_samples.append(subj_name) # Add the original subject to the augmented split
                     for aug_idx in range(config["aug_examples_per_subject"]):
                         augmented_img_arr, augmented_seg_arr = pairwise_aug_npy(normalized_img_arr, seg_vol_arr, aug_pipeline)
@@ -154,7 +129,7 @@ def thunderify_ISLES(
 
         subjects = sorted(subjects)
         # If splits aren't predefined then we need to create them.
-        if splits is None:
+        if splits == {}:
             splits_seed = 42
             splits_ratio = (0.6, 0.2, 0.1, 0.1)
             db_splits = data_splits(subjects, splits_ratio, splits_seed)

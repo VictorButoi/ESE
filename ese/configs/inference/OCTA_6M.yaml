@@ -4,6 +4,7 @@ log:
 inference_data:
   split: '?'
   label: 255
+  version: 1.0
   input_type: image 
   label_threshold: 0.5
   return_gt_proportion: True
