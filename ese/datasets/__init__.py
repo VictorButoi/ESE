@@ -5,6 +5,7 @@ from .oasis import OASIS
 from .isles import ISLES
 from .drive import DRIVE
 from .stare import STARE
+from .roads import Roads
 from .ade20k import ADE20k
 from .shapes import Shapes
 from .octa_6m import OCTA_6M

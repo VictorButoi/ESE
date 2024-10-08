@@ -1,16 +1,15 @@
 data:
-  _class: ese.datasets.ISLES
-  in_channels: 1
+  _class: ese.datasets.Roads
+  in_channels: 3
   out_channels: 1 
-  version: '?'
+  version: 0.1
+  label_threshold: 0.5 # The default is to train on hard labels.
+  iters_per_epoch: 1000 
   preload: False 
 
 dataloader:
   batch_size: 4
-  num_workers: 2 # 3D data can be a bottleneck
-
-optim:
-  lr: 2.0e-5
+  num_workers: 2
 
 log:
   root: '?'
@@ -32,7 +31,6 @@ log:
 
 model:
   filters: [64, 64, 64, 64, 64, 64, 64]
-  dims: 3
   convs_per_block: 3
 
 train:
