@@ -50,11 +50,11 @@ def get_image_stats(
 
     # We wants to remove the keys corresponding to the image data.
     exclude_keys = [
-        'x', 
-        'y_true', 
-        'y_logits', 
-        'y_probs', 
-        'y_hard', 
+        'x',
+        'y_true',
+        'y_logits',
+        'y_probs',
+        'y_hard',
         'support_set'
     ]
     volume_dict = get_volume_est_dict(output_dict)
@@ -123,7 +123,6 @@ def get_volume_est_dict(pred_dict):
     new_gt_proportion = gt_volume / num_pixels
     soft_proportion = pred_volume / num_pixels
     hard_proportion = hard_volume / num_pixels
-
 
     # Define a dictionary of the volumes.
     return {
