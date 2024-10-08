@@ -432,12 +432,10 @@ def load_exp_dataset_objs(data_cfg, properties_dict=None):
     data_cfg_kwargs = filter_args_by_class(dataset_cls, data_cfg)
 
     # Build the augmentation pipeline.
-    augmentation_list = data_cfg.get("augmentations", None)
-    if augmentation_list is not None:
-        train_kwargs['transforms'] = augmentations_from_config(augmentation_list.get("train", None))
-        val_kwargs['transforms'] = augmentations_from_config(augmentation_list.get("val", None))
-        if properties_dict is not None:
-            properties_dict["aug_digest"] = json_digest(augmentation_list)[:8]
+    if "transforms" in train_kwargs:
+        properties_dict["train_aug_digest"] = json_digest(train_kwargs['transforms'])[:8]
+    if "transforms" in val_kwargs:
+        properties_dict["val_aug_digest"] = json_digest(val_kwargs['transforms'])[:8]
     
     # Initialize the dataset classes.
     train_dataset = dataset_cls(

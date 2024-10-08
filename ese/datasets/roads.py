@@ -9,6 +9,8 @@ from typing import Any, List, Literal, Optional
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
 from ionpy.util.validation import validate_arguments_init
+# local imports
+from ..augmentation.gather import augmentations_from_config
 
 
 @validate_arguments_init
@@ -38,6 +40,8 @@ class Roads(ThunderDataset, DatapathMixin):
             self.samples = self.samples[:self.num_examples]
         # Control how many samples are in each epoch.
         self.num_samples = len(subjects) if self.iters_per_epoch is None else self.iters_per_epoch
+        # Build the transforms 
+        self.transforms_pipeline = augmentations_from_config(self.transforms)
 
     def __len__(self):
         return self.num_samples
@@ -56,14 +60,15 @@ class Roads(ThunderDataset, DatapathMixin):
 
         # Get the class name
         if self.transforms:
-            transform_obj = self.transforms(image=img, mask=mask)
-            img = transform_obj["image"]
-            mask = transform_obj["mask"]
+            # Need to move channels in img and seg to the back
+            img = np.moveaxis(img, 0, -1)
+            mask = np.moveaxis(mask, 0, -1)
+            # Transform the image and mask
+            transform_obj = self.transforms_pipeline(image=img, mask=mask)
+            # Move the channels back to the front
+            img = transform_obj["image"].transpose(2, 0, 1)
+            mask = transform_obj["mask"].transpose(2, 0, 1)
 
-        # Add channel dimension to the mask
-        img = np.expand_dims(img, axis=0)
-        mask = np.expand_dims(mask, axis=0)
-        
         # Prepare the return dictionary.
         return_dict = {
             "img": torch.from_numpy(img).float(),

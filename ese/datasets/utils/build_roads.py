@@ -36,7 +36,6 @@ def thunderify_Roads(
         subjects = [] 
         # Iterate through the examples.
         subj_list = list(os.listdir(image_root))
-        counter = 0
         for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
             # Define the image_key
             key = "subject_" + example_name.split('_')[0]
@@ -77,9 +76,6 @@ def thunderify_Roads(
                 "gt_proportion": gt_prop 
             } 
             subjects.append(key)
-            counter += 1
-            if counter == 10:
-                break
 
         subjects = sorted(subjects)
         splits = data_splits(subjects, splits_ratio, splits_seed)
