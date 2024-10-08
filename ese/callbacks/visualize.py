@@ -23,8 +23,10 @@ def ShowPredictionsCallback(
     # the prediction.
     if ("y_probs" in batch) and (batch["y_probs"] is not None):
         pred_cls = "y_probs"
+    elif ("y_pred" in batch) and (batch["y_pred"] is not None):
+        pred_cls = "y_pred"
     else:
-        assert ("y_logits" in batch) and (batch["y_logits"] is not None), "Must provide either probs or logits."
+        assert ("y_logits" in batch) and (batch["y_logits"] is not None), "Must provide either probs, preds, or logits."
         pred_cls = "y_logits"
 
     if batch["x"].shape[0] != batch[pred_cls].shape[0]:
@@ -66,14 +68,14 @@ def ShowPredictionsCallback(
 
     # Make a hard prediction.
     if num_pred_classes > 1:
-        if pred_cls == "y_logits":
+        if pred_cls != "y_probs":
             y_hat = torch.softmax(y_hat, dim=1)
         if num_pred_classes == 2 and threshold != 0.5:
             y_hard = (y_hat[:, 1, :, :] > threshold).int()
         else:
             y_hard = torch.argmax(y_hat, dim=1)
     else:
-        if pred_cls == "y_logits":
+        if pred_cls != "y_probs":
             y_hat = torch.sigmoid(y_hat)
         y_hard = (y_hat > threshold).int()
 
