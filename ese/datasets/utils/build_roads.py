@@ -50,6 +50,8 @@ def thunderify_Roads(
 
             # Normalize the seg to be between 0 and 1
             seg = normalize_image(seg)
+            print("img shape: ", img.shape)
+            print("seg shape: ", seg.shape)
 
             # Get the proportion of the binary mask.
             gt_prop = np.count_nonzero(seg) / seg.size

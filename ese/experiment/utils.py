@@ -451,3 +451,57 @@ def load_exp_dataset_objs(data_cfg, properties_dict=None):
         "train": train_dataset,
         "val": val_dataset
     }
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def exp_patch_predict(
+   exp,
+   image, 
+   patch_dims: dict,
+   **inf_kwargs
+):
+    B, C, H, W = image.shape
+    h, w = patch_dims['height'], patch_dims['width']
+    assert H % h == 0 and W % w == 0, "H and W must be divisible by h and w respectively"
+    
+    #########################################################
+    # Break the image into patches
+    #########################################################
+    # Use unfold to extract patches
+    patches = image.unfold(2, h, h).unfold(3, w, w)  # Shape: (B, C, H//h, W//w, h, w)
+    # Reshape patches to preserve B and C dimensions
+    num_patches_h = H // h
+    num_patches_w = W // w
+    patches = patches.contiguous().view(B, C, num_patches_h * num_patches_w, h, w)  # Shape: (B, C, N, h, w)
+    # Convert the patches to a list.
+    patches_list = [patches[:, :, i, :, :] for i in range(patches.size(2))]  # Each patch: (B, C, h, w)
+
+    #########################################################
+    # Make predictions on each patch
+    #########################################################
+    logits_per_patch = [exp.predict(patch, **inf_kwargs)['y_logits'] for patch in patches_list]
+
+    #########################################################
+    # Reassemble the patches
+    #########################################################
+     # Stack the patches into a tensor
+    patches_tensor = torch.stack(logits_per_patch, dim=2)  # Shape: (B, C, N, h, w)
+    # Reshape patches_tensor to (B, C, num_patches_h, num_patches_w, h, w)
+    patches_tensor = patches_tensor.view(B, C, num_patches_h, num_patches_w, h, w)
+    # Permute to bring h and w next to their corresponding spatial dimensions
+    patches_tensor = patches_tensor.permute(0, 1, 2, 4, 3, 5)  # Shape: (B, C, num_patches_h, h, num_patches_w, w)
+    # Merge the patch dimensions to reconstruct the original H and W
+    reconstructed_logit_map = patches_tensor.contiguous().view(B, C, num_patches_h * h, num_patches_w * w)  # Shape: (B, C, H, W)
+
+    # Get the hard prediction and probabilities
+    joint_prob_map, joint_pred_map = process_pred_map(
+        reconstructed_logit_map, 
+        **inf_kwargs
+    )
+    
+    # Return the outputs
+    return {
+        'y_logits': reconstructed_logit_map,
+        'y_probs': joint_prob_map, 
+        'y_hard': joint_pred_map 
+    }

@@ -7,14 +7,14 @@ data:
     split: 'train'
     transforms:
       - albumentations.RandomCrop:
-          height: 512
-          width: 512
+          height: 500
+          width: 500
   val_kwargs: 
     split: 'val'
     transforms:
       - albumentations.RandomCrop:
-          height: 512
-          width: 512
+          height: 500
+          width: 500
 
 dataloader:
   batch_size: 4

@@ -19,8 +19,8 @@ from .pixel_records import (
     update_cw_pixel_meters
 )
 from ..experiment.utils import (
+    exp_patch_predict,
     show_inference_examples, 
-    reduce_ensemble_preds
 )
 # Misc imports
 import ast
@@ -264,14 +264,22 @@ def standard_image_forward_loop(
 
         # Iterate through each of the inference kwargs.
         for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid, disable=(len(inf_kwarg_grid) == 1)):
-            # Do a forward pass.
+
+            # Do a forward pass without gradients.
             with torch.no_grad():
+
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
                 if inf_init_obj.get('aug_pipeline', None): 
                     image = inf_init_obj['aug_pipeline'](image)
-                # Get the devices that the  exp, image, and label_map are on.
-                exp_output =  exp.predict(image, **inf_kwarg_setting_dict)
-            
+
+                # We can either perform the forward pass in one go, or do so in patches.
+                pred_patch_dims = inf_kwarg_setting_dict.pop('pred_patch_dims', None)
+                if pred_patch_dims is not None:
+                    # Predict per patch and then stitch them together.
+                    exp_output = exp_patch_predict(exp, image, patch_dims=pred_patch_dims, **inf_kwarg_setting_dict)
+                else:
+                    exp_output =  exp.predict(image, **inf_kwarg_setting_dict)
+
             # Go through the exp_output and see if they are None or not.
             for out_key, out_tensor in exp_output.items():
                 # If the value is None, then drop the key.
