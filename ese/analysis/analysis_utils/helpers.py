@@ -145,3 +145,31 @@ def log_exp_config_objs(
     autosave(base_cfg, exp_root / "base.yml") # SAVE #1: Experiment config
     autosave(exp_cfg, exp_root / "experiment.yml") # SAVE #1: Experiment config
 
+
+def get_inf_dset_from_model_group(model_group):
+    mod_dir = model_group[0] # Always choose the first model in the group.
+    # We need to load the model config to get the dataset.
+    model_cfg = yaml.safe_load(open(f"{mod_dir}/config.yml", "r"))
+    # Get the dataset name.
+    inf_dset_cls_name = model_cfg["data"]["_class"]
+    # Parse the inference dataset name as the last part of the class name.
+    inf_dset_name = inf_dset_cls_name.split(".")[-1]
+    # Return the inference dataset class and the name.
+    return inf_dset_cls_name, inf_dset_name
+
+
+def add_inf_dset_presets(
+    inf_dset_name, 
+    base_cfg, 
+    code_root
+):
+    # Add the dataset specific details.
+    dataset_cfg_file = code_root / "ese" / "configs" / "inference" / f"{inf_dset_name}.yaml"
+    if dataset_cfg_file.exists():
+        with open(dataset_cfg_file, 'r') as d_file:
+            dataset_inference_cfg = yaml.safe_load(d_file)
+        # Update the base config with the dataset specific config.
+        base_cfg = base_cfg.update([dataset_inference_cfg])
+    else:
+        raise ValueError(f"Dataset config file not found: {dataset_cfg_file}")
+    return base_cfg

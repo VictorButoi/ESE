@@ -1,3 +1,9 @@
+experiment: 
+    inf_kwargs:
+        from_logits: True
+        threshold: 0.5 
+        temperature: 1.0
+
 log:
   track_label_amounts: True 
 
@@ -8,9 +14,6 @@ inference_data:
 
 global_calibration:
     num_classes: 1
-
-model:
-    pred_label: 0 # We do this for binary predictions.
 
 qual_metrics:
     - Dice:

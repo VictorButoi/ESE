@@ -167,7 +167,7 @@ def get_ese_inference_configs(
     inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
-    inference_datasets = flat_exp_cfg_dict.pop('inference_data._class')
+    inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
 
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key, val in flat_exp_cfg_dict.items():
@@ -217,60 +217,55 @@ def get_ese_inference_configs(
     # Keep a list of all the run configuration options.
     cfgs = []
 
-    # If datasets is not a list, make it a list.
-    if not isinstance(inference_datasets, list):
-        inference_datasets = [inference_datasets]
-    inf_dataset_names = [ifd.split(".")[-1] for ifd in inference_datasets]
-
     # Define the set of default config options.
     default_config_options = {
         'experiment.exp_name': [exp_name],
         'experiment.exp_root': [str(inference_exp_root)],
     }
 
-    # Using itertools, get the different combos of calibrators_list ens_cfg_options and ens_w_metric_list.
-    for d_idx, dataset_name in enumerate(inf_dataset_names):
+    inf_dset_name = None
+    # If datasets is not a list, make it a list.
+    if inference_dataset is not None:
+        inf_dset_name = inference_dataset.split(".")[-1]
+        base_cfg = add_inf_dset_presets(inf_dset_name, base_cfg, code_root)
 
-        # Add the dataset specific details.
-        dataset_cfg_file = code_root / "ese" / "configs" / "inference" / f"{dataset_name}.yaml"
-        if dataset_cfg_file.exists():
-            with open(dataset_cfg_file, 'r') as d_file:
-                dataset_inference_cfg = yaml.safe_load(d_file)
-            # Update the base config with the dataset specific config.
-            dataset_base_cfg = base_cfg.update([dataset_inference_cfg])
+    # Accumulate a set of config options for each dataset
+    dataset_cfgs = []
+    # Iterate through all of our inference options.
+    for run_opt_dict in total_run_cfg_options: 
+
+        # One required key is 'base_model'. We need to know if it is a single model or a group of models.
+        # We evaluate this by seeing if 'submitit' is in the base model path.
+        model_group_dir = Path(run_opt_dict.pop('base_model')[0])
+        if 'submitit' in os.listdir(model_group_dir):
+            model_group  = gather_exp_paths(str(model_group_dir)) 
         else:
-            print(f"No base config found for dataset: {dataset_name}. Using default base config.")
-            dataset_base_cfg = base_cfg
+            model_group = [str(model_group_dir)]
 
-        # Accumulate a set of config options for each dataset
-        dataset_cfgs = []
-        # Iterate through all of our inference options.
-        for run_opt_dict in total_run_cfg_options: 
-            # One required key is 'base_model'. We need to know if it is a single model or a group of models.
-            # We evaluate this by seeing if 'submitit' is in the base model path.
-            model_group_dir = Path(run_opt_dict.pop('base_model')[0])
-            # If you want to run inference on a single model, use this.
-            run_opt_args = {
-                'log.root': [str(inference_exp_root)],
-                'inference_data._class': [inference_datasets[d_idx]],
-                'experiment.inf_dataset_name': [dataset_name],
-                **run_opt_dict,
-                **default_config_options
-            }
-            if 'submitit' in os.listdir(model_group_dir):
-                run_opt_args['experiment.model_dir'] = gather_exp_paths(str(model_group_dir)) 
-            else:
-                run_opt_args['experiment.model_dir'] = [str(model_group_dir)]
-            # Append these to the list of configs and roots.
-            dataset_cfgs.append(run_opt_args)
-        # Iterate over the different config options for this dataset. 
-        for option_dict in dataset_cfgs:
-            for cfg_update in dict_product(option_dict):
-                cfg = dataset_base_cfg.update([cfg_update])
-                # Verify it's a valid config
-                check_missing(cfg)
-                # Add it to the total list of inference options.
-                cfgs.append(cfg)
+        # If inference_dataset is still None, we need to get it from the model config.
+        # NOTE: that we don't support multiple datasets for inference, it will be the same for all models.
+        if inference_dataset is None:
+            inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_group)
+            base_cfg = add_inf_dset_presets(inf_dset_name, base_cfg, code_root)
+
+        # Append these to the list of configs and roots.
+        dataset_cfgs.append({
+            'log.root': [str(inference_exp_root)],
+            'inference_data._class': [inference_dataset],
+            'experiment.inf_dataset_name': [inf_dset_name],
+            'experiment.model_dir': model_group,
+            **run_opt_dict,
+            **default_config_options
+        })
+
+    # Iterate over the different config options for this dataset. 
+    for option_dict in dataset_cfgs:
+        for cfg_update in dict_product(option_dict):
+            cfg = base_cfg.update([cfg_update])
+            # Verify it's a valid config
+            check_missing(cfg)
+            # Add it to the total list of inference options.
+            cfgs.append(cfg)
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()

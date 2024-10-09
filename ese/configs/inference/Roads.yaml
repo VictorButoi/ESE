@@ -3,7 +3,9 @@ experiment:
         from_logits: True
         threshold: 0.5 
         temperature: 1.0
-
+        pred_patch_dims: # We need to do patch based inference because native res is 1500x1500
+            height: 500 
+            width: 500
 log:
   track_label_amounts: True 
 
