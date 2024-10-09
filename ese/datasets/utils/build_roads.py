@@ -56,16 +56,16 @@ def thunderify_Roads(
             # Get the proportion of the binary mask.
             gt_prop = np.count_nonzero(seg) / seg.size
 
-            # # Visualize the image and mask
-            # # if config.get("visualize", False):
-            # fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-            # im = ax[0].imshow(img)
-            # ax[0].set_title("Image")
-            # fig.colorbar(im, ax=ax[0])
-            # se = ax[1].imshow(seg, cmap="gray")
-            # fig.colorbar(se, ax=ax[1])
-            # ax[1].set_title("Mask")
-            # plt.show()
+            # Visualize the image and mask
+            # if config.get("visualize", False):
+            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+            im = ax[0].imshow(img)
+            ax[0].set_title("Image")
+            fig.colorbar(im, ax=ax[0])
+            se = ax[1].imshow(seg, cmap="gray")
+            fig.colorbar(se, ax=ax[1])
+            ax[1].set_title("Mask")
+            plt.show()
 
             # Move the last channel of image to the first channel
             img = np.moveaxis(img, -1, 0)

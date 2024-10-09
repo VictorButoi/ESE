@@ -16,27 +16,3 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_index: 0
         metric_type: quality
-    - HD95:
-        _fn: ese.metrics.hd95
-        from_logits: True
-        batch_reduction: 'mean' 
-        ignore_index: 0
-        metric_type: quality
-    - BoundaryIOU:
-        _fn: ese.metrics.boundary_iou
-        boundary_width: 1
-        from_logits: True
-        batch_reduction: 'mean' 
-        metric_type: quality
-    - Accuracy:
-        _fn: ionpy.metrics.segmentation.pixel_accuracy
-        from_logits: True
-        metric_type: quality
-    - Recall:
-        _fn: ionpy.metrics.segmentation.pixel_recall
-        from_logits: True
-        metric_type: quality
-    - Precision:
-        _fn: ionpy.metrics.segmentation.pixel_precision
-        from_logits: True
-        metric_type: quality

@@ -29,17 +29,3 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
-    - HD95:
-        _fn: ese.metrics.hd95
-        batch_reduction: 'mean' 
-        ignore_empty_labels: False
-        metric_type: quality
-    - BoundaryIOU:
-        _fn: ese.metrics.boundary_iou
-        boundary_width: 4
-        batch_reduction: 'mean' 
-        ignore_empty_labels: False 
-        metric_type: quality
-    - Accuracy:
-        _fn: ese.metrics.pixel_accuracy
-        metric_type: quality

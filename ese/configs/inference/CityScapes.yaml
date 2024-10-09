@@ -15,19 +15,6 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_empty_labels: True
         metric_type: quality
-    - HD95:
-        _fn: ese.metrics.hd95
-        from_logits: True
-        batch_reduction: 'mean' 
-        ignore_empty_labels: True
-        metric_type: quality
-    - BoundaryIOU:
-        _fn: ese.metrics.boundary_iou
-        boundary_width: 2
-        from_logits: True
-        batch_reduction: 'mean' 
-        ignore_empty_labels: True 
-        metric_type: quality
 
 augmentations:
     - Resize:

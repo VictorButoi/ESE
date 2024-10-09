@@ -107,6 +107,11 @@ def hd95(
     batch_reduction: Reduction = "mean",
     weights: Optional[Union[Tensor, List]] = None,
 ):
+    # For now, we only allow this function in scenarios where the y_pred and y_true
+    # are on the CPU (Precaution).
+    assert y_pred.device == torch.device("cpu") and y_true.device == torch.device("cpu"),\
+        "hd95 only works on CPU tensors because for GPU it is too inefficient."
+
     # Quick check to see if we are dealing with binary segmentation
     if y_pred.shape[1] == 1:
         assert ignore_index is None, "ignore_index is not supported for binary segmentation."
