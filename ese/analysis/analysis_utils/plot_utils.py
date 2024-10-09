@@ -1,6 +1,7 @@
 import pandas as pd
 import seaborn as sns
 from scipy import stats
+import matplotlib
 import matplotlib.pyplot as plt 
 
 
@@ -150,3 +151,16 @@ def clump_df_datapoints(df: pd.DataFrame, num_bins: int, x: str, y: str, x_metri
         x_metric: 'mean', 
         y_metric: 'mean'
         }).reset_index()
+
+    
+def get_prop_color_palette(df, target_key):
+    # Step 1: Normalize target_key values to the range [0, 1]
+    norm = plt.Normalize(vmin=df[target_key].min(), vmax=df[target_key].max())
+    # Step 2: Get the 'magma' colormap
+    cmap = matplotlib.colormaps['magma']
+    # Step 3: Map the target_key values to colors
+    df['color'] = df[target_key].apply(lambda x: cmap(norm(x)))
+    # Step 4: Create a palette mapping target_key to colors
+    unique_volumes = df[target_key].unique()
+    prop_vol_pal = dict(zip(unique_volumes, df.drop_duplicates(target_key)['color']))
+    return prop_vol_pal

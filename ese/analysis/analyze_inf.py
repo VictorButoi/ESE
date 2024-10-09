@@ -12,6 +12,7 @@ from pydantic import validate_arguments
 from ionpy.util.config import HDict, valmap
 # local imports
 from .analysis_utils.inference_utils import (
+    add_vol_error_keys,
     verify_graceful_exit,
     preload_calibration_metrics,
 )
@@ -255,6 +256,10 @@ def load_cal_inference_stats(
         inference_df = pd.concat([inference_df, pd.DataFrame(new_columns)], axis=1)
         # Delete the old keys
         inference_df.drop(columns=[col for col in inference_df.columns if col in old_raw_keys], inplace=True)
+
+        # For this project specifically, there are some keys we basically always want to add.
+        if results_cfg["options"].get("add_volume_error_keys", True):
+            add_vol_error_keys(inference_df)
 
         # If precomputed_results_path doesn't exist, create it.
         if not os.path.exists(os.path.dirname(precomputed_results_path)):

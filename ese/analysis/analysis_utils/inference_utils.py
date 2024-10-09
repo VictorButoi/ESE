@@ -369,3 +369,22 @@ def save_preds(output_dict, output_root):
     np.savez(output_root / 'preds.npz', **output_dict)
 
 
+def add_vol_error_keys(inference_df):
+    def abs_soft_volume_error(soft_volume, gt_volume):
+        return np.abs(soft_volume - gt_volume)
+
+    def log_soft_volume_error(abs_soft_volume_error):
+        return np.log(abs_soft_volume_error)
+
+    def abs_hard_volume_error(hard_volume, gt_volume):
+        return np.abs(hard_volume - gt_volume)
+
+    def log_hard_volume_error(abs_hard_volume_error):
+        return np.log(abs_hard_volume_error)
+
+    # Soft Metrics
+    inference_df.augment(abs_soft_volume_error)
+    inference_df.augment(log_soft_volume_error)
+    # Hard Metrics
+    inference_df.augment(abs_hard_volume_error)
+    inference_df.augment(log_hard_volume_error)
