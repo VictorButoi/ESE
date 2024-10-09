@@ -11,9 +11,7 @@ log:
 
 inference_data:
   split: '?'
-  label: 255
-  version: 1.0
-  label_threshold: 0.5
+  version: 0.1
   return_gt_proportion: True
 
 global_calibration:
