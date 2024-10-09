@@ -53,7 +53,7 @@ class PostHocExperiment(TrainExperiment):
         data_cfg = base_data_cfg.copy()
 
         # If we are using temps as targets, need to add where they are. 
-        if (data_cfg['target'] == 'temp') and ('opt_temps_dir' not in data_cfg):
+        if (data_cfg.get('target', 'seg') == 'temp') and ('opt_temps_dir' not in data_cfg):
             data_cfg['opt_temps_dir'] = f'{self.pt_model_path}/opt_temps.json'
 
         # Finally update the data config with the copy. 
@@ -316,8 +316,8 @@ class PostHocExperiment(TrainExperiment):
         # Predict with the base model.
         base_logit_map = self.base_model(x)
 
-        # Apply post-hoc calibration.
-        posthoc_pred_map = self.model(base_logit_map, image=x)
+        # Apply post-hoc calibration, we don't need the temps here.
+        posthoc_pred_map, _ = self.model(base_logit_map, image=x)
 
         # Get the hard prediction and probabilities
         prob_map, pred_map = process_pred_map(

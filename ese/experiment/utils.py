@@ -179,10 +179,15 @@ def load_experiment(
         try:
             print(f"Loading checkpoint: {checkpoint}.")
             exp_obj.load(tag=checkpoint)
-        except Exception as e:
-            print(e)
-            print("Defaulting to loading: max-val-dice_score.")
-            exp_obj.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
+        except Exception as e_1:
+            try:
+                print(e_1)
+                print("Defaulting to loading: max-val-dice_score.")
+                exp_obj.load(tag="max-val-dice_score") # Basically always have this as a checkpoint.
+            except Exception as e_2:
+                print(e_2)
+                print("Defaulting to loading: last.")
+                exp_obj.load(tag="last") # Basically always have this as a checkpoint.
     
     # Set the device
     exp_obj.device = torch.device(device)
