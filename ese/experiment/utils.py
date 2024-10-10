@@ -241,7 +241,7 @@ def show_inference_examples(
     else:
         x = batch["x"]
         y = batch["y_true"]
-
+    
     # Transfer image and label to the cpu.
     x = x.detach().cpu()
     y = y.detach().cpu() 
@@ -251,24 +251,9 @@ def show_inference_examples(
     bs = x.shape[0]
     num_pred_classes = y_hat.shape[1]
 
-    if num_pred_classes <= 2:
-        label_cm = "gray"
-    else:
-        colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
-        cmap_name = "seg_map"
-        label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
-
     # Prints some metric stuff
     if "loss" in batch:
         print("Loss: ", batch["loss"].item())
-
-    # If x is rgb
-    if x.shape[-1] == 3:
-        x = x.int()
-        img_cmap = None
-    else:
-        img_cmap = "gray"
-    
     # If we are using a temperature, divide the logits by the temperature.
     if temperature is not None:
         y_hat = y_hat / temperature
@@ -306,6 +291,21 @@ def show_inference_examples(
     y = y.numpy().squeeze()
     y_hard = y_hard.numpy().squeeze()
     y_hat = y_hat.squeeze()
+
+    # DETERMINE THE IMAGE CMAP
+    if x.shape[-1] == 3:
+        x = x.astype(int)
+        img_cmap = None
+    else:
+        img_cmap = "gray"
+
+    if num_pred_classes <= 2:
+        label_cm = "gray"
+    else:
+        colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+        cmap_name = "seg_map"
+        label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
+    
 
     if bs == 1:
         ncols = 7
