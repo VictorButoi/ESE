@@ -9,7 +9,7 @@ log:
 
 inference_data:
   split: '?'
-  version: '?'
+  version: 1.0
   return_gt_proportion: True
 
 global_calibration:
