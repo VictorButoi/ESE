@@ -153,13 +153,18 @@ def clump_df_datapoints(df: pd.DataFrame, num_bins: int, x: str, y: str, x_metri
         }).reset_index()
 
     
-def get_prop_color_palette(df, hue_key, magnitude_key):
+def get_prop_color_palette(
+    df, 
+    hue_key, 
+    magnitude_key, 
+    cmap='magma'
+):
     # Step 1: Create a DataFrame mapping 'data_id' to 'gt_volume' (unique pairs)
     data_id_to_volume = df[[hue_key, magnitude_key]].drop_duplicates()
     # Step 2: Normalize the 'gt_volume' values to the range [0, 1]
     norm = plt.Normalize(vmin=data_id_to_volume[magnitude_key].min(), vmax=data_id_to_volume[magnitude_key].max())
     # Step 3: Get the 'magma' colormap
-    cmap = plt.cm.get_cmap('magma')
+    cmap = plt.cm.get_cmap(cmap)
     # Step 4: Map the normalized 'gt_volume' values to colors
     data_id_to_volume['color'] = data_id_to_volume[magnitude_key].apply(lambda x: cmap(norm(x)))
     # Step 5: Create a palette mapping 'data_id' to colors
