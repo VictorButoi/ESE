@@ -17,7 +17,7 @@ from ionpy.util.validation import validate_arguments_init
 class ISLES(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "cal_aug", "val", "test"]
-    target: Literal['seg', 'temp'] = 'seg' # Either optimize for segmentation or temperature.
+    target: Literal['seg', 'temp', 'volume'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0 # 0.1 is maxslice, 1.0 is 3D
     aug_data_prob: float = 0.0 # By default, we don't use augmented data.
     preload: bool = False
@@ -96,11 +96,17 @@ class ISLES(ThunderDataset, DatapathMixin):
         # and sometimes as the label.
         if self.target == "seg":
             return_dict["label"] = gt_seg
-        elif self.target == "temp":
-            return_dict["label"] = self.opt_temps[subject_name]
-            return_dict["gt_seg"] = gt_seg
         else:
-            raise ValueError(f"Unknown target: {self.target}")
+            # If not using the segmentation as the target, we need to return the
+            # segmentation as a different key.
+            return_dict["gt_seg"] = gt_seg
+            # We have a few options for what can be the target.
+            if self.target == "temp":
+                return_dict["label"] = self.opt_temps[subject_name]
+            elif self.target == "volume":
+                raise NotImplementedError("Volume target not implemented.")
+            else:
+                raise ValueError(f"Unknown target: {self.target}")
 
         # Optionally: Add the 'true' gt proportion if we've done resizing.
         if self.return_gt_proportion:
