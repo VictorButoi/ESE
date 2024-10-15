@@ -61,6 +61,8 @@ class ImageRegressor(nn.Module):
         num_classes: int,
         filters: list[int],
         dims: int = 2,
+        use_probs: bool = False,
+        use_image: bool = True,
         use_norm: bool = False,
         blocks_per_layer: int = 2,
         conv_kws: Optional[dict[str, Any]] = {}
@@ -72,6 +74,8 @@ class ImageRegressor(nn.Module):
 
         self.dims = dims
         self.conv_kws = conv_kws
+        self.use_probs = use_probs
+        self.use_image = use_image
         self.use_norm = use_norm
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
 
@@ -138,9 +142,19 @@ class ImageRegressor(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def pred_temps(self, x_in):
+    def forward(self, logits, image):
+        # Optionally: Use the probabilities instead of the logits.
+        if self.use_probs:
+            x = F.softmax(logits, dim=1)
+        else:
+            x = logits
+
+        # Optionally: Concatenate the image if we are using it.
+        if self.use_image:
+            x = torch.cat([x, image], dim=1)
+
         # Pass through the ResNet Block 
-        x = self.act1(self.bn1(self.conv1(x_in)))
+        x = self.act1(self.bn1(self.conv1(x)))
 
         if self.dims == 3:
             x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
@@ -185,8 +199,6 @@ class SCTS(nn.Module):
         self.dims = dims
         self.conv_kws = conv_kws
         self.use_norm = use_norm
-        self.use_probs = use_probs
-        self.use_image = use_image
         # If we want to constrain the output.
         if isinstance(temp_range, str):
             temp_range = ast.literal_eval(temp_range)
@@ -198,6 +210,8 @@ class SCTS(nn.Module):
             num_classes=num_classes,
             filters=filters,
             dims=dims,
+            use_probs=use_probs,
+            use_image=use_image,
             use_norm=use_norm,
             blocks_per_layer=blocks_per_layer,
             conv_kws=conv_kws
@@ -207,18 +221,9 @@ class SCTS(nn.Module):
         pass
 
     def pred_temps(self, logits, image):
-        # Optionally: Use the probabilities instead of the logits.
-        if self.use_probs:
-            x = F.softmax(logits, dim=1)
-        else:
-            x = logits
-
-        # Optionally: Concatenate the image if we are using it.
-        if self.use_image:
-            x = torch.cat([x, image], dim=1)
 
         # Pass through the ResNet Block 
-        unnorm_temp = self.regressor(x)
+        unnorm_temp = self.regressor(logits, image)
 
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
