@@ -2,6 +2,7 @@
 import os
 import yaml
 from pprint import pprint
+from typing import Literal
 from datetime import datetime
 from itertools import chain, combinations
 # Ionpy imports
@@ -158,18 +159,19 @@ def get_inf_dset_from_model_group(model_group):
     return inf_dset_cls_name, inf_dset_name
 
 
-def add_inf_dset_presets(
+def add_dset_presets(
+    mode: Literal["training", "calibrate", "inference"],
     inf_dset_name, 
     base_cfg, 
     code_root
 ):
     # Add the dataset specific details.
-    dataset_cfg_file = code_root / "ese" / "configs" / "inference" / f"{inf_dset_name}.yaml"
+    dataset_cfg_file = code_root / "ese" / "configs" / mode / f"{inf_dset_name}.yaml"
     if dataset_cfg_file.exists():
         with open(dataset_cfg_file, 'r') as d_file:
-            dataset_inference_cfg = yaml.safe_load(d_file)
+            dataset_cfg = yaml.safe_load(d_file)
         # Update the base config with the dataset specific config.
-        base_cfg = base_cfg.update([dataset_inference_cfg])
+        base_cfg = base_cfg.update([dataset_cfg])
     else:
         raise ValueError(f"Dataset config file not found: {dataset_cfg_file}")
     return base_cfg

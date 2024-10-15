@@ -41,7 +41,7 @@ def get_ese_training_configs(
         # Update the base config with the dataset specific config.
         base_cfg = base_cfg.update([dataset_train_cfg])
     else:
-        print(f"No base config found for dataset: {train_dataset_name}. Using default base config.")
+        print(f"No base data config found for dataset: {train_dataset_name}. Using default base config.")
 
     # Save the new base config. Load the dataset specific config and update the base config.
     # autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
@@ -84,20 +84,6 @@ def get_ese_calibration_configs(
 
     cfg_root = code_root / "ese" / "configs" 
 
-    # Load the dataset specific config and update the base config.
-    if 'data._class' in flat_exp_cfg_dict:
-        calibration_dataset_name = flat_exp_cfg_dict['data._class'][0].split('.')[-1]
-        dataset_cfg_file = cfg_root / "calibrate" / f"{calibration_dataset_name}.yaml"
-        # If the dataset specific config exists, update the base config.
-        if dataset_cfg_file.exists():
-            with open(dataset_cfg_file, 'r') as file:
-                dataset_cfg = yaml.safe_load(file)
-            base_cfg = base_cfg.update([dataset_cfg])
-        else:
-            print(f"No base config found for dataset: {calibration_dataset_name}. Using default base config.")
-    else:
-        print(f"No base config found. Using default base config.")
-
     # We need to make sure that these are models and not model folders.
     all_pre_models = []
     for pre_model_dir in flat_exp_cfg_dict['train.base_pretrained_dir']:
@@ -108,6 +94,22 @@ def get_ese_calibration_configs(
     # Set it back in the flat_exp_cfg.
     flat_exp_cfg_dict['train.base_pretrained_dir'] = all_pre_models
     
+    # Load the dataset specific config and update the base config.
+    if 'data._class' in flat_exp_cfg_dict:
+        posthoc_dset_name = flat_exp_cfg_dict['data._class'][0].split('.')[-1]
+        dataset_cfg_file = cfg_root / "calibrate" / f"{posthoc_dset_name}.yaml"
+        # If the dataset specific config exists, update the base config.
+        if dataset_cfg_file.exists():
+            with open(dataset_cfg_file, 'r') as file:
+                dataset_cfg = yaml.safe_load(file)
+            base_cfg = base_cfg.update([dataset_cfg])
+        else:
+            print(f"No base config found for dataset: {posthoc_dset_name}. Using default base config.")
+    else:
+        _, inf_dset_name = get_inf_dset_from_model_group(flat_exp_cfg_dict['train.base_pretrained_dir'])
+        base_cfg = add_dset_presets("training", inf_dset_name, base_cfg, code_root)
+        print(f"No base config found. Using training base data config for: {inf_dset_name}.")
+
     # Create the ablation options.
     option_set = {
         'log.root': [str(calibration_exp_root)],
@@ -227,7 +229,7 @@ def get_ese_inference_configs(
     # If datasets is not a list, make it a list.
     if inference_dataset is not None:
         inf_dset_name = inference_dataset.split(".")[-1]
-        base_cfg = add_inf_dset_presets(inf_dset_name, base_cfg, code_root)
+        base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
 
     # Accumulate a set of config options for each dataset
     dataset_cfgs = []
@@ -246,7 +248,8 @@ def get_ese_inference_configs(
         # NOTE: that we don't support multiple datasets for inference, it will be the same for all models.
         if inference_dataset is None:
             inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_group)
-            base_cfg = add_inf_dset_presets(inf_dset_name, base_cfg, code_root)
+            base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
+            print(f"No inference data config found. Using pretrained base data config for: {inf_dset_name}.")
 
         # Append these to the list of configs and roots.
         dataset_cfgs.append({
