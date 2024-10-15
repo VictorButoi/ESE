@@ -73,12 +73,13 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
         else:
             # If not using the segmentation as the target, we need to return the
             # segmentation as a different key.
-            return_dict["gt_seg"] = gt_seg
+            gt_vol = gt_seg.sum()
             # We have a few options for what can be the target.
             if self.target == "volume":
-                raise NotImplementedError("Volume target not implemented.")
+                return_dict["label"] = gt_vol
             elif self.target == "proportion":
-                raise NotImplementedError("Volume target not implemented.")
+                res = np.prod(gt_seg.shape)
+                return_dict["label"] = gt_vol / res
             else:
                 raise ValueError(f"Unknown target: {self.target}")
 

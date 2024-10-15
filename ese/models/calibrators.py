@@ -53,7 +53,7 @@ class Temperature_Scaling(nn.Module):
         # Finally, scale the logits by the temperatures.
         tempered_logits = logits / repeated_temp_map
         # Return the tempered logits and the predicts temperatures.
-        return tempered_logits, self.temp 
+        return tempered_logits
 
     @property
     def device(self):
@@ -144,7 +144,7 @@ class LocalTS(nn.Module):
         # Finally, scale the logits by the temperatures.
         tempered_logits = logits / repeated_temp_map
         # Return the tempered logits and the predicts temperatures.
-        return tempered_logits, temp_map
+        return tempered_logits
 
     @property
     def device(self):

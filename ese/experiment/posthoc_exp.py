@@ -242,9 +242,6 @@ class PostHocExperiment(TrainExperiment):
         # Get the image and label.
         x, y = batch["img"], batch["label"]
 
-        if 'data_id' in batch:
-            print(f"Data ID: {batch['data_id']}")
-
         # Apply the augmentation on the GPU.
         if augmentation:
             with torch.no_grad():
@@ -273,11 +270,18 @@ class PostHocExperiment(TrainExperiment):
                 loss.backward()
                 self.optim.step()
         
-        # For the ground truth segmentation, if 'gt_seg' is in our batch,
+        # If our target for optimization is 'propoportion' then we need to convert this to volume by
+        # multiplying by the volume of the image.
+        if self.config["data"]["target"] == "proportion":
+            res = torch.prod(torch.tensor(x.shape[2:])) # Exclude the batch and channel dimensions. 
+            # Convert y and y_hat to volume.
+            y = y * res
+            y_hat = y_hat * res
+        
         # we will use that, otherwise we will use the 'label'.
         forward_batch = {
             "x": x,
-            "y_true": batch.get('gt_seg', y),
+            "y_true": y,
             "loss": loss,
             "y_pred": y_hat, # Used for visualization functions.
             "batch_idx": batch_idx,
@@ -288,24 +292,18 @@ class PostHocExperiment(TrainExperiment):
         return forward_batch
     
     def run_forward(self, x, y):
+        # Run a forward pass of the base model without gradients.
         with torch.no_grad():
             y_hat_uncal = self.base_model(x)
 
-        # Calibrate the predictions.
-        y_hat, y_hat_temps = self.model(y_hat_uncal, image=x)
+        # Depending on our target, we either want our outputs of the regressor or the scaled logits.
+        if self.config["data"]["target"] == "seg":
+            y_hat = self.model(y_hat_uncal, image=x)
+        else:
+            y_hat = self.model.regressor(y_hat_uncal, image=x)
 
         # Get the target type and then calculate the loss for the necessary quantity.
-        target = self.config["data"].get("target", "seg")
-        if target == "seg":
-            loss = self.loss_func(y_hat, y)
-        elif target == "temp":
-            print("Predicted Batch Temps:", y_hat_temps, "with shape:", y_hat_temps.shape)
-            print("GT Temps:", y, "with shape:", y.shape)
-            loss = self.loss_func(y_hat_temps, y)
-            print("Loss:", loss)
-            print()
-        else:
-            raise ValueError(f"Target type {target} not recognized.")
+        loss = self.loss_func(y_hat, y)
 
         return y_hat, loss
 

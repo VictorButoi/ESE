@@ -53,42 +53,31 @@ class BasicBlock(nn.Module):
         return out
 
 
-class SCTS(nn.Module):
+class ImageRegressor(nn.Module):
 
     def __init__(
         self, 
-        img_channels: int,
+        in_channels: int,
         num_classes: int,
         filters: list[int],
         dims: int = 2,
         use_norm: bool = False,
-        use_probs: bool = False,
-        use_image: bool = True,
-        eps: float = 1e-6, 
         blocks_per_layer: int = 2,
-        temp_range: Optional[Any] = None,
         conv_kws: Optional[dict[str, Any]] = {}
     ):
-        super(SCTS, self).__init__()
+        super(ImageRegressor, self).__init__()
         # Determine the classes we need to use based on the dimensionality of the input.
         self.conv_cls = nn.Conv3d if dims == 3 else nn.Conv2d
         self.bn_cls = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
 
-        self.eps = eps
         self.dims = dims
         self.conv_kws = conv_kws
         self.use_norm = use_norm
-        self.use_probs = use_probs
-        self.use_image = use_image
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1)) if dims == 3 else nn.AdaptiveAvgPool2d((1, 1))
-        # If we want to constrain the output.
-        if isinstance(temp_range, str):
-            temp_range = ast.literal_eval(temp_range)
-        self.temp_range = temp_range
 
         # Define the first convolutional layer.
         self.conv1 = self.conv_cls(
-            (num_classes + img_channels if use_image else num_classes), 
+            in_channels, 
             filters[0], 
             kernel_size=7, 
             stride=2, 
@@ -109,7 +98,6 @@ class SCTS(nn.Module):
 
         # The final fully connected layer.
         self.fc = nn.Linear(filters[-1], num_classes)
-        # self.fc = nn.Linear(2880, num_classes)
 
     def _make_layer(self, filters, num_blocks, stride=1):
         downsample = None
@@ -150,6 +138,71 @@ class SCTS(nn.Module):
 
         return nn.Sequential(*layers)
 
+    def pred_temps(self, x_in):
+        # Pass through the ResNet Block 
+        x = self.act1(self.bn1(self.conv1(x_in)))
+
+        if self.dims == 3:
+            x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
+        else:
+            x = F.max_pool2d(x, kernel_size=3, stride=2, padding=1)
+
+        # Go through the layers.
+        for i in range(len(self.layer_dict)):
+            x = self.layer_dict[f"layer_{i}"](x)
+
+        # Average pool the resolution dimension and then pass through the final FC layer.
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        out = self.fc(x)
+
+        # Return the output of the fc layer.
+        return out 
+
+
+class SCTS(nn.Module):
+
+    def __init__(
+        self, 
+        img_channels: int,
+        num_classes: int,
+        filters: list[int],
+        dims: int = 2,
+        use_norm: bool = False,
+        use_probs: bool = False,
+        use_image: bool = True,
+        eps: float = 1e-6, 
+        blocks_per_layer: int = 2,
+        temp_range: Optional[Any] = None,
+        conv_kws: Optional[dict[str, Any]] = {}
+    ):
+        super(SCTS, self).__init__()
+        # Determine the classes we need to use based on the dimensionality of the input.
+        self.conv_cls = nn.Conv3d if dims == 3 else nn.Conv2d
+        self.bn_cls = nn.BatchNorm3d if dims == 3 else nn.BatchNorm2d
+
+        self.eps = eps
+        self.dims = dims
+        self.conv_kws = conv_kws
+        self.use_norm = use_norm
+        self.use_probs = use_probs
+        self.use_image = use_image
+        # If we want to constrain the output.
+        if isinstance(temp_range, str):
+            temp_range = ast.literal_eval(temp_range)
+        self.temp_range = temp_range
+
+        # Define the first convolutional layer.
+        self.regressor = ImageRegressor(
+            in_channels=(num_classes + img_channels if use_image else num_classes), 
+            num_classes=num_classes,
+            filters=filters,
+            dims=dims,
+            use_norm=use_norm,
+            blocks_per_layer=blocks_per_layer,
+            conv_kws=conv_kws
+        )
+
     def weights_init(self):
         pass
 
@@ -165,20 +218,7 @@ class SCTS(nn.Module):
             x = torch.cat([x, image], dim=1)
 
         # Pass through the ResNet Block 
-        x = self.act1(self.bn1(self.conv1(x)))
-        if self.dims == 3:
-            x = F.max_pool3d(x, kernel_size=3, stride=2, padding=1)
-        else:
-            x = F.max_pool2d(x, kernel_size=3, stride=2, padding=1)
-
-        # Go through the layers.
-        for i in range(len(self.layer_dict)):
-            x = self.layer_dict[f"layer_{i}"](x)
-
-        # Average pool the resolution dimension and then pass through the final FC layer.
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        unnorm_temp = self.fc(x)
+        unnorm_temp = self.regressor(x)
 
         # We need to normalize our temperature to be positive.
         if self.temp_range is not None:
@@ -187,6 +227,7 @@ class SCTS(nn.Module):
             temps = torch.abs(unnorm_temp) # If we don't have a range, need to at least set to [0, inf)
         # Add eps as a precaution so we don't div by zero.
         smoothed_temps = temps + self.eps
+
         # Return the temperature map.
         return smoothed_temps
     
@@ -215,4 +256,4 @@ class SCTS(nn.Module):
         # Finally, scale the logits by the temperatures.
         tempered_logits = logits / temp_map
         # Return the tempered logits and the predicted temperatures.
-        return tempered_logits, temps
+        return tempered_logits

@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.nn import functional as F
 # misc imports
 from pydantic import validate_arguments
-from typing import Optional, Union, Literal
+from typing import Any, Optional, Union, Literal
 # local imports
 from .weights import get_pixel_weights
 from .functional import soft_binary_cross_entropy, focal_loss
@@ -69,7 +69,6 @@ def pixel_focal_loss(
     alpha: float = 0.25,
     gamma: float = 2.0,
     from_logits: bool = False,
-    ignore_empty_labels: bool = False,
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
 ):
@@ -104,8 +103,8 @@ def pixel_focal_loss(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def area_estimation_error(
-    y_pred: Tensor,
-    y_true: Tensor,
+    y_pred: Any,
+    y_true: Any,
     abs_diff: bool = False,
     relative: bool = False,
     square_diff: bool = False,
@@ -115,17 +114,22 @@ def area_estimation_error(
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
-    # Quick check to see if we are dealing with binary segmentation
-    y_pred, y_true = _inputs_as_onehot(
-        y_pred, 
-        y_true, 
-        mode=mode,
-        discretize=False,
-        from_logits=from_logits
-    )
-    # Sum over the last dimension to get the area
-    y_pred_areas = y_pred.sum(dim=-1)
-    y_true_areas = y_true.sum(dim=-1)
+    # If the y_pred and y_true are 2D, then we don't need to calculate the area.
+    if len(y_pred.shape) == 2:
+        y_pred_areas = y_pred
+        y_true_areas = y_true
+    else:
+        y_pred, y_true = _inputs_as_onehot(
+            y_pred, 
+            y_true, 
+            mode=mode,
+            discretize=False,
+            from_logits=from_logits
+        )
+        # Sum over the last dimension to get the area
+        y_pred_areas = y_pred.sum(dim=-1)
+        y_true_areas = y_true.sum(dim=-1)
+
     # Get the diff between the predicted and true areas
     loss = y_pred_areas - y_true_areas
     
