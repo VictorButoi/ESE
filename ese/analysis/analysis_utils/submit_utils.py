@@ -107,8 +107,8 @@ def get_ese_calibration_configs(
             print(f"No base config found for dataset: {posthoc_dset_name}. Using default base config.")
     else:
         _, inf_dset_name = get_inf_dset_from_model_group(flat_exp_cfg_dict['train.base_pretrained_dir'])
-        base_cfg = add_dset_presets("training", inf_dset_name, base_cfg, code_root)
-        print(f"No base config found. Using training base data config for: {inf_dset_name}.")
+        base_cfg = add_dset_presets("calibrate", inf_dset_name, base_cfg, code_root)
+        print(f"No base config found. Using base data config for: {inf_dset_name}.")
 
     # Create the ablation options.
     option_set = {

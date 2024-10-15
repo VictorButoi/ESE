@@ -16,8 +16,9 @@ from ionpy.util.validation import validate_arguments_init
 class OCTA_6M(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
-    label: Literal[100, 255]
-    version: float
+    target: Literal['seg', 'volume', 'proportion'] = 'seg'
+    label: Literal[100, 255] = 255
+    version: float = 1.0
     preload: bool = False
     return_data_id: bool = False
     return_gt_proportion: bool = False
@@ -45,7 +46,7 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
 
     def __getitem__(self, key):
         key = key % len(self.samples)
-        subj_name = self.subjects[key]
+        subject_name = self.subjects[key]
 
         # Get the image and mask
         example_obj = super().__getitem__(key)
@@ -61,21 +62,32 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
             img = transform_obj["image"]
             mask = transform_obj["mask"]
 
-        # Add channel dimension to the mask
-        img = np.expand_dims(img, axis=0)
-        mask = np.expand_dims(mask, axis=0)
-        
-        # Prepare the return dictionary.
+        # Prepare the return dictionary with tensors that now have a channel dimension.
         return_dict = {
-            "img": torch.from_numpy(img).float(),
-            "label": torch.from_numpy(mask).float(),
+            "img": torch.from_numpy(img[None, ...]).float(),
         }
+        gt_seg = torch.from_numpy(mask[None]).float()
 
-        # Add some additional information.
+        if self.target == "seg":
+            return_dict["label"] = gt_seg
+        else:
+            # If not using the segmentation as the target, we need to return the
+            # segmentation as a different key.
+            return_dict["gt_seg"] = gt_seg
+            # We have a few options for what can be the target.
+            if self.target == "volume":
+                raise NotImplementedError("Volume target not implemented.")
+            elif self.target == "proportion":
+                raise NotImplementedError("Volume target not implemented.")
+            else:
+                raise ValueError(f"Unknown target: {self.target}")
+
+        # Optionally: Add the 'true' gt proportion if we've done resizing.
         if self.return_gt_proportion:
-            return_dict["gt_proportion"] = example_obj["gt_proportion"][self.label]
+            return_dict["gt_proportion"] = example_obj["gt_proportion"]
+        # Optionally: We can add the data_id to the return dictionary.
         if self.return_data_id:
-            return_dict["data_id"] = subj_name 
+            return_dict["data_id"] = subject_name
         
         return return_dict
 

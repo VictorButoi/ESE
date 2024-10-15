@@ -67,6 +67,13 @@ class PostHocExperiment(TrainExperiment):
             # Initialize the dataset classes.
             self.train_dataset = dset_objs['train']
             self.val_dataset = dset_objs['val']
+        
+    def build_loss(self):
+        # If our target for optimization is 'seg' then we are not allowed to use the 'MSE' loss.
+        if self.config["data"].get("target", "seg") == "seg":
+            assert self.config["loss_func"]["_class"] != "torch.nn.MSELoss", "Cannot use MSE loss for segmentation task."
+        # Build the loss function.
+        self.loss_func = eval_config(self.config["loss_func"])
 
     def build_dataloader(self):
         # If the datasets aren't built, build them

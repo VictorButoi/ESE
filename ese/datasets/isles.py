@@ -105,6 +105,8 @@ class ISLES(ThunderDataset, DatapathMixin):
                 return_dict["label"] = self.opt_temps[subject_name]
             elif self.target == "volume":
                 raise NotImplementedError("Volume target not implemented.")
+            elif self.target == "proportion":
+                raise NotImplementedError("Volume target not implemented.")
             else:
                 raise ValueError(f"Unknown target: {self.target}")
 
