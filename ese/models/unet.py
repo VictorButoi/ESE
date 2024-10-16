@@ -75,34 +75,37 @@ class UNet(nn.Module):
                 self.out_fn = get_nonlinearity(self.out_activation)()
 
         self.reset_parameters()
+        self.pool_fn = getattr(F, f"max_pool{self.dims}d")
 
     def reset_parameters(self):
         for module in self.modules():
             if module is not self and hasattr(module, "reset_parameters"):
                 module.reset_parameters()
 
-    def forward(self, x: Tensor) -> Tensor:
-
+    def encode(self, x):
         conv_outputs = []
-
-        pool_fn = getattr(F, f"max_pool{self.dims}d")
-
         for i, conv_block in enumerate(self.enc_blocks):
             x = conv_block(x)
             if i == len(self.enc_blocks) - 1:
                 break
             conv_outputs.append(x)
-            x = pool_fn(x, 2)
+            x = self.pool_fn(x, 2)
+        return conv_outputs, x
+
+    def forward(self, x: Tensor) -> Tensor:
+
+        # Encode the input.
+        enc_conv_outputs, x = self.encode(x)
 
         for i, conv_block in enumerate(self.dec_blocks, start=1):
             x = F.interpolate(
                 x,
-                size=conv_outputs[-i].size()[-self.dims :],
+                size=enc_conv_outputs[-i].size()[-self.dims :],
                 align_corners=True,
                 mode=self.interpolation_mode,
             )
             if self.skip_connections:
-                x = torch.cat([x, conv_outputs[-i]], dim=1)
+                x = torch.cat([x, enc_conv_outputs[-i]], dim=1)
             x = conv_block(x)
 
         x = self.out_conv(x)

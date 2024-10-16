@@ -18,6 +18,3 @@ data:
 dataloader:
   batch_size: '?' 
   num_workers: '?'
-
-model:
-  dims: 2

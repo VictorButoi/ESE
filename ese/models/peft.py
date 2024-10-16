@@ -18,9 +18,14 @@ class E2T(nn.Module):
         super(E2T, self).__init__()
         # Determine the classes we need to use based on the dimensionality of the input.
         # The final fully connected layer.
-        self.fc = nn.Linear()
+        self.backbone = backbone_model
 
-    def forward(self, x):
+    def weights_init(self):
+        pass
+
+    def forward(self, image, **kwargs):
+        _, x_feats = self.backbone.encode(image)
+        print(x_feats.shape)
         raise ValueError("Not implemented yet.")
 
         # Return the output of the fc layer.

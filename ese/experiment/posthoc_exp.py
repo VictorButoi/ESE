@@ -164,8 +164,15 @@ class PostHocExperiment(TrainExperiment):
             self.base_model.eval()
             for param in self.base_model.parameters():
                 param.requires_grad = False
-    
-            self.model = eval_config(Config(model_cfg_dict))
+
+            # Get the model class name and pop it from the model config.
+            model_cls_name = model_cfg_dict.pop('_class')
+            init_model_cfg_dict = model_cfg_dict.copy()
+            if model_cls_name.split(".")[-1] == "E2T":
+                init_model_cfg_dict["backbone_model"] = self.base_model 
+            # Import the model class and initialize it.
+            self.model = absolute_import(model_cls_name)(**init_model_cfg_dict) 
+
             # If the model has a weights_init method, call it to initialize the weights.
             if hasattr(self.model, "weights_init"):
                 self.model.weights_init()
@@ -297,10 +304,7 @@ class PostHocExperiment(TrainExperiment):
             y_hat_uncal = self.base_model(x)
 
         # Depending on our target, we either want our outputs of the regressor or the scaled logits.
-        if self.config["data"]["target"] == "seg":
-            y_hat = self.model(y_hat_uncal, image=x)
-        else:
-            y_hat = self.model.regressor(y_hat_uncal, image=x)
+        y_hat = self.model(logits=y_hat_uncal, image=x)
 
         # Get the target type and then calculate the loss for the necessary quantity.
         loss = self.loss_func(y_hat, y)
