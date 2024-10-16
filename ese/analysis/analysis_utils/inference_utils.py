@@ -368,23 +368,33 @@ def save_preds(output_dict, output_root):
     # Make a copy of the output dict.
     np.savez(output_root / 'preds.npz', **output_dict)
 
+def abs_soft_volume_error(soft_volume, gt_volume):
+    return np.abs(soft_volume - gt_volume)
+
+def abs_hard_volume_error(hard_volume, gt_volume):
+    return np.abs(hard_volume - gt_volume)
+
+def log_soft_volume_error(abs_soft_volume_error):
+    log_soft_err = np.log(abs_soft_volume_error)
+    # if the error is negative infinity, we will return -4.
+    if log_soft_err == -np.inf:
+        return -4
+    else:
+        return log_soft_err
+
+def log_hard_volume_error(abs_hard_volume_error):
+    log_soft_err = np.log(abs_hard_volume_error)
+    # if the error is negative infinity, we will return -4.
+    if log_soft_err == -np.inf:
+        return -2
+    else:
+        return log_soft_err
+
 
 def add_vol_error_keys(inference_df):
-    def abs_soft_volume_error(soft_volume, gt_volume):
-        return np.abs(soft_volume - gt_volume)
-
-    def log_soft_volume_error(abs_soft_volume_error):
-        return np.log(abs_soft_volume_error)
-
-    def abs_hard_volume_error(hard_volume, gt_volume):
-        return np.abs(hard_volume - gt_volume)
-
-    def log_hard_volume_error(abs_hard_volume_error):
-        return np.log(abs_hard_volume_error)
-
-    # Soft Metrics
+    # Base Metrics
     inference_df.augment(abs_soft_volume_error)
-    inference_df.augment(log_soft_volume_error)
-    # Hard Metrics
     inference_df.augment(abs_hard_volume_error)
+    # Log Metrics
+    inference_df.augment(log_soft_volume_error)
     inference_df.augment(log_hard_volume_error)

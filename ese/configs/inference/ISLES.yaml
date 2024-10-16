@@ -21,3 +21,7 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
+    
+dataloader:
+    batch_size: 4
+    num_workers: 2
