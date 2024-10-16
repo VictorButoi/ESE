@@ -12,10 +12,10 @@ import einops
 import inspect
 import numpy as np
 from pathlib import Path
-from typing import Any, Optional
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from pydantic import validate_arguments
+from typing import Any, Optional, Literal
 # local imports
 from ..metrics.local_ps import bin_stats
 from ..metrics.utils import get_bin_per_sample
@@ -406,6 +406,7 @@ def exp_patch_predict(
    exp,
    image, 
    patch_dims: dict,
+   combine_fn: Literal["concat", "sum"],
    **inf_kwargs
 ):
     B, C_in, H, W = image.shape
@@ -424,17 +425,42 @@ def exp_patch_predict(
     # Convert the patches to a list.
     patches_list = [patches[:, :, i, :, :] for i in range(patches.size(2))]  # Each patch: (B, C, h, w)
 
-    #########################################################
-    # Make predictions on each patch
-    #########################################################
-    logits_per_patch = [exp.predict(patch, **inf_kwargs)['y_logits'] for patch in patches_list]
-    C_out = logits_per_patch[0].shape[1]
+    # Get the predictions for each patch
+    patch_predictions = [exp.predict(patch, **inf_kwargs)['y_logits'] for patch in patches_list]
 
+    # Different ways to combine the patch predictions.
+    if combine_fn == "cat":
+        return reconstruct_patch_predictions(
+            patch_predictions, 
+            in_shape=image.shape,
+            patch_dims=patch_dims,
+            inf_kwargs=inf_kwargs
+        )
+    elif combine_fn == "sum":
+        return sum_patch_predictions(
+            patch_predictions
+        )
+    else:
+        raise ValueError("Invalid combine_fn.")
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def reconstruct_patch_predictions(
+    patch_predictions: list,
+    in_shape: list,
+    patch_dims: dict,
+    inf_kwargs: dict
+):
+    B, _, H, W = in_shape.shape
+    h, w = patch_dims['height'], patch_dims['width']
+    C_out = patch_predictions[0].shape[1]
+    num_patches_h = H // h
+    num_patches_w = W // w
     #########################################################
     # Reassemble the patches
     #########################################################
      # Stack the patches into a tensor
-    patches_tensor = torch.stack(logits_per_patch, dim=2)  # Shape: (B, C, N, h, w)
+    patches_tensor = torch.stack(patch_predictions, dim=2)  # Shape: (B, C, N, h, w)
     # Reshape patches_tensor to (B, C, num_patches_h, num_patches_w, h, w)
     patches_tensor = patches_tensor.view(B, C_out, num_patches_h, num_patches_w, h, w)
     # Permute to bring h and w next to their corresponding spatial dimensions
@@ -454,3 +480,10 @@ def exp_patch_predict(
         'y_probs': joint_prob_map, 
         'y_hard': joint_pred_map 
     }
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def sum_patch_predictions(
+    patch_predictions: list,
+):
+    raise NotImplementedError("This function is not implemented yet.")
