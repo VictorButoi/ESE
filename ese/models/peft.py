@@ -115,7 +115,6 @@ class E2T(nn.Module):
 
         # Add eps as a precaution so we don't div by zero.
         smoothed_temps = temps + self.eps
-        print(smoothed_temps)
 
         # Return the temperature map.
         return smoothed_temps

@@ -16,5 +16,5 @@ data:
       split: 'val'
 
 dataloader:
-  batch_size: '?' 
-  num_workers: '?'
+  batch_size: 4 
+  num_workers: 2 
