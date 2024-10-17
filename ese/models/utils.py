@@ -48,3 +48,26 @@ def create_gaussian_tensor(mu, sigma, ksize):
     gaussian_tensor += mu
     
     return gaussian_tensor
+
+
+def get_temp_map(temps, pred_shape, assert_positive=True):
+
+    # Repeat the temperature map for all classes.
+    B, C = pred_shape[:2]
+    new_temp_map_shape = [B] + [1]*len(pred_shape[2:])
+    expanded_temp_map = temps.view(new_temp_map_shape)
+
+    # Reshape the temp map to match the logits.
+    target_shape = [B] + list(pred_shape[2:])
+    reshaped_temp_map = expanded_temp_map.expand(*target_shape).unsqueeze(1) # Unsqueeze channel dim.
+
+    # Repeat the temperature map for all classes.
+    rep_dims = [1, C] + [1] * (len(pred_shape) - 2)
+    temp_map = reshaped_temp_map.repeat(*rep_dims) # B x C x spatial dims
+
+    # Assert that every position in the temp_map is positive.
+    if assert_positive:
+        assert torch.all(temp_map >= 0), "Temperature map must be positive."
+
+    # Return the temp map.
+    return temp_map 

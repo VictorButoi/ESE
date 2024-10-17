@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# local imports
+from .utils import get_temp_map
 # ionpy imports
 from ionpy.nn.nonlinearity import get_nonlinearity
 # misc imports
@@ -230,35 +232,20 @@ class SCTS(nn.Module):
             temps = torch.sigmoid(unnorm_temp) * (self.temp_range[1] - self.temp_range[0]) + self.temp_range[0]
         else:
             temps = torch.abs(unnorm_temp) # If we don't have a range, need to at least set to [0, inf)
+
         # Add eps as a precaution so we don't div by zero.
         smoothed_temps = temps + self.eps
 
         # Return the temperature map.
         return smoothed_temps
     
-    def get_temp_map(self, temps, pred_shape=None):
-        # Repeat the temperature map for all classes.
-        B = pred_shape[0]
-        new_temp_map_shape = [B] + [1]*len(pred_shape[2:])
-        expanded_temp_map = temps.view(new_temp_map_shape)
-        # Reshape the temp map to match the logits.
-        target_shape = [B] + list(pred_shape[2:])
-        reshaped_temp_map = expanded_temp_map.expand(*target_shape)
-        # Return the temp map.
-        return reshaped_temp_map.unsqueeze(1) # Unsqueeze channel dim.
 
     def forward(self, logits, image=None, **kwargs):
-        C = logits.shape[1] # Input looks like B, C, spatial dims
         # First we predict the temperatures.
         temps = self.pred_temps(logits, image) # B 
+
         # Then use the predicted temperatures to get the temperature map.
-        temp_map = self.get_temp_map(temps, pred_shape=logits.shape) # B x 1 x spatial dims
-        # Repeat the temperature map for all classes.
-        rep_dims = [1, C] + [1] * (len(logits.shape) - 2)
-        temp_map = temp_map.repeat(*rep_dims) # B x C x spatial dims
-        # Assert that every position in the temp_map is positive.
-        assert torch.all(temp_map >= 0), "Temperature map must be positive."
-        # Finally, scale the logits by the temperatures.
-        tempered_logits = logits / temp_map
+        temp_map = get_temp_map(temps, pred_shape=logits.shape) # B x 1 x spatial dims
+
         # Return the tempered logits and the predicted temperatures.
-        return tempered_logits
+        return logits / temp_map
