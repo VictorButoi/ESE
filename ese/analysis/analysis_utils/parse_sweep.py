@@ -12,7 +12,7 @@ def get_global_optimal_parameter(
     group_keys: Optional[List[str]] = [] 
 ) -> pd.DataFrame:
     # Get the optimal threshold for each split out. First we have to average across the data_ids
-    reduced_data_df = data.groupby(group_keys + [sweep_key]).mean().reset_index()
+    reduced_data_df = data.groupby(group_keys + [sweep_key]).mean(numeric_only=True).reset_index()
     # Then we get the threshold that minimizes the error
     optimal_df = reduced_data_df.loc[reduced_data_df.groupby(group_keys)[y_key].idxmin()]
     # Finally, we only keep the columns we care about.
