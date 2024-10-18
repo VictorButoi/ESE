@@ -405,12 +405,12 @@ def load_exp_dataset_objs(data_cfg, properties_dict=None):
 def exp_patch_predict(
    exp,
    image, 
-   patch_dims: dict,
-   combine_fn: Literal["concat", "sum"],
+   dims: dict,
+   combine_fn: Literal["cat", "sum"],
    **inf_kwargs
 ):
     B, C_in, H, W = image.shape
-    h, w = patch_dims['height'], patch_dims['width']
+    h, w = dims['height'], dims['width']
     assert H % h == 0 and W % w == 0, "H and W must be divisible by h and w respectively"
     
     #########################################################
@@ -433,7 +433,7 @@ def exp_patch_predict(
         return reconstruct_patch_predictions(
             patch_predictions, 
             in_shape=image.shape,
-            patch_dims=patch_dims,
+            patch_dims=dims,
             inf_kwargs=inf_kwargs
         )
     elif combine_fn == "sum":
@@ -451,7 +451,7 @@ def reconstruct_patch_predictions(
     patch_dims: dict,
     inf_kwargs: dict
 ):
-    B, _, H, W = in_shape.shape
+    B, _, H, W = in_shape
     h, w = patch_dims['height'], patch_dims['width']
     C_out = patch_predictions[0].shape[1]
     num_patches_h = H // h

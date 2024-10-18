@@ -273,10 +273,10 @@ def standard_image_forward_loop(
                     image = inf_init_obj['aug_pipeline'](image)
 
                 # We can either perform the forward pass in one go, or do so in patches.
-                pred_patch_dims = inf_kwarg_setting_dict.pop('pred_patch_dims', None)
-                if pred_patch_dims is not None:
+                patch_pred_kwargs = inf_kwarg_setting_dict.pop('patch_pred_kwargs', None)
+                if patch_pred_kwargs is not None:
                     # Predict per patch and then stitch them together.
-                    exp_output = exp_patch_predict(exp, image, patch_dims=pred_patch_dims, **inf_kwarg_setting_dict)
+                    exp_output = exp_patch_predict(exp, image, **patch_pred_kwargs, **inf_kwarg_setting_dict)
                 else:
                     exp_output =  exp.predict(image, **inf_kwarg_setting_dict)
 
