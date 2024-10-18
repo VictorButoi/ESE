@@ -14,6 +14,10 @@ inference_data:
   label_threshold: 0.5
   return_gt_proportion: True
 
+dataloader:
+    batch_size: 4
+    num_workers: 2
+
 global_calibration:
     num_classes: 1
 
@@ -23,3 +27,4 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
+    

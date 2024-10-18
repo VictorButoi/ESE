@@ -92,7 +92,8 @@ def get_flat_cfg(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_cal_inference_stats(
     results_cfg: dict,
-    load_cached: bool
+    load_cached: bool,
+    inference_dir: str = "/storage/vbutoi/scratch/ESE/inference"
 ) -> dict:
     # Build a dictionary to store the inference info.
     log_cfg = results_cfg["log"] 
@@ -100,7 +101,7 @@ def load_cal_inference_stats(
 
     # Get the hash of the results_cfg dictionary.
     results_cfg_hash = hash_dictionary(results_cfg)
-    precomputed_results_path = log_root + "/results_cache/" + results_cfg_hash + ".pkl"
+    precomputed_results_path = inference_dir + "/results_cache/" + results_cfg_hash + ".pkl"
 
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):

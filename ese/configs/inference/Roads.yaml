@@ -8,7 +8,7 @@ experiment:
             width: 500
 
 dataloader:
-    batch_size: 16 
+    batch_size: 8 
     num_workers: 3
 
 log:
