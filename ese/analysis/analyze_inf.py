@@ -80,6 +80,7 @@ def get_flat_cfg(
         logset_cfg_yaml = yaml.safe_load(stream)
     logset_cfg = HDict(logset_cfg_yaml)
     logset_flat_cfg = valmap(list2tuple, logset_cfg.flatten())
+    # Add some keys which are useful for the analysis.
     logset_flat_cfg["log_set"] = cfg_name
     # For the rest of the keys, if the length of the value is more than 1, convert it to a string.
     for key in logset_flat_cfg:
@@ -255,7 +256,6 @@ def load_cal_inference_stats(
 
         # Add new columns to the DataFrame all at once
         inference_df = pd.concat([inference_df, pd.DataFrame(new_columns)], axis=1)
-        # Delete the old keys
         inference_df.drop(columns=[col for col in inference_df.columns if col in old_raw_keys], inplace=True)
 
         # For this project specifically, there are some keys we basically always want to add.
@@ -265,6 +265,7 @@ def load_cal_inference_stats(
         # If precomputed_results_path doesn't exist, create it.
         if not os.path.exists(os.path.dirname(precomputed_results_path)):
             os.makedirs(os.path.dirname(precomputed_results_path))
+        
         # Save the inference info to a pickle file.
         with open(precomputed_results_path, 'wb') as f:
             pickle.dump(inference_df, f)
