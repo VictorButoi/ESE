@@ -24,7 +24,7 @@ def get_global_optimal_parameter(
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_per_subject_optimal_values(
     data: pd.DataFrame, 
-    sweep_key: float, 
+    sweep_key: str, 
     y_key: str,
     group_keys: Optional[List[str]] = None
 ) -> pd.DataFrame:
@@ -42,9 +42,9 @@ def get_per_subject_optimal_values(
     optimal_df = reduced_data_df.loc[reduced_data_df.groupby('data_id')[y_key].idxmin()].reset_index(drop=True)
     # We want, per split, to get the average loss if we used the optimal temperature for each subject
     if group_keys is not None:
-        optimal_df = optimal_df.groupby(group_keys).agg({y_key: 'mean'})
+        optimal_df = optimal_df.groupby(group_keys)
     # Mean across all the groups
-    opt_values_df = optimal_df.agg({y_key: 'mean'}).reset_index(drop=True)
+    opt_values_df = optimal_df.agg({y_key: 'mean'}).reset_index()
     # Return the best values
     return opt_values_df 
 
