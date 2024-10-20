@@ -374,6 +374,12 @@ def soft_abs_area_estimation_error(soft_volume, gt_volume):
 def hard_abs_area_estimation_error(hard_volume, gt_volume):
     return np.abs(hard_volume - gt_volume)
 
+def soft_RAVE(soft_volume, gt_volume):
+    return np.abs(soft_volume - gt_volume) / gt_volume
+
+def hard_RAVE(hard_volume, gt_volume):
+    return np.abs(hard_volume - gt_volume) / gt_volume
+
 def soft_log_abs_area_estimation_error(soft_abs_area_estimation_error):
     if soft_abs_area_estimation_error == 0:
         return -2
@@ -399,6 +405,9 @@ def add_vol_error_keys(inference_df):
     # Base Metrics
     inference_df.augment(soft_abs_area_estimation_error)
     inference_df.augment(hard_abs_area_estimation_error)
+    # Relative Metrics
+    inference_df.augment(soft_RAVE)
+    inference_df.augment(hard_RAVE)
     # Log Metrics
     inference_df.augment(soft_log_abs_area_estimation_error)
     inference_df.augment(hard_log_abs_area_estimation_error)

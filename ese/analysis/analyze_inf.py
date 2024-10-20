@@ -110,8 +110,8 @@ def load_cal_inference_stats(
         "submitit", 
     ]
     # We need to get the roots and inference groups from the log_cfg.
-    log_roots = log_cfg["roots"]
-    log_inference_groups = log_cfg["inference_groups"]
+    log_roots = log_cfg["root"]
+    log_inference_groups = log_cfg["inference_group"]
     if isinstance(log_roots, str):
         log_roots = [log_roots]
     if isinstance(log_inference_groups, str):
@@ -241,9 +241,7 @@ def load_cal_inference_stats(
         else:
             if len(num_rows_per_log_set.unique()) != 1:
                 print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
-                print_row_summary = False # Avoid double printing.
-            else:
-                print_row_summary = True
+                results_cfg["options"]["print_row_summary"] = False  
 
         # Go through several optional keys, and add them if they don't exist
         new_columns = {}
@@ -285,7 +283,7 @@ def load_cal_inference_stats(
     final_num_rows_per_log_set = inference_df.groupby(["log_root", "log_set"]).size()
     # Print information about each log set.
     print("Finished loading inference stats.")
-    if print_row_summary:
+    if results_cfg["options"].get("print_row_summary", True):
         print(f"Log amounts: {final_num_rows_per_log_set}")
 
     # Finally, return the dictionary of inference info.
