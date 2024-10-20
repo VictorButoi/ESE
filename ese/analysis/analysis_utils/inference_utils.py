@@ -375,6 +375,8 @@ def hard_abs_area_estimation_error(hard_volume, gt_volume):
     return np.abs(hard_volume - gt_volume)
 
 def soft_log_abs_area_estimation_error(soft_abs_area_estimation_error):
+    if soft_abs_area_estimation_error == 0:
+        return -2
     log_soft_err = np.log(soft_abs_area_estimation_error)
     # if the error is negative infinity, we will return -2.
     if log_soft_err == -np.inf:
@@ -383,6 +385,8 @@ def soft_log_abs_area_estimation_error(soft_abs_area_estimation_error):
         return log_soft_err
 
 def hard_log_abs_area_estimation_error(hard_abs_area_estimation_error):
+    if hard_abs_area_estimation_error == 0:
+        return -2
     log_soft_err = np.log(hard_abs_area_estimation_error)
     # if the error is negative infinity, we will return -2.
     if log_soft_err == -np.inf:

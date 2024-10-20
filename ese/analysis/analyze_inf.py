@@ -98,53 +98,58 @@ def load_cal_inference_stats(
 ) -> dict:
     # Build a dictionary to store the inference info.
     log_cfg = results_cfg["log"] 
-    log_root = log_cfg["root"] 
 
     # Get the hash of the results_cfg dictionary.
     results_cfg_hash = hash_dictionary(results_cfg)
     precomputed_results_path = inference_dir + "/results_cache/" + results_cfg_hash + ".pkl"
 
+    # Skip over metadata folders
+    skip_log_folders = [
+        "debug",
+        "wandb", 
+        "submitit", 
+    ]
+    # We need to get the roots and inference groups from the log_cfg.
+    log_roots = log_cfg["roots"]
+    log_inference_groups = log_cfg["inference_groups"]
+    if isinstance(log_roots, str):
+        log_roots = [log_roots]
+    if isinstance(log_inference_groups, str):
+        log_inference_groups = [log_inference_groups]
+
     # Check to see if we have already built the inference info before.
     if not load_cached or not os.path.exists(precomputed_results_path):
-        skip_log_folders = [
-            "wandb", 
-            "submitit", 
-            "binning_exp_logs", 
-            "ensemble_upper_bounds",
-            "debug"
-        ]
         # Gather inference log paths.
         all_inference_log_paths = []
-        for inf_group in log_cfg["inference_groups"]:
-            inf_group_dir = log_root + "/" + inf_group
-            group_folders = os.listdir(inf_group_dir)
-            # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
-            if "submitit" in group_folders:
-                # Check to make sure this log wasn't the result of a crash.
-                verify_graceful_exit(inf_group_dir, log_root=log_root)
-                # Check to make sure that this log wasn't the result of a crash.
-                all_inference_log_paths.append(inf_group_dir)
-            # Otherwise, we had separated our runs in 'log sets', which isn't a good level of abstraction.
-            # but it's what we had done before.
-            else:
-                for sub_exp in group_folders:
-                    sub_exp_log_path = inf_group_dir + "/" + sub_exp
-                    # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
-                    # Verify that it is a folder and also that it is not in the skip_log_folders.
-                    if os.path.isdir(sub_exp_log_path) and sub_exp not in skip_log_folders:
-                        sub_exp_group_folders = os.listdir(sub_exp_log_path)
-                        # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
-                        if "submitit" in sub_exp_group_folders:
-                            # Check to make sure this log wasn't the result of a crash.
-                            if results_cfg["options"].get('verify_graceful_exit', True):
-                                verify_graceful_exit(sub_exp_log_path, log_root=log_root)
-                            # Check to make sure that this log wasn't the result of a crash.
-                            all_inference_log_paths.append(sub_exp_log_path)
+        for root in log_roots:
+            for inf_group in log_inference_groups:
+                inf_group_dir = root + "/" + inf_group
+                group_folders = os.listdir(inf_group_dir)
+                # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
+                if "submitit" in group_folders:
+                    # Check to make sure this log wasn't the result of a crash.
+                    verify_graceful_exit(inf_group_dir, log_root=root)
+                    # Check to make sure that this log wasn't the result of a crash.
+                    all_inference_log_paths.append(Path(inf_group_dir))
+                # Otherwise, we had separated our runs in 'log sets', which isn't a good level of abstraction.
+                # but it's what we had done before.
+                else:
+                    for sub_exp in group_folders:
+                        sub_exp_log_path = inf_group_dir + "/" + sub_exp
+                        # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+                        # Verify that it is a folder and also that it is not in the skip_log_folders.
+                        if os.path.isdir(sub_exp_log_path) and sub_exp not in skip_log_folders:
+                            sub_exp_group_folders = os.listdir(sub_exp_log_path)
+                            # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
+                            if "submitit" in sub_exp_group_folders:
+                                # Check to make sure this log wasn't the result of a crash.
+                                if results_cfg["options"].get('verify_graceful_exit', True):
+                                    verify_graceful_exit(sub_exp_log_path, log_root=root)
+                                # Check to make sure that this log wasn't the result of a crash.
+                                all_inference_log_paths.append(Path(sub_exp_log_path))
         # Loop through every configuration in the log directory.
         metadata_pd_collection = []
-        for log_path in all_inference_log_paths:
-            log_dir = Path(os.path.join(log_root, log_path))
-            # In this case, there are multiple log sets in the log directory.
+        for log_dir in all_inference_log_paths:
             for log_set in log_dir.iterdir():
                 # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
                 # Verify that log_set is a directory and that it's not in the skip_log_folders.
@@ -183,8 +188,7 @@ def load_cal_inference_stats(
         #############################
         inference_pd_collection = []
         # Loop through every configuration in the log directory.
-        for log_path in all_inference_log_paths:
-            log_dir = Path(os.path.join(log_root, log_path))
+        for log_dir in all_inference_log_paths:
             for log_set_path in log_dir.iterdir():
                 # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
                 if log_set_path.is_dir() and log_set_path.name not in skip_log_folders:
@@ -237,6 +241,9 @@ def load_cal_inference_stats(
         else:
             if len(num_rows_per_log_set.unique()) != 1:
                 print(f"Warning: The number of rows in the image_info_df is not the same for all log sets. Got {num_rows_per_log_set}.")
+                print_row_summary = False # Avoid double printing.
+            else:
+                print_row_summary = True
 
         # Go through several optional keys, and add them if they don't exist
         new_columns = {}
@@ -278,7 +285,8 @@ def load_cal_inference_stats(
     final_num_rows_per_log_set = inference_df.groupby(["log_root", "log_set"]).size()
     # Print information about each log set.
     print("Finished loading inference stats.")
-    print(f"Log amounts: {final_num_rows_per_log_set}")
+    if print_row_summary:
+        print(f"Log amounts: {final_num_rows_per_log_set}")
 
     # Finally, return the dictionary of inference info.
     return inference_df 
