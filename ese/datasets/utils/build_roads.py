@@ -59,26 +59,26 @@ def thunderify_Roads(
 
     image_root = str(proc_root / 'images')
 
-    # # Iterate through each datacenter, axis  and build it as a task
-    # with ThunderDB.open(str(dst_dir), "c") as db:
-    # Key track of the ids
-    subjects = [] 
-    # Iterate through the examples.
-    subj_list = list(os.listdir(image_root))
-
     # I want to keep two files open, one for good examples and one for bad examples.
     # I will write the bad examples to a file and then remove them from the dataset.
     good_ex_file = "/storage/vbutoi/datasets/Roads/assets/good_examples.txt"
     bad_ex_file = "/storage/vbutoi/datasets/Roads/assets/bad_examples.txt"
 
     # Open both files
-    with open(good_ex_file, "r+") as good_f, open(bad_ex_file, "r+") as bad_f:
+    with open(good_ex_file, "r") as good_f, open(bad_ex_file, "r") as bad_f:
         good_example_list = [line.strip() for line in good_f]  # Reads and strips newline characters
         bad_examples_list = [line.strip() for line in bad_f]  # Reads and strips newline characters
 
+    # # Iterate through each datacenter, axis  and build it as a task
+    with ThunderDB.open(str(dst_dir), "c") as db:
+        # Key track of the ids
+        subjects = [] 
+        # Iterate through the examples.
+        subj_list = list(os.listdir(image_root))
+
         for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
 
-            if example_name not in good_example_list and example_name not in bad_examples_list:
+            if example_name in good_example_list or config.get("include_all", False):
                 # Define the image_key
                 key = "subject_" + example_name.split('_')[0]
 
@@ -112,41 +112,39 @@ def thunderify_Roads(
                 img = np.moveaxis(img, -1, 0)
                 seg = seg[np.newaxis, ...]
 
-                if is_bad_image(torch.from_numpy(img).cuda()):
-                    # Write the bad example to the file.
-                    bad_f.write(example_name + "\n")
-                else:
-                    # Write the good example to the file.
-                    good_f.write(example_name + "\n")
+                # Save the datapoint to the database
+                subjects.append(key)
+                db[key] = {
+                    "img": img, 
+                    "seg": seg,
+                    "gt_proportion": gt_prop 
+                } 
+            elif example_name in bad_examples_list:
+                if config["visualize"]:
+                    print(f"Skipping bad example {example_name}")
+            else:
+                raise ValueError(f"Example {example_name} is not in either good or bad examples list.")
 
-        #     # Save the datapoint to the database
-        #     db[key] = {
-        #         "img": img, 
-        #         "seg": seg,
-        #         "gt_proportion": gt_prop 
-        #     } 
-        #     subjects.append(key)
+        subjects = sorted(subjects)
+        splits = data_splits(subjects, splits_ratio, splits_seed)
+        splits = dict(zip(("train", "cal", "val", "test"), splits))
+        for split_key in splits:
+            print(f"{split_key}: {len(splits[split_key])} samples")
 
-        # subjects = sorted(subjects)
-        # splits = data_splits(subjects, splits_ratio, splits_seed)
-        # splits = dict(zip(("train", "cal", "val", "test"), splits))
-        # for split_key in splits:
-        #     print(f"{split_key}: {len(splits[split_key])} samples")
-
-        # # Save the metadata
-        # db["_subjects"] = subjects
-        # db["_splits"] = splits
-        # db["_splits_kwarg"] = {
-        #     "ratio": splits_ratio, 
-        #     "seed": splits_seed
-        #     }
-        # attrs = dict(
-        #     dataset="Roads",
-        #     version=version,
-        # )
-        # db["_subjects"] = subjects
-        # db["_samples"] = subjects
-        # db["_splits"] = splits
-        # db["_attrs"] = attrs
+        # Save the metadata
+        db["_subjects"] = subjects
+        db["_splits"] = splits
+        db["_splits_kwarg"] = {
+            "ratio": splits_ratio, 
+            "seed": splits_seed
+            }
+        attrs = dict(
+            dataset="Roads",
+            version=version,
+        )
+        db["_subjects"] = subjects
+        db["_samples"] = subjects
+        db["_splits"] = splits
+        db["_attrs"] = attrs
 
         
