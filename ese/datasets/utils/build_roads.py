@@ -1,4 +1,5 @@
 import os
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
@@ -8,16 +9,44 @@ from tqdm import tqdm
 import cv2
 from PIL import Image
 from ionpy.util import Config
+import torch.nn.functional as F
 
 # Local imports
 from .utils_for_build import data_splits, normalize_image
 
+def check_bad_patch(image, patch_size=10):
+    H, W = image.shape[1], image.shape[2]
+    
+    # Loop over the image with a sliding window
+    for i in range(H - patch_size + 1):
+        for j in range(W - patch_size + 1):
+            # Extract the current patch (shape: 3 x patch_size x patch_size)
+            patch = image[:, i:i+patch_size, j:j+patch_size]
+            
+            # Check if all pixels in the patch are white
+            if np.all(patch == 255):
+                return 'bad'
+    
+    return 'good'
+
+def is_bad_image(image, patch_size=10):
+    # Create mask where all channels are 255
+    white_mask = (image == 255).all(dim=0).float().unsqueeze(0).unsqueeze(0)  # Shape: [1, 1, H, W]
+    # Define convolution kernel of ones
+    kernel = torch.ones((1, 1, patch_size, patch_size), device=image.device)
+    # Perform convolution to count white pixels in each patch
+    conv = F.conv2d(white_mask, kernel, stride=1)
+    # Check if any patch has all pixels white
+    return (conv >= patch_size * patch_size).any().item()
 
 def thunderify_Roads(
     cfg: Config
 ):
     # Get the dictionary version of the config.
     config = cfg.to_dict()
+
+    # Set the visible GPU
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
     # Append version to our paths
     version = str(config["version"])
@@ -41,7 +70,6 @@ def thunderify_Roads(
     # I will write the bad examples to a file and then remove them from the dataset.
     good_ex_file = "/storage/vbutoi/datasets/Roads/assets/good_examples.txt"
     bad_ex_file = "/storage/vbutoi/datasets/Roads/assets/bad_examples.txt"
-    counter = 0
 
     # Open both files
     with open(good_ex_file, "r+") as good_f, open(bad_ex_file, "r+") as bad_f:
@@ -49,7 +77,6 @@ def thunderify_Roads(
         bad_examples_list = [line.strip() for line in bad_f]  # Reads and strips newline characters
 
         for example_name in tqdm(os.listdir(image_root), total=len(subj_list)):
-            counter += 1
 
             if example_name not in good_example_list and example_name not in bad_examples_list:
                 # Define the image_key
@@ -65,34 +92,30 @@ def thunderify_Roads(
 
                 # Normalize the seg to be between 0 and 1
                 seg = normalize_image(seg)
-                print("Example: ", example_name)
 
                 # Get the proportion of the binary mask.
                 gt_prop = np.count_nonzero(seg) / seg.size
 
                 # Visualize the image and mask
                 # if config.get("visualize", False):
-                fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-                im = ax[0].imshow(img)
-                ax[0].set_title("Image")
-                fig.colorbar(im, ax=ax[0])
-                se = ax[1].imshow(seg, cmap="gray")
-                fig.colorbar(se, ax=ax[1])
-                ax[1].set_title("Mask")
-                plt.show()
+                if config["visualize"]:
+                    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+                    im = ax[0].imshow(img)
+                    ax[0].set_title("Image")
+                    fig.colorbar(im, ax=ax[0])
+                    se = ax[1].imshow(seg, cmap="gray")
+                    fig.colorbar(se, ax=ax[1])
+                    ax[1].set_title("Mask")
+                    plt.show()
 
                 # Move the last channel of image to the first channel
                 img = np.moveaxis(img, -1, 0)
                 seg = seg[np.newaxis, ...]
 
-                # Prompt the user to decide if the image is good or not.
-                is_good = input("Is this image good? (y/n): ")
-                if is_good.lower() == "n":
-                    print("logged bad example:", example_name)
+                if is_bad_image(torch.from_numpy(img).cuda()):
                     # Write the bad example to the file.
                     bad_f.write(example_name + "\n")
                 else:
-                    print("logged good example:", example_name)
                     # Write the good example to the file.
                     good_f.write(example_name + "\n")
 
