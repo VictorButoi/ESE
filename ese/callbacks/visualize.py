@@ -59,8 +59,8 @@ def ShowPredictionsCallback(
     if "loss" in batch:
         print("Loss: ", batch["loss"].item())
 
-    # If x is rgb
-    if x.shape[-1] == 3:
+    # If x is rgb (has 3 input channels)
+    if x.shape[1] == 3:
         x = x.int()
         img_cmap = None
     else:
