@@ -130,7 +130,7 @@ def log_exp_config_objs(
     scratch_root
 ):
     # Get the experiment name.
-    exp_name = exp_cfg["name"]
+    exp_name = f"{exp_cfg['group']}/{exp_cfg.get('subgroup', '')}"
 
     # Optionally, add today's date to the run name.
     if add_date:

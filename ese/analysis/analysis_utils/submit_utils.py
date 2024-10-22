@@ -2,7 +2,6 @@
 import os
 import yaml
 import itertools
-import numpy as np
 from pathlib import Path
 from pprint import pprint
 from typing import List, Optional
@@ -10,7 +9,6 @@ from pydantic import validate_arguments
 # Ionpy imports
 from ionpy.util import Config
 from ionpy.util import dict_product
-from ionpy.util.ioutil import autosave
 from ionpy.util.config import check_missing
 # Local imports
 from .helpers import *
@@ -40,9 +38,6 @@ def get_ese_training_configs(
         dataset_train_cfg = yaml.safe_load(d_file)
     # Update the base config with the dataset specific config.
     base_cfg = base_cfg.update([dataset_train_cfg])
-
-    # Save the new base config. Load the dataset specific config and update the base config.
-    # autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
     
     # Get the information about seeds.
     seed = flat_exp_cfg_dict.pop('experiment.seed', 40)
@@ -151,7 +146,8 @@ def get_ese_inference_configs(
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
     sub_group = exp_cfg.pop('subgroup', "")
-    exp_name = exp_cfg.pop('group') + sub_group
+    exp_name = f"{exp_cfg.pop('group')}/{sub_group}"
+
     # Get the root for the inference experiments.
     inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 

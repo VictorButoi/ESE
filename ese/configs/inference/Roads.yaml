@@ -10,8 +10,8 @@ experiment:
                 width: 500
 
 dataloader:
-    batch_size: 8 
-    num_workers: 3
+    batch_size: '?' 
+    num_workers: '?' 
 
 log:
   track_label_amounts: True 
