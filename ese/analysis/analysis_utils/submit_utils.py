@@ -158,7 +158,7 @@ def get_ese_inference_configs(
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
     if sub_group != "" and sub_group != "Base":
-        exp_cfg = load_benchmark_params(base_cfg, determiner=sub_group)
+        exp_cfg = load_benchmark_params(exp_cfg, determiner=sub_group)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
