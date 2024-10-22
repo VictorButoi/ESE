@@ -149,12 +149,16 @@ def get_ese_inference_configs(
     exp_name = f"{exp_cfg.pop('group')}/{sub_group}"
 
     # Get the root for the inference experiments.
-    inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
+    inference_log_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
     if sub_group != "" and sub_group != "Base":
-        exp_cfg = load_benchmark_params(exp_cfg, determiner=sub_group)
+        exp_cfg = load_benchmark_params(
+            exp_cfg, 
+            determiner=sub_group,
+            log_root=inference_log_root
+        )
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
@@ -210,7 +214,7 @@ def get_ese_inference_configs(
     # Define the set of default config options.
     default_config_options = {
         'experiment.exp_name': [exp_name],
-        'experiment.exp_root': [str(inference_exp_root)],
+        'experiment.exp_root': [str(inference_log_root)],
     }
 
     inf_dset_name = None
@@ -240,7 +244,7 @@ def get_ese_inference_configs(
 
         # Append these to the list of configs and roots.
         dataset_cfgs.append({
-            'log.root': [str(inference_exp_root)],
+            'log.root': [str(inference_log_root)],
             'inference_data._class': [inference_dataset],
             'experiment.inf_dataset_name': [inf_dset_name],
             'experiment.model_dir': model_group,

@@ -454,6 +454,7 @@ def reconstruct_patch_predictions(
     B, _, H, W = in_shape
     h, w = patch_dims['height'], patch_dims['width']
     C_out = patch_predictions[0].shape[1]
+
     num_patches_h = H // h
     num_patches_w = W // w
     #########################################################

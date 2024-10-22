@@ -1,11 +1,27 @@
+# Misc imports
+from pathlib import Path
+from pydantic import validate_arguments
+# Local imports
+from .parse_sweep import get_global_optimal_parameter
+from ..analyze_inf import load_cal_inference_stats
 
 
-def load_benchmark_params(base_cfg, determiner):
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def load_benchmark_params(
+    experiment_cfg: dict, 
+    determiner: str,
+    log_root: Path
+):
 
-        inference_type, parameter = determiner.split("_")
+        inference_type, parameters = determiner.split("_")[0], determiner.split("_")[1:]
 
+        # These allow us sweep over the parameters for the inference.
         if inference_type.lower() == "sweep":
-            if parameter.lower() == "threshold":
+            
+            # If we are doing a  sweep then we just have a single parameter instead of a val func.
+            param = parameters[0].lower()
+
+            if param == "threshold":
                 exp_cfg_update = {
                     "experiment": {
                         "inf_kwargs": {
@@ -18,7 +34,7 @@ def load_benchmark_params(base_cfg, determiner):
                         }
                     }
                 }
-            elif parameter.lower() == "temperature":
+            elif param == "temperature":
                 exp_cfg_update = {
                     "experiment": {
                         "inf_kwargs": {
@@ -36,32 +52,72 @@ def load_benchmark_params(base_cfg, determiner):
                     }
                 }
             else:
-                raise ValueError(f"Unknown parameter for sweep inference: {parameter}.")
+                raise ValueError(f"Unknown parameter for sweep inference: {param}.")
+        
+        # We run this after we have the sweeps complete to automatically parse the optimal parameters.
         elif inference_type.lower() == "optimal":
-            if parameter.lower() == "threshold":
-                raise NotImplementedError("Optimal threshold inference not implemented.")
-                # exp_cfg_update = {
-                #     "experiment": {
-                #         "inf_kwargs": {
-                #             "threshold": get_optimal_parameter()
-                #         }
-                #     }
-                # }
-            elif parameter.lower() == "temperature":
-                raise NotImplementedError("Optimal threshold inference not implemented.")
-                # exp_cfg_update = {
-                #     "experiment": {
-                #         "inf_kwargs": {
-                #             "threshold": get_optimal_parameter()
-                #         }
-                #     }
-                # }
-            else:
-                raise ValueError(f"Unknown parameter for optimal inference: {parameter}.")
+
+            # Get the optimal parameter for some value function.
+            val_func, sweep_key = parameters
+
+            assert sweep_key.lower() in ["threshold", "temperature"], f"Unknown sweep key: {sweep_key}."
+            parsed_sweep_key = sweep_key.lower()
+
+            # Load the sweep directory.
+            results_cfgs = {
+                "log":{
+                    "root": str(log_root.parent),
+                    "inference_group": f"Sweep_{sweep_key}"
+                },
+                "options": {
+                    "verify_graceful_exit": True,
+                    "equal_rows_per_cfg_assert": False 
+                }
+            }
+            # Load the naive baselines
+            print(f"Loading {sweep_key} sweep dataframe...")
+            sweep_df = load_cal_inference_stats(
+                results_cfg=results_cfgs,
+                load_cached=True
+            )
+
+            raise ValueError
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+            # Update with the optimal parameter for the inference.
+            exp_cfg_update = {
+                "experiment": {
+                    "inf_kwargs": {
+                        parsed_sweep_key: get_global_optimal_parameter(
+                            sweep_key=parsed_sweep_key, 
+                            y_key=val_func,
+                            group_keys=['split']
+                        )
+                    }
+                }
+            }
         else:
             raise ValueError(f"Unknown inference type: {inference_type}.")
         
         # Update the experiment config.
-        base_cfg.update(exp_cfg_update)
+        experiment_cfg.update(exp_cfg_update)
 
-        return base_cfg
+        return experiment_cfg

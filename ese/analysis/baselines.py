@@ -23,7 +23,7 @@ def gather_baseline_dfs(
     results_cfgs = {
         "log":{
             "root": root_baseline_dir,
-            "inference_groups": []
+            "inference_group": []
         },
         "options": {
             "verify_graceful_exit": True,
@@ -39,7 +39,7 @@ def gather_baseline_dfs(
     # - threshold at 0.5.
     if add_naive_baselines:
         naive_result_cfg = results_cfgs.copy()
-        naive_result_cfg['log']['inference_groups'] = [
+        naive_result_cfg['log']['inference_group'] = [
             "Base_CrossEntropy",
             "Base_SoftDice"
         ]
@@ -57,7 +57,7 @@ def gather_baseline_dfs(
     if add_tuned_baselines:
         # Load the threshold baselines.
         tuned_threshold_cfg = results_cfgs.copy()
-        tuned_threshold_cfg['log']['inference_groups'] = [
+        tuned_threshold_cfg['log']['inference_group'] = [
             "Optimal_Temperature_CrossEntropy",
             "Optimal_Temperature_SoftDice",
             "Optimal_Threshold_CrossEntropy",
@@ -71,7 +71,7 @@ def gather_baseline_dfs(
 
         # Load the temperatures baselines.
         tuned_temp_cfg = results_cfgs.copy()
-        tuned_temp_cfg['log']['inference_groups'] = [
+        tuned_temp_cfg['log']['inference_group'] = [
             "Optimal_Temperature_CrossEntropy",
             "Optimal_Temperature_SoftDice",
             "Optimal_Threshold_CrossEntropy",
