@@ -6,11 +6,15 @@ from pydantic import validate_arguments
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_global_optimal_parameter(
-    data: pd.DataFrame, 
+    raw_data: pd.DataFrame, 
     sweep_key: str, 
     y_key: str,
     group_keys: Optional[List[str]] = [] 
 ) -> pd.DataFrame:
+    # Filter out the columns we want to keep which essentially boils down to the group keys, the sweep key, the y key and the data_id.
+    cols_to_keep = group_keys + [sweep_key, y_key, 'data_id']
+    data= raw_data[cols_to_keep].drop_duplicates().reset_index(drop=True)
+
     # Get the optimal threshold for each split out. First we have to average across the data_ids
     reduced_data_df = data.groupby(group_keys + [sweep_key]).mean(numeric_only=True).reset_index()
     # Then we get the threshold that minimizes the error
@@ -23,11 +27,15 @@ def get_global_optimal_parameter(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_per_subject_optimal_values(
-    data: pd.DataFrame, 
+    raw_data: pd.DataFrame, 
     sweep_key: str, 
     y_key: str,
     group_keys: Optional[List[str]] = None
 ) -> pd.DataFrame:
+    # Filter out the columns we want to keep which essentially boils down to the group keys, the sweep key, the y key and the data_id.
+    cols_to_keep = group_keys + [sweep_key, y_key, 'data_id']
+    data = raw_data[cols_to_keep].drop_duplicates().reset_index(drop=True)
+
     # We want to figure out what is the best achievable average loss IF we used optimal thresholds per subject
     sub_cols_to_keep = [
         sweep_key,

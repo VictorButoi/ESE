@@ -230,16 +230,16 @@ def get_ese_inference_configs(
 
         # One required key is 'base_model'. We need to know if it is a single model or a group of models.
         # We evaluate this by seeing if 'submitit' is in the base model path.
-        model_group_dir = Path(run_opt_dict.pop('base_model')[0])
-        if 'submitit' in os.listdir(model_group_dir):
-            model_group  = gather_exp_paths(str(model_group_dir)) 
+        base_model_group_dir = Path(run_opt_dict.pop('base_model')[0])
+        if 'submitit' in os.listdir(base_model_group_dir):
+            model_set  = gather_exp_paths(str(base_model_group_dir)) 
         else:
-            model_group = [str(model_group_dir)]
+            model_set = [str(base_model_group_dir)]
 
         # If inference_dataset is still None, we need to get it from the model config.
         # NOTE: that we don't support multiple datasets for inference, it will be the same for all models.
         if inference_dataset is None:
-            inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_group)
+            inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_set)
             base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
 
         # Append these to the list of configs and roots.
@@ -247,7 +247,7 @@ def get_ese_inference_configs(
             'log.root': [str(inference_log_root)],
             'inference_data._class': [inference_dataset],
             'experiment.inf_dataset_name': [inf_dset_name],
-            'experiment.model_dir': model_group,
+            'experiment.model_dir': model_set,
             **run_opt_dict,
             **default_config_options
         })

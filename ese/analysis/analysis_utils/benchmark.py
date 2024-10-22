@@ -12,15 +12,11 @@ def load_benchmark_params(
     determiner: str,
     log_root: Path
 ):
-
         inference_type, parameters = determiner.split("_")[0], determiner.split("_")[1:]
-
         # These allow us sweep over the parameters for the inference.
         if inference_type.lower() == "sweep":
-            
             # If we are doing a  sweep then we just have a single parameter instead of a val func.
             param = parameters[0].lower()
-
             if param == "threshold":
                 exp_cfg_update = {
                     "experiment": {
@@ -53,16 +49,13 @@ def load_benchmark_params(
                 }
             else:
                 raise ValueError(f"Unknown parameter for sweep inference: {param}.")
-        
         # We run this after we have the sweeps complete to automatically parse the optimal parameters.
         elif inference_type.lower() == "optimal":
-
             # Get the optimal parameter for some value function.
             val_func, sweep_key = parameters
-
             assert sweep_key.lower() in ["threshold", "temperature"], f"Unknown sweep key: {sweep_key}."
             parsed_sweep_key = sweep_key.lower()
-
+            parsed_y_key = f"soft_{val_func}" if parsed_sweep_key == "temperature" else f"hard_{val_func}"
             # Load the sweep directory.
             results_cfgs = {
                 "log":{
@@ -80,6 +73,21 @@ def load_benchmark_params(
                 results_cfg=results_cfgs,
                 load_cached=True
             )
+            # We are going to use base_model in the exp_cfg to select the rows we want.
+            base_model = experiment_cfg["base_model"]
+            assert isinstance(base_model, str) or len(base_model) == 1, "Base model must be a single model."
+            if isinstance(base_model, list):
+                base_model = base_model[0]
+            # Get the rows correspondign to the base model.
+            base_model_sweep_df = sweep_df[sweep_df['experiment_model_dir'] == base_model].copy()
+            # Get the optimal parameter for the inference.
+            temp_opt_vals = get_global_optimal_parameter(
+                base_model_sweep_df,
+                sweep_key=parsed_sweep_key, 
+                y_key=parsed_y_key,
+                group_keys=['split'] 
+            )
+            print(temp_opt_vals)
 
             raise ValueError
 
