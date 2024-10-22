@@ -14,6 +14,7 @@ from ionpy.util.ioutil import autosave
 from ionpy.util.config import check_missing
 # Local imports
 from .helpers import *
+from .benchmark import load_benchmark_params
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -35,13 +36,10 @@ def get_ese_training_configs(
     # Add the dataset specific details.
     train_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
     dataset_cfg_file = train_cfg_root/ f"{train_dataset_name}.yaml"
-    if dataset_cfg_file.exists():
-        with open(dataset_cfg_file, 'r') as d_file:
-            dataset_train_cfg = yaml.safe_load(d_file)
-        # Update the base config with the dataset specific config.
-        base_cfg = base_cfg.update([dataset_train_cfg])
-    else:
-        print(f"No base data config found for dataset: {train_dataset_name}. Using default base config.")
+    with open(dataset_cfg_file, 'r') as d_file:
+        dataset_train_cfg = yaml.safe_load(d_file)
+    # Update the base config with the dataset specific config.
+    base_cfg = base_cfg.update([dataset_train_cfg])
 
     # Save the new base config. Load the dataset specific config and update the base config.
     # autosave(base_cfg.to_dict(), train_exp_root / "base.yml") # SAVE #2: Base config
@@ -99,16 +97,12 @@ def get_ese_calibration_configs(
         posthoc_dset_name = flat_exp_cfg_dict['data._class'][0].split('.')[-1]
         dataset_cfg_file = cfg_root / "calibrate" / f"{posthoc_dset_name}.yaml"
         # If the dataset specific config exists, update the base config.
-        if dataset_cfg_file.exists():
-            with open(dataset_cfg_file, 'r') as file:
-                dataset_cfg = yaml.safe_load(file)
-            base_cfg = base_cfg.update([dataset_cfg])
-        else:
-            print(f"No base config found for dataset: {posthoc_dset_name}. Using default base config.")
+        with open(dataset_cfg_file, 'r') as file:
+            dataset_cfg = yaml.safe_load(file)
+        base_cfg = base_cfg.update([dataset_cfg])
     else:
         _, inf_dset_name = get_inf_dset_from_model_group(flat_exp_cfg_dict['train.base_pretrained_dir'])
         base_cfg = add_dset_presets("calibrate", inf_dset_name, base_cfg, code_root)
-        print(f"No base config found. Using base data config for: {inf_dset_name}.")
 
     # Create the ablation options.
     option_set = {
@@ -156,8 +150,15 @@ def get_ese_inference_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
-    exp_name = exp_cfg.pop('group') + exp_cfg.pop('subgroup', "")
+    sub_group = exp_cfg.pop('subgroup', "")
+    exp_name = exp_cfg.pop('group') + sub_group
+    # Get the root for the inference experiments.
     inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
+
+    # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
+    # SWEEPS FOR INFERENCE.
+    if sub_group != "" and sub_group != "Base":
+        exp_cfg = load_benchmark_params(base_cfg, determiner=sub_group)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
@@ -240,7 +241,6 @@ def get_ese_inference_configs(
         if inference_dataset is None:
             inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_group)
             base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
-            print(f"No inference data config found. Using pretrained base data config for: {inf_dset_name}.")
 
         # Append these to the list of configs and roots.
         dataset_cfgs.append({
