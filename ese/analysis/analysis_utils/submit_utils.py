@@ -144,15 +144,6 @@ def get_ese_calibration_configs(
     return base_cfg_dict, cfgs
 
 
-def get_range_from_str(val):
-    trimmed_range = val[1:-1] # Remove the parantheses on the ends.
-    range_args = trimmed_range.split(',')
-    assert len(range_args) == 4, f"Range sweeping requires format like (start, ..., end, interval). Got {len(range_args)}."
-    arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
-    # Finally stick this back in as a string tuple version.
-    return str(tuple(arg_vals))
-
-
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_ese_inference_configs(
     exp_cfg: dict,
@@ -165,7 +156,7 @@ def get_ese_inference_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
-    exp_name = exp_cfg.pop('name')
+    exp_name = exp_cfg.pop('group') + exp_cfg.pop('subgroup', "")
     inference_exp_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
@@ -285,7 +276,7 @@ def get_ese_restart_configs(
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
-    exp_name = exp_cfg.pop('name')
+    exp_name = exp_cfg.pop('group')
     restart_exp_root = get_exp_root(exp_name, group="restarted", add_date=add_date, scratch_root=scratch_root)
 
     # Get the flat version of the experiment config.

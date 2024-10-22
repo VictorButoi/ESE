@@ -1,6 +1,7 @@
 # misc imports
 import os
 import yaml
+import numpy as np
 from pprint import pprint
 from typing import Literal
 from datetime import datetime
@@ -175,3 +176,12 @@ def add_dset_presets(
     else:
         raise ValueError(f"Dataset config file not found: {dataset_cfg_file}")
     return base_cfg
+
+
+def get_range_from_str(val):
+    trimmed_range = val[1:-1] # Remove the parantheses on the ends.
+    range_args = trimmed_range.split(',')
+    assert len(range_args) == 4, f"Range sweeping requires format like (start, ..., end, interval). Got {len(range_args)}."
+    arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
+    # Finally stick this back in as a string tuple version.
+    return str(tuple(arg_vals))
