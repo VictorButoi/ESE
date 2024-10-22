@@ -1,100 +1,138 @@
-import nibabel as nib
-import numpy as np
-import matplotlib.pyplot as plt
-from tqdm.notebook import tqdm
-import nibabel.processing as nip
-import pathlib
-import numpy as np
+# Misc imports
 import os
+import ast
+import pathlib
+import voxel as vx
+import numpy as np
+from tqdm import tqdm
 from thunderpack import ThunderDB
-from scipy.ndimage import zoom
+# Local imports
+from .utils_for_build import (
+    data_splits,
+    vis_3D_subject,
+    normalize_image,
+    pad_to_resolution
+)
 
-from typing import List, Tuple
-from sklearn.model_selection import train_test_split
-from pydantic import validate_arguments
 
-
-def thunderify_legacy_WMH(
-    proc_root, 
-    dst,
-    version
+def thunderify_WMH(
+    config: dict, 
 ):
+    # Append version to our paths
+    version = str(config["version"])
 
     # Append version to our paths
-    proc_root = proc_root / version
-    dst = dst / version
+    raw_root = pathlib.Path(config["root"]) / 'raw_organized'
+    general_dst_dir = pathlib.Path(config["root"]) / config["dst_folder"] / version
 
-    datacenters = proc_root.iterdir() 
-    # Train Calibration Val Test
-    splits_ratio = (0.6, 0.1, 0.2, 0.1)
-    splits_seed = 42
+    # Iterate through each datacenter, axis  and build it as a task
+    for hospital in config["hopitals"]:
 
-    for dc in datacenters:
-        dc_proc_dir = proc_root / dc.name
-        for axis_dir in dc_proc_dir.iterdir():
-            dc_dst = dst / dc.name / axis_dir.name
-            print(str(dc_dst))
-            if not dc_dst.exists():
-                os.makedirs(dc_dst)
+        hosp_dst_path = general_dst_dir / hospital
+        # Get the paths to the subjects and where we put the dataset object.
+        if hospital == 'Combined':
+            hosp_subj_path = [
+                raw_root / "Amsterdam",
+                raw_root / "Singapore",
+                raw_root / "Utrecht" 
+            ]
+        else:
+            hosp_subj_path = raw_root / hospital
 
-            # Iterate through each datacenter, axis  and build it as a task
-            with ThunderDB.open(str(dc_dst), "c") as db:
-                subj_list = axis_dir.iterdir()
+        for annotator in ['annotator_o12', 'annotator_o3', 'annotator_o4']:
 
-                subjects = []
-                num_annotators = []
+            annotator_dst_path = hosp_dst_path / annotator
 
-                for subj in subj_list:
-                    key = subj.name
-                    img_dir = subj / "image.npy"
+            # IF hospital_dst_path does not exist then we need to create it.
+            if not os.path.exists(annotator_dst_path):
+                os.makedirs(annotator_dst_path)
 
-                    img = np.load(img_dir) 
-                    mask_list = list(subj.glob("observer*"))
-
-                    mask_dict = {}
-                    pp_dict = {}
-                    
-                    # Iterate through each set of ground truth
-                    for mask_dir in mask_list:
-                        seg_dir = mask_dir / "label.npy"
-                        seg = np.load(seg_dir)
+            ## Iterate through each datacenter, axis  and build it as a task
+            with ThunderDB.open(str(annotator_dst_path), "c") as db:
                         
-                        # Our processing has ensured that we care about axis 0.
-                        pixel_proportion = np.sum(seg, axis=(1,2))
-                        mask_dict[mask_dir.name] = seg
-                        pp_dict[mask_dir.name] = pixel_proportion
+                # Iterate through the examples.
+                # Key track of the ids
+                subjects = [] 
+                subj_list = list(os.listdir(hosp_subj_path))
 
-                    # Save the datapoint to the database
-                    db[key] = {
-                        "image": img,
-                        "masks": mask_dict,
-                        "pixel_proportions": pp_dict
-                    }
-                    subjects.append(key)
-                    num_annotators.append(len(mask_list))
+                for subj_name in tqdm(subj_list, total=len(subj_list)):
 
-                subjects, num_annotators = zip(*sorted(zip(subjects, num_annotators)))
-                splits = data_splits(subjects, splits_ratio, splits_seed)
-                splits = dict(zip(("train", "cal", "val", "test"), splits))
-                db["_subjects"] = subjects
-                db["_splits"] = splits
+                    # Paths to the image and segmentation
+                    img_dir = hosp_subj_path / subj_name / 'FLAIR.nii.gz'
+                    seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz'
+
+                    # If seg_dir exists then we can proceed
+                    if seg_dir.exists():
+                        # Load the volumes using voxel
+                        raw_img_vol = vx.load_volume(img_dir)
+                        # Load the seg and process to match the image
+                        raw_seg_vol = vx.load_volume(seg_dir)
+                        seg_vol = raw_seg_vol.resample_like(raw_img_vol, mode='nearest')
+                        # For WMH, the labels of the segmentation are 
+                        # 0: background,
+                        # 1: WMH
+                        # 2: Other pathology.
+                        # For our purposes, we want to make a binary mask of the WMH.
+                        seg_vol = (seg_vol == 1).float()
+
+                        # Get the tensors from the vol objects
+                        img_vol_arr = raw_img_vol.tensor.numpy().squeeze()
+                        seg_vol_arr = seg_vol.tensor.numpy().squeeze()
+
+                        # Get the amount of segmentation in the image
+                        if np.count_nonzero(seg_vol_arr) >= config.get('min_label_amount', 0):
+
+                            # If we have a pad then pad the image and segmentation
+                            if 'pad_to' in config:
+                                # If 'pad_to' is a string then we need to convert it to a tuple
+                                if isinstance(config['pad_to'], str):
+                                    config['pad_to'] = ast.literal_eval(config['pad_to'])
+                                img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
+                                seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
+
+                            # Normalize the image to be between 0 and 1
+                            normalized_img_arr = normalize_image(img_vol_arr)
+                            # Get the proportion of the binary mask.
+                            gt_prop = np.count_nonzero(seg_vol_arr) / seg_vol_arr.size
+
+                            if config.get('show_examples', False):
+                                vis_3D_subject(normalized_img_arr, seg_vol_arr)
+
+                            # We actually can have a distinction between samples and subjects!!
+                            # Splits are done at the subject level, so we need to keep track of the subjects.
+                            db[subj_name] = {
+                                "img": normalized_img_arr, 
+                                "seg": seg_vol_arr,
+                                "gt_proportion": gt_prop
+                            } 
+                            subjects.append(subj_name)
+
+                sorted_subjects = sorted(subjects)
+                # If splits aren't predefined then we need to create them.
+                splits_seed = 42
+                splits_ratio = (0.6, 0.2, 0.1, 0.1)
+                db_splits = data_splits(sorted_subjects, splits_ratio, splits_seed)
+                db_splits = dict(zip(("train", "cal", "val", "test"), db_splits))
+
+                # Print the number of samples in each split for debugging purposes.
+                for split_key in db_splits:
+                    print(f"{split_key}: {len(db_splits[split_key])} samples")
+
+                # Save the metadata
                 db["_splits_kwarg"] = {
                     "ratio": splits_ratio, 
                     "seed": splits_seed
-                    }
+                }
                 attrs = dict(
                     dataset="WMH",
                     version=version,
-                    group=dc.name,
-                    modality="FLAIR",
-                    axis=axis_dir.name,
-                    resolution=256,
                 )
-                db["_num_annotators"] = num_annotators 
-                db["_subjects"] = subjects
-                db["_samples"] = subjects
-                db["_splits"] = splits
+                db["_subjects"] = sorted_subjects
+                db["_samples"] = sorted_subjects
+                db["_splits"] = db_splits
                 db["_attrs"] = attrs
+
+
 
 
 ############################################################################################################

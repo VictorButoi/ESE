@@ -133,7 +133,7 @@ def thunderify_ISLES(
             splits_seed = 42
             splits_ratio = (0.6, 0.2, 0.1, 0.1)
             db_splits = data_splits(subjects, splits_ratio, splits_seed)
-            db_splits = dict(zip(("train", "cal", "val", "test"), splits))
+            db_splits = dict(zip(("train", "cal", "val", "test"), db_splits))
         else:
             splits_seed = splits_kwarg["seed"]
             splits_ratio = splits_kwarg["ratio"]
