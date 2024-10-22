@@ -19,14 +19,13 @@ class ISLES(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "cal_aug", "val", "test"]
     target: Literal['seg', 'temp', 'volume'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0 # 0.1 is maxslice, 1.0 is 3D
-    aug_data_prob: float = 0.0 # By default, we don't use augmented data.
     preload: bool = False
     return_data_id: bool = False
-    return_gt_proportion: bool = False
     transforms: Optional[Any] = None
     num_examples: Optional[int] = None
     opt_temps_dir: Optional[str] = None
     examples: Optional[List[str]] = None
+    aug_data_prob: Optional[float] = None # By default, we don't use augmented data.
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
 
@@ -110,9 +109,6 @@ class ISLES(ThunderDataset, DatapathMixin):
             else:
                 raise ValueError(f"Unknown target: {self.target}")
 
-        # Optionally: Add the 'true' gt proportion if we've done resizing.
-        if self.return_gt_proportion:
-            return_dict["gt_proportion"] = example_obj["gt_proportion"]
         # Optionally: We can add the data_id to the return dictionary.
         if self.return_data_id:
             return_dict["data_id"] = subject_name

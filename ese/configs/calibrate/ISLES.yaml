@@ -9,7 +9,7 @@ dataloader:
   batch_size: '?' 
 
 optim:
-  lr: 5.0e-7
+  lr: '?'
 
 log:
   checkpoint_freq: 50

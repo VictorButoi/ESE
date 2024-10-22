@@ -137,6 +137,8 @@ class CalibrationExperiment(TrainExperiment):
         if augmentation:
             with torch.no_grad():
                 x, y = self.aug_pipeline(x, y)
+        
+        print(x.shape, y.shape)
 
         # Zero out the gradients.
         self.optim.zero_grad()

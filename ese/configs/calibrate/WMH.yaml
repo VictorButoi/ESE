@@ -1,22 +1,26 @@
+train:
+  epochs: 3000
+  eval_freq: 20
+
 data:
-  iters_per_epoch: 100
+  iters_per_epoch: null 
+
+dataloader:
+  batch_size: '?' 
+
+optim:
+  lr: '?'
 
 log:
-  checkpoint_freq: 50 
+  checkpoint_freq: 50
   root: '?'
   metrics:
     dice_score:
       _fn: ionpy.metrics.dice_score
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
-      ignore_index: 0
       from_logits: True
     ece_loss:
       _fn: ese.metrics.image_ece_loss
       num_prob_bins: 15
-      from_logits: True
-    edge_ece_loss:
-      _fn: ese.metrics.image_edge_ece_loss
-      num_prob_bins: 15
-      neighborhood_width: 3
       from_logits: True
