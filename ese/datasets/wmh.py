@@ -15,10 +15,10 @@ from ionpy.util.validation import validate_arguments_init
 class WMH(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
+    hospital: Literal['Amsterdam', 'Singapore', 'Utrecht']
+    annotator: str
     target: Literal['seg', 'temp', 'volume'] = 'seg' # Either optimize for segmentation or temperature.
-    hospital: Literal['Amsterdam', 'Singapore', 'Utrecht'] = "Amsterdam" 
-    annotator: str = "observer_o12"
-    version: float = 0.2
+    version: float = 1.0
     preload: bool = False
     return_data_id: bool = False
     major_axis: Literal[0, 1, 2] = 0 
@@ -65,7 +65,7 @@ class WMH(ThunderDataset, DatapathMixin):
 
         # Get the image and mask
         subj_dict = super().__getitem__(key)
-        img, mask = subj_dict['image'], subj_dict['masks'][self.annotator]
+        img, mask = subj_dict['img'], subj_dict['seg']
 
         # Apply the label threshold
         if self.label_threshold is not None:
@@ -147,7 +147,7 @@ class WMH(ThunderDataset, DatapathMixin):
 
     @property
     def _folder_name(self):
-        return f"WMH/thunder_wmh/{self.version}/{self.hospital}/{self.major_axis}"
+        return f"WMH/thunder_wmh/{self.version}/{self.hospital}/{self.annotator}"
 
     @property
     def signature(self):

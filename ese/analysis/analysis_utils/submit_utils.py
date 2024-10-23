@@ -25,7 +25,7 @@ def get_ese_training_configs(
 ): 
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
-    exp_name = exp_cfg.pop('name')
+    exp_name = exp_cfg.pop('group')
     train_exp_root = get_exp_root(exp_name, group="training", add_date=add_date, scratch_root=scratch_root)
 
     # Flatten the experiment config.
