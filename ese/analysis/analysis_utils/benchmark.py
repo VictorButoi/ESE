@@ -31,19 +31,26 @@ def load_benchmark_params(
                     }
                 }
             elif param == "temperature":
+                # exp_cfg_update = {
+                #     "experiment": {
+                #         "inf_kwargs": {
+                #             "temperature": [ 
+                #                 "(0.01, ..., 0.50, 0.025)",
+                #                 "(0.51, ..., 1.00, 0.025)", 
+                #                 "(1.01, ..., 1.25, 0.025)",
+                #                 "(1.26, ..., 1.50, 0.025)",
+                #                 "(1.51, ..., 2.00, 0.025)",
+                #                 "(2.01, ..., 2.50, 0.025)",
+                #                 "(2.51, ..., 2.75, 0.025)",
+                #                 "(2.76, ..., 3.00, 0.025)",
+                #             ]
+                #         }
+                #     }
+                # }
                 exp_cfg_update = {
                     "experiment": {
                         "inf_kwargs": {
-                            "temperature": [ 
-                                "(0.01, ..., 0.50, 0.025)",
-                                "(0.51, ..., 1.00, 0.025)", 
-                                "(1.01, ..., 1.25, 0.025)",
-                                "(1.26, ..., 1.50, 0.025)",
-                                "(1.51, ..., 2.00, 0.025)",
-                                "(2.01, ..., 2.50, 0.025)",
-                                "(2.51, ..., 2.75, 0.025)",
-                                "(2.76, ..., 3.00, 0.025)",
-                            ]
+                            "temperature": "(0.01, ..., 10.01, 0.5)"
                         }
                     }
                 }
@@ -87,43 +94,19 @@ def load_benchmark_params(
                 y_key=parsed_y_key,
                 group_keys=['split'] 
             )
-            print(temp_opt_vals)
-
-            raise ValueError
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
+            # Get the optimal parameter for the inference for the 
+            # calibration split
+            cal_opt_param = temp_opt_vals[temp_opt_vals['split'] == 'cal'][parsed_sweep_key]
             # Update with the optimal parameter for the inference.
             exp_cfg_update = {
                 "experiment": {
                     "inf_kwargs": {
-                        parsed_sweep_key: get_global_optimal_parameter(
-                            sweep_key=parsed_sweep_key, 
-                            y_key=val_func,
-                            group_keys=['split']
-                        )
+                        parsed_sweep_key: cal_opt_param
                     }
                 }
             }
         else:
-            raise ValueError(f"Unknown inference type: {inference_type}.")
+            exp_cfg_update = {}
         
         # Update the experiment config.
         experiment_cfg.update(exp_cfg_update)

@@ -153,7 +153,7 @@ def get_ese_inference_configs(
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
-    if sub_group != "" and sub_group != "Base":
+    if sub_group != "":
         exp_cfg = load_benchmark_params(
             exp_cfg, 
             determiner=sub_group,

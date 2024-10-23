@@ -426,7 +426,7 @@ def exp_patch_predict(
     patches_list = [patches[:, :, i, :, :] for i in range(patches.size(2))]  # Each patch: (B, C, h, w)
 
     # Get the predictions for each patch
-    patch_predictions = [exp.predict(patch, **inf_kwargs)['y_logits'] for patch in patches_list]
+    patch_predictions = [exp.predict(patch)['y_logits'] for patch in patches_list]
 
     # Different ways to combine the patch predictions.
     if combine_fn == "cat":
