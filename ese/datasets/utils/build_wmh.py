@@ -22,11 +22,11 @@ def thunderify_WMH(
     version = str(config["version"])
 
     # Append version to our paths
-    raw_root = pathlib.Path(config["root"]) / 'raw_organized'
-    general_dst_dir = pathlib.Path(config["root"]) / config["dst_folder"] / version
+    raw_root = pathlib.Path(config["proc_root"])
+    general_dst_dir = pathlib.Path(config["dst_dir"]) / version
 
     # Iterate through each datacenter, axis  and build it as a task
-    for hospital in config["hopitals"]:
+    for hospital in config["hospitals"]:
 
         hosp_dst_path = general_dst_dir / hospital
         # Get the paths to the subjects and where we put the dataset object.
@@ -58,8 +58,12 @@ def thunderify_WMH(
                 for subj_name in tqdm(subj_list, total=len(subj_list)):
 
                     # Paths to the image and segmentation
-                    img_dir = hosp_subj_path / subj_name / 'FLAIR.nii.gz'
-                    seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz'
+                    if 'cropped' in config["proc_root"]:
+                        img_dir = hosp_subj_path / subj_name / 'FLAIR_cropped.nii.gz'
+                        seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask_cropped.nii.gz'
+                    else:
+                        img_dir = hosp_subj_path / subj_name / 'FLAIR.nii.gz'
+                        seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz'
 
                     # If seg_dir exists then we can proceed
                     if seg_dir.exists():

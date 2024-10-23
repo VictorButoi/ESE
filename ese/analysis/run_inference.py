@@ -337,6 +337,7 @@ def standard_image_forward_loop(
 
             # Increment the data counter.
             inf_init_obj['data_counter'] += 1
+            raise ValueError("Stop here for now.")
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

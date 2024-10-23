@@ -1,5 +1,6 @@
 from .build_oxfordpets import thunderify_OxfordPets 
 from .build_cityscapes import thunderify_CityScapes 
+from .build_RIWA import thunderify_RIWA 
 from .build_shapes import thunderify_Shapes 
 from .build_octa import thunderify_OCTA
 from .build_isles import thunderify_ISLES
