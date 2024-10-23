@@ -30,16 +30,9 @@ def thunderify_WMH(
 
         hosp_dst_path = general_dst_dir / hospital
         # Get the paths to the subjects and where we put the dataset object.
-        if hospital == 'Combined':
-            hosp_subj_path = [
-                raw_root / "Amsterdam",
-                raw_root / "Singapore",
-                raw_root / "Utrecht" 
-            ]
-        else:
-            hosp_subj_path = raw_root / hospital
+        hosp_subj_path = raw_root / hospital
 
-        for annotator in ['annotator_o12', 'annotator_o3', 'annotator_o4']:
+        for annotator in config["annotators"]:
 
             annotator_dst_path = hosp_dst_path / annotator
 
@@ -54,34 +47,43 @@ def thunderify_WMH(
                 # Key track of the ids
                 subjects = [] 
                 subj_list = list(os.listdir(hosp_subj_path))
-
                 for subj_name in tqdm(subj_list, total=len(subj_list)):
 
                     # Paths to the image and segmentation
                     if 'cropped' in config["proc_root"]:
                         img_dir = hosp_subj_path / subj_name / 'FLAIR_cropped.nii.gz'
-                        seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask_cropped.nii.gz'
+                        if annotator == 'multi_annotator':
+                            # Get all of the files that end with _mask_cropped.nii.gz
+                            seg_dir_list = (hosp_subj_path / subj_name).glob('*_mask_cropped.nii.gz')
+                        else:
+                            seg_dir_list = [hosp_subj_path / subj_name / f'{annotator}_mask_cropped.nii.gz']
                     else:
                         img_dir = hosp_subj_path / subj_name / 'FLAIR.nii.gz'
-                        seg_dir = hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz'
+                        if annotator == 'multi_annotator':
+                            seg_dir_list = (hosp_subj_path / subj_name).glob('*_mask.nii.gz')
+                        else:
+                            seg_dir_list = [hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz']
+
+                    # Load the volumes using voxel
+                    raw_img_vol = vx.load_volume(img_dir)
+                    img_vol_arr = raw_img_vol.tensor.numpy().squeeze()
 
                     # If seg_dir exists then we can proceed
-                    if seg_dir.exists():
-                        # Load the volumes using voxel
-                        raw_img_vol = vx.load_volume(img_dir)
+                    try:
                         # Load the seg and process to match the image
-                        raw_seg_vol = vx.load_volume(seg_dir)
-                        seg_vol = raw_seg_vol.resample_like(raw_img_vol, mode='nearest')
-                        # For WMH, the labels of the segmentation are 
-                        # 0: background,
-                        # 1: WMH
-                        # 2: Other pathology.
-                        # For our purposes, we want to make a binary mask of the WMH.
-                        seg_vol = (seg_vol == 1).float()
-
-                        # Get the tensors from the vol objects
-                        img_vol_arr = raw_img_vol.tensor.numpy().squeeze()
-                        seg_vol_arr = seg_vol.tensor.numpy().squeeze()
+                        annotator_seg_list = []
+                        for seg_dir in seg_dir_list:
+                            raw_seg_vol = vx.load_volume(seg_dir)
+                            seg_vol = raw_seg_vol.resample_like(raw_img_vol, mode='nearest')
+                            # For WMH, the labels of the segmentation are 
+                            # 0: background,
+                            # 1: WMH
+                            # 2: Other pathology.
+                            # For our purposes, we want to make a binary mask of the WMH.
+                            seg_vol = (seg_vol == 1).float()
+                            annotator_seg_list.append(seg_vol.tensor.numpy().squeeze())
+                        # Average the segs to get a multi annotator segmentation
+                        seg_vol_arr = np.mean(np.stack(annotator_seg_list), axis=0)
 
                         # Get the amount of segmentation in the image
                         if np.count_nonzero(seg_vol_arr) >= config.get('min_label_amount', 0):
@@ -97,7 +99,7 @@ def thunderify_WMH(
                             # Normalize the image to be between 0 and 1
                             normalized_img_arr = normalize_image(img_vol_arr)
                             # Get the proportion of the binary mask.
-                            gt_prop = np.count_nonzero(seg_vol_arr) / seg_vol_arr.size
+                            gt_prop = np.sum(seg_vol_arr) / seg_vol_arr.size
 
                             if config.get('show_examples', False):
                                 vis_3D_subject(normalized_img_arr, seg_vol_arr)
@@ -110,6 +112,8 @@ def thunderify_WMH(
                                 "gt_proportion": gt_prop
                             } 
                             subjects.append(subj_name)
+                    except Exception as e:
+                        print(f"Skipping {subj_name} for annotator {annotator}. Got error: {e}")
 
                 sorted_subjects = sorted(subjects)
                 # If splits aren't predefined then we need to create them.
@@ -125,7 +129,9 @@ def thunderify_WMH(
                 # Save the metadata
                 db["_splits_kwarg"] = {
                     "ratio": splits_ratio, 
-                    "seed": splits_seed
+                    "seed": splits_seed,
+                    "hospital": hospital,
+                    "annotator": annotator
                 }
                 attrs = dict(
                     dataset="WMH",
