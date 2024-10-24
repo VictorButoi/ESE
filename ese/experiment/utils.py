@@ -469,6 +469,11 @@ def reconstruct_patch_predictions(
     # Merge the patch dimensions to reconstruct the original H and W
     reconstructed_logit_map = patches_tensor.contiguous().view(B, C_out, num_patches_h * h, num_patches_w * w)  # Shape: (B, C, H, W)
 
+    print("Reconstructed logit map shape: ", reconstructed_logit_map.shape)
+    plt.imshow(reconstructed_logit_map.detach().squeeze().cpu().numpy(), interpolation='none', cmap='gray')
+    plt.colorbar()
+    plt.show()
+
     # Get the hard prediction and probabilities
     joint_prob_map, joint_pred_map = process_pred_map(
         reconstructed_logit_map, 

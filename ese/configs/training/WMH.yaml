@@ -17,7 +17,7 @@ optim:
 
 log:
   root: '?'
-  checkpoint_freq: 30 
+  checkpoint_freq: 10 
   metrics:
     dice_score:
       _fn: ionpy.metrics.dice_score
@@ -36,4 +36,4 @@ model:
 
 train:
   epochs: 3000
-  eval_freq: 30 
+  eval_freq: 10 

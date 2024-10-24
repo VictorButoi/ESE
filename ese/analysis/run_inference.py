@@ -335,9 +335,9 @@ def standard_image_forward_loop(
                 if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
                     save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
 
-            # Increment the data counter.
-            inf_init_obj['data_counter'] += 1
-            raise ValueError("Stop here for now.")
+        raise ValueError("Stop here for now.")
+        # Increment the data counter.
+        inf_init_obj['data_counter'] += 1
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
