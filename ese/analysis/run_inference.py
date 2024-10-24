@@ -335,7 +335,6 @@ def standard_image_forward_loop(
                 if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
                     save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
 
-        raise ValueError("Stop here for now.")
         # Increment the data counter.
         inf_init_obj['data_counter'] += 1
 

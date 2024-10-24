@@ -1,5 +1,6 @@
 # Misc imports
 from pathlib import Path
+from pprint import pprint
 from pydantic import validate_arguments
 # Local imports
 from .parse_sweep import get_global_optimal_parameter
@@ -31,26 +32,19 @@ def load_benchmark_params(
                     }
                 }
             elif param == "temperature":
-                # exp_cfg_update = {
-                #     "experiment": {
-                #         "inf_kwargs": {
-                #             "temperature": [ 
-                #                 "(0.01, ..., 0.50, 0.025)",
-                #                 "(0.51, ..., 1.00, 0.025)", 
-                #                 "(1.01, ..., 1.25, 0.025)",
-                #                 "(1.26, ..., 1.50, 0.025)",
-                #                 "(1.51, ..., 2.00, 0.025)",
-                #                 "(2.01, ..., 2.50, 0.025)",
-                #                 "(2.51, ..., 2.75, 0.025)",
-                #                 "(2.76, ..., 3.00, 0.025)",
-                #             ]
-                #         }
-                #     }
-                # }
                 exp_cfg_update = {
                     "experiment": {
                         "inf_kwargs": {
-                            "temperature": "(0.01, ..., 10.01, 0.5)"
+                            "temperature": [ 
+                                "(0.01, ..., 0.50, 0.025)",
+                                "(0.51, ..., 1.00, 0.025)", 
+                                "(1.01, ..., 1.25, 0.025)",
+                                "(1.26, ..., 1.50, 0.025)",
+                                "(1.51, ..., 2.00, 0.025)",
+                                "(2.01, ..., 2.50, 0.025)",
+                                "(2.51, ..., 2.75, 0.025)",
+                                "(2.76, ..., 3.00, 0.025)",
+                            ]
                         }
                     }
                 }
@@ -88,7 +82,7 @@ def load_benchmark_params(
             # Get the rows correspondign to the base model.
             base_model_sweep_df = sweep_df[sweep_df['experiment_model_dir'] == base_model].copy()
             # Get the optimal parameter for the inference.
-            temp_opt_vals = get_global_optimal_parameter(
+            param_opt_vals = get_global_optimal_parameter(
                 base_model_sweep_df,
                 sweep_key=parsed_sweep_key, 
                 y_key=parsed_y_key,
@@ -96,7 +90,7 @@ def load_benchmark_params(
             )
             # Get the optimal parameter for the inference for the 
             # calibration split
-            cal_opt_param = temp_opt_vals[temp_opt_vals['split'] == 'cal'][parsed_sweep_key]
+            cal_opt_param = float(param_opt_vals[param_opt_vals['split'] == 'cal'][parsed_sweep_key].values[0])
             # Update with the optimal parameter for the inference.
             exp_cfg_update = {
                 "experiment": {
