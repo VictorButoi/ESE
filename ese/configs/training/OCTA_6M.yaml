@@ -5,12 +5,12 @@ data:
   label: 255 # Two options, 100 and 255 (center or vessels)
   version: 1.0 # Two options, 0.1 and 1.0 (128x128 or 400x400 res)
   label_threshold: 0.5 # The default is to train on hard labels.
-  iters_per_epoch: 1000 
+  iters_per_epoch: 100 
   preload: False 
 
 dataloader:
   batch_size: 4
-  num_workers: 1
+  num_workers: 4
 
 log:
   root: '?'

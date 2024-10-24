@@ -75,14 +75,10 @@ class CalibrationExperiment(TrainExperiment):
         if "in_channels" in data_config:
             model_config["in_channels"] = data_config.pop("in_channels")
             model_config["out_channels"] = data_config.pop("out_channels")
+
         # Set important things about the model.
         self.config = Config(total_config)
-
-        # TODO: BACKWARDS COMPATIBILITY STOPGAP
-        model_cfg = self.config["model"].to_dict()
-        model_cfg["_class"] = model_cfg["_class"].replace("ese.experiment", "ese")
-
-        self.model = eval_config(Config(model_cfg))
+        self.model = eval_config(self.config["model"])
         self.properties["num_params"] = num_params(self.model)
 
         # Put the model on the device here.
