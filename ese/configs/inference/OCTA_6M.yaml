@@ -8,11 +8,10 @@ log:
   track_label_amounts: True 
 
 inference_data:
-  split: '?'
   label: 255
   version: 1.0
   label_threshold: 0.5
-  return_gt_proportion: True
+  return_gt_proportion: False 
 
 dataloader:
     batch_size: 4

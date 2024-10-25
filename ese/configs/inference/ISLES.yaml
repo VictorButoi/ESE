@@ -8,9 +8,7 @@ log:
   track_label_amounts: True 
 
 inference_data:
-  split: '?'
   version: 1.0
-  return_gt_proportion: True
 
 global_calibration:
     num_classes: 1
