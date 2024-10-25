@@ -1,6 +1,12 @@
+experiment: 
+    inf_kwargs:
+        from_logits: True
+        threshold: 0.5 
+        temperature: 1.0
+
 dataloader:
-  batch_size: 4
-  num_workers: 1
+  batch_size: 2
+  num_workers: 2
 
 inference_data:
   hospital: Amsterdam
