@@ -12,7 +12,7 @@ from ionpy.util import dict_product
 from ionpy.util.config import check_missing
 # Local imports
 from .helpers import *
-from .benchmark import load_benchmark_params
+from .benchmark import add_sweep_options, load_sweep_optimal_params
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -153,8 +153,8 @@ def get_ese_inference_configs(
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
-    if sub_group != "":
-        exp_cfg = load_benchmark_params(
+    if "sweep" in sub_group.lower(): 
+        exp_cfg = add_sweep_options(
             exp_cfg, 
             determiner=sub_group,
             log_root=inference_log_root
@@ -252,9 +252,23 @@ def get_ese_inference_configs(
             **default_config_options
         })
 
+    # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
+    # SWEEPS FOR INFERENCE.
+    if sub_group != "":
+        optimal_exp_parameters = load_sweep_optimal_params(
+            determiner=sub_group,
+            log_root=inference_log_root
+        )
+    else:
+        optimal_exp_parameters = None
+    
     # Iterate over the different config options for this dataset. 
     for option_dict in dataset_cfgs:
         for cfg_update in dict_product(option_dict):
+            # If we have optimal_exp_parameters, then it is per model, so look at the 'experiment.model_dir' key.
+            if optimal_exp_parameters is not None:
+                cfg_update.update(optimal_exp_parameters[cfg_update['experiment.model_dir']])
+            # Update the base config with the new options.
             cfg = base_cfg.update([cfg_update])
             # Verify it's a valid config
             check_missing(cfg)
