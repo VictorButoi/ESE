@@ -321,7 +321,7 @@ def standard_image_forward_loop(
                 # VISUALIZING IMAGE PREDS #
                 ###########################
                 if inf_cfg_dict["log"].get("show_examples", False):
-                    show_inference_examples(output_dict)
+                    show_inference_examples(output_dict, threshold=inf_kwarg_setting_dict.get("threshold", 0.5))
 
                 # Get the calibration item info.  
                 gather_output_dict_stats(

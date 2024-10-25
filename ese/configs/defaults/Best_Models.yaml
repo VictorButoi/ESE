@@ -1,0 +1,7 @@
+OCTA:
+     - "/storage/vbutoi/scratch/ESE/training/August_2024/08_07_24_OCTA_FULLRES_SoftDice/20240807_144440-P7H9-459da42e97888bccb0aa79c297f388cd"
+     - "/storage/vbutoi/scratch/ESE/training/August_2024/08_07_24_OCTA_FULLRES_CrossEntropy/20240807_144627-M576-c3a81247e7e30c6bf47c72748764a898"
+
+ISLES:
+     - "/storage/vbutoi/scratch/ESE/training/September_2024/09_25_24_ISLES_3D_Dice_HeavyAug/20240925_234556-HGRQ-56cd3bf7df7a1b7d2a453b296d64407d"
+     - "/storage/vbutoi/scratch/ESE/training/10_15_24_ISLES_3D_CrossEntropy_HeavyAug_1e-4/20241015_161852-SSRM-0ec64af61add5b3a5814fd73a2edd4ff"

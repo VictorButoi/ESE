@@ -159,9 +159,18 @@ def get_ese_inference_configs(
             determiner=sub_group
         )
 
+    # In our general inference sheme, often we want to use the best models corresponding to a dataset
+    eval_dataset = exp_cfg.pop('evaluate_dataset', None)
+    if eval_dataset is not None:
+        # Load the default best models, and update the exp config with those as the base models.
+        with open(code_root / "ese" / "configs" / "defaults" / "Best_Models.yaml", 'r') as file:
+            best_models_cfg = yaml.safe_load(file)
+        # Update the exp_cfg with the best models.
+        exp_cfg['base_model'] = best_models_cfg[eval_dataset]
+    
+    # Flatten the config.
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
     inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
-
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key, val in flat_exp_cfg_dict.items():
         if isinstance(val, tuple):
