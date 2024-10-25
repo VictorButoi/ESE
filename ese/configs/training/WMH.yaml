@@ -4,7 +4,7 @@ data:
   annotator: annotator_o12
   in_channels: 1
   out_channels: 1 
-  version: 0.2
+  version: 1.0
   iters_per_epoch: 100 
   preload: False # Important, 3D volumes super expensive to move to GPU
 

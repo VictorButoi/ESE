@@ -12,10 +12,9 @@ def add_sweep_options(
     experiment_cfg: dict, 
     determiner: str,
 ):
-    _, parameters = determiner.split("_")[0], determiner.split("_")[1]
+    _, param = determiner.split("_")[0], determiner.split("_")[1]
     # If we are doing a  sweep then we just have a single parameter instead of a val func.
-    param = parameters[0].lower()
-    if param == "threshold":
+    if param.lower() == "threshold":
         exp_cfg_update = {
             "experiment": {
                 "inf_kwargs": {
@@ -28,7 +27,7 @@ def add_sweep_options(
                 }
             }
         }
-    elif param == "temperature":
+    elif param.lower() == "temperature":
         exp_cfg_update = {
             "experiment": {
                 "inf_kwargs": {

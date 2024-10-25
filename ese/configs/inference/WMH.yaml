@@ -1,18 +1,12 @@
-experiment:
-  slices_per_fp: 5
-
 dataloader:
-  batch_size: 2
+  batch_size: 4
   num_workers: 1
 
 inference_data:
-  input_type: volume
-  slicing: full 
-  num_slices: 1
-  annotator: '?'
-  split: '?'
-  task: '?' 
-
+  hospital: Amsterdam
+  annotator: annotator_o12
+  version: 1.0
+  
 global_calibration:
     num_classes: 1
 

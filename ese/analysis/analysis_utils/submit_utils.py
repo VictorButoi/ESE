@@ -156,8 +156,7 @@ def get_ese_inference_configs(
     if "sweep" in sub_group.lower(): 
         exp_cfg = add_sweep_options(
             exp_cfg, 
-            determiner=sub_group,
-            log_root=inference_log_root
+            determiner=sub_group
         )
 
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
@@ -254,7 +253,7 @@ def get_ese_inference_configs(
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
-    if sub_group != "":
+    if "optimal" in sub_group.lower(): 
         optimal_exp_parameters = load_sweep_optimal_params(
             determiner=sub_group,
             log_root=inference_log_root
