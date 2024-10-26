@@ -30,30 +30,39 @@ def get_per_subject_optimal_values(
     raw_data: pd.DataFrame, 
     sweep_key: str, 
     y_key: str,
-    group_keys: Optional[List[str]] = None
+    group_keys: Optional[List[str]] = None,
+    keep_keys: Optional[List[str]] = None,
+    return_optimal_values: bool = False
 ) -> pd.DataFrame:
-    # Filter out the columns we want to keep which essentially boils down to the group keys, the sweep key, the y key and the data_id.
-    cols_to_keep = group_keys + [sweep_key, y_key, 'data_id']
-    data = raw_data[cols_to_keep].drop_duplicates().reset_index(drop=True)
-
     # We want to figure out what is the best achievable average loss IF we used optimal thresholds per subject
     sub_cols_to_keep = [
         sweep_key,
         y_key,
         'data_id',
     ]
+    # Additional features we want to track.
+    if keep_keys is not None:
+        sub_cols_to_keep += keep_keys
+    # Group keys are necessary for gettting opt temperatures
     if group_keys is not None:
         sub_cols_to_keep += group_keys
+    else:
+        group_keys = []
     # Filter out the columns we want to keep
-    reduced_data_df = data[sub_cols_to_keep].drop_duplicates().reset_index(drop=True)
+    reduced_data_df = raw_data[sub_cols_to_keep].drop_duplicates().reset_index(drop=True)
     # Get the optimal temperature for each data_id
-    optimal_df = reduced_data_df.loc[reduced_data_df.groupby('data_id')[y_key].idxmin()].reset_index(drop=True)
+    optimal_df = reduced_data_df.loc[reduced_data_df.groupby(group_keys + ['data_id'])[y_key].idxmin()].reset_index(drop=True)
     # We want, per split, to get the average loss if we used the optimal temperature for each subject
     if group_keys is not None:
-        optimal_df = optimal_df.groupby(group_keys)
+        grouped_opt_df = optimal_df.groupby(group_keys)
+    else:
+        grouped_opt_df = optimal_df
     # Mean across all the groups
-    opt_values_df = optimal_df.agg({y_key: 'mean'}).reset_index()
-    # Return the best values
-    return opt_values_df 
+    opt_values_df = grouped_opt_df.agg({y_key: 'mean'}).reset_index()
+    if return_optimal_values:
+        return opt_values_df, optimal_df
+    else:
+        # Return only the best values
+        return opt_values_df 
 
 
