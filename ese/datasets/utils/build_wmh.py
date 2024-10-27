@@ -28,13 +28,21 @@ def thunderify_WMH(
     # Iterate through each datacenter, axis  and build it as a task
     for hospital in config["hospitals"]:
 
-        hosp_dst_path = general_dst_dir / hospital
+        thunder_dst_path = general_dst_dir / hospital
         # Get the paths to the subjects and where we put the dataset object.
-        hosp_subj_path = raw_root / hospital
+        if hospital == 'Combined':
+            hosp_subj_paths = [
+                raw_root / 'Amsterdam',
+                raw_root / 'Singapore',
+                raw_root / 'Utrecht'
+            ]
+        else:
+            hosp_subj_paths = [raw_root / hospital]
 
         for annotator in config["annotators"]:
 
-            annotator_dst_path = hosp_dst_path / annotator
+            # Get the paths to the subjects and where we put the dataset object.
+            annotator_dst_path = thunder_dst_path / annotator
 
             # IF hospital_dst_path does not exist then we need to create it.
             if not os.path.exists(annotator_dst_path):
@@ -46,23 +54,28 @@ def thunderify_WMH(
                 # Iterate through the examples.
                 # Key track of the ids
                 subjects = [] 
-                subj_list = list(os.listdir(hosp_subj_path))
-                for subj_name in tqdm(subj_list, total=len(subj_list)):
+                all_subjects_list = []
+                for path in hosp_subj_paths:
+                    if path.is_dir():
+                        all_subjects_list.extend(list(path.iterdir()))
+
+                # Iteratre through the subject dirs.
+                for subj_path_dir in tqdm(all_subjects_list, total=len(all_subjects_list)):
 
                     # Paths to the image and segmentation
                     if 'cropped' in config["proc_root"]:
-                        img_dir = hosp_subj_path / subj_name / 'FLAIR_cropped.nii.gz'
+                        img_dir = subj_path_dir / 'FLAIR_cropped.nii.gz'
                         if annotator == 'multi_annotator':
                             # Get all of the files that end with _mask_cropped.nii.gz
-                            seg_dir_list = (hosp_subj_path / subj_name).glob('*_mask_cropped.nii.gz')
+                            seg_dir_list = subj_path_dir.glob('*_mask_cropped.nii.gz')
                         else:
-                            seg_dir_list = [hosp_subj_path / subj_name / f'{annotator}_mask_cropped.nii.gz']
+                            seg_dir_list = [subj_path_dir / f'{annotator}_mask_cropped.nii.gz']
                     else:
-                        img_dir = hosp_subj_path / subj_name / 'FLAIR.nii.gz'
+                        img_dir = subj_path_dir / 'FLAIR.nii.gz'
                         if annotator == 'multi_annotator':
-                            seg_dir_list = (hosp_subj_path / subj_name).glob('*_mask.nii.gz')
+                            seg_dir_list = subj_path_dir.glob('*_mask.nii.gz')
                         else:
-                            seg_dir_list = [hosp_subj_path / subj_name / f'{annotator}_mask.nii.gz']
+                            seg_dir_list = [subj_path_dir / f'{annotator}_mask.nii.gz']
 
                     # Load the volumes using voxel
                     raw_img_vol = vx.load_volume(img_dir)
@@ -104,8 +117,9 @@ def thunderify_WMH(
                             if config.get('show_examples', False):
                                 vis_3D_subject(normalized_img_arr, seg_vol_arr)
 
-                            # We actually can have a distinction between samples and subjects!!
-                            # Splits are done at the subject level, so we need to keep track of the subjects.
+                            # The subject name is the name of the second to last + last directory
+                            subj_name = subj_path_dir.parts[-2] + '_' + subj_path_dir.parts[-1]
+
                             db[subj_name] = {
                                 "img": normalized_img_arr, 
                                 "seg": seg_vol_arr,
