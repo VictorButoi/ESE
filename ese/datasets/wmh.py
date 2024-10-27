@@ -15,7 +15,7 @@ from ionpy.util.validation import validate_arguments_init
 class WMH(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
-    hospital: Literal['Amsterdam', 'Singapore', 'Utrecht']
+    hospital: Literal['Amsterdam', 'Singapore', 'Utrecht', 'Combined']
     annotator: str
     target: Literal['seg', 'temp', 'volume'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0
