@@ -1,6 +1,24 @@
 # Misc imports
+import math
+import numpy as np
 import pandas as pd
-from typing import Optional
+import matplotlib.pyplot as plt
+from typing import Optional, List
+# Models and evaluation
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.svm import SVR
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error, r2_score
+# Import additional regression models
+from sklearn.linear_model import Ridge, Lasso, ElasticNet, HuberRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.ensemble import GradientBoostingRegressor, AdaBoostRegressor, ExtraTreesRegressor
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.neural_network import MLPRegressor
+
 # Local imports
 from .analyze_inf import load_cal_inference_stats
 from .analysis_utils.parse_sweep import get_global_optimal_parameter 
@@ -125,3 +143,102 @@ def get_baseline_values(y_key, baselines_dict):
     return pd.concat(method_dfs)
     
 
+def fit_posthoc_calibrators(
+    data_df,
+    train_split: str,
+    val_split: str,
+    x_feats: List[str],
+    global_opt_temp: Optional[float] = None,
+):
+    # Assert that the number of rows in the dataframe is equal to the number of uniuqe
+    # subjects, otherwise we have a problem.
+    assert data_df['data_id'].nunique() == data_df.shape[0], "Dataframe has duplicate data ids"
+
+    # Split the data into training and validation sets based on 'split' column
+    df_train = data_df[data_df['split'] == train_split]
+    df_val = data_df[data_df['split'] == val_split]
+
+    X_train = df_train[x_feats]
+    X_val = df_val[x_feats]
+
+    # Prepare the features (X) and target (y)
+    y_train = df_train['temperature']
+    y_val = df_val['temperature']
+
+    # Define the models to test, including additional regressors
+    models = {
+        'Linear Regression': LinearRegression(),
+        'Ridge Regression': Ridge(),
+        'Lasso Regression': Lasso(),
+        'ElasticNet Regression': ElasticNet(),
+        'Kernel Ridge Regression': KernelRidge(),
+        'Huber Regressor': HuberRegressor(),
+        'Polynomial Regression (degree=2)': make_pipeline(PolynomialFeatures(degree=2), LinearRegression()),
+        'Polynomial Regression (degree=3)': make_pipeline(PolynomialFeatures(degree=3), LinearRegression()),
+        'K-Nearest Neighbors': KNeighborsRegressor(),
+        'Decision Tree': DecisionTreeRegressor(random_state=42),
+        'Random Forest': RandomForestRegressor(random_state=42),
+        'Extra Trees Regressor': ExtraTreesRegressor(random_state=42),
+        'Gradient Boosting Regressor': GradientBoostingRegressor(random_state=42),
+        'AdaBoost Regressor': AdaBoostRegressor(random_state=42),
+        'Support Vector Regression': SVR(),
+        'MLP Regressor': MLPRegressor(random_state=42, max_iter=1000),
+    }
+
+    # Dictionary to store the results
+    results = {}
+
+    # Train and evaluate each model
+    for name, model in models.items():
+        # Fit the model
+        model.fit(X_train, y_train)
+        # Predict on validation set
+        y_pred = model.predict(X_val)
+        # Evaluate
+        mse = mean_squared_error(y_val, y_pred)
+        r2 = r2_score(y_val, y_pred)
+        # Store the results
+        results[name] = {'MSE': mse, 'R2 Score': r2}
+
+    # If we have a global optimal temperature, we can evaluate that as well
+    if global_opt_temp is not None:
+        # Make the y_pred by repeating the global temperature for each validation sample
+        y_pred_global_temp = np.repeat(global_opt_temp, len(y_val))
+        # Evaluate
+        mse = mean_squared_error(y_val, y_pred_global_temp)
+        r2 = r2_score(y_val, y_pred_global_temp)
+        # Store the results
+        results['Global Optimal Temperature'] = {'MSE': mse, 'R2 Score': r2}
+    
+    return results
+
+
+def viz_posthoc_calibrators(models_dict, X_val, y_val, global_temp = None):
+    # Determine the layout of the subplot grid
+    num_models = len(models_dict)
+    cols = 2  # Reduce the number of columns for larger subplots
+    rows = math.ceil(num_models / cols)  # Calculate the number of rows needed
+
+    # Increase the figure size for larger subplots
+    fig, axs = plt.subplots(rows, cols, figsize=(cols * 8, rows * 6))
+    axs = axs.flatten()  # Flatten the array of axes for easy iteration
+
+    # Plot each model's predictions in a subplot
+    for idx, (name, model) in enumerate(models_dict.items()):
+        y_pred = model.predict(X_val)
+        axs[idx].scatter(X_val, y_val, color='black', label='Actual Validation Data')
+        axs[idx].scatter(X_val, y_pred, color='blue', label='Predicted Data')
+        # Place a horizontal line at the global optimal temperature
+        if global_temp is not None:
+            axs[idx].axhline(global_temp, color='red', linestyle='--', label='Global Optimal Temperature')
+        axs[idx].set_title(f"{name}")
+        axs[idx].set_xlabel('Hard Volume')
+        axs[idx].set_ylabel('Temperature')
+        axs[idx].legend()
+
+    # Hide any unused subplots if the grid is larger than the number of models
+    for idx in range(num_models, len(axs)):
+        fig.delaxes(axs[idx])
+
+    plt.tight_layout()
+    plt.show()
