@@ -7,9 +7,6 @@ experiment:
 log:
   track_label_amounts: True 
 
-inference_data:
-  version: 1.0
-
 global_calibration:
     num_classes: 1
 

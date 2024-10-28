@@ -8,11 +8,6 @@ dataloader:
   batch_size: 2
   num_workers: 2
 
-inference_data:
-  hospital: Amsterdam
-  annotator: annotator_o12
-  version: 1.0
-  
 global_calibration:
     num_classes: 1
 

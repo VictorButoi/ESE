@@ -16,6 +16,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.linear_model import Ridge, Lasso, ElasticNet, HuberRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import GradientBoostingRegressor, AdaBoostRegressor, ExtraTreesRegressor
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.neural_network import MLPRegressor
 
@@ -144,61 +145,47 @@ def get_baseline_values(y_key, baselines_dict):
     
 
 def fit_posthoc_calibrators(
-    data_df,
-    train_split: str,
-    val_split: str,
-    x_feats: List[str],
+    X_train,
+    y_train,
+    X_val,
+    y_val,
     global_opt_temp: Optional[float] = None,
 ):
-    # Assert that the number of rows in the dataframe is equal to the number of uniuqe
-    # subjects, otherwise we have a problem.
-    assert data_df['data_id'].nunique() == data_df.shape[0], "Dataframe has duplicate data ids"
-
-    # Split the data into training and validation sets based on 'split' column
-    df_train = data_df[data_df['split'] == train_split]
-    df_val = data_df[data_df['split'] == val_split]
-
-    X_train = df_train[x_feats]
-    X_val = df_val[x_feats]
-
-    # Prepare the features (X) and target (y)
-    y_train = df_train['temperature']
-    y_val = df_val['temperature']
+    # Feature Scaling (if needed)
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_val_scaled = scaler.transform(X_val)
 
     # Define the models to test, including additional regressors
     models = {
         'Linear Regression': LinearRegression(),
         'Ridge Regression': Ridge(),
         'Lasso Regression': Lasso(),
-        'ElasticNet Regression': ElasticNet(),
-        'Kernel Ridge Regression': KernelRidge(),
-        'Huber Regressor': HuberRegressor(),
-        'Polynomial Regression (degree=2)': make_pipeline(PolynomialFeatures(degree=2), LinearRegression()),
-        'Polynomial Regression (degree=3)': make_pipeline(PolynomialFeatures(degree=3), LinearRegression()),
         'K-Nearest Neighbors': KNeighborsRegressor(),
-        'Decision Tree': DecisionTreeRegressor(random_state=42),
-        'Random Forest': RandomForestRegressor(random_state=42),
-        'Extra Trees Regressor': ExtraTreesRegressor(random_state=42),
-        'Gradient Boosting Regressor': GradientBoostingRegressor(random_state=42),
-        'AdaBoost Regressor': AdaBoostRegressor(random_state=42),
         'Support Vector Regression': SVR(),
         'MLP Regressor': MLPRegressor(random_state=42, max_iter=1000),
     }
+    fitted_models = {}
 
     # Dictionary to store the results
     results = {}
 
     # Train and evaluate each model
     for name, model in models.items():
-        # Fit the model
-        model.fit(X_train, y_train)
-        # Predict on validation set
-        y_pred = model.predict(X_val)
-        # Evaluate
-        mse = mean_squared_error(y_val, y_pred)
-        r2 = r2_score(y_val, y_pred)
-        # Store the results
-        results[name] = {'MSE': mse, 'R2 Score': r2}
+        try:
+            if name in ['Support Vector Regression', 'K-Nearest Neighbors', 'MLP Regressor']:
+                # Use scaled data
+                model.fit(X_train_scaled, y_train)
+                y_pred = model.predict(X_val_scaled)
+            else:
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_val)
+            mse = mean_squared_error(y_val, y_pred)
+            r2 = r2_score(y_val, y_pred)
+            fitted_models[name] = model
+            results[name] = {'MSE': mse, 'R2 Score': r2}
+        except Exception as e:
+            print(f"Model {name} failed to train. Error: {e}")
 
     # If we have a global optimal temperature, we can evaluate that as well
     if global_opt_temp is not None:
@@ -210,10 +197,16 @@ def fit_posthoc_calibrators(
         # Store the results
         results['Global Optimal Temperature'] = {'MSE': mse, 'R2 Score': r2}
     
-    return results
+    return results, fitted_models 
 
 
-def viz_posthoc_calibrators(models_dict, X_val, y_val, global_temp = None):
+def viz_posthoc_calibrators(
+    models_dict, 
+    X_data, 
+    y_data, 
+    global_temp = None
+):
+
     # Determine the layout of the subplot grid
     num_models = len(models_dict)
     cols = 2  # Reduce the number of columns for larger subplots
@@ -225,9 +218,9 @@ def viz_posthoc_calibrators(models_dict, X_val, y_val, global_temp = None):
 
     # Plot each model's predictions in a subplot
     for idx, (name, model) in enumerate(models_dict.items()):
-        y_pred = model.predict(X_val)
-        axs[idx].scatter(X_val, y_val, color='black', label='Actual Validation Data')
-        axs[idx].scatter(X_val, y_pred, color='blue', label='Predicted Data')
+        y_pred = model.predict(X_data)
+        axs[idx].scatter(X_data, y_data, color='black', label='Actual Validation Data')
+        axs[idx].scatter(X_data, y_pred, color='blue', label='Predicted Data')
         # Place a horizontal line at the global optimal temperature
         if global_temp is not None:
             axs[idx].axhline(global_temp, color='red', linestyle='--', label='Global Optimal Temperature')
