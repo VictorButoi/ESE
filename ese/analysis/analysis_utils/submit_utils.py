@@ -203,7 +203,6 @@ def get_ese_inference_configs(
 
     # Gather the different config options.
     cfg_opt_keys = list(flat_exp_cfg_dict.keys())
-
     #First going through and making sure each option is a list and then using itertools.product.
     for ico_key in flat_exp_cfg_dict:
         if not isinstance(flat_exp_cfg_dict[ico_key], list):
@@ -215,26 +214,15 @@ def get_ese_inference_configs(
     # Convert product tuples to dictionaries
     total_run_cfg_options = [{cfg_opt_keys[i]: [item[i]] for i in range(len(cfg_opt_keys))} for item in product_tuples]
 
-    # Keep a list of all the run configuration options.
-    cfgs = []
-
     # Define the set of default config options.
     default_config_options = {
         'experiment.exp_name': [exp_name],
         'experiment.exp_root': [str(inference_log_root)],
     }
-
-    inf_dset_name = None
-    # If datasets is not a list, make it a list.
-    if inference_dataset is not None:
-        inf_dset_name = inference_dataset.split(".")[-1]
-        base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
-
     # Accumulate a set of config options for each dataset
     dataset_cfgs = []
     # Iterate through all of our inference options.
     for run_opt_dict in total_run_cfg_options: 
-
         # One required key is 'base_model'. We need to know if it is a single model or a group of models.
         # We evaluate this by seeing if 'submitit' is in the base model path.
         base_model_group_dir = Path(run_opt_dict.pop('base_model')[0])
@@ -242,18 +230,9 @@ def get_ese_inference_configs(
             model_set  = gather_exp_paths(str(base_model_group_dir)) 
         else:
             model_set = [str(base_model_group_dir)]
-
-        # If inference_dataset is still None, we need to get it from the model config.
-        # NOTE: that we don't support multiple datasets for inference, it will be the same for all models.
-        if inference_dataset is None:
-            parsed_inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_set)
-            base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
-
         # Append these to the list of configs and roots.
         dataset_cfgs.append({
             'log.root': [str(inference_log_root)],
-            'inference_data._class': [inference_dataset],
-            'experiment.inf_dataset_name': [inf_dset_name],
             'experiment.model_dir': model_set,
             **run_opt_dict,
             **default_config_options
@@ -269,19 +248,23 @@ def get_ese_inference_configs(
     else:
         optimal_exp_parameters = None
     
+    # Keep a list of all the run configuration options.
+    cfgs = []
     # Iterate over the different config options for this dataset. 
     for option_dict in dataset_cfgs:
-        for cfg_update in dict_product(option_dict):
-            # We need to update the cfg_update with the dataset options. This has to be done very carefully because
-            # 
-
-
-
+        for exp_cfg_update in dict_product(option_dict):
+            # Add the inference dataset specific details.
+            dataset_inf_cfg_dict = get_inference_dset_info(
+                exp_cfg_update['experiment.model_dir'],
+                code_root=code_root
+            )
             # If we have optimal_exp_parameters, then it is per model, so look at the 'experiment.model_dir' key.
             if optimal_exp_parameters is not None:
-                cfg_update.update(optimal_exp_parameters[cfg_update['experiment.model_dir']])
-            # Update the base config with the new options.
-            cfg = base_cfg.update([cfg_update])
+                exp_cfg_update.update(optimal_exp_parameters[exp_cfg_update['experiment.model_dir']])
+            
+            # Update the base config with the new options. Note the order is important here, such that 
+            # the exp_cfg_update is the last thing to update.
+            cfg = base_cfg.update([dataset_inf_cfg_dict, exp_cfg_update])
             # Verify it's a valid config
             check_missing(cfg)
             # Add it to the total list of inference options.

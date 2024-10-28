@@ -148,18 +148,6 @@ def log_exp_config_objs(
     autosave(exp_cfg, exp_root / "experiment.yml") # SAVE #1: Experiment config
 
 
-def get_inf_dset_from_model_group(model_group):
-    mod_dir = model_group[0] # Always choose the first model in the group.
-    # We need to load the model config to get the dataset.
-    model_cfg = yaml.safe_load(open(f"{mod_dir}/config.yml", "r"))
-    # Get the dataset name.
-    inf_dset_cls_name = model_cfg["data"]["_class"]
-    # Parse the inference dataset name as the last part of the class name.
-    inf_dset_name = inf_dset_cls_name.split(".")[-1]
-    # Return the inference dataset class and the name.
-    return inf_dset_cls_name, inf_dset_name
-
-
 def add_dset_presets(
     mode: Literal["training", "calibrate", "inference"],
     inf_dset_name, 
@@ -185,3 +173,46 @@ def get_range_from_str(val):
     arg_vals = np.arange(float(range_args[0]), float(range_args[2]), float(range_args[3]))
     # Finally stick this back in as a string tuple version.
     return str(tuple(arg_vals))
+
+
+def get_inference_dset_info(
+    model_dir,
+    code_root
+):
+    # Total model config
+    model_cfg = yaml.safe_load(open(f"{model_dir}/config.yml", "r"))
+
+    # Get the data config from the model config.
+    data_cfg = model_cfg["data"]
+    # We need to remove a few keys that are not needed for inference.
+    drop_keys = [
+        "iters_per_epoch",
+        "train_kwargs",
+        "val_kwargs",
+    ]
+    for d_key in drop_keys:
+        if d_key in data_cfg:
+            data_cfg.pop(d_key)
+
+    # Get the dataset name, and load the base inference dataset config for that.
+    inf_dset_name = data_cfg['_class'].split(".")[-1]
+    # Add the dataset specific details.
+    inf_dset_cfg_file = code_root / "ese" / "configs" / "inference" / f"{inf_dset_name}.yaml"
+    if inf_dset_cfg_file.exists():
+        with open(inf_dset_cfg_file, 'r') as d_file:
+            base_inf_cfg_dict = yaml.safe_load(d_file)
+    else:
+        base_inf_cfg_dict = {}
+    # Assert that 'version' is not defined in the base_inf_dataset_cfg, this is not allowed behavior.
+    assert 'version' not in base_inf_cfg_dict.get("inference_data", {}), "Version should not be defined in the base inference dataset config."
+
+    # We need to modify the inference dataset config to include the data_cfg.
+    base_inf_dset_cfg = base_inf_cfg_dict.get("inference_data", {})
+    # Now we update the trained model config with the inference dataset config.
+    new_inf_dset_cfg = data_cfg.copy()
+    new_inf_dset_cfg.update(base_inf_dset_cfg)
+    # And we put the updated data_cfg back into the inf_cfg_dict.
+    base_inf_cfg_dict["inference_data"] = new_inf_dset_cfg
+
+    # Return the data_cfg and the base_inf_dataset_cfg
+    return base_inf_cfg_dict

@@ -9,6 +9,9 @@ experiment:
                 height: 500 
                 width: 500
 
+inference_data:
+  split: ("cal", "val")
+
 dataloader:
     batch_size: 8 
     num_workers: 3 

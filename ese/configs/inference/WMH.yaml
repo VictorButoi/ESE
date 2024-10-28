@@ -8,6 +8,10 @@ dataloader:
   batch_size: 2
   num_workers: 2
 
+inference_data:
+  split: ("cal", "val")
+
+
 global_calibration:
     num_classes: 1
 

@@ -3,7 +3,8 @@ log:
   min_fg_pixels: 0
 
 inference_data:
-  input_type: image 
+    input_type: image 
+    split: ("cal", "val")
 
 global_calibration:
     num_classes: 19

@@ -11,6 +11,7 @@ inference_data:
   label: 255
   label_threshold: 0.5
   return_gt_proportion: False 
+  split: ("cal", "val")
 
 dataloader:
     batch_size: 4

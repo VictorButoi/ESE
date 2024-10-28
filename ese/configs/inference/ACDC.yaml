@@ -5,7 +5,7 @@ inference_data:
   input_type: image 
   return_gt_proportion: True
   label_threshold: 0.5
-  split: '?'
+  split: ("cal", "val")
 
 global_calibration:
     num_classes: 1

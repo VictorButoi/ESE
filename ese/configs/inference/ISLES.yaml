@@ -10,6 +10,9 @@ log:
 global_calibration:
     num_classes: 1
 
+inference_data:
+  split: ("cal", "val")
+
 qual_metrics:
     - Dice:
         _fn: ese.metrics.dice_score
