@@ -5,7 +5,6 @@ inference_data:
   split: '?'
   resolution: 256
   input_type: image 
-  version: "v4.2"
   label: 0
 
 global_calibration:

@@ -9,7 +9,6 @@ log:
 
 inference_data:
   label: 255
-  version: 1.0
   label_threshold: 0.5
   return_gt_proportion: False 
 

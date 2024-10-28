@@ -170,7 +170,6 @@ def get_ese_inference_configs(
     
     # Flatten the config.
     flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
-    inference_dataset = flat_exp_cfg_dict.pop('inference_data._class', None)
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key, val in flat_exp_cfg_dict.items():
         if isinstance(val, tuple):
@@ -247,7 +246,7 @@ def get_ese_inference_configs(
         # If inference_dataset is still None, we need to get it from the model config.
         # NOTE: that we don't support multiple datasets for inference, it will be the same for all models.
         if inference_dataset is None:
-            inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_set)
+            parsed_inference_dataset, inf_dset_name = get_inf_dset_from_model_group(model_set)
             base_cfg = add_dset_presets("inference", inf_dset_name, base_cfg, code_root)
 
         # Append these to the list of configs and roots.
@@ -273,6 +272,11 @@ def get_ese_inference_configs(
     # Iterate over the different config options for this dataset. 
     for option_dict in dataset_cfgs:
         for cfg_update in dict_product(option_dict):
+            # We need to update the cfg_update with the dataset options. This has to be done very carefully because
+            # 
+
+
+
             # If we have optimal_exp_parameters, then it is per model, so look at the 'experiment.model_dir' key.
             if optimal_exp_parameters is not None:
                 cfg_update.update(optimal_exp_parameters[cfg_update['experiment.model_dir']])
