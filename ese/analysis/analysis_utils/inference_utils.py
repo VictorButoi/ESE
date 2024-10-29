@@ -380,26 +380,11 @@ def soft_RAVE(soft_volume, gt_volume):
 def hard_RAVE(hard_volume, gt_volume):
     return np.abs(hard_volume - gt_volume) / gt_volume
 
-def soft_log_abs_area_estimation_error(soft_abs_area_estimation_error):
-    if soft_abs_area_estimation_error == 0:
-        return -2
-    log_soft_err = np.log(soft_abs_area_estimation_error)
-    # if the error is negative infinity, we will return -2.
-    if log_soft_err == -np.inf:
-        return -2
-    else:
-        return log_soft_err
+def log_soft_RAVE(soft_RAVE):
+    return np.log(soft_RAVE + 0.01)
 
-def hard_log_abs_area_estimation_error(hard_abs_area_estimation_error):
-    if hard_abs_area_estimation_error == 0:
-        return -2
-    log_soft_err = np.log(hard_abs_area_estimation_error)
-    # if the error is negative infinity, we will return -2.
-    if log_soft_err == -np.inf:
-        return -2
-    else:
-        return log_soft_err
-
+def log_hard_RAVE(hard_RAVE):
+    return np.abs(hard_RAVE + 0.01)
 
 def add_vol_error_keys(inference_df):
     # Base Metrics
@@ -409,5 +394,6 @@ def add_vol_error_keys(inference_df):
     inference_df.augment(soft_RAVE)
     inference_df.augment(hard_RAVE)
     # Log Metrics
-    inference_df.augment(soft_log_abs_area_estimation_error)
-    inference_df.augment(hard_log_abs_area_estimation_error)
+    # RAVE
+    inference_df.augment(log_soft_RAVE)
+    inference_df.augment(log_hard_RAVE)

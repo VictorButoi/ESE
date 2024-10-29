@@ -14,7 +14,7 @@ inference_data:
   split: ("cal", "val")
 
 dataloader:
-    batch_size: 4
+    batch_size: 8
     num_workers: 3
 
 global_calibration:

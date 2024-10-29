@@ -8,6 +8,7 @@ from typing import Optional, List
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import RANSACRegressor
 from sklearn.svm import SVR
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
@@ -162,6 +163,7 @@ def fit_posthoc_calibrators(
         'Ridge Regression': Ridge(),
         'Lasso Regression': Lasso(),
         'K-Nearest Neighbors': KNeighborsRegressor(),
+        'RANSAC Regression': RANSACRegressor(),
         'Support Vector Regression': SVR(),
         'MLP Regressor': MLPRegressor(random_state=42, max_iter=1000),
     }

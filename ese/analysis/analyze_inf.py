@@ -263,6 +263,11 @@ def load_cal_inference_stats(
         inference_df = pd.concat([inference_df, pd.DataFrame(new_columns)], axis=1)
         inference_df.drop(columns=[col for col in inference_df.columns if col in old_raw_keys], inplace=True)
 
+        def dataset(inference_data_class):
+            return inference_data_class.split('.')[-1]
+
+        inference_df.augment(dataset)
+
         # For this project specifically, there are some keys we basically always want to add.
         if results_cfg["options"].get("add_volume_error_keys", True):
             add_vol_error_keys(inference_df)
