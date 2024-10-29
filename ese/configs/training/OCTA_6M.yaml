@@ -5,7 +5,6 @@ data:
   label: 255 # Two options, 100 and 255 (center or vessels)
   version: 1.0 # Two options, 0.1 and 1.0 (128x128 or 400x400 res)
   label_threshold: 0.5 # The default is to train on hard labels.
-  iters_per_epoch: 100 
   preload: False 
 
 dataloader:
@@ -14,42 +13,18 @@ dataloader:
 
 log:
   root: '?'
-  checkpoint_freq: 20 
+  checkpoint_freq: 10 
   metrics:
     dice_score:
       _fn: ionpy.metrics.dice_score
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
       from_logits: True
-    ece_loss:
-      _fn: ese.metrics.image_ece_loss
-      num_prob_bins: 15
-      from_logits: True
-    edge_ece_loss:
-      _fn: ese.metrics.image_edge_ece_loss
-      num_prob_bins: 15
-      neighborhood_width: 3
-      from_logits: True
 
 model:
-  filters: [64, 64, 64, 64, 64, 64, 64]
+  filters: [64, 64, 64, 64, 64, 64]
   convs_per_block: 3
 
 train:
-  epochs: 50
-  eval_freq: 5 
-
-
-
-# Good aug for 128 x 128
-# # Stndard segmentation data augmentation.
-# augmentations:
-#     train:
-#         - albumentations.ElasticTransform:
-#             alpha: 100 
-#             sigma: 7 
-#             alpha_affine: 0 
-#             p: 0.5
-#             always_apply: True
-#         - albumentations.Flip:
-#             p: 0.5
+  epochs: 3000
+  eval_freq: 10 
