@@ -145,8 +145,9 @@ def get_ese_inference_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
+    group = exp_cfg.pop('group')
     sub_group = exp_cfg.pop('subgroup', "")
-    exp_name = f"{exp_cfg.pop('group')}/{sub_group}"
+    exp_name = f"{group}/{sub_group}"
 
     # Get the root for the inference experiments.
     inference_log_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
@@ -160,7 +161,7 @@ def get_ese_inference_configs(
         )
 
     # In our general inference sheme, often we want to use the best models corresponding to a dataset
-    eval_dataset = exp_cfg.pop('evaluate_dataset', None)
+    eval_dataset = group.split('_')[3] # Group format is like MM_DD_YY_Dataset
     if eval_dataset is not None:
         # Load the default best models, and update the exp config with those as the base models.
         with open(code_root / "ese" / "configs" / "defaults" / "Best_Models.yaml", 'r') as file:

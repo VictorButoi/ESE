@@ -16,9 +16,8 @@ from ionpy.util.validation import validate_arguments_init
 class OCTA_6M(ThunderDataset, DatapathMixin):
 
     split: Literal["train", "cal", "val", "test"]
+    version: float
     target: Literal['seg', 'volume', 'proportion'] = 'seg'
-    label: Literal[100, 255] = 255
-    version: float = 1.0
     preload: bool = False
     return_data_id: bool = False
     return_gt_proportion: bool = False
@@ -26,6 +25,7 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
     num_examples: Optional[int] = None
     iters_per_epoch: Optional[Any] = None
     label_threshold: Optional[float] = None
+    label: Optional[Literal[100, 255]] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -50,7 +50,9 @@ class OCTA_6M(ThunderDataset, DatapathMixin):
 
         # Get the image and mask
         example_obj = super().__getitem__(key)
-        img, mask = example_obj["img"], example_obj["seg"][self.label]
+        img, mask = example_obj["img"], example_obj["seg"]
+        if isinstance(mask, dict):
+            mask = mask[self.label]
 
         # Apply the label threshold
         if self.label_threshold is not None:

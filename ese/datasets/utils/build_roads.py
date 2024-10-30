@@ -99,7 +99,7 @@ def thunderify_Roads(
                 # Visualize the image and mask
                 # if config.get("visualize", False):
                 if config["visualize"]:
-                    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+                    fig, ax = plt.subplots(1, 2, figsize=(30, 15))
                     im = ax[0].imshow(img)
                     ax[0].set_title("Image")
                     fig.colorbar(im, ax=ax[0])
@@ -107,18 +107,27 @@ def thunderify_Roads(
                     fig.colorbar(se, ax=ax[1])
                     ax[1].set_title("Mask")
                     plt.show()
+                    # Query the user if it's a good segmentation
+                    is_good_segmentation = input("Is this a good segmentation? (y/n): ")
+                    if is_good_segmentation == "n":
+                        is_good_segmentation = False
+                    else:
+                        is_good_segmentation = True
+                else:
+                    is_good_segmentation = True
 
-                # Move the last channel of image to the first channel
-                img = np.moveaxis(img, -1, 0)
-                seg = seg[np.newaxis, ...]
+                if is_good_segmentation:
+                    # Move the last channel of image to the first channel
+                    img = np.moveaxis(img, -1, 0)
+                    seg = seg[np.newaxis, ...]
 
-                # Save the datapoint to the database
-                subjects.append(key)
-                db[key] = {
-                    "img": img, 
-                    "seg": seg,
-                    "gt_proportion": gt_prop 
-                } 
+                    # Save the datapoint to the database
+                    subjects.append(key)
+                    db[key] = {
+                        "img": img, 
+                        "seg": seg,
+                        "gt_proportion": gt_prop 
+                    } 
             elif example_name in bad_examples_list:
                 if config["visualize"]:
                     print(f"Skipping bad example {example_name}")

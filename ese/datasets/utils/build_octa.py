@@ -1,25 +1,20 @@
+# Misc imports
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 import pathlib
 import numpy as np
-from thunderpack import ThunderDB
-from tqdm import tqdm
-import cv2
 from PIL import Image
-from ionpy.util import Config
-
-from typing import List, Tuple
-from sklearn.model_selection import train_test_split
-from pydantic import validate_arguments
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from thunderpack import ThunderDB
+# Local imports
+from .utils_for_build import (
+    data_splits,
+)
 
 
 def thunderify_OCTA(
-    cfg: Config
+   config 
 ):
-    # Get the dictionary version of the config.
-    config = cfg.to_dict()
-
     # Append version to our paths
     version = str(config["version"])
     splits_seed = 42
@@ -49,51 +44,27 @@ def thunderify_OCTA(
             raw_img = np.array(Image.open(img_dir))
             raw_seg = np.array(Image.open(seg_dir))
 
-            # For this dataset, as it is non-binary, we have to do something more clever.
-            # First we need to map our segmentation to a binary segmentation.
-            unique_labels = np.unique(raw_seg)
-            mask_dict = {} 
-            gt_prop_dict = {}
+            # Make a binary mask.
+            norm_img = (raw_img - raw_img.min()) / (raw_img.max() - raw_img.min())
+            binary_mask = (raw_seg == 255).astype(np.float32)
 
-            # If the unique labels are greater than 2, then we have to do some work.
-            square_img = square_pad(raw_img)
-            square_raw_seg = square_pad(raw_seg)
-
-            # Remove the axes and ticks
-            if square_img.shape[0] != config["resize_to"]:
-                square_img = resize_with_aspect_ratio(square_img, target_size=config["resize_to"]).astype(np.float32)
-
-            for lab in unique_labels:
-                # If the lab != 0, then we make a binary mask.
-                if lab != 0:
-                    # Make a binary mask.
-                    binary_mask = (square_raw_seg == lab).astype(np.float32)
-
-                    # Get the proportion of the binary mask.
-                    gt_prop = np.count_nonzero(binary_mask) / binary_mask.size
-                    gt_prop_dict[lab] = gt_prop
-
-                    # If we are resizing then we need to smooth the mask.
-                    if square_raw_seg.shape[0] != config["resize_to"]:
-                        smooth_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
-                        # Now we process the mask in our standard way.
-                        proc_mask = resize_with_aspect_ratio(smooth_mask, target_size=config["resize_to"])
-                    else:
-                        proc_mask = binary_mask
-
-                    # Renormalize the mask to be between 0 and 1.
-                    norm_mask = (proc_mask - proc_mask.min()) / (proc_mask.max() - proc_mask.min())
-
-                    # Store the mask in the mask_dict.
-                    mask_dict[lab] = norm_mask.astype(np.float32)
-                
-            assert square_img.shape == (config["resize_to"], config["resize_to"]), f"Image shape isn't correct, got {square_img.shape}"
+            # Visualize the image and segmentation
+            if config['visualize']:
+                f, ax = plt.subplots(1, 2, figsize=(10, 5))
+                plt_im = ax[0].imshow(norm_img, cmap="gray")
+                ax[0].set_title("Image")
+                ax[0].axis("off")
+                f.colorbar(plt_im, ax=ax[0])
+                plt_lab = ax[1].imshow(binary_mask, cmap="gray")
+                ax[1].set_title("Segmentation")
+                ax[1].axis("off")
+                f.colorbar(plt_lab, ax=ax[1])
+                plt.show()
 
             # Save the datapoint to the database
             db[key] = {
-                "img": square_img, 
-                "seg": mask_dict,
-                "gt_proportion": gt_prop_dict 
+                "img": norm_img, 
+                "seg": binary_mask,
             } 
             subjects.append(key)
 
@@ -113,7 +84,6 @@ def thunderify_OCTA(
         attrs = dict(
             dataset="OCTA_6M",
             version=version,
-            resolution=config["resize_to"],
         )
         db["_subjects"] = subjects
         db["_samples"] = subjects

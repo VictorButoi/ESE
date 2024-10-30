@@ -214,6 +214,9 @@ def show_inference_examples(
             y_hat = torch.sigmoid(y_hat)
         y_hard = (y_hat > threshold).int()
 
+    # Keep the original y and y_hat so we can use them for the reliability diagrams.
+    original_y = y
+    original_y_hat = y_hat
     # If x is 5 dimensionsal, we are dealing with 3D data and we need to treat the volumes
     # slightly differently.
     if len(x.shape) == 5:
@@ -225,9 +228,11 @@ def show_inference_examples(
         max_slices = torch.argmax(lab_per_slice, dim=1)
         # Index into our 3D tensors with this.
         x = torch.stack([x[i, ...,  max_slices[i]] for i in range(bs)]) 
+        y_hard = torch.stack([y_hard[i, ..., max_slices[i]] for i in range(bs)])
+        #``
+        # Get the max slice for the label.
         y = torch.stack([y[i, ..., max_slices[i]] for i in range(bs)])
         y_hat = torch.stack([y_hat[i, ..., max_slices[i]] for i in range(bs)])
-        y_hard = torch.stack([y_hard[i, ..., max_slices[i]] for i in range(bs)])
 
     # Squeeze all tensors in prep.
     x = x.permute(0, 2, 3, 1).numpy().squeeze() # Move channel dimension to last.
@@ -248,7 +253,6 @@ def show_inference_examples(
         colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
         cmap_name = "seg_map"
         label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
-    
 
     if bs == 1:
         ncols = 7
@@ -320,13 +324,12 @@ def show_inference_examples(
             f.colorbar(im6, ax=axarr[5], orientation='vertical')
 
             # Plot the reliability diagram for the binary case of the foreground.
-            cal_info = bin_stats(
-                y_pred=y_hat[None, None, ...],
-                y_true=y[None, None, ...],
-                num_prob_bins=num_prob_bins
-            )
             reliability_diagram(
-                calibration_info=cal_info,
+                calibration_info=bin_stats(
+                    y_pred=original_y_hat,
+                    y_true=original_y,
+                    num_prob_bins=num_prob_bins
+                ),
                 title="Reliability Diagram",
                 num_prob_bins=num_prob_bins,
                 class_type="Binary",
