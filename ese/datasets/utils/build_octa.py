@@ -48,6 +48,16 @@ def thunderify_OCTA(
             norm_img = (raw_img - raw_img.min()) / (raw_img.max() - raw_img.min())
             binary_mask = (raw_seg == 255).astype(np.float32)
 
+            if "random_crop_size" in config:
+                has_label = False
+                while not has_label:
+                    crop_size = config["random_crop_size"]
+                    x, y = np.random.randint(0, norm_img.shape[0] - crop_size), np.random.randint(0, norm_img.shape[1] - crop_size)
+                    norm_img = norm_img[x:x+crop_size, y:y+crop_size]
+                    binary_mask = binary_mask[x:x+crop_size, y:y+crop_size]
+                    if binary_mask.sum() > 0:
+                        has_label = True
+
             # Visualize the image and segmentation
             if config['visualize']:
                 f, ax = plt.subplots(1, 2, figsize=(10, 5))
