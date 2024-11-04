@@ -25,6 +25,7 @@ from ese.utils.general import save_records, save_dict
 from ...augmentation.pipeline import build_aug_pipeline
 from ...augmentation.gather import augmentations_from_config
 from ...experiment.utils import load_experiment, get_exp_load_info
+from ...datasets.support import RandomSupport
 
 
 def list2tuple(val):
@@ -125,11 +126,14 @@ def cal_stats_init(inference_cfg):
     input_type = inference_data_cfg.pop("input_type", "image")
     assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    dataloaders = dataloaders_from_exp( 
+    loaded_inf_data_cfg, dataobj_dict = dataobjs_from_exp( 
         inf_data_cfg=inference_data_cfg, 
         dataloader_cfg=inference_cfg['dataloader'],
         aug_cfg_list=inference_cfg.get('support_augmentations', None)
     )
+    # Update the inference_data_cfg to reflect the data we are running on.
+    inference_cfg['inference_data'] = loaded_inf_data_cfg 
+
     #############################
     trackers = {
         "image_stats": [],
@@ -140,7 +144,7 @@ def cal_stats_init(inference_cfg):
         "cw_pixel_meter_dict": {}
         })
         # Add trackers per split
-        for data_cfg_opt in dataloaders:
+        for data_cfg_opt in dataobj_dict:
             trackers['tl_pixel_meter_dict'][data_cfg_opt] = {}
             trackers['cw_pixel_meter_dict'][data_cfg_opt] = {}
 
@@ -149,8 +153,9 @@ def cal_stats_init(inference_cfg):
     ###########################################################
     inf_norm_augs = None
     if 'augmentations' in inference_exp_total_cfg_dict.keys():
-        if 'visual' in inference_exp_total_cfg_dict['augmentations'].keys():
-            visual_aug_cfg = inference_exp_total_cfg_dict['augmentations']['visual']
+        aug_obj = inference_exp_total_cfg_dict['augmentations']
+        if isinstance(aug_obj, dict) and 'visual' in aug_obj.keys():
+            visual_aug_cfg = aug_obj['visual']
             inf_norm_augs = {
                 "visual": {exp_key: exp_val for exp_key, exp_val in visual_aug_cfg.items() if 'normalize' in exp_key}
             }
@@ -179,7 +184,7 @@ def cal_stats_init(inference_cfg):
         "data_counter": 0,
         "exp": inference_exp,
         "trackers": trackers,
-        "dloaders": dataloaders,
+        "dataobjs": dataobj_dict,
         "output_root": task_root,
         "aug_pipeline": aug_pipeline,
     }
@@ -259,7 +264,7 @@ def load_inference_exp(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def dataloaders_from_exp(
+def dataobjs_from_exp(
     inf_data_cfg, 
     dataloader_cfg,
     aug_cfg_list: Optional[List[dict]] = None,
@@ -270,9 +275,13 @@ def dataloaders_from_exp(
     # Make sure we aren't sampling for evaluation. 
     if "slicing" in inf_data_cfg.keys():
         assert inf_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
-    # Get the dataset class and build the transforms
-    dataset_cls = inf_data_cfg.pop('_class')
-    print(dataset_cls)
+
+    # Get the dataset class and sometimes the support size.
+    dataset_cls_str = inf_data_cfg.pop('_class')
+    dset_cls = absolute_import(dataset_cls_str)
+    # Some information about supports.
+    support_size = inf_data_cfg.pop('support_size', None)
+    support_split = inf_data_cfg.pop('support_split', 'train')
 
     # Drop auxiliary information used for making the models.
     for drop_key in [
@@ -285,7 +294,9 @@ def dataloaders_from_exp(
         'train_splits',
         'train_datasets',
         'val_splits',
-        'val_datasets'
+        'val_datasets',
+        'samples_per_epoch',
+        'return_data_id' 
     ]:
         if drop_key in inf_data_cfg.keys():
             inf_data_cfg.pop(drop_key)
@@ -315,29 +326,48 @@ def dataloaders_from_exp(
     # Iterate through the configurations and construct both 
     # 1) The dataloaders corresponding to each set of examples for inference.
     # 2) The support sets for each run configuration.
-    dataloaders = {}
+    d_cfg_data_objs = {}
+    # Iterate through the data configurations.
     for d_cfg_opt in data_cfgs:
         # Load the dataset with modified arguments.
         d_data_cfg = inf_data_cfg.copy()
         # Update the data cfg with the new options.
         d_data_cfg.update(d_cfg_opt)
+        # We need to store these object by the contents of d_cfg_opt.
+        opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
         # Construct the dataset, either if it's incontext or standard.
-        d_dataset_obj = absolute_import(dataset_cls)(
+        d_dataset_obj = dset_cls(
             transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
             **d_data_cfg
         )
-        # We need to store these object by the contents of d_cfg_opt.
-        opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
+        # Build a dictionary corresponding to THIS opt cfg.
+        d_cfg_data_objs[opt_string] = {}
         # Build the dataloader for this opt cfg and label.
-        dataloaders[opt_string] = DataLoader(
+        d_cfg_data_objs[opt_string]['dloader'] = DataLoader(
             d_dataset_obj, 
             batch_size=dataloader_cfg['batch_size'], 
             num_workers=dataloader_cfg['num_workers'],
             shuffle=False,
             drop_last=False
         )
+        if dataset_cls_str == 'ese.datasets.Segment2D':
+            d_cfg_data_objs[opt_string]['support'] = RandomSupport(
+                support_split, 
+                support_size=support_size, 
+                replacement=True, 
+                return_data_ids=True
+            )
+    
+    # Modify the inference data cfg to reflect the new data objects.
+    modified_inf_data_cfg = inf_data_cfg.copy()
+    modified_inf_data_cfg['_class'] = dataset_cls_str
+    if support_size is not None:
+        modified_inf_data_cfg['support_size'] = support_size
+        modified_inf_data_cfg['support_split'] = support_split
+
     # Return the dataloaders and the modified data cfg.
-    return dataloaders 
+    return modified_inf_data_cfg, d_cfg_data_objs
+    
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
