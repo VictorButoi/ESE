@@ -184,7 +184,10 @@ def incontent_dataloader_loop(
             sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
         # if "Subject11" not in support_data_ids:
         sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+        # Give the supports a batch dimension.
+        sx, sy = sx[None], sy[None]
 
+        # Go through the dataloader.
         for batch_idx in range(len(dloader)):
             try:
                 batch = next(iter_dloader)
@@ -252,6 +255,8 @@ def standard_image_forward_loop(
 
         # Get the example data
         image, label_map = batch.pop("img"), batch.pop("label")
+        # Also try to pop the context images and labels if it exists.
+        sx, sy = batch.pop("context_images", None), batch.pop("context_labels", None)
         # and put them on the device of our experiment.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
@@ -282,8 +287,8 @@ def standard_image_forward_loop(
                 # If we have support images then we need to add them to the predict_kwargs.
                 if "context_images" in raw_batch:
                     predict_kwargs.update({
-                        "context_images": raw_batch["context_images"],
-                        "context_labels": raw_batch["context_labels"]
+                        "context_images": sx,
+                        "context_labels": sy
                     })
 
                 # If we are doing patch-based prediction then we need to do that here.
