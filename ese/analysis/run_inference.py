@@ -68,11 +68,18 @@ def get_cal_stats(
             else:
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
-            dataloader_loop(
-                inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
-                data_props=data_props,
-                **tracker_objs
-            )
+            if "support" in inference_init_obj['dataobjs'][data_cfg_str]:
+                incontent_dataloader_loop(
+                    inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
+                    data_props=data_props,
+                    **tracker_objs
+                )
+            else:
+                standard_dataloader_loop(
+                    inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
+                    data_props=data_props,
+                    **tracker_objs
+                )
         # Save the records at the end too
         save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
         # Optionally, save the prediction logits.
@@ -107,7 +114,7 @@ def get_cal_stats(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def dataloader_loop(
+def standard_dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
     predictions,
@@ -116,18 +123,6 @@ def dataloader_loop(
 ):
     dloader = inf_data_obj["dloader"]
     iter_dloader = iter(dloader)
-
-    if "support" in inf_data_obj:
-        print(inf_cfg_dict['experiment'])
-        # Ensure that all subjects of the same label have the same support set.
-        rng = inference_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
-        # Send the support set to the device
-        sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
-        # Apply augmentation to the support set if defined.
-        if inference_init_obj['support_transforms'] is not None:
-            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inference_init_obj)
-        # if "Subject11" not in support_data_ids:
-        sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
 
     for batch_idx in range(len(dloader)):
         try:
@@ -167,6 +162,70 @@ def dataloader_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def incontent_dataloader_loop(
+    inf_cfg_dict,
+    inf_init_obj,
+    predictions,
+    inf_data_obj, 
+    data_props: Optional[dict] = {}
+):
+    dloader = inf_data_obj["dloader"]
+    iter_dloader = iter(dloader)
+    num_supports = inf_cfg_dict['experiment']['num_supports']
+
+    for sup_idx in range(num_supports):
+        # Ensure that all subjects of the same label have the same support set.
+        rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
+        # Send the support set to the device
+        sx_cpu, sy_cpu = inf_data_obj['support'][rng]
+        # Apply augmentation to the support set if defined.
+        if inf_init_obj.get('support_transforms', None) is not None:
+            aug_support = inf_init_obj['support_transforms']
+            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
+        # if "Subject11" not in support_data_ids:
+        sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+
+        for batch_idx in range(len(dloader)):
+            try:
+                batch = next(iter_dloader)
+
+                print(f"Working on batch #{batch_idx} out of",\
+                    len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+
+                if isinstance(batch, list):
+                    batch = {
+                        "img": batch[0],
+                        "label": batch[1],
+                        "data_id": batch[2],
+                    }
+                forward_batch = {
+                    "batch_idx": batch_idx,
+                    "context_images": sx,
+                    "context_labels": sy,
+                    "support_idx": sup_idx,
+                    **data_props,
+                    **batch
+                }
+                # Final thing (just for our machinery), convert the data_id to a np.array.
+                forward_batch["data_id"] = np.array(forward_batch["data_id"])
+                # Place the output dir in the inf_cfg_dict
+                inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+                # Gather the forward item.
+                forward_item = {
+                    "raw_batch": forward_batch,
+                    "inf_cfg_dict": inf_cfg_dict,
+                    "inf_init_obj": inf_init_obj,
+                    "predictions": predictions
+                }
+
+                # Run the forward loop
+                standard_image_forward_loop(**forward_item)
+            # Raise an error if something happens in the batch.
+            except Exception as e:
+                raise e
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def standard_image_forward_loop(
     raw_batch,
     inf_cfg_dict,
@@ -192,10 +251,8 @@ def standard_image_forward_loop(
         )
 
         # Get the example data
-        image = batch.pop("img")
-        label_map = batch.pop("label")
-
-        # Get your image label pair and define some regions.
+        image, label_map = batch.pop("img"), batch.pop("label")
+        # and put them on the device of our experiment.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
         
@@ -204,61 +261,42 @@ def standard_image_forward_loop(
         if hard_lab_thresh is not None:
             label_map = (label_map > hard_lab_thresh).long()
         
-        # Optionally, we can resize the image at inference.
-        resolution_cfg = inf_cfg_dict['experiment'].get('resolution', None) 
-        if resolution_cfg: 
-            input_res_cfg = resolution_cfg.get('input', None)
-            if input_res_cfg:
-                # Resize the image
-                image = resize_image(input_res_cfg, image)
-        
         # If there are inference kwargs, then we need to do a forward pass with those kwargs.
-        inf_kwarg_opts = inf_cfg_dict['experiment'].get('inf_kwargs', None)
-        if inf_kwarg_opts is not None:
-            # Go through each, and if they are strings representing tuples, then we need to convert them to tuples.
-            for inf_key, inf_val in inf_kwarg_opts.items(): 
-                if isinstance(inf_val, str):
-                    lit_eval_val = ast.literal_eval(inf_val)
-                    if isinstance(lit_eval_val, tuple):
-                        inf_kwarg_opts[inf_key] = list(lit_eval_val)
-                # Ensure this is a list.
-                new_inf_val = inf_kwarg_opts[inf_key]
-                if not isinstance(new_inf_val, list):
-                    inf_kwarg_opts[inf_key] = [new_inf_val]
-            # Now we need to do a grid of the options, similar to how we build configs.
-            inf_kwarg_grid = list(dict_product(inf_kwarg_opts))
-        else:
-            inf_kwarg_grid = [{}]
+        inf_kwarg_grid = get_kwarg_sweep(inf_cfg_dict)
 
         # Iterate through each of the inference kwargs.
         for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid, disable=(len(inf_kwarg_grid) == 1)):
-
             # Do a forward pass without gradients.
             with torch.no_grad():
-
                 # If we have augs to apply on the image (on the GPU), then we need to do that here.
                 if inf_init_obj.get('aug_pipeline', None): 
                     image = inf_init_obj['aug_pipeline'](image)
 
                 # We can either perform the forward pass in one go, or do so in patches.
                 patch_pred_kwargs = inf_kwarg_setting_dict.pop('patch_pred_kwargs', None)
+                predict_kwargs = {
+                    "x": image,
+                    **inf_kwarg_setting_dict
+                }
+
+                # If we have support images then we need to add them to the predict_kwargs.
+                if "context_images" in raw_batch:
+                    predict_kwargs.update({
+                        "context_images": raw_batch["context_images"],
+                        "context_labels": raw_batch["context_labels"]
+                    })
+
+                # If we are doing patch-based prediction then we need to do that here.
                 if patch_pred_kwargs is not None:
-                    # Predict per patch and then stitch them together.
-                    exp_output = exp_patch_predict(exp, image, **patch_pred_kwargs, **inf_kwarg_setting_dict)
+                    exp_output = exp_patch_predict(exp, **patch_pred_kwargs, **predict_kwargs)
                 else:
-                    exp_output =  exp.predict(image, **inf_kwarg_setting_dict)
+                    exp_output =  exp.predict(**predict_kwargs)
 
             # Go through the exp_output and see if they are None or not.
             for out_key, out_tensor in exp_output.items():
                 # If the value is None, then drop the key.
                 if out_tensor is None:
                     exp_output.pop(out_key)
-                # If we are resizing, then we need to resize the output.
-                if resolution_cfg: 
-                    output_res_cfg = resolution_cfg.get('output', None)
-                    if output_res_cfg:
-                        # Resize the image
-                        exp_output[out_key] = resize_image(output_res_cfg, out_tensor)
 
             # Get through all the batch elements.
             inference_batch_size = image.shape[0] 
@@ -408,6 +446,7 @@ def select_batch_by_inds(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def filter_by_min_lab(
+
     label_map, 
     min_pix: int = 0
 ):
@@ -415,3 +454,23 @@ def filter_by_min_lab(
     valid_indices = torch.sum(label_map != 0, tuple(range(1, len(label_map.shape)))) >= min_pix
     #  Return the valid indices.
     return valid_indices.cpu()
+
+
+def get_kwarg_sweep(inf_cfg_dict):
+    # If there are inference kwargs, then we need to do a forward pass with those kwargs.
+    inf_kwarg_opts = inf_cfg_dict['experiment'].get('inf_kwargs', None)
+    if inf_kwarg_opts is not None:
+        # Go through each, and if they are strings representing tuples, then we need to convert them to tuples.
+        for inf_key, inf_val in inf_kwarg_opts.items(): 
+            if isinstance(inf_val, str):
+                lit_eval_val = ast.literal_eval(inf_val)
+                if isinstance(lit_eval_val, tuple):
+                    inf_kwarg_opts[inf_key] = list(lit_eval_val)
+            # Ensure this is a list.
+            new_inf_val = inf_kwarg_opts[inf_key]
+            if not isinstance(new_inf_val, list):
+                inf_kwarg_opts[inf_key] = [new_inf_val]
+        # Now we need to do a grid of the options, similar to how we build configs.
+        return list(dict_product(inf_kwarg_opts))
+    else:
+        return [{}]

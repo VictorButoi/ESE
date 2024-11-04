@@ -335,27 +335,32 @@ def dataobjs_from_exp(
         d_data_cfg.update(d_cfg_opt)
         # We need to store these object by the contents of d_cfg_opt.
         opt_string = "^".join([f"{key}:{val}" for key, val in d_cfg_opt.items()])
-        # Construct the dataset, either if it's incontext or standard.
-        d_dataset_obj = dset_cls(
-            transforms=augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
-            **d_data_cfg
-        )
-        # Build a dictionary corresponding to THIS opt cfg.
         d_cfg_data_objs[opt_string] = {}
+
+        # Make a dictionary for how we construct the dataset. (important order because we want to be able to modify)
+        dset_args = {
+            "transforms": augmentations_from_config(aug_cfg_list) if aug_cfg_list is not None else None, 
+            **d_data_cfg
+        }
         # Build the dataloader for this opt cfg and label.
         d_cfg_data_objs[opt_string]['dloader'] = DataLoader(
-            d_dataset_obj, 
+            dset_cls(**dset_args), 
             batch_size=dataloader_cfg['batch_size'], 
             num_workers=dataloader_cfg['num_workers'],
             shuffle=False,
             drop_last=False
         )
         if dataset_cls_str == 'ese.datasets.Segment2D':
+            support_dset_args = dset_args.copy()
+            # Important settings for inference.
+            support_dset_args['split'] = support_split
+            support_dset_args['return_data_id'] = False
+            # Build the support sampler.
             d_cfg_data_objs[opt_string]['support'] = RandomSupport(
-                support_split, 
+                dset_cls(**support_dset_args), 
                 support_size=support_size, 
+                return_data_ids=False,
                 replacement=True, 
-                return_data_ids=True
             )
     
     # Modify the inference data cfg to reflect the new data objects.

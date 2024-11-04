@@ -86,8 +86,6 @@ class Segment2D(ThunderDataset, DatapathMixin):
             key %= len(self.samples)
 
         img, seg = super().__getitem__(key)
-        # img = img.astype(np.float32)
-        # seg = seg.astype(np.float32)
         assert img.dtype == np.float32
         assert seg.dtype == np.float32
 
