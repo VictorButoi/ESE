@@ -138,6 +138,7 @@ def get_ese_inference_configs(
     exp_cfg: dict,
     base_cfg: Config,
     add_date: bool = True,
+    use_best_models: bool = False,
     power_set_keys: Optional[List[str]] = None,
     code_root: Path = Path("/storage/vbutoi/projects/ESE"),
     scratch_root: Path = Path("/storage/vbutoi/scratch/ESE")
@@ -161,8 +162,11 @@ def get_ese_inference_configs(
         )
 
     # In our general inference sheme, often we want to use the best models corresponding to a dataset
-    eval_dataset = group.split('_')[3] # Group format is like MM_DD_YY_Dataset
-    if eval_dataset is not None:
+    if add_date:
+        eval_dataset = group.split('_')[0]
+    else:
+        eval_dataset = group.split('_')[3] # Group format is like MM_DD_YY_Dataset
+    if eval_dataset in ['OCTA', 'ISLES', "WMH"] and use_best_models:
         # Load the default best models, and update the exp config with those as the base models.
         with open(code_root / "ese" / "configs" / "defaults" / "Best_Models.yaml", 'r') as file:
             best_models_cfg = yaml.safe_load(file)
