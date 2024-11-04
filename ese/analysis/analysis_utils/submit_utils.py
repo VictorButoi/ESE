@@ -260,7 +260,7 @@ def get_ese_inference_configs(
         for exp_cfg_update in dict_product(option_dict):
             # Add the inference dataset specific details.
             dataset_inf_cfg_dict = get_inference_dset_info(
-                exp_cfg_update['experiment.model_dir'],
+                cfg=exp_cfg_update,
                 code_root=code_root
             )
             # If we have optimal_exp_parameters, then it is per model, so look at the 'experiment.model_dir' key.

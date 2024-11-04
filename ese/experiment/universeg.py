@@ -1,18 +1,22 @@
+# Random imports
 import sys
 import warnings
-from collections import defaultdict
-
 import numpy as np
 import pandas as pd
+from typing import Optional
+from collections import defaultdict
+# Torch imports
 import torch
 from torch.utils.data import DataLoader
-
-from pylot.experiment.util import absolute_import
-from pylot.util import Timer
-from pylot.util.ioutil import autohash, autoload, autosave
-from pylot.util.meter import MeterDict
-from pylot.util.torchutils import to_device
+# Local imports
+from .utils import process_pred_map
 from .baseline import BaselineExperiment
+# Ionpy imports
+from ionpy.experiment.util import absolute_import
+from ionpy.util import Timer
+from ionpy.util.ioutil import autohash, autoload, autosave
+from ionpy.util.meter import MeterDict
+from ionpy.util.torchutils import to_device
 
 
 class UniversegExperiment(BaselineExperiment):
@@ -214,3 +218,34 @@ class UniversegExperiment(BaselineExperiment):
             self.model = to_device(
                 self.model, self.device, self.config.get("train.channels_last", False)
             )
+
+    def predict(
+        self, 
+        x, 
+        context_images,
+        context_labels,
+        threshold: float = 0.5,
+        from_logits: bool = True,
+        temperature: Optional[float] = None,
+    ):
+        # Get the label predictions
+        logit_map = self.model(
+            context_images=context_images, 
+            context_labels=context_labels, 
+            target_image=x
+        ) 
+
+        # Get the hard prediction and probabilities
+        prob_map, pred_map = process_pred_map(
+            logit_map, 
+            threshold=threshold,
+            from_logits=from_logits,
+            temperature=temperature
+        )
+        
+        # Return the outputs
+        return {
+            'y_logits': logit_map,
+            'y_probs': prob_map, 
+            'y_hard': pred_map 
+        }

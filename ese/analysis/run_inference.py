@@ -48,6 +48,7 @@ def get_cal_stats(
 
     # Initialize all the objects needed for inference.
     inference_init_obj = cal_stats_init(inference_cfg_dict)
+    inf_data_opts = inference_init_obj['dataobjs'].keys()
 
     # Loop through the data, gather your stats!
     if inference_cfg_dict["log"]["gether_inference_stats"]:
@@ -59,7 +60,7 @@ def get_cal_stats(
         # A dataloader is something that iterates through a set of datapoints we want to
         # run inference on. The invariant here is that we should expect to do inference
         # on every data point in the dataloader.
-        for data_cfg_str, cfg_dataloader in inference_init_obj["dloaders"].items():
+        for data_cfg_str in inf_data_opts:
             # Make the data opt args for this particular data configuration.
             if len(data_cfg_str) > 0:
                 data_props = dict(item.split(':') for item in data_cfg_str.split('^'))
@@ -68,7 +69,7 @@ def get_cal_stats(
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
             dataloader_loop(
-                dloader=cfg_dataloader,
+                inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
                 data_props=data_props,
                 **tracker_objs
             )
@@ -89,7 +90,7 @@ def get_cal_stats(
             # Add a dummy column to the dataframe.
             log_image_df[cal_metric_name] = np.nan
             # Iterate through the data opts, and replace the rows corresponding to the data opt with the cal losses.
-            for data_cfg_str in inference_init_obj["dloaders"].keys():
+            for data_cfg_str in inf_data_opts:
                 assert cal_metric_dict['cal_type'] in ["classwise", "toplabel"],\
                     f"Calibration type {cal_metric_dict['cal_type']} not recognized."
                 tracker_key = "cw_pixel_meter_dict" if cal_metric_dict['cal_type'] == "classwise" else "tl_pixel_meter_dict"
@@ -110,10 +111,24 @@ def dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
     predictions,
-    dloader, 
+    inf_data_obj, 
     data_props: Optional[dict] = {}
 ):
+    dloader = inf_data_obj["dloader"]
     iter_dloader = iter(dloader)
+
+    if "support" in inf_data_obj:
+        print(inf_cfg_dict['experiment'])
+        # Ensure that all subjects of the same label have the same support set.
+        rng = inference_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
+        # Send the support set to the device
+        sx_cpu, sy_cpu, support_data_ids = support_gen[rng]
+        # Apply augmentation to the support set if defined.
+        if inference_init_obj['support_transforms'] is not None:
+            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inference_init_obj)
+        # if "Subject11" not in support_data_ids:
+        sx, sy = to_device((sx_cpu, sy_cpu), inference_init_obj["exp"].device)
+
     for batch_idx in range(len(dloader)):
         try:
             batch = next(iter_dloader)
@@ -145,60 +160,10 @@ def dataloader_loop(
             }
 
             # Run the forward loop
-            if inf_cfg_dict['inference_data'].get('inf_slice_by_slice', False):
-                volume_forward_loop(**forward_item)
-            else:
-                standard_image_forward_loop(**forward_item)
+            standard_image_forward_loop(**forward_item)
         # Raise an error if something happens in the batch.
         except Exception as e:
             raise e
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def volume_forward_loop(
-    raw_batch,
-    inf_cfg_dict,
-    inf_init_obj
-):
-    # Get the batch info, these are B x V x H x W
-    image_vol_cuda, label_vol_cuda = to_device((raw_batch.pop("img"), raw_batch.pop("label")), inf_init_obj["exp"].device)
-    # Go through each slice and predict the metrics.
-    slices_per_fp = inf_cfg_dict["experiment"].get("slices_per_fp", 1)
-    # Num iterations is the number of slices divided by the number of slices per forward pass.
-    num_iterations = math.ceil(image_vol_cuda.shape[1] / slices_per_fp)
-    # Iterate through the slice chunks, making sure that on the last iteration we get the remaining slices.
-    for slice_chunk in range(num_iterations):
-        print(f"-> Working on slice chunk #{slice_chunk} out of", num_iterations,\
-              "({:.2f}%)".format((slice_chunk/ num_iterations) * 100), end="\r")
-        # Slice the image and label vols at the slice_chunk and move everything to the batch dimension.
-        if slice_chunk == num_iterations - 1:
-            slice_indices = torch.arange(slice_chunk*slices_per_fp, image_vol_cuda.shape[1])
-        else:
-            slice_indices = torch.arange(slice_chunk*slices_per_fp, (slice_chunk + 1)*slices_per_fp)
-        # Slice the volumes by the chosen indices.
-        image_slices = image_vol_cuda[:, slice_indices, ...]
-        label_slices = label_vol_cuda[:, slice_indices, ...]
-        # Move the slices to the batch dimension.
-        image_batched_slices = einops.rearrange(image_slices, "b c h w -> (b c) 1 h w")
-        label_batched_slices = einops.rearrange(label_slices, "b c h w -> (b c) 1 h w")
-        # We need to expand the data_id in batch to account for the slices.
-        expanded_slice_indices = slice_indices.repeat(len(raw_batch['data_id']))
-        expanded_data_ids = []
-        for data_id in raw_batch['data_id']:
-            expanded_data_ids += [data_id] * len(slice_indices) 
-        # Get the prediction with no gradient accumulation.
-        slice_batch = raw_batch.copy()
-        slice_batch.update({
-            "img": image_batched_slices,
-            "label": label_batched_slices,
-            "data_id": np.array(expanded_data_ids),
-            "slice_indices": expanded_slice_indices.cpu().numpy(),
-        })
-        standard_image_forward_loop(
-            slice_batch,
-            inf_cfg_dict=inf_cfg_dict,
-            inf_init_obj=inf_init_obj,
-        )
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
