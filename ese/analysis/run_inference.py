@@ -56,6 +56,9 @@ def get_cal_stats(
             "inf_init_obj": inference_init_obj,
             "predictions": {}
         }
+        # A dataloader is something that iterates through a set of datapoints we want to
+        # run inference on. The invariant here is that we should expect to do inference
+        # on every data point in the dataloader.
         for data_cfg_str, cfg_dataloader in inference_init_obj["dloaders"].items():
             # Make the data opt args for this particular data configuration.
             if len(data_cfg_str) > 0:

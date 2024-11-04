@@ -272,11 +272,8 @@ def dataloaders_from_exp(
         assert inf_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
     # Get the dataset class and build the transforms
     dataset_cls = inf_data_cfg.pop('_class')
+    print(dataset_cls)
 
-    # TODO: BACKWARDS COMPATIBILITY STOPGAP
-    dataset_cls = dataset_cls.replace("ese.experiment", "ese")
-
-    # TODO: Clean this up, way too hardcoded.
     # Drop auxiliary information used for making the models.
     for drop_key in [
         'in_channels', 
