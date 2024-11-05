@@ -3,17 +3,13 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 # ionpy imports
+from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
-from ionpy.util import Config, dict_product
 from ionpy.util.torchutils import to_device
 # local imports
-from .checks import global_cal_sanity_check
 from .image_records import get_image_stats
-from .analysis_utils.inference_utils import (
-    save_preds,
-    save_trackers,
-    cal_stats_init
-)
+from .checks import global_cal_sanity_check
+import ese.analysis.analysis_utils.inference_utils as inf_utils
 from .pixel_records import (
     update_toplabel_pixel_meters,
     update_cw_pixel_meters
@@ -23,16 +19,12 @@ from ..experiment.utils import (
     show_inference_examples, 
 )
 # Misc imports
-import ast
-import math
-import time
-import einops
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
 import matplotlib.pyplot as plt
-from typing import Any, Optional
+from typing import Optional
 from pydantic import validate_arguments
     
 
@@ -47,7 +39,7 @@ def get_cal_stats(
     fix_seed(inference_cfg_dict['experiment']['inference_seed'])
 
     # Initialize all the objects needed for inference.
-    inference_init_obj = cal_stats_init(inference_cfg_dict)
+    inference_init_obj = inf_utils.cal_stats_init(inference_cfg_dict)
     inf_data_opts = inference_init_obj['dataobjs'].keys()
 
     # Loop through the data, gather your stats!
@@ -69,11 +61,18 @@ def get_cal_stats(
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
             if "support" in inference_init_obj['dataobjs'][data_cfg_str]:
-                incontent_dataloader_loop(
-                    inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
-                    data_props=data_props,
-                    **tracker_objs
-                )
+                if inference_cfg_dict['experiment'].get('bootstrap_incontex', False):
+                    bootstrap_incontext_dataloader_loop(
+                        inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
+                        data_props=data_props,
+                        **tracker_objs
+                    )
+                else:
+                    standard_incontext_dataloader_loop(
+                        inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
+                        data_props=data_props,
+                        **tracker_objs
+                    )
             else:
                 standard_dataloader_loop(
                     inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
@@ -81,10 +80,10 @@ def get_cal_stats(
                     **tracker_objs
                 )
         # Save the records at the end too
-        save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
+        inf_utils.save_trackers(inference_init_obj["output_root"], trackers=inference_init_obj["trackers"])
         # Optionally, save the prediction logits.
         if inference_cfg_dict['log']["save_preds"]:
-            save_preds(tracker_objs["predictions"], output_root=inference_init_obj["output_root"])
+            inf_utils.save_preds(tracker_objs["predictions"], output_root=inference_init_obj["output_root"])
 
     # After the forward loop, we can calculate the global calibration metrics.
     if inference_cfg_dict["log"]["compute_global_metrics"]:
@@ -162,7 +161,7 @@ def standard_dataloader_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def incontent_dataloader_loop(
+def standard_incontext_dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
     predictions,
@@ -229,6 +228,74 @@ def incontent_dataloader_loop(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
+def bootstrap_incontext_dataloader_loop(
+    inf_cfg_dict,
+    inf_init_obj,
+    predictions,
+    inf_data_obj, 
+    data_props: Optional[dict] = {}
+):
+    dloader = inf_data_obj["dloader"]
+    iter_dloader = iter(dloader)
+    num_supports = inf_cfg_dict['experiment']['num_supports']
+
+    for sup_idx in range(num_supports):
+        # Ensure that all subjects of the same label have the same support set.
+        rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
+        # Send the support set to the device
+        sx_cpu, sy_cpu = inf_data_obj['support'][rng]
+        # Apply augmentation to the support set if defined.
+        if inf_init_obj.get('support_transforms', None) is not None:
+            aug_support = inf_init_obj['support_transforms']
+            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
+        # if "Subject11" not in support_data_ids:
+        sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+        # Give the supports a batch dimension.
+        sx, sy = sx[None], sy[None]
+
+        # Go through the dataloader.
+        for batch_idx in range(len(dloader)):
+            try:
+                batch = next(iter_dloader)
+
+                print(f"Working on batch #{batch_idx} out of",\
+                    len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+
+                if isinstance(batch, list):
+                    batch = {
+                        "img": batch[0],
+                        "label": batch[1],
+                        "data_id": batch[2],
+                    }
+                forward_batch = {
+                    "batch_idx": batch_idx,
+                    "context_images": sx,
+                    "context_labels": sy,
+                    "support_idx": sup_idx,
+                    **data_props,
+                    **batch
+                }
+                # Final thing (just for our machinery), convert the data_id to a np.array.
+                forward_batch["data_id"] = np.array(forward_batch["data_id"])
+                # Place the output dir in the inf_cfg_dict
+                inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+                # Gather the forward item.
+                forward_item = {
+                    "raw_batch": forward_batch,
+                    "inf_cfg_dict": inf_cfg_dict,
+                    "inf_init_obj": inf_init_obj,
+                    "predictions": predictions
+                }
+
+                # Run the forward loop
+                standard_image_forward_loop(**forward_item)
+            # Raise an error if something happens in the batch.
+            except Exception as e:
+                raise e
+
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
 def standard_image_forward_loop(
     raw_batch,
     inf_cfg_dict,
@@ -239,7 +306,7 @@ def standard_image_forward_loop(
     exp = inf_init_obj["exp"]
     
     # Get the data_ids that have enough label.
-    valid_example_inds = filter_by_min_lab(
+    valid_example_inds = inf_utils.filter_by_min_lab(
         label_map=raw_batch["label"], 
         min_pix=inf_cfg_dict["log"].get("min_fg_pixels", 0)
     )
@@ -248,7 +315,7 @@ def standard_image_forward_loop(
     if valid_example_inds.any():
         
         # Select batch inds by the valid indices.
-        batch = select_batch_by_inds(
+        batch = inf_utils.select_batch_by_inds(
             batch=raw_batch, 
             valid_inds=valid_example_inds
         )
@@ -262,7 +329,7 @@ def standard_image_forward_loop(
             image, label_map = to_device((image, label_map), exp.device)
         
         # If there are inference kwargs, then we need to do a forward pass with those kwargs.
-        inf_kwarg_grid = get_kwarg_sweep(inf_cfg_dict)
+        inf_kwarg_grid = inf_utils.get_kwarg_sweep(inf_cfg_dict)
         # Iterate through each of the inference kwargs.
         for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid, disable=(len(inf_kwarg_grid) == 1)):
             # Do a forward pass without gradients.
@@ -332,7 +399,7 @@ def standard_image_forward_loop(
                 # Save the records every so often, to get intermediate results. Note, because of data_ids
                 # this can contain fewer than 'log interval' many items.
                 if inf_init_obj['data_counter'] % inf_cfg_dict['log']['log_interval'] == 0:
-                    save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
+                    inf_utils.save_trackers(inf_init_obj["output_root"], trackers=inf_init_obj['trackers'])
 
         # Increment the data counter.
         inf_init_obj['data_counter'] += 1
@@ -395,75 +462,3 @@ def gather_output_dict_stats(
             image_cw_pixel_meter_dict=image_cw_pixel_meter_dict
         )
     
-
-def resize_image(resize_cfg, image):
-    # Get the original resolution of the image and write that we did resizing to the metadata.
-    new_img_res = resize_cfg['size']
-    # Resize the image
-    interpolate_args = {
-        "input": image, 
-        "size": new_img_res, 
-        "mode": resize_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
-    }
-    if resize_cfg['mode'] in ['linear', 'bilinear', 'bicubic', 'trilinear']:
-        interpolate_args['align_corners'] = resize_cfg['align_corners']
-    # Resize the image or return if it's already the right size.
-    if new_img_res != image.shape[-2:]:
-        return torch.nn.functional.interpolate(**interpolate_args)
-    else:
-        return image
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def select_batch_by_inds(
-    batch, 
-    valid_inds
-):
-    subselect_batch = {}
-    # We want to iterate through the keys, and if the key is a torch.Tensor or np.ndarray, then we want to select
-    # the indices that are valid.
-    for ikey in batch.keys():
-        if isinstance(batch[ikey], (torch.Tensor, np.ndarray)):
-            if len(valid_inds) == 1:
-                if valid_inds[0]:
-                    subselect_batch[ikey] = batch[ikey]
-                else:
-                    subselect_batch[ikey] = np.array([])
-            else:
-                subselect_batch[ikey] = batch[ikey][valid_inds]
-        else:
-            subselect_batch[ikey] = batch[ikey]
-    # Return the filtered batch. 
-    return subselect_batch 
-
-
-@validate_arguments(config=dict(arbitrary_types_allowed=True))
-def filter_by_min_lab(
-
-    label_map, 
-    min_pix: int = 0
-):
-    # We want to sum over everything except the batch dimension.
-    valid_indices = torch.sum(label_map != 0, tuple(range(1, len(label_map.shape)))) >= min_pix
-    #  Return the valid indices.
-    return valid_indices.cpu()
-
-
-def get_kwarg_sweep(inf_cfg_dict):
-    # If there are inference kwargs, then we need to do a forward pass with those kwargs.
-    inf_kwarg_opts = inf_cfg_dict['experiment'].get('inf_kwargs', None)
-    if inf_kwarg_opts is not None:
-        # Go through each, and if they are strings representing tuples, then we need to convert them to tuples.
-        for inf_key, inf_val in inf_kwarg_opts.items(): 
-            if isinstance(inf_val, str):
-                lit_eval_val = ast.literal_eval(inf_val)
-                if isinstance(lit_eval_val, tuple):
-                    inf_kwarg_opts[inf_key] = list(lit_eval_val)
-            # Ensure this is a list.
-            new_inf_val = inf_kwarg_opts[inf_key]
-            if not isinstance(new_inf_val, list):
-                inf_kwarg_opts[inf_key] = [new_inf_val]
-        # Now we need to do a grid of the options, similar to how we build configs.
-        return list(dict_product(inf_kwarg_opts))
-    else:
-        return [{}]

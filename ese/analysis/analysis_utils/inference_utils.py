@@ -16,9 +16,9 @@ from pydantic import validate_arguments
 from torch.utils.data import DataLoader
 # ionpy imports
 # ionpy imports
-from ionpy.util import Config
 from ionpy.util.ioutil import autosave
-from ionpy.util.config import config_digest, HDict, valmap
+from ionpy.util import Config, dict_product
+from ionpy.util.config import config_digest
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ese.utils.general import save_records, save_dict
@@ -429,3 +429,78 @@ def add_vol_error_keys(inference_df):
     # RAVE
     inference_df.augment(log_soft_RAVE)
     inference_df.augment(log_hard_RAVE)
+
+
+def resize_image(resize_cfg, image):
+    # Get the original resolution of the image and write that we did resizing to the metadata.
+    new_img_res = resize_cfg['size']
+    # Resize the image
+    interpolate_args = {
+        "input": image, 
+        "size": new_img_res, 
+        "mode": resize_cfg['mode'], # this one is ok to be bilinear interpolation becuase this is what we trained on.
+    }
+    if resize_cfg['mode'] in ['linear', 'bilinear', 'bicubic', 'trilinear']:
+        interpolate_args['align_corners'] = resize_cfg['align_corners']
+    # Resize the image or return if it's already the right size.
+    if new_img_res != image.shape[-2:]:
+        return torch.nn.functional.interpolate(**interpolate_args)
+    else:
+        return image
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def select_batch_by_inds(
+    batch, 
+    valid_inds
+):
+    subselect_batch = {}
+    # We want to iterate through the keys, and if the key is a torch.Tensor or np.ndarray, then we want to select
+    # the indices that are valid.
+    for ikey in batch.keys():
+        if isinstance(batch[ikey], (torch.Tensor, np.ndarray)):
+            if len(valid_inds) == 1:
+                if valid_inds[0]:
+                    subselect_batch[ikey] = batch[ikey]
+                else:
+                    subselect_batch[ikey] = np.array([])
+            else:
+                subselect_batch[ikey] = batch[ikey][valid_inds]
+        else:
+            subselect_batch[ikey] = batch[ikey]
+    # Return the filtered batch. 
+    return subselect_batch 
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def filter_by_min_lab(
+    label_map, 
+    min_pix: int = 0
+):
+    # We want to sum over everything except the batch dimension.
+    valid_indices = torch.sum(label_map != 0, tuple(range(1, len(label_map.shape)))) >= min_pix
+    #  Return the valid indices.
+    return valid_indices.cpu()
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def get_kwarg_sweep(
+    inf_cfg_dict: dict
+):
+    # If there are inference kwargs, then we need to do a forward pass with those kwargs.
+    inf_kwarg_opts = inf_cfg_dict['experiment'].get('inf_kwargs', None)
+    if inf_kwarg_opts is not None:
+        # Go through each, and if they are strings representing tuples, then we need to convert them to tuples.
+        for inf_key, inf_val in inf_kwarg_opts.items(): 
+            if isinstance(inf_val, str):
+                lit_eval_val = ast.literal_eval(inf_val)
+                if isinstance(lit_eval_val, tuple):
+                    inf_kwarg_opts[inf_key] = list(lit_eval_val)
+            # Ensure this is a list.
+            new_inf_val = inf_kwarg_opts[inf_key]
+            if not isinstance(new_inf_val, list):
+                inf_kwarg_opts[inf_key] = [new_inf_val]
+        # Now we need to do a grid of the options, similar to how we build configs.
+        return list(dict_product(inf_kwarg_opts))
+    else:
+        return [{}]
