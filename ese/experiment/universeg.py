@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional
 from collections import defaultdict
+import matplotlib.pyplot as plt
 # Torch imports
 import torch
 from torch.utils.data import DataLoader

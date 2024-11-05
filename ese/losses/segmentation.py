@@ -108,9 +108,11 @@ def area_estimation_error(
     abs_diff: bool = False,
     relative: bool = False,
     square_diff: bool = False,
+    use_hard_pred: bool = False,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
     batch_reduction: Reduction = "mean",
+    threshold: Optional[float] = None,
     ignore_index: Optional[int] = None,
     from_logits: bool = False,
 ):
@@ -123,7 +125,8 @@ def area_estimation_error(
             y_pred, 
             y_true, 
             mode=mode,
-            discretize=False,
+            discretize=use_hard_pred,
+            threshold=threshold,
             from_logits=from_logits
         )
         # Sum over the last dimension to get the area

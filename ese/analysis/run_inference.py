@@ -261,14 +261,8 @@ def standard_image_forward_loop(
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
         
-        # Label maps are soft labels so we need to convert them to hard labels.
-        hard_lab_thresh = inf_cfg_dict["inference_data"].get("label_threshold", None)
-        if hard_lab_thresh is not None:
-            label_map = (label_map > hard_lab_thresh).long()
-        
         # If there are inference kwargs, then we need to do a forward pass with those kwargs.
         inf_kwarg_grid = get_kwarg_sweep(inf_cfg_dict)
-
         # Iterate through each of the inference kwargs.
         for inf_kwarg_setting_dict in tqdm(inf_kwarg_grid, disable=(len(inf_kwarg_grid) == 1)):
             # Do a forward pass without gradients.
@@ -296,12 +290,6 @@ def standard_image_forward_loop(
                     exp_output = exp_patch_predict(exp, **patch_pred_kwargs, **predict_kwargs)
                 else:
                     exp_output =  exp.predict(**predict_kwargs)
-
-            # Go through the exp_output and see if they are None or not.
-            for out_key, out_tensor in exp_output.items():
-                # If the value is None, then drop the key.
-                if out_tensor is None:
-                    exp_output.pop(out_key)
 
             # Get through all the batch elements.
             inference_batch_size = image.shape[0] 

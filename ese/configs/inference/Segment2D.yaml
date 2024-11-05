@@ -3,9 +3,15 @@ log:
 
 experiment:
   num_supports: 5
+  inf_kwargs:
+      from_logits: True
+      threshold: 0.5 
+      temperature: 1.0
   
 inference_data:
   resolution: 128 
+  slicing: "midslice"
+  label_threshold: 0.5
 
 global_calibration:
     num_classes: 1
@@ -16,3 +22,18 @@ qual_metrics:
         batch_reduction: 'mean' 
         ignore_empty_labels: False
         metric_type: quality
+    - soft_RAVE:
+        _fn: ese.losses.area_estimation_error
+        relative: True
+        abs_diff: True
+        square_diff: False
+        use_hard_pred: False
+        metric_type: quality
+    - hard_RAVE:
+        _fn: ese.losses.area_estimation_error
+        relative: True
+        abs_diff: True
+        square_diff: False
+        use_hard_pred: True 
+        metric_type: quality
+      

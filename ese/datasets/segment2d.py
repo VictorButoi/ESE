@@ -38,6 +38,7 @@ class Segment2D(ThunderDataset, DatapathMixin):
     root_folder: Optional[str] = None
     samples_per_epoch: Optional[int] = None
     num_examples: Optional[int] = None
+    label_threshold: Optional[float] = None
     transforms: Optional[List] = None
 
     def __post_init__(self):
@@ -97,6 +98,10 @@ class Segment2D(ThunderDataset, DatapathMixin):
         if self.background:
             bg = 1 - seg.sum(axis=0, keepdims=True)
             seg = np.concatenate([bg, seg])
+
+        # Apply the label threshold
+        if self.label_threshold is not None:
+           seg = (seg > self.label_threshold).astype(np.float32)
 
         if self.return_data_id:
             return torch.from_numpy(img), torch.from_numpy(seg), self.samples[key]
@@ -162,49 +167,3 @@ class Segment2D(ThunderDataset, DatapathMixin):
             **parse_task(self.task),
         }
 
-
-class FewshotSegment2D(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        n_subjects: int,
-        seed: int = 42,
-        segment2d_dataset: Optional[Segment2D] = None,
-        strict: bool = False,
-        **segment2d_kws,
-    ):
-        if segment2d_dataset is not None:
-            assert isinstance(segment2d_dataset, Segment2D)
-            assert segment2d_kws == {}
-            self.dataset = segment2d_dataset
-        else:
-            self.dataset = Segment2D(**segment2d_kws)
-
-        self.nshot = n_subjects
-        fewshot = n_subjects
-        self.seed = seed
-
-        if self.dataset.split == "train":
-            samples = self.dataset.samples
-            N = len(self.dataset)
-
-            if N < n_subjects:
-                if strict:
-                    raise ValueError(
-                        f"Cannot {n_subjects}-fewshot a task with {N} samples for {self.path}"
-                    )
-                msg = f"Peforming {fewshot}-shot can't be done with {N} subjects. Defaulting to {N}-shot for {self.path}"
-                fewshot = N
-                warnings.warn(msg)
-
-            rng = np.random.default_rng(self.seed)
-            fewshot_samples = rng.permutation(samples)[:fewshot]
-            self.dataset.samples = fewshot_samples
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, idx):
-        return self.dataset[idx]
-
-    def __getattr__(self, attr):
-        return getattr(self.dataset, attr)
