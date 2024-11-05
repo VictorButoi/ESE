@@ -300,6 +300,7 @@ def dataobjs_from_exp(
     ]:
         if drop_key in inf_data_cfg.keys():
             inf_data_cfg.pop(drop_key)
+
     # Ensure that we return the different data ids.
     inf_data_cfg['return_data_id'] = True
 

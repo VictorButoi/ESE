@@ -35,6 +35,7 @@ class Segment2D(ThunderDataset, DatapathMixin):
     background: bool = False
     preload: bool = False
     return_data_id: bool = False
+    return_data_key: bool = False
     root_folder: Optional[str] = None
     samples_per_epoch: Optional[int] = None
     num_examples: Optional[int] = None
@@ -77,6 +78,10 @@ class Segment2D(ThunderDataset, DatapathMixin):
                     f"Attr {key} mismatch init:{init_attrs[key]}, file:{file_attrs[key]}"
                 )
 
+        # Finally, we need a dictionary that will allow us to map from the self.samples[key]
+        # back to the key itself. This is useful for debugging and for the return_data_id.
+        self.samples_lookup = {k: v for k, v in enumerate(self.samples)} 
+
     def __len__(self):
         if self.samples_per_epoch:
             return self.samples_per_epoch
@@ -102,11 +107,18 @@ class Segment2D(ThunderDataset, DatapathMixin):
         # Apply the label threshold
         if self.label_threshold is not None:
            seg = (seg > self.label_threshold).astype(np.float32)
+        
+        return_dict = {
+            "img": torch.from_numpy(img).float(),
+            "label": torch.from_numpy(seg).float(),
+        }
 
         if self.return_data_id:
-            return torch.from_numpy(img), torch.from_numpy(seg), self.samples[key]
-        else:
-            return torch.from_numpy(img), torch.from_numpy(seg)
+            return_dict["data_id"] = self.samples[key]
+        if self.return_data_key:
+            return_dict["data_key"] = key
+
+        return return_dict
 
     @property
     def _folder_name(self):

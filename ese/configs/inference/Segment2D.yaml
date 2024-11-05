@@ -12,6 +12,7 @@ inference_data:
   resolution: 128 
   slicing: "midslice"
   label_threshold: 0.5
+  return_data_key: True # Important for tracking if things are in the support set or not.
 
 global_calibration:
     num_classes: 1

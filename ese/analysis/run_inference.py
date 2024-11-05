@@ -61,8 +61,8 @@ def get_cal_stats(
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
             if "support" in inference_init_obj['dataobjs'][data_cfg_str]:
-                if inference_cfg_dict['experiment'].get('bootstrap_incontex', False):
-                    bootstrap_incontext_dataloader_loop(
+                if inference_cfg_dict['experiment'].get('crosseval_incontex', False):
+                    crosseval_incontext_dataloader_loop(
                         inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
                         data_props=data_props,
                         **tracker_objs
@@ -124,40 +124,29 @@ def standard_dataloader_loop(
     iter_dloader = iter(dloader)
 
     for batch_idx in range(len(dloader)):
-        try:
-            batch = next(iter_dloader)
+        batch = next(iter_dloader)
 
-            print(f"Working on batch #{batch_idx} out of",\
-                len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+        print(f"Working on batch #{batch_idx} out of",\
+            len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
 
-            if isinstance(batch, list):
-                batch = {
-                    "img": batch[0],
-                    "label": batch[1],
-                    "data_id": batch[2],
-                }
-            forward_batch = {
-                "batch_idx": batch_idx,
-                **data_props,
-                **batch
-            }
-            # Final thing (just for our machinery), convert the data_id to a np.array.
-            forward_batch["data_id"] = np.array(forward_batch["data_id"])
-            # Place the output dir in the inf_cfg_dict
-            inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
-            # Gather the forward item.
-            forward_item = {
-                "raw_batch": forward_batch,
-                "inf_cfg_dict": inf_cfg_dict,
-                "inf_init_obj": inf_init_obj,
-                "predictions": predictions
-            }
-
-            # Run the forward loop
-            standard_image_forward_loop(**forward_item)
-        # Raise an error if something happens in the batch.
-        except Exception as e:
-            raise e
+        forward_batch = {
+            "batch_idx": batch_idx,
+            **data_props,
+            **batch
+        }
+        # Final thing (just for our machinery), convert the data_id to a np.array.
+        forward_batch["data_id"] = np.array(forward_batch["data_id"])
+        # Place the output dir in the inf_cfg_dict
+        inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+        # Gather the forward item.
+        forward_item = {
+            "raw_batch": forward_batch,
+            "inf_cfg_dict": inf_cfg_dict,
+            "inf_init_obj": inf_init_obj,
+            "predictions": predictions
+        }
+        # Run the forward loop
+        standard_image_forward_loop(**forward_item)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -188,111 +177,90 @@ def standard_incontext_dataloader_loop(
 
         # Go through the dataloader.
         for batch_idx in range(len(dloader)):
-            try:
-                batch = next(iter_dloader)
+            batch = next(iter_dloader)
 
-                print(f"Working on batch #{batch_idx} out of",\
-                    len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+            print(f"Working on batch #{batch_idx} out of",\
+                len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
 
-                if isinstance(batch, list):
-                    batch = {
-                        "img": batch[0],
-                        "label": batch[1],
-                        "data_id": batch[2],
-                    }
-                forward_batch = {
-                    "batch_idx": batch_idx,
-                    "context_images": sx,
-                    "context_labels": sy,
-                    "support_idx": sup_idx,
-                    **data_props,
-                    **batch
-                }
-                # Final thing (just for our machinery), convert the data_id to a np.array.
-                forward_batch["data_id"] = np.array(forward_batch["data_id"])
-                # Place the output dir in the inf_cfg_dict
-                inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
-                # Gather the forward item.
-                forward_item = {
-                    "raw_batch": forward_batch,
-                    "inf_cfg_dict": inf_cfg_dict,
-                    "inf_init_obj": inf_init_obj,
-                    "predictions": predictions
-                }
-
-                # Run the forward loop
-                standard_image_forward_loop(**forward_item)
-            # Raise an error if something happens in the batch.
-            except Exception as e:
-                raise e
+            forward_batch = {
+                "batch_idx": batch_idx,
+                "context_images": sx,
+                "context_labels": sy,
+                "support_idx": sup_idx,
+                **data_props,
+                **batch
+            }
+            # Final thing (just for our machinery), convert the data_id to a np.array.
+            forward_batch["data_id"] = np.array(forward_batch["data_id"])
+            # Place the output dir in the inf_cfg_dict
+            inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+            # Gather the forward item.
+            forward_item = {
+                "raw_batch": forward_batch,
+                "inf_cfg_dict": inf_cfg_dict,
+                "inf_init_obj": inf_init_obj,
+                "predictions": predictions
+            }
+            # Run the forward loop
+            standard_image_forward_loop(**forward_item)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def bootstrap_incontext_dataloader_loop(
+def crosseval_incontext_dataloader_loop(
     inf_cfg_dict,
     inf_init_obj,
     predictions,
     inf_data_obj, 
     data_props: Optional[dict] = {}
 ):
+    assert inf_cfg_dict['dataloader']['batch_size'] == 1, "Batch size must be 1 for cross-evaluating in-context."
     dloader = inf_data_obj["dloader"]
     iter_dloader = iter(dloader)
     num_supports = inf_cfg_dict['experiment']['num_supports']
 
-    for sup_idx in range(num_supports):
-        # Ensure that all subjects of the same label have the same support set.
-        rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
-        # Send the support set to the device
-        sx_cpu, sy_cpu = inf_data_obj['support'][rng]
-        # Apply augmentation to the support set if defined.
-        if inf_init_obj.get('support_transforms', None) is not None:
-            aug_support = inf_init_obj['support_transforms']
-            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
-        # if "Subject11" not in support_data_ids:
-        sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
-        # Give the supports a batch dimension.
-        sx, sy = sx[None], sy[None]
+    # Go through the dataloader.
+    for batch_idx in range(len(dloader)):
+        batch = next(iter_dloader)
 
-        # Go through the dataloader.
-        for batch_idx in range(len(dloader)):
-            try:
-                batch = next(iter_dloader)
+        print(f"Working on batch #{batch_idx} out of",\
+            len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
 
-                print(f"Working on batch #{batch_idx} out of",\
-                    len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
+        for sup_idx in range(num_supports):
+            # Ensure that all subjects of the same label have the same support set.
+            rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
+            # Send the support set to the device
+            sx_cpu, sy_cpu = inf_data_obj['support'].__getitem__(seed=rng, exclude_idx=batch['data_key'].item())
+            # Apply augmentation to the support set if defined.
+            if inf_init_obj.get('support_transforms', None) is not None:
+                aug_support = inf_init_obj['support_transforms']
+                sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
+            # if "Subject11" not in support_data_ids:
+            sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+            # Give the supports a batch dimension.
+            sx, sy = sx[None], sy[None]
 
-                if isinstance(batch, list):
-                    batch = {
-                        "img": batch[0],
-                        "label": batch[1],
-                        "data_id": batch[2],
-                    }
-                forward_batch = {
-                    "batch_idx": batch_idx,
-                    "context_images": sx,
-                    "context_labels": sy,
-                    "support_idx": sup_idx,
-                    **data_props,
-                    **batch
-                }
-                # Final thing (just for our machinery), convert the data_id to a np.array.
-                forward_batch["data_id"] = np.array(forward_batch["data_id"])
-                # Place the output dir in the inf_cfg_dict
-                inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
-                # Gather the forward item.
-                forward_item = {
-                    "raw_batch": forward_batch,
-                    "inf_cfg_dict": inf_cfg_dict,
-                    "inf_init_obj": inf_init_obj,
-                    "predictions": predictions
-                }
-
-                # Run the forward loop
-                standard_image_forward_loop(**forward_item)
-            # Raise an error if something happens in the batch.
-            except Exception as e:
-                raise e
-
+            forward_batch = {
+                "batch_idx": batch_idx,
+                "context_images": sx,
+                "context_labels": sy,
+                "support_idx": sup_idx,
+                **data_props,
+                **batch
+            }
+            # Final thing (just for our machinery), convert the data_id to a np.array.
+            forward_batch["data_id"] = np.array(forward_batch["data_id"])
+            # Place the output dir in the inf_cfg_dict
+            inf_cfg_dict["output_root"] = inf_init_obj["output_root"]
+            # Gather the forward item.
+            forward_item = {
+                "raw_batch": forward_batch,
+                "inf_cfg_dict": inf_cfg_dict,
+                "inf_init_obj": inf_init_obj,
+                "predictions": predictions
+            }
+    
+            # Run the forward loop
+            standard_image_forward_loop(**forward_item)
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
