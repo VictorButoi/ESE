@@ -10,6 +10,7 @@ experiment:
     temperature: 1.0
   
 inference_data:
+  _class: "ese.datasets.Segment2D"
   resolution: 128 
   slicing: "midslice"
   label_threshold: 0.5
