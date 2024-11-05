@@ -146,26 +146,26 @@ def get_ese_inference_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     # Save the experiment config.
-    group = exp_cfg.pop('group')
-    sub_group = exp_cfg.pop('subgroup', "")
-    exp_name = f"{group}/{sub_group}"
+    group_str = exp_cfg.pop('group')
+    sub_group_str = exp_cfg.pop('subgroup', "")
+    exp_name = f"{group_str}/{sub_group_str}"
 
     # Get the root for the inference experiments.
     inference_log_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
-    if "sweep" in sub_group.lower(): 
+    if "sweep" in exp_cfg: 
         exp_cfg = add_sweep_options(
             exp_cfg, 
-            determiner=sub_group
+            param=exp_cfg['sweep']['param']
         )
 
     # In our general inference sheme, often we want to use the best models corresponding to a dataset
     if add_date:
-        eval_dataset = group.split('_')[0]
+        eval_dataset = group_str.split('_')[0]
     else:
-        eval_dataset = group.split('_')[3] # Group format is like MM_DD_YY_Dataset
+        eval_dataset = group_str.split('_')[3] # Group format is like MM_DD_YY_Dataset
     if eval_dataset in ['OCTA', 'ISLES', "WMH"] and use_best_models:
         # Load the default best models, and update the exp config with those as the base models.
         with open(code_root / "ese" / "configs" / "defaults" / "Best_Models.yaml", 'r') as file:
@@ -245,10 +245,10 @@ def get_ese_inference_configs(
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
-    if "optimal" in sub_group.lower(): 
+    if "load_optimal_args" in exp_cfg: 
         optimal_exp_parameters = load_sweep_optimal_params(
-            determiner=sub_group,
-            log_root=inference_log_root
+            log_root=inference_log_root,
+            **exp_cfg['load_optimal_args']
         )
     else:
         optimal_exp_parameters = None
@@ -265,7 +265,8 @@ def get_ese_inference_configs(
             )
             # If we have optimal_exp_parameters, then it is per model, so look at the 'experiment.model_dir' key.
             if optimal_exp_parameters is not None:
-                exp_cfg_update.update(optimal_exp_parameters[exp_cfg_update['experiment.model_dir']])
+                id_key = exp_cfg['load_optimal_args']['id_key']
+                exp_cfg_update.update(optimal_exp_parameters[exp_cfg_update[id_key]])
             
             # Update the base config with the new options. Note the order is important here, such that 
             # the exp_cfg_update is the last thing to update.

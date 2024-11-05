@@ -5,6 +5,7 @@ import json
 import pickle
 import hashlib
 import pandas as pd
+from tqdm import tqdm
 from pathlib import Path
 from pprint import pprint
 from pydantic import validate_arguments
@@ -147,34 +148,38 @@ def load_cal_inference_stats(
                                     verify_graceful_exit(sub_exp_log_path, log_root=root)
                                 # Check to make sure that this log wasn't the result of a crash.
                                 all_inference_log_paths.append(Path(sub_exp_log_path))
+        # We want to make a combined list of all the subdirs from all the all_inference_log_paths.
+        # by combining their iterdir() results.
+        combined_log_paths = []
+        for log_dir in all_inference_log_paths:
+            combined_log_paths.extend(list(log_dir.iterdir()))
         # Loop through every configuration in the log directory.
         metadata_pd_collection = []
-        for log_dir in all_inference_log_paths:
-            for log_set in log_dir.iterdir():
-                # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
-                # Verify that log_set is a directory and that it's not in the skip_log_folders.
-                if log_set.is_dir() and log_set.name not in skip_log_folders:
-                    # Load the metadata file (json) and add it to the metadata dataframe.
-                    logset_config_dir = log_set / "config.yml"
-                    logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
-                    # If there was a pretraining class, then we additionally add its config.
-                    # TODO: When restarting models, we use pretrained_dir as the name and when finetuning we use
-                    # base_pretrained dir, this causes some issues that need to be resolved.
-                    if results_cfg["options"].get('load_pretrained_cfg', True):
-                        # There are two possible dirs for this atm.
-                        base_pt_key = 'train.base_pretrained_dir' 
-                        ft_pt_key = 'train.pretrained_dir'
-                        # Check if either is in the logset_flat_cfg (if they aren't we can't load the pretrained config).
-                        if (base_pt_key in logset_flat_cfg) or (ft_pt_key in logset_flat_cfg):
-                            pt_load_key = base_pt_key if base_pt_key in logset_flat_cfg else ft_pt_key # We prefer to use the base key as it is newer.
-                            pretrained_cfg_dir = Path(logset_flat_cfg[pt_load_key]) / "config.yml"
-                            pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
-                            # Add 'pretraining' to the keys of the pretrained config.
-                            pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
-                            # Update the logset_flat_cfg with the pretrained config.
-                            logset_flat_cfg.update(pt_flat_cfg)
-                    # Append the df of the dictionary.
-                    metadata_pd_collection.append(logset_flat_cfg)
+        for log_set in tqdm(combined_log_paths, desc="Loading log configs"):
+            # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+            # Verify that log_set is a directory and that it's not in the skip_log_folders.
+            if log_set.is_dir() and log_set.name not in skip_log_folders:
+                # Load the metadata file (json) and add it to the metadata dataframe.
+                logset_config_dir = log_set / "config.yml"
+                logset_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=logset_config_dir)
+                # If there was a pretraining class, then we additionally add its config.
+                # TODO: When restarting models, we use pretrained_dir as the name and when finetuning we use
+                # base_pretrained dir, this causes some issues that need to be resolved.
+                if results_cfg["options"].get('load_pretrained_cfg', True):
+                    # There are two possible dirs for this atm.
+                    base_pt_key = 'train.base_pretrained_dir' 
+                    ft_pt_key = 'train.pretrained_dir'
+                    # Check if either is in the logset_flat_cfg (if they aren't we can't load the pretrained config).
+                    if (base_pt_key in logset_flat_cfg) or (ft_pt_key in logset_flat_cfg):
+                        pt_load_key = base_pt_key if base_pt_key in logset_flat_cfg else ft_pt_key # We prefer to use the base key as it is newer.
+                        pretrained_cfg_dir = Path(logset_flat_cfg[pt_load_key]) / "config.yml"
+                        pt_flat_cfg = get_flat_cfg(cfg_name=log_set.name, cfg_dir=pretrained_cfg_dir)
+                        # Add 'pretraining' to the keys of the pretrained config.
+                        pt_flat_cfg = {f"pretraining_{key}": val for key, val in pt_flat_cfg.items()}
+                        # Update the logset_flat_cfg with the pretrained config.
+                        logset_flat_cfg.update(pt_flat_cfg)
+                # Append the df of the dictionary.
+                metadata_pd_collection.append(logset_flat_cfg)
         # Finally, concatenate all of the metadata dataframes.
         metadata_df = pd.DataFrame(metadata_pd_collection) 
         # Gather the columns that have unique values amongst the different configurations.
@@ -188,28 +193,27 @@ def load_cal_inference_stats(
         #############################
         inference_pd_collection = []
         # Loop through every configuration in the log directory.
-        for log_dir in all_inference_log_paths:
-            for log_set_path in log_dir.iterdir():
-                # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
-                if log_set_path.is_dir() and log_set_path.name not in skip_log_folders:
-                    # Optionally load the information from image-based metrics.
-                    log_image_df = pd.read_pickle(log_set_path / "image_stats.pkl")
-                    # Get the metadata corresponding to this log set.
-                    metadata_log_df = metadata_df[metadata_df["log_set"] == log_set_path.name]
-                    assert len(metadata_log_df) == 1, \
-                        f"Metadata configuration must have one instance, found {len(metadata_log_df)}."
-                    # Tile the metadata df the number of times to match the number of rows in the log_image_df.
-                    tiled_metadata_log_df = pd.concat([metadata_log_df] * len(log_image_df), ignore_index=True)
-                    # Add the columns from the metadata dataframe that have unique values.
-                    logset_complete_df = pd.concat([log_image_df, tiled_metadata_log_df], axis=1)
-                    # Optionally load the pixel stats.
-                    if results_cfg["options"].get("get_glocal_cal_metrics", False):
-                        logset_complete_df = pd.concat([
-                            logset_complete_df, 
-                            load_pixel_meters(log_set_path, results_cfg=results_cfg)
-                        ], axis=1)
-                    # Add this log to the dataframe.
-                    inference_pd_collection.append(logset_complete_df)
+        for log_set_path in tqdm(combined_log_paths, desc="Loading image stats"):
+            # TODO: FIX THIS, I HATE THE SKIP_LOG_FOLDER PARADIGM.
+            if log_set_path.is_dir() and log_set_path.name not in skip_log_folders:
+                # Optionally load the information from image-based metrics.
+                log_image_df = pd.read_pickle(log_set_path / "image_stats.pkl")
+                # Get the metadata corresponding to this log set.
+                metadata_log_df = metadata_df[metadata_df["log_set"] == log_set_path.name]
+                assert len(metadata_log_df) == 1, \
+                    f"Metadata configuration must have one instance, found {len(metadata_log_df)}."
+                # Tile the metadata df the number of times to match the number of rows in the log_image_df.
+                tiled_metadata_log_df = pd.concat([metadata_log_df] * len(log_image_df), ignore_index=True)
+                # Add the columns from the metadata dataframe that have unique values.
+                logset_complete_df = pd.concat([log_image_df, tiled_metadata_log_df], axis=1)
+                # Optionally load the pixel stats.
+                if results_cfg["options"].get("get_glocal_cal_metrics", False):
+                    logset_complete_df = pd.concat([
+                        logset_complete_df, 
+                        load_pixel_meters(log_set_path, results_cfg=results_cfg)
+                    ], axis=1)
+                # Add this log to the dataframe.
+                inference_pd_collection.append(logset_complete_df)
         # Finally concatenate all of the inference dataframes.
         inference_df = pd.concat(inference_pd_collection, axis=0)
 

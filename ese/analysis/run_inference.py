@@ -157,9 +157,8 @@ def standard_incontext_dataloader_loop(
     inf_data_obj, 
     data_props: Optional[dict] = {}
 ):
-    dloader = inf_data_obj["dloader"]
-    iter_dloader = iter(dloader)
     num_supports = inf_cfg_dict['experiment']['num_supports']
+    dloader = inf_data_obj["dloader"]
 
     for sup_idx in range(num_supports):
         # Ensure that all subjects of the same label have the same support set.
@@ -170,11 +169,13 @@ def standard_incontext_dataloader_loop(
         if inf_init_obj.get('support_transforms', None) is not None:
             aug_support = inf_init_obj['support_transforms']
             sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
-        # if "Subject11" not in support_data_ids:
+        # Put the support on the GPU.
         sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
         # Give the supports a batch dimension.
         sx, sy = sx[None], sy[None]
 
+        # We need to make a new iter for each support set.
+        iter_dloader = iter(dloader)
         # Go through the dataloader.
         for batch_idx in range(len(dloader)):
             batch = next(iter_dloader)

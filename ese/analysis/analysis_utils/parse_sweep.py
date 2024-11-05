@@ -1,6 +1,6 @@
 # misc imports
 import pandas as pd
-from typing import List, Optional
+from typing import Literal, List, Optional
 from pydantic import validate_arguments
 
 
@@ -9,16 +9,26 @@ def get_global_optimal_parameter(
     raw_data: pd.DataFrame, 
     sweep_key: str, 
     y_key: str,
+    mode: Literal['min', 'max'],
     group_keys: Optional[List[str]] = [] 
 ) -> pd.DataFrame:
-    # Filter out the columns we want to keep which essentially boils down to the group keys, the sweep key, the y key and the data_id.
+    # Sometimes y_key is not a column, but is one of the possible 'image_metric' values.
+    # In such a case, we need to subselect the data to only include the relevant metric.
+    if y_key not in raw_data.columns:
+        raw_data = raw_data[raw_data['image_metric'] == y_key]
+        # Now we can drop the image_metric column, and rename the 'metric_score' column to 'y_key'
+        raw_data = raw_data.drop(columns=['image_metric']).rename(columns={'metric_score': y_key})
+    # Now we can isolate only the columns we care about.
     cols_to_keep = group_keys + [sweep_key, y_key, 'data_id']
-    data= raw_data[cols_to_keep].drop_duplicates().reset_index(drop=True)
+    data = raw_data[cols_to_keep].drop_duplicates().reset_index(drop=True)
 
     # Get the optimal threshold for each split out. First we have to average across the data_ids
     reduced_data_df = data.groupby(group_keys + [sweep_key]).mean(numeric_only=True).reset_index()
     # Then we get the threshold that minimizes the error
-    optimal_df = reduced_data_df.loc[reduced_data_df.groupby(group_keys)[y_key].idxmin()]
+    if mode == 'min':
+        optimal_df = reduced_data_df.loc[reduced_data_df.groupby(group_keys)[y_key].idxmin()]
+    else:
+        optimal_df = reduced_data_df.loc[reduced_data_df.groupby(group_keys)[y_key].idxmax()]
     # Finally, we only keep the columns we care about.
     best_parameter_df = optimal_df[group_keys + [sweep_key, y_key]].reset_index(drop=True).sort_values(y_key)
     # Return the best thresholds

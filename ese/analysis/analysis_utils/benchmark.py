@@ -10,9 +10,8 @@ from ..analyze_inf import load_cal_inference_stats
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def add_sweep_options(
     total_cfg: dict, 
-    determiner: str,
+    param: str,
 ):
-    _, param = determiner.split("_")[0], determiner.split("_")[1]
     # If we are doing a  sweep then we just have a single parameter instead of a val func.
     if param.lower() == "threshold":
         exp_cfg_update = {
@@ -50,16 +49,16 @@ def add_sweep_options(
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def load_sweep_optimal_params(
-    determiner: str,
-    log_root: Path
+    log_root: Path,
+    id_key: str,
+    split: str,
+    metric: str,
+    sweep_key: str,
+    **opt_kwargs
 ):
     # Get the optimal parameter for some value function.
-    _, parameters = determiner.split("_")[0], determiner.split("_")[1:]
-    val_func, sweep_key = parameters
     assert sweep_key.lower() in ["threshold", "temperature"], f"Unknown sweep key: {sweep_key}."
 
-    parsed_sweep_key = sweep_key.lower()
-    parsed_y_key = f"soft_{val_func}" if parsed_sweep_key == "temperature" else f"hard_{val_func}"
     # Load the sweep directory.
     results_cfgs = {
         "log":{
@@ -79,19 +78,25 @@ def load_sweep_optimal_params(
         load_cached=True
     )
 
+    # Importantly, if 'split' is not defined then we need to set it as the default
+    if 'split' not in sweep_df.columns:
+        sweep_df['split'] = sweep_df['inference_data_split']
+
+    # Do to artifact of the post-processing, we need to parse the sweep key to match how we saved them.
+    parsed_id_key = id_key.replace(".", "_")
     # Get the optimal parameter for the inference.
     all_param_opt_vals = get_global_optimal_parameter(
         sweep_df,
-        sweep_key=parsed_sweep_key, 
-        y_key=parsed_y_key,
-        group_keys=['experiment_model_dir', 'split'] 
+        sweep_key=sweep_key, 
+        y_key=metric,
+        group_keys=[parsed_id_key, 'split'],
+        **opt_kwargs
     )
-
     # Get only the rows where split is cal.
-    param_opt_vals = all_param_opt_vals[all_param_opt_vals['split'] == 'cal']
-
+    param_opt_vals = all_param_opt_vals[all_param_opt_vals['split'] == split]
+    # We now need to ranme the parsed_id_key column to go back to the original id_key.
+    param_opt_vals = param_opt_vals.rename(columns={parsed_id_key: id_key})
     # We want to make a dictionary that maps from 'experiment_model_dir' to the optimal parameter.
-    cal_opt_param_dict = dict(zip(param_opt_vals['experiment_model_dir'], param_opt_vals[parsed_sweep_key]))
-
+    opt_param_dict = dict(zip(param_opt_vals[id_key], param_opt_vals[sweep_key]))
     # Make a dictionary that maps from the model_dir to the proper experiment config update.
-    return {model_dir: {f"experiment.inf_kwargs.{parsed_sweep_key}": cal_opt_param} for model_dir, cal_opt_param in cal_opt_param_dict.items()}
+    return {model_dir: {f"experiment.inf_kwargs.{sweep_key}": opt_param} for model_dir, opt_param in opt_param_dict.items()}
