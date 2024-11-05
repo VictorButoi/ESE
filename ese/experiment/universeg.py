@@ -223,16 +223,16 @@ class UniversegExperiment(BaselineExperiment):
     def predict(
         self, 
         x, 
-        context_images,
-        context_labels,
+        support_images,
+        support_labels,
         threshold: float = 0.5,
         from_logits: bool = True,
         temperature: Optional[float] = None,
     ):
         # Get the label predictions
         logit_map = self.model(
-            context_images=context_images, 
-            context_labels=context_labels, 
+            support_images=support_images, 
+            support_labels=support_labels, 
             target_image=x
         ) 
 

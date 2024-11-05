@@ -185,8 +185,8 @@ def standard_incontext_dataloader_loop(
 
             forward_batch = {
                 "batch_idx": batch_idx,
-                "context_images": sx,
-                "context_labels": sy,
+                "support_images": sx,
+                "support_labels": sy,
                 "support_idx": sup_idx,
                 **data_props,
                 **batch
@@ -242,8 +242,8 @@ def crosseval_incontext_dataloader_loop(
 
             forward_batch = {
                 "batch_idx": batch_idx,
-                "context_images": sx,
-                "context_labels": sy,
+                "support_images": sx,
+                "support_labels": sy,
                 "support_idx": sup_idx,
                 **data_props,
                 **batch
@@ -292,7 +292,8 @@ def standard_image_forward_loop(
         # Get the example data
         image, label_map = batch.pop("img"), batch.pop("label")
         # Also try to pop the context images and labels if it exists.
-        sx, sy = batch.pop("context_images", None), batch.pop("context_labels", None)
+        sx, sy = batch.pop("support_images", None), batch.pop("support_labels", None)
+        incontext_mode = sx is not None and sy is not None
         # and put them on the device of our experiment.
         if image.device != exp.device:
             image, label_map = to_device((image, label_map), exp.device)
@@ -315,10 +316,10 @@ def standard_image_forward_loop(
                 }
 
                 # If we have support images then we need to add them to the predict_kwargs.
-                if "context_images" in raw_batch:
+                if incontext_mode:
                     predict_kwargs.update({
-                        "context_images": sx,
-                        "context_labels": sy
+                        "support_images": sx,
+                        "support_labels": sy
                     })
 
                 # If we are doing patch-based prediction then we need to do that here.
