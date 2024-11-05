@@ -9,48 +9,43 @@ from ..analyze_inf import load_cal_inference_stats
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def add_sweep_options(
-    experiment_cfg: dict, 
+    total_cfg: dict, 
     determiner: str,
 ):
     _, param = determiner.split("_")[0], determiner.split("_")[1]
     # If we are doing a  sweep then we just have a single parameter instead of a val func.
     if param.lower() == "threshold":
         exp_cfg_update = {
-            "experiment": {
-                "inf_kwargs": {
-                    "threshold": [ 
-                        "(0.00, ..., 0.25, 0.025)",
-                        "(0.26, ..., 0.50, 0.025)",
-                        "(0.51, ..., 0.75, 0.025)",
-                        "(0.76, ..., 1.00, 0.025)"
-                    ]
-                }
+            "inf_kwargs": {
+                "threshold": [ 
+                    "(0.00, ..., 0.25, 0.025)",
+                    "(0.26, ..., 0.50, 0.025)",
+                    "(0.51, ..., 0.75, 0.025)",
+                    "(0.76, ..., 1.00, 0.025)"
+                ]
             }
         }
     elif param.lower() == "temperature":
         exp_cfg_update = {
-            "experiment": {
-                "inf_kwargs": {
-                    "temperature": [ 
-                        "(0.01, ..., 0.50, 0.025)",
-                        "(0.51, ..., 1.00, 0.025)", 
-                        "(1.01, ..., 1.25, 0.025)",
-                        "(1.26, ..., 1.50, 0.025)",
-                        "(1.51, ..., 2.00, 0.025)",
-                        "(2.01, ..., 2.50, 0.025)",
-                        "(2.51, ..., 2.75, 0.025)",
-                        "(2.76, ..., 3.00, 0.025)",
-                    ]
-                }
+            "inf_kwargs": {
+                "temperature": [ 
+                    "(0.01, ..., 0.50, 0.025)",
+                    "(0.51, ..., 1.00, 0.025)", 
+                    "(1.01, ..., 1.25, 0.025)",
+                    "(1.26, ..., 1.50, 0.025)",
+                    "(1.51, ..., 2.00, 0.025)",
+                    "(2.01, ..., 2.50, 0.025)",
+                    "(2.51, ..., 2.75, 0.025)",
+                    "(2.76, ..., 3.00, 0.025)",
+                ]
             }
         }
     else:
         raise ValueError(f"Unknown parameter: {param}")
 
     # Update the experiment config.
-    experiment_cfg.update(exp_cfg_update)
-
-    return experiment_cfg
+    total_cfg['experiment'].update(exp_cfg_update)
+    return total_cfg
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

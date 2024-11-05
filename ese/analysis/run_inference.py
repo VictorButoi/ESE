@@ -222,6 +222,7 @@ def crosseval_incontext_dataloader_loop(
     for batch_idx in range(len(dloader)):
         batch = next(iter_dloader)
 
+        print(range(len(dloader)))
         print(f"Working on batch #{batch_idx} out of",\
             len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
 

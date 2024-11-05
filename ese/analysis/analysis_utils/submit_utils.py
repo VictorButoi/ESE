@@ -258,6 +258,7 @@ def get_ese_inference_configs(
     # Iterate over the different config options for this dataset. 
     for option_dict in dataset_cfgs:
         for exp_cfg_update in dict_product(option_dict):
+            print(exp_cfg_update)
             # Add the inference dataset specific details.
             dataset_inf_cfg_dict = get_inference_dset_info(
                 cfg=exp_cfg_update,
