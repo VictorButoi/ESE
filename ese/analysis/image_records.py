@@ -23,7 +23,7 @@ def get_image_stats(
     }
     # (Both individual and reduced)
     qual_input_config = {
-        "y_pred": output_dict["y_probs"], # either (B, C, H, W) or (B, C, E, H, W), if ensembling
+        "y_pred": output_dict["y_probs"], # (B, C, H, W)
         "y_true": output_dict["y_true"], # (B, C, H, W)
         'threshold': output_dict.get("threshold", 0.5),
     }

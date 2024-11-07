@@ -39,4 +39,10 @@ qual_metrics:
         square_diff: False
         use_hard_pred: True 
         metric_type: quality
+
+image_cal_metrics:
+    - Image_ECE:
+        _fn: ese.metrics.calibration.image_ece_loss
+        cal_type: 'toplabel'
+
       

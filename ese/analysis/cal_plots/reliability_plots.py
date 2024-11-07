@@ -33,16 +33,17 @@ def reliability_diagram(
                 color=bar_color, 
                 alpha=0.8
                 )
-            # Plot the ideal bars
-            ax.bar(
-                aligned_bar_position,
-                aligned_bar_position,
-                width=bar_width,
-                hatch='///', 
-                edgecolor='red', 
-                color='red', 
-                alpha=0.2, 
-                )
+            if bar_height != 0:
+                # Plot the ideal bars
+                ax.bar(
+                    aligned_bar_position,
+                    aligned_bar_position,
+                    width=bar_width,
+                    hatch='///', 
+                    edgecolor='red', 
+                    color='red', 
+                    alpha=0.2, 
+                    )
     elif plot_type == "line":
         bin_confs = calibration_info["bin_confs"]
         bin_measures = calibration_info["bin_measures"]
