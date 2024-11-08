@@ -1,5 +1,5 @@
 # ionpy imports
-from ionpy import slite
+from ionpy import sliter
 from ionpy.util import Config
 # misc imports
 from pathlib import Path
@@ -53,16 +53,16 @@ def run_ese_exp(
             cfg["callbacks"]["epoch"].remove(wandb_callback)
     # Either run the experiment or the job function.
     run_args = {
-        "config": Config(cfg),
+        "config": cfg,
         "available_gpus": gpu,
     }
     if experiment_class is not None:
-        slite.run_exp(
+        sliter.run_exp(
             exp_class=experiment_class,
             **run_args
         )
     else:
-        slite.run_job(
+        sliter.run_job(
             job_func=job_func,
             **run_args
         )
@@ -108,19 +108,11 @@ def submit_ese_exps(
             if not track_wandb and wandb_callback in cfg["callbacks"]["epoch"]:
                 cfg["callbacks"]["epoch"].remove(wandb_callback)
         # Add the modified config to the list.
-        modified_cfgs.append(Config(cfg))
-    # Either run the experiment or the job function.
-    run_cfg = {
-        "config_list": modified_cfgs,
-        "available_gpus": available_gpus
-    }
-    if experiment_class is not None:
-        slite.submit_exps(
-            exp_class=experiment_class,
-            **run_cfg
-        ) 
-    else:
-        slite.submit_jobs(
-            job_func=job_func,
-            **run_cfg
-        )
+        modified_cfgs.append(cfg)
+    # Run the set of configs.
+    sliter.submit_jobs(
+        job_func=job_func,
+        config_list=modified_cfgs,
+        exp_class=experiment_class,
+        available_gpus=available_gpus,
+    )
