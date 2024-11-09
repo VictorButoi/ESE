@@ -81,13 +81,12 @@ def select_pixel_dict(pixel_meter_logdict, metadata, kwargs):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def save_inference_metadata(cfg_dict, save_root: Optional[Path] = None):
     if save_root is None:
-        save_root = Path(cfg_dict['log']['root'])
+        save_root = cfg_dict['log']['root']
+        inference_cfg_uuid = cfg_dict['log']['uuid']
         # Prepare the output dir for saving the results
-        create_time, nonce = generate_tuid()
-        digest = config_digest(cfg_dict)
-        uuid = f"{create_time}-{nonce}-{digest}"
-        path = save_root / uuid
-        # Save the metadata if the path isn't defined yet.
+        path = Path(f'{save_root}/{inference_cfg_uuid}')
+        create_time, nonce, digest = inference_cfg_uuid.split("-")
+        # Save the metadata.
         metadata = {"create_time": create_time, "nonce": nonce, "digest": digest}
         autosave(metadata, path / "metadata.json")
     else:
@@ -98,7 +97,6 @@ def save_inference_metadata(cfg_dict, save_root: Optional[Path] = None):
     
 
 def cal_stats_init(inference_cfg):
-
     ###################
     # BUILD THE MODEL #
     ###################
