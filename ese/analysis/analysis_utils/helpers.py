@@ -2,15 +2,17 @@
 import os
 import yaml
 import numpy as np
+from typing import List
 from pprint import pprint
 from typing import Literal
 from datetime import datetime
+from pydantic import validate_arguments
 from itertools import chain, combinations
 # Ionpy imports
-from ionpy.util import Config
-from ionpy.util import dict_product
 from ionpy.util.ioutil import autosave
-from ionpy.util.config import check_missing, HDict, valmap
+from ionpy.util import Config, dict_product
+from ionpy.experiment.util import generate_tuid
+from ionpy.util.config import check_missing, HDict, valmap, config_digest
 
 
 def gather_exp_paths(root):
@@ -222,3 +224,17 @@ def get_inference_dset_info(
 
     # Return the data_cfg and the base_inf_dataset_cfg
     return inf_cfg_presets
+
+
+@validate_arguments(config=dict(arbitrary_types_allowed=True))
+def generate_config_uuids(config_list: List[Config]):
+    processed_cfgs = []
+    for config in config_list:
+        if isinstance(config, HDict):
+            config = config.to_dict()
+        create_time, nonce = generate_tuid()
+        digest = config_digest(config)
+        config['log']['uuid'] = f"{create_time}-{nonce}-{digest}"
+        # Append the updated config to the processed list.
+        processed_cfgs.append(Config(config))
+    return processed_cfgs

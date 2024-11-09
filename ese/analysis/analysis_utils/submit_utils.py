@@ -11,7 +11,7 @@ from ionpy.util import Config
 from ionpy.util import dict_product
 from ionpy.util.config import check_missing
 # Local imports
-from .helpers import *
+import ese.analysis.analysis_utils.helpers as analysis_helpers 
 from .benchmark import add_sweep_options, load_sweep_optimal_params
 
 
@@ -26,10 +26,10 @@ def get_ese_training_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('group')
-    train_exp_root = get_exp_root(exp_name, group="training", add_date=add_date, scratch_root=scratch_root)
+    train_exp_root = analysis_helpers.get_exp_root(exp_name, group="training", add_date=add_date, scratch_root=scratch_root)
 
     # Flatten the experiment config.
-    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
+    flat_exp_cfg_dict = analysis_helpers.flatten_cfg2dict(exp_cfg)
 
     # Add the dataset specific details.
     train_dataset_name = flat_exp_cfg_dict['data._class'].split('.')[-1]
@@ -47,14 +47,17 @@ def get_ese_training_configs(
     option_set = {
         'log.root': [str(train_exp_root)],
         'experiment.seed': [seed + seed_idx for seed_idx in range(seed_range)],
-        **listify_dict(flat_exp_cfg_dict)
+        **analysis_helpers.listify_dict(flat_exp_cfg_dict)
     }
 
     # Get the configs
-    cfgs = get_option_product(exp_name, option_set, base_cfg)
+    cfgs = analysis_helpers.get_option_product(exp_name, option_set, base_cfg)
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
+    # Finally, generate the uuid that identify each of the configs.
+    cfgs = analysis_helpers.generate_config_uuids(cfgs)
+
     return base_cfg_dict, cfgs
 
 
@@ -70,10 +73,10 @@ def get_ese_calibration_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('name')
-    calibration_exp_root = get_exp_root(exp_name, group="calibration", add_date=add_date, scratch_root=scratch_root)
+    calibration_exp_root = analysis_helpers.get_exp_root(exp_name, group="calibration", add_date=add_date, scratch_root=scratch_root)
 
-    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
-    flat_exp_cfg_dict = listify_dict(flat_exp_cfg_dict) # Make it compatible to our product function.
+    flat_exp_cfg_dict = analysis_helpers.flatten_cfg2dict(exp_cfg)
+    flat_exp_cfg_dict = analysis_helpers.listify_dict(flat_exp_cfg_dict) # Make it compatible to our product function.
 
     cfg_root = code_root / "ese" / "configs" 
 
@@ -81,7 +84,7 @@ def get_ese_calibration_configs(
     all_pre_models = []
     for pre_model_dir in flat_exp_cfg_dict['train.base_pretrained_dir']:
         if 'submitit' in os.listdir(pre_model_dir):
-            all_pre_models += gather_exp_paths(pre_model_dir) 
+            all_pre_models += analysis_helpers.gather_exp_paths(pre_model_dir) 
         else:
             all_pre_models.append(pre_model_dir)
     # Set it back in the flat_exp_cfg.
@@ -96,8 +99,8 @@ def get_ese_calibration_configs(
             dataset_cfg = yaml.safe_load(file)
         base_cfg = base_cfg.update([dataset_cfg])
     else:
-        _, inf_dset_name = get_inf_dset_from_model_group(flat_exp_cfg_dict['train.base_pretrained_dir'])
-        base_cfg = add_dset_presets("calibrate", inf_dset_name, base_cfg, code_root)
+        _, inf_dset_name = analysis_helpers.get_inference_dset_info(flat_exp_cfg_dict['train.base_pretrained_dir'])
+        base_cfg = analysis_helpers.add_dset_presets("calibrate", inf_dset_name, base_cfg, code_root)
 
     # Create the ablation options.
     option_set = {
@@ -106,7 +109,7 @@ def get_ese_calibration_configs(
     }
 
     # Get the configs
-    cfgs = get_option_product(exp_name, option_set, base_cfg)
+    cfgs = analysis_helpers.get_option_product(exp_name, option_set, base_cfg)
 
     # This is a list of calibration model configs. But the actual calibration model
     # should still not be defined at this point. We iterate through the configs, and replace
@@ -129,6 +132,8 @@ def get_ese_calibration_configs(
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
+    # Finally, generate the uuid that identify each of the configs.
+    cfgs = analysis_helpers.generate_config_uuids(cfgs)
 
     return base_cfg_dict, cfgs
 
@@ -151,7 +156,7 @@ def get_ese_inference_configs(
     exp_name = f"{group_str}/{sub_group_str}"
 
     # Get the root for the inference experiments.
-    inference_log_root = get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
+    inference_log_root = analysis_helpers.get_exp_root(exp_name, group="inference", add_date=add_date, scratch_root=scratch_root)
 
     # SPECIAL THINGS THAT GET ADDED BECAUSE WE OFTEN WANT TO DO THE SAME
     # SWEEPS FOR INFERENCE.
@@ -174,7 +179,7 @@ def get_ese_inference_configs(
         exp_cfg['base_model'] = best_models_cfg[eval_dataset]
     
     # Flatten the config.
-    flat_exp_cfg_dict = flatten_cfg2dict(exp_cfg)
+    flat_exp_cfg_dict = analysis_helpers.flatten_cfg2dict(exp_cfg)
     # For any key that is a tuple we need to convert it to a list, this is an artifact of the flattening..
     for key, val in flat_exp_cfg_dict.items():
         if isinstance(val, tuple):
@@ -186,10 +191,10 @@ def get_ese_inference_configs(
             for idx, val_list_item in enumerate(val):
                 if isinstance(val_list_item, str) and '...' in val_list_item:
                     # Replace the string with a range.
-                    flat_exp_cfg_dict[key][idx] = get_range_from_str(val_list_item)
+                    flat_exp_cfg_dict[key][idx] = analysis_helpers.get_range_from_str(val_list_item)
         elif isinstance(val, str) and  '...' in val:
             # Finally stick this back in as a string tuple version.
-            flat_exp_cfg_dict[key] = get_range_from_str(val)
+            flat_exp_cfg_dict[key] = analysis_helpers.get_range_from_str(val)
 
     # Load the inference cfg from local.
     ##################################################
@@ -199,12 +204,6 @@ def get_ese_inference_configs(
         cal_metrics_cfg = yaml.safe_load(file)
     ##################################################
     base_cfg = base_cfg.update([cal_metrics_cfg])
-
-    # for each power set key, we replace the list of options with its power set.
-    if power_set_keys is not None:
-        for key in power_set_keys:
-            if key in flat_exp_cfg_dict:
-                flat_exp_cfg_dict[key] = power_set(flat_exp_cfg_dict[key])
 
     # Gather the different config options.
     cfg_opt_keys = list(flat_exp_cfg_dict.keys())
@@ -232,7 +231,7 @@ def get_ese_inference_configs(
         # We evaluate this by seeing if 'submitit' is in the base model path.
         base_model_group_dir = Path(run_opt_dict.pop('base_model')[0])
         if 'submitit' in os.listdir(base_model_group_dir):
-            model_set  = gather_exp_paths(str(base_model_group_dir)) 
+            model_set  = analysis_helpers.gather_exp_paths(str(base_model_group_dir)) 
         else:
             model_set = [str(base_model_group_dir)]
         # Append these to the list of configs and roots.
@@ -259,7 +258,7 @@ def get_ese_inference_configs(
     for option_dict in dataset_cfgs:
         for exp_cfg_update in dict_product(option_dict):
             # Add the inference dataset specific details.
-            dataset_inf_cfg_dict = get_inference_dset_info(
+            dataset_inf_cfg_dict = analysis_helpers.get_inference_dset_info(
                 cfg=exp_cfg_update,
                 code_root=code_root
             )
@@ -278,6 +277,9 @@ def get_ese_inference_configs(
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
+    # Finally, generate the uuid that identify each of the configs.
+    cfgs = analysis_helpers.generate_config_uuids(cfgs)
+
     return base_cfg_dict, cfgs
 
 
@@ -292,10 +294,10 @@ def get_ese_restart_configs(
     # We need to flatten the experiment config to get the different options.
     # Building new yamls under the exp_name name for model type.
     exp_name = exp_cfg.pop('group')
-    restart_exp_root = get_exp_root(exp_name, group="restarted", add_date=add_date, scratch_root=scratch_root)
+    restart_exp_root = analysis_helpers.get_exp_root(exp_name, group="restarted", add_date=add_date, scratch_root=scratch_root)
 
     # Get the flat version of the experiment config.
-    restart_cfg_dict = flatten_cfg2dict(exp_cfg)
+    restart_cfg_dict = analysis_helpers.flatten_cfg2dict(exp_cfg)
 
     # If we are changing aspects of the dataset, we need to update the base config.
     if 'data._class' in restart_cfg_dict:
@@ -316,14 +318,14 @@ def get_ese_restart_configs(
     all_pre_models = []
     for pre_model_dir in pretrained_dir_list:
         if 'submitit' in os.listdir(pre_model_dir):
-            all_pre_models += gather_exp_paths(pre_model_dir) 
+            all_pre_models += analysis_helpers.gather_exp_paths(pre_model_dir) 
         else:
             all_pre_models.append(pre_model_dir)
 
     # Listify the dict for the product.
     listy_pt_cfg_dict = {
         'log.root': [str(restart_exp_root)],
-        **listify_dict(restart_cfg_dict)
+        **analysis_helpers.listify_dict(restart_cfg_dict)
     }
     
     # Go through all the pretrained models and add the new options for the restart.
@@ -337,10 +339,13 @@ def get_ese_restart_configs(
         pt_listy_cfg_dict['train.pretrained_dir'] = [pt_dir] # Put the pre-trained model back in.
         # Update the pt_exp_cfg with the restart_cfg.
         pt_restart_base_cfg = pt_exp_cfg.update([base_cfg])
-        pt_cfgs = get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_base_cfg)
+        pt_cfgs = analysis_helpers.get_option_product(exp_name, pt_listy_cfg_dict, pt_restart_base_cfg)
         # Append the list of configs for this pre-trained model.
         cfgs += pt_cfgs
 
     # Return the configs and the base config.
     base_cfg_dict = base_cfg.to_dict()
+    # Finally, generate the uuid that identify each of the configs.
+    cfgs = analysis_helpers.generate_config_uuids(cfgs)
+
     return base_cfg_dict, cfgs
