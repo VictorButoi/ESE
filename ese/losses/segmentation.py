@@ -108,6 +108,7 @@ def area_estimation_error(
     abs_diff: bool = False,
     relative: bool = False,
     square_diff: bool = False,
+    proportion: bool = False,
     use_hard_pred: bool = False,
     mode: InputMode = "auto",
     reduction: Reduction = "mean",
@@ -118,10 +119,10 @@ def area_estimation_error(
 ):
     # If the y_pred and y_true are 2D, then we don't need to calculate the area.
     if len(y_pred.shape) == 2:
-        y_pred_areas = y_pred
-        y_true_areas = y_true
+        y_pred_estimate = y_pred
+        y_true_estimate = y_true
     else:
-        y_pred, y_true = _inputs_as_onehot(
+        flat_y_pred, flat_y_true = _inputs_as_onehot(
             y_pred, 
             y_true, 
             mode=mode,
@@ -130,15 +131,22 @@ def area_estimation_error(
             from_logits=from_logits
         )
         # Sum over the last dimension to get the area
-        y_pred_areas = y_pred.sum(dim=-1)
-        y_true_areas = y_true.sum(dim=-1)
+        y_pred_estimate = flat_y_pred.sum(dim=-1)
+        y_true_estimate = flat_y_true.sum(dim=-1)
+    
+    # If we want to compare the areas proportionally
+    # then we need to divide by the total resolution of the pred/true
+    if proportion:
+        resolution = torch.prod(torch.tensor(y_pred.shape[2:])) # Exclude the batch and channel dimensions.
+        y_pred_estimate = y_pred_estimate / resolution
+        y_true_estimate = y_true_estimate / resolution
 
     # Get the diff between the predicted and true areas
-    loss = y_pred_areas - y_true_areas
+    loss = (y_pred_estimate - y_true_estimate)
     
     # There are a few options of how we can look at this diff.
     if relative:
-        loss = loss / y_true_areas
+        loss = loss / y_true_estimate
     if square_diff:
         loss = loss**2
     if abs_diff:

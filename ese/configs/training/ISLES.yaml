@@ -2,14 +2,14 @@ data:
   _class: ese.datasets.ISLES
   in_channels: 1
   out_channels: 1 
-  version: '?'
+  version: 1.0 
 
 dataloader:
   batch_size: 4
   num_workers: 2 # 3D data can be a bottleneck
 
 optim:
-  lr: '?'
+  lr: 0.0001
 
 log:
   root: '?'
@@ -17,13 +17,20 @@ log:
   metrics:
     dice_score:
       _fn: ionpy.metrics.dice_score
+      from_logits: True
       batch_reduction: 'mean' 
       ignore_empty_labels: False 
-      from_logits: True
-    area_estimation_error:
+    proportion_estimation_error:
       _fn: ese.losses.area_estimation_error
       from_logits: True
+      proportion: True
+      abs_diff: True
       square_diff: False
+    image_ece:
+      _fn: ese.metrics.image_ece_loss
+      from_logits: True
+      num_prob_bins: 15
+
 
 model:
   filters: [64, 64, 64, 64, 64, 64, 64]
