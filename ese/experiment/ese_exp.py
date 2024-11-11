@@ -1,4 +1,5 @@
 # local imports
+from ..losses.combo import eval_combo_config 
 from ..augmentation.pipeline import build_aug_pipeline
 from .utils import process_pred_map, load_exp_dataset_objs 
 # torch imports
@@ -15,6 +16,7 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import eval_config
 # misc imports
+from pprint import pprint
 from typing import Optional
 
 
@@ -46,23 +48,7 @@ class CalibrationExperiment(TrainExperiment):
             self.loss_func = eval_config(loss_config)
         elif "_combo_class" in loss_config:
             # Combined loss functions case
-            combo_losses = loss_config["_combo_class"]
-            # Instantiate each loss function using eval_config
-            loss_functions = []
-            for name, cfg in combo_losses.items():
-                loss_func = eval_config(cfg)
-                loss_functions.append(loss_func)
-            # Define a combined loss function that sums individual losses
-            class CombinedLoss(nn.Module):
-                def __init__(self, loss_funcs):
-                    super(CombinedLoss, self).__init__()
-                    self.loss_funcs = nn.ModuleList(loss_funcs)
-                def forward(self, outputs, targets):
-                    total_loss = 0
-                    for loss_func in self.loss_funcs:
-                        total_loss += loss_func(outputs, targets)
-                    return total_loss
-            self.loss_func = CombinedLoss(loss_functions)
+            self.loss_func = eval_combo_config(loss_config)
         else:
             raise ValueError("The loss_func configuration must contain either '_class' or '_combo_class' key.")
     

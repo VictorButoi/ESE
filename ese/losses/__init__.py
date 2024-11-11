@@ -3,6 +3,5 @@ from .segmentation import (
    PixelCELoss, 
    PixelFocalLoss, 
    SoftDiceLoss,
-   area_estimation_error,
+   area_estimation_error
 )
-from .multi import MultiLoss
