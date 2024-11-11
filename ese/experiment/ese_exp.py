@@ -3,6 +3,7 @@ from ..augmentation.pipeline import build_aug_pipeline
 from .utils import process_pred_map, load_exp_dataset_objs 
 # torch imports
 import torch
+import torch.nn as nn
 from torch.amp import autocast
 from torch.utils.data import DataLoader
 import torch._dynamo # For compile
@@ -12,16 +13,9 @@ from ionpy.util import Config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import absolute_import, eval_config
+from ionpy.experiment.util import eval_config
 # misc imports
-import time
-import einops
-import voxynth
-import numpy as np
-import seaborn as sns
-from pprint import pprint
-import matplotlib.pyplot as plt
-from typing import Literal, Optional
+from typing import Optional
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -45,11 +39,32 @@ class CalibrationExperiment(TrainExperiment):
             self.val_dataset = dset_objs['val']
 
     def build_loss(self):
-        # If our target for optimization is 'seg' then we are not allowed to use the 'MSE' loss.
-        if self.config["data"].get("target", "seg") == "seg":
-            assert self.config["loss_func"]["_class"] != "torch.nn.MSELoss", "Cannot use MSE loss for segmentation task."
         # Build the loss function.
-        self.loss_func = eval_config(self.config["loss_func"])
+        loss_config = self.config.get("loss_func")
+        if "_class" in loss_config:
+            # Single loss function case
+            self.loss_func = eval_config(loss_config)
+        elif "_combo_class" in loss_config:
+            # Combined loss functions case
+            combo_losses = loss_config["_combo_class"]
+            # Instantiate each loss function using eval_config
+            loss_functions = []
+            for name, cfg in combo_losses.items():
+                loss_func = eval_config(cfg)
+                loss_functions.append(loss_func)
+            # Define a combined loss function that sums individual losses
+            class CombinedLoss(nn.Module):
+                def __init__(self, loss_funcs):
+                    super(CombinedLoss, self).__init__()
+                    self.loss_funcs = nn.ModuleList(loss_funcs)
+                def forward(self, outputs, targets):
+                    total_loss = 0
+                    for loss_func in self.loss_funcs:
+                        total_loss += loss_func(outputs, targets)
+                    return total_loss
+            self.loss_func = CombinedLoss(loss_functions)
+        else:
+            raise ValueError("The loss_func configuration must contain either '_class' or '_combo_class' key.")
     
     def build_dataloader(self):
         # If the datasets aren't built, build them
