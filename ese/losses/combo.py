@@ -26,6 +26,18 @@ def eval_combo_config(loss_config):
         cfg_dict = config.to_dict()
         loss_fn_weights[name] = cfg_dict.pop("weight", 1.0)
         loss_fn_dict[name] = eval_config(cfg_dict)
+    # If 'convex_param' is present, return a convex combination of the losses
+    if "convex_param" in loss_config:
+        # Assert that there are only two losses
+        assert len(loss_fn_dict) == 2, "Convex combination of more than two losses is not supported."
+        # Assert that the weights are all one (they don't exist)
+        for weight in loss_fn_weights.values():
+            assert weight == 1.0, "Convex combination of losses with weights is not supported."
+        # Assign the weights such that the first loss is weighted by convex_param and the second by 1-convex_param
+        convex_param = loss_config["convex_param"]
+        for i, name in enumerate(loss_fn_dict.keys()):
+            loss_fn_weights[name] = convex_param if i == 0 else (1 - convex_param)
+
     return CombinedLoss(
         loss_func_dict=loss_fn_dict,
         loss_func_weights=loss_fn_weights
