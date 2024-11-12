@@ -1,4 +1,5 @@
 # torch imports
+import torch
 import torch.nn as nn
 from ionpy.experiment.util import eval_config
 
@@ -10,7 +11,7 @@ class CombinedLoss(nn.Module):
         self.loss_fn_dict = nn.ModuleDict(loss_func_dict)
         self.loss_func_weights = loss_func_weights
     def forward(self, outputs, targets):
-        total_loss = 0
+        total_loss = torch.tensor(0.0, device=outputs.device)
         for loss_name, loss_func in self.loss_fn_dict.items():
             total_loss += self.loss_func_weights[loss_name] * loss_func(outputs, targets)
         return total_loss
