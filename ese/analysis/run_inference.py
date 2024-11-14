@@ -60,7 +60,7 @@ def get_cal_stats(
             else:
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
-            if "support" in inference_init_obj['dataobjs'][data_cfg_str]:
+            if "support_sampler" in inference_init_obj['dataobjs'][data_cfg_str]:
                 if inference_cfg_dict['experiment'].get('crosseval_incontex', False):
                     crosseval_incontext_dataloader_loop(
                         inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
@@ -161,38 +161,13 @@ def standard_incontext_dataloader_loop(
     dloader = inf_data_obj["dloader"]
 
     for sup_idx in range(num_supports):
-        # Ensure that all subjects of the same label have the same support set.
-        rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
-        # Send the support set to the device
-        sx_cpu, sy_cpu = inf_data_obj['support'][rng]
-        # Show the first 10 examples of the support in two rows.
-        f, ax = plt.subplots(2, 10, figsize=(40, 8))
-        for i in range(10):
-            ax[0, i].imshow(sx_cpu[i].squeeze(), cmap='gray')
-            ax[1, i].imshow(sy_cpu[i].squeeze(), cmap='gray')
-            # Turn the grids off.
-            ax[0, i].grid(False)
-            ax[1, i].grid(False)
-        plt.show()
-
-        # Put the support on the GPU.
-        sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
-        # Apply augmentation to the support set if defined.
-        if inf_init_obj.get('support_aug_pipeline', None) is not None:
-            sx, sy = inf_init_obj['support_aug_pipeline'](sx, sy)
-        # Show the first 10 examples of the support in two rows.
-        f, ax = plt.subplots(2, 10, figsize=(40, 8))
-        for i in range(10):
-            ax[0, i].imshow(sx[i].squeeze().cpu(), cmap='gray')
-            ax[1, i].imshow(sy[i].squeeze().cpu(), cmap='gray')
-            # Turn the grids off.
-            ax[0, i].grid(False)
-            ax[1, i].grid(False)
-        plt.show()
-
-        # Give the supports a batch dimension.
-        sx, sy = sx[None], sy[None]
-
+        # Sample the support set.
+        sx, sy = inf_utils.sample_support(
+            inf_cfg_dict,
+            inf_data_obj,
+            inf_init_obj,
+            sup_idx=sup_idx
+        )
         # We need to make a new iter for each support set.
         iter_dloader = iter(dloader)
         # Go through the dataloader.
@@ -237,27 +212,22 @@ def crosseval_incontext_dataloader_loop(
     dloader = inf_data_obj["dloader"]
     iter_dloader = iter(dloader)
     num_supports = inf_cfg_dict['experiment']['num_supports']
-
     # Go through the dataloader.
     for batch_idx in range(len(dloader)):
         batch = next(iter_dloader)
-
         print(f"Working on batch #{batch_idx} out of",\
             len(dloader), "({:.2f}%)".format(batch_idx / len(dloader) * 100), end="\r")
-
+        # Loop through and sample multiple supports per subject.
         for sup_idx in range(num_supports):
-            # Ensure that all subjects of the same label have the same support set.
-            rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
-            # Send the support set to the device
-            sx_cpu, sy_cpu = inf_data_obj['support'].__getitem__(seed=rng, exclude_idx=batch['data_key'].item())
-            # if "Subject11" not in support_data_ids:
-            sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
-            # Apply augmentation to the support set if defined.
-            if inf_init_obj.get('support_aug_pipeline', None) is not None:
-                sx_cpu, sy_cpu = inf_init_obj['support_aug_pipeline'](sx_cpu, sy_cpu)
-            # Give the supports a batch dimension.
-            sx, sy = sx[None], sy[None]
-
+            # Sample the support set.
+            sx, sy = inf_utils.sample_support(
+                inf_cfg_dict,
+                inf_data_obj,
+                inf_init_obj,
+                batch=batch, # NOTE: This will ALWAYS exclude the current batch data id, even if in differnet splits.
+                sup_idx=sup_idx
+            )
+            # Define the forward batch.
             forward_batch = {
                 "batch_idx": batch_idx,
                 "support_images": sx,

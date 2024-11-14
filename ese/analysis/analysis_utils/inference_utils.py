@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from ionpy.util.ioutil import autosave
 from ionpy.util import Config, dict_product
 from ionpy.util.config import config_digest
+from ionpy.util.torchutils import to_device
 from ionpy.experiment.util import absolute_import, generate_tuid, eval_config
 # local imports
 from ese.utils.general import save_records, save_dict
@@ -365,7 +366,7 @@ def dataobjs_from_exp(
             support_dset_args['split'] = support_split
             support_dset_args['return_data_id'] = False
             # Build the support sampler.
-            d_cfg_data_objs[opt_string]['support'] = RandomSupport(
+            d_cfg_data_objs[opt_string]['support_sampler'] = RandomSupport(
                 dset_cls(**support_dset_args), 
                 support_size=support_size, 
                 return_data_ids=False,
@@ -513,3 +514,26 @@ def get_kwarg_sweep(
         return list(dict_product(inf_kwarg_opts))
     else:
         return [{}]
+    
+
+def sample_support(
+    inf_cfg_dict,
+    inf_data_obj,
+    inf_init_obj,
+    batch=None,
+    sup_idx=0
+):
+    # Ensure that all subjects of the same label have the same support set.
+    rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
+    # Send the support set to the device
+    if batch is not None:
+        sx_cpu, sy_cpu = inf_data_obj['support_sampler'].__getitem__(seed=rng, exclude_idx=batch['data_key'].item())
+    else:
+        sx_cpu, sy_cpu = inf_data_obj['support_sampler'].__getitem__(seed=rng)
+    # if "Subject11" not in support_data_ids:
+    sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+    # Apply augmentation to the support set if defined.
+    if inf_init_obj.get('support_aug_pipeline', None) is not None:
+        sx, sy = inf_init_obj['support_aug_pipeline'](sx, sy)
+    # Give the supports a batch dimension.
+    return sx[None], sy[None]

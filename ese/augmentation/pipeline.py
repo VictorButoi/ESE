@@ -28,8 +28,7 @@ def build_aug_pipeline(augs_dict):
         # Apply spatial augmentations if they exist.
         if spatial_augs is not None:
             if do_independent:
-                aug_x_list = []
-                aug_y_list = []
+                aug_x_list, aug_y_list = [], []
                 for batch_idx in range(x_batch.shape[0]):
                     trf = voxform.random_transform(x_batch.shape[2:], **spatial_augs, device=x_batch.device) # We avoid the batch and channels dims.
                     # We get the randomly generated transformation and apply it to the batch.
@@ -39,8 +38,7 @@ def build_aug_pipeline(augs_dict):
                         if y_batch is not None:
                             aug_y_list.append(voxform.spatial_transform(y_batch[batch_idx], trf))
                 # Combine the augmented batches into a single tensor.
-                spat_aug_x = torch.stack(aug_x_list)
-                spat_aug_y = torch.stack(aug_y_list)
+                spat_aug_x, spat_aug_y = torch.stack(aug_x_list), torch.stack(aug_y_list)
             else:
                 trf = voxform.random_transform(x_batch.shape[2:], **spatial_augs, device=x_batch.device) # We avoid the batch and channels dims.
                 # We get the randomly generated transformation and apply it to the batch.
