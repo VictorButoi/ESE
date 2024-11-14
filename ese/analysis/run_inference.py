@@ -165,11 +165,31 @@ def standard_incontext_dataloader_loop(
         rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
         # Send the support set to the device
         sx_cpu, sy_cpu = inf_data_obj['support'][rng]
+        # Show the first 10 examples of the support in two rows.
+        f, ax = plt.subplots(2, 10, figsize=(40, 8))
+        for i in range(10):
+            ax[0, i].imshow(sx_cpu[i].squeeze(), cmap='gray')
+            ax[1, i].imshow(sy_cpu[i].squeeze(), cmap='gray')
+            # Turn the grids off.
+            ax[0, i].grid(False)
+            ax[1, i].grid(False)
+        plt.show()
+
         # Put the support on the GPU.
         sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
         # Apply augmentation to the support set if defined.
         if inf_init_obj.get('support_aug_pipeline', None) is not None:
-            sx_cpu, sy_cpu = inf_init_obj['support_aug_pipeline'](sx_cpu, sy_cpu)
+            sx, sy = inf_init_obj['support_aug_pipeline'](sx, sy)
+        # Show the first 10 examples of the support in two rows.
+        f, ax = plt.subplots(2, 10, figsize=(40, 8))
+        for i in range(10):
+            ax[0, i].imshow(sx[i].squeeze().cpu(), cmap='gray')
+            ax[1, i].imshow(sy[i].squeeze().cpu(), cmap='gray')
+            # Turn the grids off.
+            ax[0, i].grid(False)
+            ax[1, i].grid(False)
+        plt.show()
+
         # Give the supports a batch dimension.
         sx, sy = sx[None], sy[None]
 

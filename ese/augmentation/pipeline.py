@@ -6,11 +6,10 @@ import voxynth.transform as voxform
 from pprint import pprint
 
 
-def build_aug_pipeline(
-    augs_dict
-):
+def build_aug_pipeline(augs_dict):
     spatial_augs = augs_dict.get('spatial', None)
     visual_augs = augs_dict.get('visual', None)
+    do_independent = augs_dict.get('independent')
     assert not (spatial_augs is None and visual_augs is None),\
         "At least one of spatial or visual augmentations must be provided."
 
@@ -28,13 +27,28 @@ def build_aug_pipeline(
         spat_aug_x, spat_aug_y = x_batch, y_batch
         # Apply spatial augmentations if they exist.
         if spatial_augs is not None:
-            trf = voxform.random_transform(x_batch.shape[2:], **spatial_augs, device=x_batch.device) # We avoid the batch and channels dims.
-            # We get the randomly generated transformation and apply it to the batch.
-            if trf is not None:
-                # Apply the spatial deformation to each elemtn of the batch.  
-                spat_aug_x = torch.stack([voxform.spatial_transform(x, trf) for x in x_batch])
-                if y_batch is not None:
-                    spat_aug_y = torch.stack([voxform.spatial_transform(y, trf) for y in y_batch])
+            if do_independent:
+                aug_x_list = []
+                aug_y_list = []
+                for batch_idx in range(x_batch.shape[0]):
+                    trf = voxform.random_transform(x_batch.shape[2:], **spatial_augs, device=x_batch.device) # We avoid the batch and channels dims.
+                    # We get the randomly generated transformation and apply it to the batch.
+                    if trf is not None:
+                        # Apply the spatial deformation to each elemennt of the batchi independently.  
+                        aug_x_list.append(voxform.spatial_transform(x_batch[batch_idx], trf))
+                        if y_batch is not None:
+                            aug_y_list.append(voxform.spatial_transform(y_batch[batch_idx], trf))
+                # Combine the augmented batches into a single tensor.
+                spat_aug_x = torch.stack(aug_x_list)
+                spat_aug_y = torch.stack(aug_y_list)
+            else:
+                trf = voxform.random_transform(x_batch.shape[2:], **spatial_augs, device=x_batch.device) # We avoid the batch and channels dims.
+                # We get the randomly generated transformation and apply it to the batch.
+                if trf is not None:
+                    # Apply the spatial deformation to each elemtn of the batch.  
+                    spat_aug_x = torch.stack([voxform.spatial_transform(x, trf) for x in x_batch])
+                    if y_batch is not None:
+                        spat_aug_y = torch.stack([voxform.spatial_transform(y, trf) for y in y_batch])
         # Apply augmentations that affect the visual properties of the image, but maintain originally
         # ground truth mapping.
         aug_x = spat_aug_x
