@@ -165,12 +165,11 @@ def standard_incontext_dataloader_loop(
         rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
         # Send the support set to the device
         sx_cpu, sy_cpu = inf_data_obj['support'][rng]
-        # Apply augmentation to the support set if defined.
-        if inf_init_obj.get('support_transforms', None) is not None:
-            aug_support = inf_init_obj['support_transforms']
-            sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
         # Put the support on the GPU.
         sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+        # Apply augmentation to the support set if defined.
+        if inf_init_obj.get('support_aug_pipeline', None) is not None:
+            sx_cpu, sy_cpu = inf_init_obj['support_aug_pipeline'](sx_cpu, sy_cpu)
         # Give the supports a batch dimension.
         sx, sy = sx[None], sy[None]
 
@@ -231,12 +230,11 @@ def crosseval_incontext_dataloader_loop(
             rng = inf_cfg_dict['experiment']['inference_seed'] * (sup_idx + 1)
             # Send the support set to the device
             sx_cpu, sy_cpu = inf_data_obj['support'].__getitem__(seed=rng, exclude_idx=batch['data_key'].item())
-            # Apply augmentation to the support set if defined.
-            if inf_init_obj.get('support_transforms', None) is not None:
-                aug_support = inf_init_obj['support_transforms']
-                sx_cpu, sy_cpu = aug_support(sx_cpu, sy_cpu, inf_init_obj)
             # if "Subject11" not in support_data_ids:
             sx, sy = to_device((sx_cpu, sy_cpu), inf_init_obj["exp"].device)
+            # Apply augmentation to the support set if defined.
+            if inf_init_obj.get('support_aug_pipeline', None) is not None:
+                sx_cpu, sy_cpu = inf_init_obj['support_aug_pipeline'](sx_cpu, sy_cpu)
             # Give the supports a batch dimension.
             sx, sy = sx[None], sy[None]
 

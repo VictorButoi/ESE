@@ -170,6 +170,15 @@ def cal_stats_init(inference_cfg):
         aug_pipeline = build_aug_pipeline(inference_augs)
     else:
         aug_pipeline = None
+    # Assemble the augmentation pipeline specifically for the support set..
+    if ('support_inference_augmentations' in inference_cfg.keys()):
+        support_inf_config = inference_cfg['support_inference_augmentations']
+        # Update the inference cfg with the new augmentations.
+        inference_cfg['support_inference_augmentations'] = support_inf_config
+        # Place the augmentation function into our inference object.
+        support_aug_pipeline = build_aug_pipeline(support_inf_config)
+    else:
+        support_aug_pipeline = None
 
     #####################
     # SAVE THE METADATA #
@@ -185,6 +194,7 @@ def cal_stats_init(inference_cfg):
         "dataobjs": dataobj_dict,
         "output_root": task_root,
         "aug_pipeline": aug_pipeline,
+        "support_aug_pipeline": support_aug_pipeline,
     }
 
     ##################################
