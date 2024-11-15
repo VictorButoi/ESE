@@ -61,7 +61,7 @@ def get_cal_stats(
                 data_props = {'data_cfg_str': data_cfg_str}
             # Iterate through this configuration's dataloader.
             if "support_sampler" in inference_init_obj['dataobjs'][data_cfg_str]:
-                if inference_cfg_dict['experiment'].get('crosseval_incontex', False):
+                if inference_cfg_dict['experiment']['crosseval_incontex']:
                     crosseval_incontext_dataloader_loop(
                         inf_data_obj=inference_init_obj['dataobjs'][data_cfg_str],
                         data_props=data_props,

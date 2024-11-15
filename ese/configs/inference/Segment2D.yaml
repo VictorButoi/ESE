@@ -3,7 +3,7 @@ log:
 
 experiment:
   num_supports: 5
-  crosseval_incontex: '?'
+  crosseval_incontex: False 
   inf_kwargs:
     from_logits: True
     threshold: 0.5 
