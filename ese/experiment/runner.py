@@ -1,5 +1,6 @@
 # ionpy imports
-import slite
+import slite.runner as slunner
+import slite.submit as slubmit 
 from ionpy.util import Config
 # misc imports
 from pathlib import Path
@@ -57,12 +58,12 @@ def run_ese_exp(
         "available_gpus": gpu,
     }
     if experiment_class is not None:
-        slite.run_exp(
+        slunner.run_exp(
             exp_class=experiment_class,
             **run_args
         )
     else:
-        slite.run_job(
+        slunner.run_job(
             job_func=job_func,
             **run_args
         )
@@ -110,7 +111,7 @@ def submit_ese_exps(
         # Add the modified config to the list.
         modified_cfgs.append(cfg)
     # Run the set of configs.
-    slite.submit_jobs(
+    slubmit.submit_jobs(
         job_func=job_func,
         config_list=modified_cfgs,
         exp_class=experiment_class,
