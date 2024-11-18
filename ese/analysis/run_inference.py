@@ -1,9 +1,6 @@
 # torch imports
 import torch
-from torch import Tensor
-import torch.nn.functional as F
 # ionpy imports
-from ionpy.util import Config
 from ionpy.experiment.util import fix_seed
 from ionpy.util.torchutils import to_device
 # local imports
@@ -24,16 +21,20 @@ import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
 import matplotlib.pyplot as plt
-from typing import Optional
+from typing import Any, Optional
 from pydantic import validate_arguments
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def get_cal_stats(
-    cfg: Config,
+    config: Any,
 ) -> None:
+
     # Get the config dictionary
-    inference_cfg_dict = cfg.to_dict()
+    if not isinstance(config, dict):
+        inference_cfg_dict = config.to_dict()
+    else:
+        inference_cfg_dict = config
 
     # Ensure that inference seed is the same.
     fix_seed(inference_cfg_dict['experiment']['inference_seed'])
