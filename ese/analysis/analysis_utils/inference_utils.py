@@ -120,16 +120,8 @@ def cal_stats_init(inference_cfg):
     #####################
     # BUILD THE DATASET #
     #####################
-    # Rebuild the experiments dataset with the new cfg modifications.
-    inference_data_cfg = inference_cfg['inference_data'].copy()
-    input_type = inference_data_cfg.pop("input_type", "image")
-    assert input_type in ["volume", "image"], f"Data type {input_type} not supported."
     # Build the dataloaders.
-    loaded_inf_data_cfg, dataobj_dict = dataobjs_from_exp( 
-        inf_data_cfg=inference_data_cfg, 
-        dataloader_cfg=inference_cfg['dataloader'],
-        aug_cfg_list=inference_cfg.get('support_augmentations', None)
-    )
+    loaded_inf_data_cfg, dataobj_dict = dataobjs_from_exp(inf_cfg=inference_cfg)
     # Update the inference_data_cfg to reflect the data we are running on.
     inference_cfg['inference_data'] = loaded_inf_data_cfg 
 
@@ -273,14 +265,9 @@ def load_inference_exp(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def dataobjs_from_exp(
-    inf_data_cfg, 
-    dataloader_cfg,
-    aug_cfg_list: Optional[List[dict]] = None,
-    new_dset_options: Optional[dict] = None, # This is a dictionary of options to update the dataset with.
-):
-    if new_dset_options is not None:
-        inf_data_cfg.update(new_dset_options)
+def dataobjs_from_exp(inf_cfg):
+    inf_data_cfg = inf_cfg['inference_data']
+    dataloader_cfg = inf_cfg['dataloader']
     # Make sure we aren't sampling for evaluation. 
     if "slicing" in inf_data_cfg.keys():
         assert inf_data_cfg['slicing'] not in ['central', 'dense', 'uniform'], "Sampling methods not allowed for evaluation."
@@ -288,9 +275,15 @@ def dataobjs_from_exp(
     # Get the dataset class and sometimes the support size.
     dataset_cls_str = inf_data_cfg.pop('_class')
     dset_cls = absolute_import(dataset_cls_str)
-    # Some information about supports.
-    support_size = inf_data_cfg.pop('support_size', None)
+    # For in-context models, we need to gather some information about supports.
+    # If we define the support in our experiment config, then we need to use that, otherwise, use the default training one.
+    training_support_size = inf_data_cfg.pop('support_size')
+    if 'support_size' in inf_cfg['experiment']:
+        support_size = inf_cfg['experiment']['support_size']
+    else:
+        support_size = training_support_size
     support_split = inf_data_cfg.pop('support_split', 'train')
+    aug_cfg_list = inference_cfg.get('support_augmentations', None) 
 
     # Drop auxiliary information used for making the models.
     for drop_key in [

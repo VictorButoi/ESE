@@ -112,7 +112,7 @@ def load_cal_inference_stats(
     ]
     # We need to get the roots and inference groups from the log_cfg.
     log_roots = log_cfg["root"]
-    log_inference_groups = log_cfg["inference_group"]
+    log_inference_groups = log_cfg.get("inference_group", "")
     if isinstance(log_roots, str):
         log_roots = [log_roots]
     if isinstance(log_inference_groups, str):
@@ -124,12 +124,18 @@ def load_cal_inference_stats(
         all_inference_log_paths = []
         for root in log_roots:
             for inf_group in log_inference_groups:
-                inf_group_dir = root + "/" + inf_group
+                # If inf_group is None, then we are in the root directory.
+                if inf_group is None:
+                    inf_group_dir = root
+                else:
+                    inf_group_dir = root + "/" + inf_group
+                print(inf_group_dir)
                 group_folders = os.listdir(inf_group_dir)
                 # If 'submitit' is in the highest dir, then we don't have subdirs (new folder structure).
                 if "submitit" in group_folders:
                     # Check to make sure this log wasn't the result of a crash.
-                    verify_graceful_exit(inf_group_dir, log_root=root)
+                    if results_cfg["options"].get('verify_graceful_exit', True):
+                        verify_graceful_exit(inf_group_dir, log_root=root)
                     # Check to make sure that this log wasn't the result of a crash.
                     all_inference_log_paths.append(Path(inf_group_dir))
                 # Otherwise, we had separated our runs in 'log sets', which isn't a good level of abstraction.
@@ -152,7 +158,11 @@ def load_cal_inference_stats(
         # by combining their iterdir() results.
         combined_log_paths = []
         for log_dir in all_inference_log_paths:
-            combined_log_paths.extend(list(log_dir.iterdir()))
+            # If a config file exists, then we add it to the list of combined log paths.
+            if (log_dir / "config.yml").exists():
+                combined_log_paths.append(log_dir)
+            else:
+                combined_log_paths.extend(list(log_dir.iterdir()))
         # Loop through every configuration in the log directory.
         metadata_pd_collection = []
         for log_set in tqdm(combined_log_paths, desc="Loading log configs"):
