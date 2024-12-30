@@ -9,10 +9,10 @@ import torch
 from parse import parse
 from pydantic import validate_arguments
 
-from pylot.datasets.path import DatapathMixin
-from pylot.datasets.thunder import ThunderDataset
-from pylot.util.thunder import UniqueThunderReader
-from pylot.util.validation import validate_arguments_init
+from ionpy.datasets.path import DatapathMixin
+from ionpy.datasets.thunder import ThunderDataset
+from ionpy.util.thunder import UniqueThunderReader
+from ionpy.util.validation import validate_arguments_init
 
 
 def parse_task(task):

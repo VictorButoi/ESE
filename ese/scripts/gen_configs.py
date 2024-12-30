@@ -12,11 +12,11 @@ from ionpy.util import dict_product
 from ionpy.util.config import check_missing
 # Local imports
 import ese.analysis.analysis_utils.helpers as analysis_helpers 
-from .benchmark import add_sweep_options, load_sweep_optimal_params
+from ese.analysis.analysis_utils.benchmark import add_sweep_options, load_sweep_optimal_params
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_ese_training_configs(
+def get_training_configs(
     exp_cfg: dict,
     base_cfg: Config,
     add_date: bool = True,
@@ -62,7 +62,7 @@ def get_ese_training_configs(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_ese_calibration_configs(
+def get_calibration_configs(
     exp_cfg: dict,
     base_cfg: Config,
     calibration_model_cfgs: dict,
@@ -139,7 +139,7 @@ def get_ese_calibration_configs(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_ese_inference_configs(
+def get_inference_configs(
     exp_cfg: dict,
     base_cfg: Config,
     add_date: bool = True,
@@ -284,7 +284,7 @@ def get_ese_inference_configs(
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_ese_restart_configs(
+def get_restart_configs(
     exp_cfg: dict,
     base_cfg: Config,
     add_date: bool = True,
