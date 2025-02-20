@@ -174,27 +174,10 @@ class CalibrationExperiment(TrainExperiment):
         
         return forward_batch
 
-    def predict(
-        self, 
-        x, 
-        threshold: float = 0.5,
-        from_logits: bool = True,
-        temperature: Optional[float] = None,
-    ):
+    def predict(self, x):
         # Get the label predictions
-        logit_map = self.model(x) 
-
-        # Get the hard prediction and probabilities
-        prob_map, pred_map = process_pred_map(
-            logit_map, 
-            threshold=threshold,
-            from_logits=from_logits,
-            temperature=temperature
-        )
-        
+        with torch.no_grad():
+            logit_map = self.model(x) 
         # Return the outputs
-        return {
-            'y_logits': logit_map,
-            'y_probs': prob_map, 
-            'y_hard': pred_map 
-        }
+        return logit_map
+        

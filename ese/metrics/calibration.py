@@ -49,14 +49,13 @@ def image_ece_loss(
         from_logits=from_logits,
         preloaded_obj_dict=preloaded_obj_dict
     )
+
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
-    # print("Local Bin counts: ", cal_info["bin_amounts"])
-    # print("Local Bin cal errors: ", cal_info["bin_cal_errors"])
-    # Return the calibration information
+
     return ece_reduction(**metric_dict)
 
 

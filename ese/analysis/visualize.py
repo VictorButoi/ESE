@@ -1,6 +1,15 @@
+# torch imports
+import torch
+import torchvision.transforms as T
+# misc imports
 import numpy as np
-from typing import Literal
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from typing import Any, Optional, Literal
+# local imports
+from ..metrics.local_ps import bin_stats
+from ..metrics.utils import get_bin_per_sample
+from ..analysis.cal_plots.reliability_plots import reliability_diagram
 
 
 def sigmoid(x):
@@ -226,3 +235,221 @@ def display_subj(
         print("--------------------------------------------------------------------------------")
     else:
         display_ims()
+
+
+class ShowSegmentationPredictions:
+    
+    def __init__(
+        self, 
+        exp = None, 
+        col_wrap: int = 4,
+        threshold: float = 0.5,
+        num_prob_bins: int = 15,
+        size_per_image: int = 5,
+        denormalize: Optional[Any] = None,
+        temperature: Optional[float] = None
+    ):
+        self.col_wrap = col_wrap
+        self.threshold = threshold
+        self.size_per_image = size_per_image
+        self.temperature = temperature
+        self.num_prob_bins = num_prob_bins
+        # Sometimes we normalize the intensity values so we need to denormalize them for visualization.
+        if denormalize is not None:
+            # Denormalization transform
+            self.denormalize = T.Normalize(
+                mean=[-m/s for m, s in zip(denormalize['mean'], denormalize['std'])],
+                std=[1/s for s in denormalize['std']]
+            )
+        else:
+            self.denormalize = None
+
+
+    def __call__(self, batch):
+        # If our pred has a different batchsize than our inputs, we
+        # need to tile the input and label to match the batchsize of
+        # the prediction.
+        x = batch["x"]
+        y = batch["y_true"]
+        y_hat = batch["y_pred"]
+        
+        # Transfer image and label to the cpu.
+        x = x.detach().cpu()
+        y = y.detach().cpu() 
+
+        # Get the predicted label
+        y_hat = y_hat.detach().cpu()
+        bs = x.shape[0]
+        num_pred_classes = y_hat.shape[1]
+
+        # Prints some metric stuff
+        if "loss" in batch:
+            print("Loss: ", batch["loss"].item())
+        # If we are using a temperature, divide the logits by the temperature.
+        if self.temperature is not None:
+            y_hat = y_hat / self.temperature
+
+        # Make a hard prediction.
+        if num_pred_classes > 1:
+            y_hat = torch.softmax(y_hat, dim=1)
+            if num_pred_classes == 2 and self.threshold != 0.5:
+                y_hard = (y_hat[:, 1, :, :] > self.threshold).int()
+            else:
+                y_hard = torch.argmax(y_hat, dim=1)
+        else:
+            y_hat = torch.sigmoid(y_hat)
+            y_hard = (y_hat > self.threshold).int()
+
+        # Keep the original y and y_hat so we can use them for the reliability diagrams.
+        original_y = y
+        original_y_hat = y_hat
+        # If x is 5 dimensionsal, we are dealing with 3D data and we need to treat the volumes
+        # slightly differently.
+        if len(x.shape) == 5:
+            # We want to look at the slice corresponding to the maximum amount of label.
+            y_squeezed = y.squeeze(1) # (B, Spatial Dims)
+            # Sum over the spatial dims that aren't the last one.
+            lab_per_slice = y_squeezed.sum(dim=tuple(range(1, len(y_squeezed.shape) - 1)))
+            # Get the max slices per batch item.
+            max_slices = torch.argmax(lab_per_slice, dim=1)
+            # Index into our 3D tensors with this.
+            x = torch.stack([x[i, ...,  max_slices[i]] for i in range(bs)]) 
+            y_hard = torch.stack([y_hard[i, ..., max_slices[i]] for i in range(bs)])
+            #``
+            # Get the max slice for the label.
+            y = torch.stack([y[i, ..., max_slices[i]] for i in range(bs)])
+            y_hat = torch.stack([y_hat[i, ..., max_slices[i]] for i in range(bs)])
+
+        # Squeeze all tensors in prep.
+        x = x.permute(0, 2, 3, 1).numpy().squeeze() # Move channel dimension to last.
+        y = y.numpy().squeeze()
+        y_hard = y_hard.numpy().squeeze()
+        y_hat = y_hat.squeeze()
+
+        # DETERMINE THE IMAGE CMAP
+        if x.shape[-1] == 3:
+            x = x.astype(int)
+            img_cmap = None
+        else:
+            img_cmap = "gray"
+
+        if num_pred_classes <= 2:
+            label_cm = "gray"
+        else:
+            colors = [(0, 0, 0)] + [(np.random.random(), np.random.random(), np.random.random()) for _ in range(num_pred_classes - 1)]
+            cmap_name = "seg_map"
+            label_cm = mcolors.LinearSegmentedColormap.from_list(cmap_name, colors, N=num_pred_classes)
+
+        if bs == 1:
+            ncols = 7
+        else:
+            ncols = 4
+        f, axarr = plt.subplots(nrows=bs, ncols=ncols, figsize=(ncols * self.size_per_image, bs*self.size_per_image))
+
+        # Go through each item in the batch.
+        for b_idx in range(bs):
+            if bs == 1:
+                axarr[0].set_title("Image")
+                im1 = axarr[0].imshow(x, cmap=img_cmap, interpolation='None')
+                f.colorbar(im1, ax=axarr[0], orientation='vertical')
+
+                axarr[1].set_title("Label")
+                im2 = axarr[1].imshow(y, cmap=label_cm, interpolation='None')
+                f.colorbar(im2, ax=axarr[1], orientation='vertical')
+
+                axarr[2].set_title("Hard Prediction")
+                im3 = axarr[2].imshow(y_hard, cmap=label_cm, interpolation='None')
+                f.colorbar(im3, ax=axarr[2], orientation='vertical')
+
+                if len(y_hat.shape) == 3:
+                    max_probs = torch.max(y_hat, dim=0)[0]
+                    freq_map = (y_hard == y)
+                else:
+                    assert len(y_hat.shape) == 2, "Soft prediction must be 2D if not 3D."
+                    max_probs = y_hat
+                    freq_map = y
+
+                axarr[3].set_title("Max Probs")
+                im4 = axarr[3].imshow(max_probs, cmap='gray', vmin=0.0, vmax=1.0, interpolation='None')
+                f.colorbar(im4, ax=axarr[3], orientation='vertical')
+
+                axarr[4].set_title("Brier Map")
+                im5 = axarr[4].imshow(
+                    (max_probs - freq_map), 
+                    cmap='RdBu_r', 
+                    vmax=1.0, 
+                    vmin=-1.0, 
+                    interpolation='None')
+                f.colorbar(im5, ax=axarr[4], orientation='vertical')
+
+                miscal_map = np.zeros_like(max_probs)
+                # Figure out where each pixel belongs (in confidence)
+                toplabel_bin_ownership_map = get_bin_per_sample(
+                    pred_map=max_probs[None],
+                    n_spatial_dims=2,
+                    class_wise=False,
+                    num_prob_bins=self.num_prob_bins,
+                    int_start=0.0,
+                    int_end=1.0
+                ).squeeze()
+                # Fill the bin regions with the miscalibration.
+                max_probs = max_probs.numpy()
+                for bin_idx in range(self.num_prob_bins):
+                    bin_mask = (toplabel_bin_ownership_map == bin_idx)
+                    if bin_mask.sum() > 0:
+                        miscal_map[bin_mask] = (max_probs[bin_mask] - freq_map[bin_mask]).mean()
+
+                # Plot the miscalibration
+                axarr[5].set_title("Miscalibration Map")
+                im6 = axarr[5].imshow(
+                    miscal_map, 
+                    cmap='RdBu_r', 
+                    vmax=0.2, 
+                    vmin=-0.2, 
+                    interpolation='None')
+                f.colorbar(im6, ax=axarr[5], orientation='vertical')
+
+                # Plot the reliability diagram for the binary case of the foreground.
+                reliability_diagram(
+                    calibration_info=bin_stats(
+                        y_pred=original_y_hat,
+                        y_true=original_y,
+                        num_prob_bins=self.num_prob_bins
+                    ),
+                    title="Reliability Diagram",
+                    num_prob_bins=self.num_prob_bins,
+                    class_type="Binary",
+                    plot_type="bar",
+                    bar_color="blue",
+                    ax=axarr[6]
+                )
+
+                # turn off the axis and grid
+                for x_idx, ax in enumerate(axarr):
+                    # Don't turn off the last axis
+                    if x_idx != len(axarr) - 1:
+                        # ax.axis('off')
+                        ax.grid(False)
+            else:
+                axarr[b_idx, 0].set_title("Image")
+                im1 = axarr[b_idx, 0].imshow(x[b_idx], cmap=img_cmap, interpolation='None')
+                f.colorbar(im1, ax=axarr[b_idx, 0], orientation='vertical')
+
+                axarr[b_idx, 1].set_title("Label")
+                im2 = axarr[b_idx, 1].imshow(y[b_idx], cmap=label_cm, interpolation='None')
+                f.colorbar(im2, ax=axarr[b_idx, 1], orientation='vertical')
+
+                axarr[b_idx, 2].set_title("Soft Prediction")
+                im3 = axarr[b_idx, 2].imshow(y_hat[b_idx], cmap=label_cm, interpolation='None')
+                f.colorbar(im3, ax=axarr[b_idx, 2], orientation='vertical')
+
+                axarr[b_idx, 3].set_title("Hard Prediction")
+                im4 = axarr[b_idx, 3].imshow(y_hard[b_idx], cmap=label_cm, interpolation='None')
+                f.colorbar(im4, ax=axarr[b_idx, 3], orientation='vertical')
+
+                # turn off the axis and grid
+                for ax in axarr[b_idx]:
+                    ax.axis('off')
+                    ax.grid(False)
+        plt.show()
+
