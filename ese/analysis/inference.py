@@ -26,7 +26,7 @@ from pydantic import validate_arguments
     
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
-def get_cal_stats(
+def run_inference(
     config: Any,
 ) -> None:
 
