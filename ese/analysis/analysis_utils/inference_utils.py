@@ -277,13 +277,13 @@ def dataobjs_from_exp(inf_cfg):
     dset_cls = absolute_import(dataset_cls_str)
     # For in-context models, we need to gather some information about supports.
     # If we define the support in our experiment config, then we need to use that, otherwise, use the default training one.
-    training_support_size = inf_data_cfg.pop('support_size')
+    training_support_size = inf_data_cfg.pop('support_size', None)
     if 'support_size' in inf_cfg['experiment']:
         support_size = inf_cfg['experiment']['support_size']
     else:
         support_size = training_support_size
     support_split = inf_data_cfg.pop('support_split', 'train')
-    aug_cfg_list = inference_cfg.get('support_augmentations', None) 
+    aug_cfg_list = inf_cfg.get('support_augmentations', None) 
 
     # Drop auxiliary information used for making the models.
     for drop_key in [
