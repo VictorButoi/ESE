@@ -1,10 +1,9 @@
 # local imports
+from .utils import load_exp_dataset_objs 
 from ..losses.combo import eval_combo_config 
 from ..augmentation.pipeline import build_aug_pipeline
-from .utils import process_pred_map, load_exp_dataset_objs 
 # torch imports
 import torch
-import torch.nn as nn
 from torch.amp import autocast
 from torch.utils.data import DataLoader
 import torch._dynamo # For compile
@@ -16,8 +15,8 @@ from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import eval_config
 # misc imports
+import yaml
 from pprint import pprint
-from typing import Optional
 
 
 class CalibrationExperiment(TrainExperiment):
@@ -31,6 +30,20 @@ class CalibrationExperiment(TrainExperiment):
         # Get the data and transforms we want to apply
         total_config = self.config.to_dict()
         data_cfg = total_config["data"]
+
+        # If we are finetuning a model, then we need to load the pretrained data
+        # config and update the data config with the pretrained data config.
+        if data_cfg.pop("use_pt_data_cfg", False):
+            pt_cfg_dir = total_config["model"]["pretrained_dir"] + "/config.yml"
+            # Load the yaml config file.
+            with open(pt_cfg_dir, 'r') as file:
+                pt_data_cfg = yaml.safe_load(file)["data"]
+            # Update the pt_data_cfg with the data_cfg.
+            data_cfg.update(pt_data_cfg)
+            # Update the data config with the new data config.
+            total_config["data"] = data_cfg
+            # Update the config with the new data config.
+            self.config = Config(total_config)
 
         # Build the datasets, apply the transforms
         if load_data:
