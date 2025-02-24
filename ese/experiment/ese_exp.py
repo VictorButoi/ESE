@@ -191,7 +191,6 @@ class CalibrationExperiment(TrainExperiment):
         else:
             # Forward pass
             yhat = self.model(x)
-            print(yhat.shape, y.shape)
             # Calculate the loss
             loss = self.loss_func(yhat, y)
             # If backward then backprop the gradients.
