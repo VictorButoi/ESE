@@ -30,9 +30,18 @@ def initialization(m):
         
 
 class TS(nn.Module):
-    def __init__(self, **kwargs):
+    def __init__(
+        self, 
+        model: nn.Module, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
         super(TS, self).__init__()
         self.temp = nn.Parameter(torch.ones(1))
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
 
     def weights_init(self):
         self.temp.data.fill_(1)
@@ -42,7 +51,10 @@ class TS(nn.Module):
         all_dims.pop(1) # remove the channel dimension
         return self.temp.repeat(*all_dims)
 
-    def forward(self, logits, **kwargs):
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
         C = logits.shape[1]
         temp_map = self.get_temp_map(logits)
         # Expand the shape of temp map to match the shape of the logits
@@ -62,11 +74,13 @@ class TS(nn.Module):
 class LTS(nn.Module):
     def __init__(
         self, 
+        model: nn.Module,
         img_channels: int,
         num_classes: int, 
         filters: list[int],
         use_image: bool = True,
         abs_output: bool = False,
+        freeze_backbone: bool = True, 
         convs_per_block: int = 1,
         dims: int = 2,
         eps: float = 1e-6, 
@@ -74,6 +88,10 @@ class LTS(nn.Module):
         **kwargs
     ):
         super(LTS, self).__init__()
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
         self.calibrator_unet = UNet(
             in_channels=(num_classes + img_channels if use_image else num_classes), 
             out_channels=1, # For the temp map.
@@ -110,7 +128,10 @@ class LTS(nn.Module):
         # Return the temp map.
         return temp_map
 
-    def forward(self, logits, image=None, **kwargs):
+    def forward(self, x, image=None, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
         C = logits.shape[1]
         # Get the temperature map.
         temp_map = self.get_temp_map(logits, image) # B x Spatial Dims
@@ -131,8 +152,18 @@ class LTS(nn.Module):
 
 
 class VS(nn.Module):
-    def __init__(self, num_classes, **kwargs):
+    def __init__(
+        self,
+        model: nn.Module,
+        num_classes: int, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
         super(VS, self).__init__()
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
         self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
         self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
 
@@ -140,7 +171,10 @@ class VS(nn.Module):
         self.vector_parameters.data.fill_(1)
         self.vector_offset.data.fill_(0)
 
-    def forward(self, logits, **kwargs):
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Scale the logits by the vector parameters and add the offset.
         return (self.vector_parameters * logits) + self.vector_offset
 
     @property
@@ -149,8 +183,19 @@ class VS(nn.Module):
 
 
 class DS(nn.Module):
-    def __init__(self, num_classes, eps=1e-19, **kwargs):
+    def __init__(
+        self, 
+        model: nn.Module,
+        num_classes, 
+        eps=1e-19, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
         super(DS, self).__init__()
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.eps = eps
 
@@ -158,7 +203,10 @@ class DS(nn.Module):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
         self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
 
-    def forward(self, logits, **kwargs):
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the probabilities and log them.
         probs = torch.softmax(logits, dim=1)
         ln_probs = torch.log(probs + self.eps) # B x C x H x W
         # Move channel dim to the back (for broadcasting)
@@ -176,15 +224,20 @@ class DS(nn.Module):
 class IBTS(nn.Module):
     def __init__(
         self, 
+        model: nn.Module,
         img_channels: int,
         num_classes: int, 
         use_image: bool = True,
         use_logits: bool = True, 
+        freeze_backbone: bool = True, 
         eps=1e-12, 
         **kwargs
     ):
         super(IBTS, self).__init__()
-
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
         self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
         self.temp_predictor = resnet18()
         # Replace the last fully-connected layer to output a single number.
@@ -198,6 +251,7 @@ class IBTS(nn.Module):
         pass
 
     def get_temp_map(self, logits, image):
+        # Get the temperature map.
         _, _, H, W = logits.shape
         # Either passing into probs or logits into UNet, can affect optimization.
         if not self.use_logits:
@@ -220,7 +274,10 @@ class IBTS(nn.Module):
         # Return the temp map.
         return temp_map
 
-    def forward(self, logits, image, **kwargs):
+    def forward(self, x, image, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
         _, C, _, _ = logits.shape
         # Get the temperature map.
         temp_map = self.get_temp_map(logits, image) # B x H x W

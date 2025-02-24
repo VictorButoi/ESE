@@ -13,7 +13,7 @@ from ionpy.util import Config
 from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
-from ionpy.experiment.util import eval_config
+from ionpy.experiment.util import absolute_import, eval_config
 # misc imports
 import yaml
 from pprint import pprint
@@ -34,9 +34,8 @@ class CalibrationExperiment(TrainExperiment):
         # If we are finetuning a model, then we need to load the pretrained data
         # config and update the data config with the pretrained data config.
         if data_cfg.pop("use_pt_data_cfg", False):
-            pt_cfg_dir = total_config["model"]["pretrained_dir"] + "/config.yml"
             # Load the yaml config file.
-            with open(pt_cfg_dir, 'r') as file:
+            with open(total_config["model"]["base_model_dir"] + "/config.yml", 'r') as file:
                 pt_data_cfg = yaml.safe_load(file)["data"]
             # Update the pt_data_cfg with the data_cfg.
             data_cfg.update(pt_data_cfg)
@@ -92,7 +91,32 @@ class CalibrationExperiment(TrainExperiment):
 
         # Set important things about the model.
         self.config = Config(total_config)
-        self.model = eval_config(self.config["model"])
+        model_cfg_dict = self.config["model"].to_dict()
+        if "base_model_dir" in model_cfg_dict:
+            bmd = model_cfg_dict.pop("base_model_dir")
+            # Load the pretrained model config.
+            with open(bmd + "/config.yml", "r") as file:
+                pretrained_cfg = yaml.safe_load(file)
+            base_model = eval_config(pretrained_cfg["model"])
+            # Load the base model and set the model to the state dict.
+            base_model_checkpoint = torch.load(
+                bmd + "/checkpoints/last.pt", 
+                map_location=self.device, 
+                weights_only=True
+            )
+            # We might have to compile the model here.
+            if pretrained_cfg['experiment'].get('torch_compile', False):
+                base_model = torch.compile(base_model)
+            base_model.load_state_dict(base_model_checkpoint["model"])
+            # Import the class and initialize.
+            model_cls = model_cfg_dict.pop("_class")
+            self.model = absolute_import(model_cls)(
+                model=base_model,
+                **model_cfg_dict
+            )
+        else:
+            self.model = eval_config(model_cfg_dict)
+
         self.properties["num_params"] = num_params(self.model)
 
         # Put the model on the device here.
