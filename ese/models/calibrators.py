@@ -71,6 +71,77 @@ class TS(nn.Module):
         return next(self.parameters()).device
 
 
+class VS(nn.Module):
+    def __init__(
+        self,
+        model: nn.Module,
+        num_classes: int = 1, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
+        super(VS, self).__init__()
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
+        self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
+        self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
+
+    def weights_init(self):
+        self.vector_parameters.data.fill_(1)
+        self.vector_offset.data.fill_(0)
+
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Scale the logits by the vector parameters and add the offset.
+        return (self.vector_parameters * logits) + self.vector_offset
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
+class DS(nn.Module):
+    def __init__(
+        self, 
+        model: nn.Module,
+        num_classes = 1, 
+        eps=1e-8, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
+        super(DS, self).__init__()
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
+        self.dirichlet_linear = nn.Linear(num_classes, num_classes)
+        self.eps = eps
+
+    def weights_init(self):
+        self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
+        self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
+
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the probabilities and log them.
+        probs = torch.softmax(logits, dim=1)
+        ln_probs = torch.log(probs + self.eps) # B x C x H x W
+        # We want to do ln_probs but for an arbitrary number of dimensions (channels last)
+        ln_probs = ln_probs.permute(0, *range(2, len(ln_probs.shape)), 1).contiguous() # B x H x W x C
+        ds_probs = self.dirichlet_linear(ln_probs)
+        # Nw move the channel dim back to the front
+        ds_probs = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
+        # Return scaled log probabilities
+        return ds_probs
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
 class LTS(nn.Module):
     def __init__(
         self, 
@@ -145,79 +216,6 @@ class LTS(nn.Module):
         temp_map += self.eps
         # Return the temp map.
         return temp_map
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-class VS(nn.Module):
-    def __init__(
-        self,
-        model: nn.Module,
-        num_classes: int = 1, 
-        freeze_backbone: bool = True, 
-        **kwargs
-    ):
-        super(VS, self).__init__()
-        self.backbone_model = model
-        if freeze_backbone:
-            for param in self.backbone_model.parameters():
-                param.requires_grad = False
-        self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
-        self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
-
-    def weights_init(self):
-        self.vector_parameters.data.fill_(1)
-        self.vector_offset.data.fill_(0)
-
-    def forward(self, x, **kwargs):
-        # Pass through the backbone model.
-        logits = self.backbone_model(x)
-        # Scale the logits by the vector parameters and add the offset.
-        return (self.vector_parameters * logits) + self.vector_offset
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-
-class DS(nn.Module):
-    def __init__(
-        self, 
-        model: nn.Module,
-        num_classes = 1, 
-        eps=1e-8, 
-        freeze_backbone: bool = True, 
-        **kwargs
-    ):
-        super(DS, self).__init__()
-        self.backbone_model = model
-        if freeze_backbone:
-            for param in self.backbone_model.parameters():
-                param.requires_grad = False
-        self.dirichlet_linear = nn.Linear(num_classes, num_classes)
-        self.eps = eps
-
-    def weights_init(self):
-        self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
-        self.dirichlet_linear.bias.data.copy_(torch.zeros(*self.dirichlet_linear.bias.shape))
-
-    def forward(self, x, **kwargs):
-        # Pass through the backbone model.
-        logits = self.backbone_model(x)
-        # Get the probabilities and log them.
-        probs = torch.softmax(logits, dim=1)
-        ln_probs = torch.log(probs + self.eps) # B x C x H x W
-        # Move channel dim to the back (for broadcasting)
-        # ln_probs = ln_probs.permute(0,2,3,1).contiguous() # B x H x W x C
-        # We want to do ln_probs but for an arbitrary number of dimensions (channels last)
-        ln_probs = ln_probs.permute(0, *range(2, len(ln_probs.shape)), 1).contiguous() # B x H x W x C
-        ds_probs = self.dirichlet_linear(ln_probs)
-        # Nw move the channel dim back to the front
-        ds_probs = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
-        # Return scaled log probabilities
-        return ds_probs
 
     @property
     def device(self):
