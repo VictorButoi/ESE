@@ -191,6 +191,7 @@ class CalibrationExperiment(TrainExperiment):
         else:
             # Forward pass
             yhat = self.model(x)
+            print(yhat.shape, y.shape)
             # Calculate the loss
             loss = self.loss_func(yhat, y)
             # If backward then backprop the gradients.
@@ -200,12 +201,7 @@ class CalibrationExperiment(TrainExperiment):
 
         # Run step-wise callbacks if you have them.
         forward_batch = {
-            "x": x,
-            "y_true": y,
-            "loss": loss,
-            "y_pred": yhat, # Used for visualization functions.
-            "batch_idx": batch_idx,
-            "from_logits": True
+            "loss": loss, "x": x, "y_true": y, "y_pred": yhat
         }
         self.run_callbacks("step", batch=forward_batch)
         

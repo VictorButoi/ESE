@@ -45,11 +45,6 @@ class TS(nn.Module):
 
     def weights_init(self):
         self.temp.data.fill_(1)
-    
-    def get_temp_map(self, logits):
-        all_dims = list(logits.shape)
-        all_dims.pop(1) # remove the channel dimension
-        return self.temp.repeat(*all_dims)
 
     def forward(self, x, **kwargs):
         # Pass through the backbone model.
@@ -65,6 +60,11 @@ class TS(nn.Module):
         tempered_logits = logits / repeated_temp_map
         # Return the tempered logits and the predicts temperatures.
         return tempered_logits
+    
+    def get_temp_map(self, logits):
+        all_dims = list(logits.shape)
+        all_dims.pop(1) # remove the channel dimension
+        return self.temp.repeat(*all_dims)
 
     @property
     def device(self):
@@ -75,15 +75,15 @@ class LTS(nn.Module):
     def __init__(
         self, 
         model: nn.Module,
-        img_channels: int,
-        num_classes: int, 
-        filters: list[int],
-        use_image: bool = True,
+        filters: list[int] = [64, 64, 64, 64],
+        num_classes: int = 1, 
+        use_image: bool = False,
         abs_output: bool = False,
         freeze_backbone: bool = True, 
         convs_per_block: int = 1,
         dims: int = 2,
         eps: float = 1e-6, 
+        img_channels: Optional[int] = None,
         unet_conv_kwargs: Optional[dict[str, Any]] = None,
         **kwargs
     ):
@@ -107,6 +107,24 @@ class LTS(nn.Module):
     def weights_init(self):
         pass
 
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
+        C = logits.shape[1]
+        # Get the temperature map.
+        temp_map = self.get_temp_map(logits, x) # B x Spatial Dims
+        # Repeat the temperature map for all classes.
+        num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
+        repeat_factors = [1, C] + [1] * num_spatial_dims
+        repeated_temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
+        # Assert that every position in the temp_map is positive.
+        assert torch.all(repeated_temp_map >= 0), "Temperature map must be positive."
+        # Finally, scale the logits by the temperatures.
+        tempered_logits = logits / repeated_temp_map
+        # Return the tempered logits and the predicts temperatures.
+        return tempered_logits
+
     def get_temp_map(self, logits, image=None):
         # Concatenate the image if we are using it.
         if self.use_image:
@@ -128,24 +146,6 @@ class LTS(nn.Module):
         # Return the temp map.
         return temp_map
 
-    def forward(self, x, image=None, **kwargs):
-        # Pass through the backbone model.
-        logits = self.backbone_model(x)
-        # Get the temperature map.
-        C = logits.shape[1]
-        # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x Spatial Dims
-        # Repeat the temperature map for all classes.
-        num_spatial_dims = len(logits.shape) - 2 # Number of spatial dimensions 
-        repeat_factors = [1, C] + [1] * num_spatial_dims
-        repeated_temp_map = temp_map.unsqueeze(1).repeat(*repeat_factors) # B x C x H x W
-        # Assert that every position in the temp_map is positive.
-        assert torch.all(repeated_temp_map >= 0), "Temperature map must be positive."
-        # Finally, scale the logits by the temperatures.
-        tempered_logits = logits / repeated_temp_map
-        # Return the tempered logits and the predicts temperatures.
-        return tempered_logits
-
     @property
     def device(self):
         return next(self.parameters()).device
@@ -155,7 +155,7 @@ class VS(nn.Module):
     def __init__(
         self,
         model: nn.Module,
-        num_classes: int, 
+        num_classes: int = 1, 
         freeze_backbone: bool = True, 
         **kwargs
     ):
@@ -186,8 +186,8 @@ class DS(nn.Module):
     def __init__(
         self, 
         model: nn.Module,
-        num_classes, 
-        eps=1e-19, 
+        num_classes = 1, 
+        eps=1e-8, 
         freeze_backbone: bool = True, 
         **kwargs
     ):
@@ -210,9 +210,12 @@ class DS(nn.Module):
         probs = torch.softmax(logits, dim=1)
         ln_probs = torch.log(probs + self.eps) # B x C x H x W
         # Move channel dim to the back (for broadcasting)
-        ln_probs = ln_probs.permute(0,2,3,1).contiguous() # B x H x W x C
+        # ln_probs = ln_probs.permute(0,2,3,1).contiguous() # B x H x W x C
+        # We want to do ln_probs but for an arbitrary number of dimensions (channels last)
+        ln_probs = ln_probs.permute(0, *range(2, len(ln_probs.shape)), 1).contiguous() # B x H x W x C
         ds_probs = self.dirichlet_linear(ln_probs)
-        ds_probs = ds_probs.permute(0,3,1,2).contiguous() # B x C x H x W
+        # Nw move the channel dim back to the front
+        ds_probs = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
         # Return scaled log probabilities
         return ds_probs
 
@@ -225,11 +228,11 @@ class IBTS(nn.Module):
     def __init__(
         self, 
         model: nn.Module,
-        img_channels: int,
-        num_classes: int, 
-        use_image: bool = True,
+        num_classes: int = 1, 
+        use_image: bool = False,
         use_logits: bool = True, 
         freeze_backbone: bool = True, 
+        img_channels: Optional[int] = None,
         eps=1e-12, 
         **kwargs
     ):
@@ -238,7 +241,11 @@ class IBTS(nn.Module):
         if freeze_backbone:
             for param in self.backbone_model.parameters():
                 param.requires_grad = False
-        self.in_conv = nn.Conv2d(in_channels=(num_classes + img_channels if use_image else num_classes), out_channels=3, kernel_size=1)
+        self.in_conv = nn.Conv2d(
+            in_channels=(num_classes + img_channels if use_image else num_classes), 
+            out_channels=3, 
+            kernel_size=1
+        )
         self.temp_predictor = resnet18()
         # Replace the last fully-connected layer to output a single number.
         self.temp_predictor.fc = nn.Linear(512, 1)
@@ -249,6 +256,18 @@ class IBTS(nn.Module):
 
     def weights_init(self):
         pass
+
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
+        _, C, _, _ = logits.shape
+        # Get the temperature map.
+        temp_map = self.get_temp_map(logits, x) # B x H x W
+        # Repeat the temperature map for all classes.
+        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
+        # Finally, scale the logits by the temperatures.
+        return logits / temp_map
 
     def get_temp_map(self, logits, image):
         # Get the temperature map.
@@ -273,18 +292,6 @@ class IBTS(nn.Module):
         temp_map = temp.unsqueeze(1).repeat(1, H, W)
         # Return the temp map.
         return temp_map
-
-    def forward(self, x, image, **kwargs):
-        # Pass through the backbone model.
-        logits = self.backbone_model(x)
-        # Get the temperature map.
-        _, C, _, _ = logits.shape
-        # Get the temperature map.
-        temp_map = self.get_temp_map(logits, image) # B x H x W
-        # Repeat the temperature map for all classes.
-        temp_map = temp_map.unsqueeze(1).repeat(1, C, 1, 1) # B x C x H x W
-        # Finally, scale the logits by the temperatures.
-        return logits / temp_map
 
     @property
     def device(self):
