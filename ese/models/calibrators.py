@@ -134,8 +134,10 @@ class DS(nn.Module):
         ds_probs = self.dirichlet_linear(ln_probs)
         # Nw move the channel dim back to the front
         ds_probs = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
-        # Return scaled log probabilities
-        return ds_probs
+        # Convert these probs back into logits.
+        ds_logits = torch.log(ds_probs / (1 - ds_probs + self.eps))
+        # Return scaled 
+        return ds_logits
 
     @property
     def device(self):
@@ -174,6 +176,7 @@ class LTS(nn.Module):
         self.abs_output = abs_output
         self.use_image = use_image
         self.eps = eps 
+        self.nonlinear = nn.ReLU()
 
     def weights_init(self):
         pass
@@ -211,9 +214,9 @@ class LTS(nn.Module):
             # Add ones so the temperature starts near 1.
             unnorm_temp_map += torch.ones(1, device=unnorm_temp_map.device)
             # Clip the values to be positive and add epsilon for smoothing.
-            temp_map = F.relu(unnorm_temp_map)
-        # Smooth with epsilon.
-        temp_map += self.eps
+            temp_map = self.nonlinear(unnorm_temp_map)
+        # # Smooth with epsilon.
+        temp_map = temp_map + self.eps
         # Return the temp map.
         return temp_map
 
