@@ -351,7 +351,8 @@ def _bin_per_val(
     pred_map, 
     bin_starts, 
     bin_widths, 
-    device=None
+    device=None,
+    out_of_bounds_value: Optional[int] = -1
 ):
     # Expand dimensions for broadcasting
     expanded_pred_map = pred_map.unsqueeze(-1)
@@ -363,7 +364,7 @@ def _bin_per_val(
     else:
         bin_indices = torch.where(valid_bins, torch.arange(len(bin_starts)), -torch.ones_like(bin_starts)).max(dim=-1).values
     # Place all things in bin -1 in bin 0, this can happen when stuff is perfectly the boundary of bin_starts.
-    bin_indices[bin_indices == -1] = 0
+    bin_indices[bin_indices == -1] = out_of_bounds_value
     # Convert bin_indices to long tensor and return
     return bin_indices.long()
 

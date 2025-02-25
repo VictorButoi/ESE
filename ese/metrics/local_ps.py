@@ -22,6 +22,7 @@ def bin_stats_init(
     num_prob_bins: int,
     threshold: float = 0.5,
     from_logits: bool = False,
+    lower_threshold: float = 0.0,
     neighborhood_width: Optional[int] = None
 ):
     # Note here about shapes:
@@ -59,7 +60,7 @@ def bin_stats_init(
             y_hard = y_pred.argmax(dim=1) # B x Spatial Dimensions
     
     conf_bin_args = {
-        "int_start": 0.0,
+        "int_start": lower_threshold,
         "int_end": 1.0,
         "n_spatial_dims": y_pred.ndim - 2,
         "num_prob_bins": num_prob_bins
@@ -159,6 +160,7 @@ def bin_stats(
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
+    lower_threshold: Optional[float] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
@@ -173,9 +175,10 @@ def bin_stats(
         obj_dict = bin_stats_init(
             y_pred=y_pred,
             y_true=y_true,
-            num_prob_bins=num_prob_bins,
-            neighborhood_width=neighborhood_width,
             from_logits=from_logits,
+            num_prob_bins=num_prob_bins,
+            lower_threshold=lower_threshold,
+            neighborhood_width=neighborhood_width,
         )
     # Keep track of different things for each bin.
     cal_info = {
@@ -184,6 +187,7 @@ def bin_stats(
         "bin_amounts": torch.zeros(num_prob_bins, dtype=torch.float64),
         "bin_cal_errors": torch.zeros(num_prob_bins, dtype=torch.float64),
     }
+
     # Get the regions of the prediction corresponding to each bin of confidence.
     for bin_idx in range(num_prob_bins):
         # Get the region of image corresponding to the confidence

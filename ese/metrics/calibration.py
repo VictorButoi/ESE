@@ -33,6 +33,7 @@ def image_ece_loss(
     edge_only: bool = False,
     square_diff: bool = False,
     from_logits: bool = False,
+    lower_threshold: Optional[float] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
     **kwargs
@@ -42,14 +43,14 @@ def image_ece_loss(
     cal_info = bin_stats(
         y_pred=y_pred,
         y_true=y_true,
-        num_prob_bins=num_prob_bins,
-        square_diff=square_diff,
-        neighborhood_width=neighborhood_width,
         edge_only=edge_only,
+        square_diff=square_diff,
         from_logits=from_logits,
-        preloaded_obj_dict=preloaded_obj_dict
+        num_prob_bins=num_prob_bins,
+        lower_threshold=lower_threshold,
+        preloaded_obj_dict=preloaded_obj_dict,
+        neighborhood_width=neighborhood_width,
     )
-
     metric_dict = {
         "metric_type": "local",
         "cal_info": cal_info,

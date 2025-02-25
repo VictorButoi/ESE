@@ -2,13 +2,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# local imports
-from .utils import get_temp_map
 # ionpy imports
 from ionpy.nn.nonlinearity import get_nonlinearity
 # misc imports
 import ast
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, Optional
 
 
 class BasicBlock(nn.Module):
@@ -244,8 +242,5 @@ class SCTS(nn.Module):
         # First we predict the temperatures.
         temps = self.pred_temps(logits, image) # B 
 
-        # Then use the predicted temperatures to get the temperature map.
-        temp_map = get_temp_map(temps, pred_shape=logits.shape) # B x 1 x spatial dims
-
         # Return the tempered logits and the predicted temperatures.
-        return logits / temp_map
+        return logits / temps
