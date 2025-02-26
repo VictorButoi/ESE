@@ -160,7 +160,7 @@ def bin_stats(
     edge_only: bool = False,
     from_logits: bool = False,
     square_diff: bool = False,
-    lower_threshold: Optional[float] = None,
+    lower_threshold: Optional[float] = 0.0,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:

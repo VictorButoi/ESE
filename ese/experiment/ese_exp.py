@@ -10,10 +10,11 @@ import torch._dynamo # For compile
 torch._dynamo.config.suppress_errors = True
 # IonPy imports
 from ionpy.util import Config
-from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
+from ionpy.util.ioutil import autosave
 from ionpy.util.torchutils import to_device
 from ionpy.experiment import TrainExperiment
 from ionpy.experiment.util import absolute_import, eval_config
+from ionpy.nn.util import num_params, split_param_groups_by_weight_decay
 # misc imports
 import yaml
 from pprint import pprint
@@ -41,6 +42,8 @@ class CalibrationExperiment(TrainExperiment):
             data_cfg.update(pt_data_cfg)
             # Update the data config with the new data config.
             total_config["data"] = data_cfg
+            # Save the updated config.
+            autosave(total_config, self.path / "config.yml")
             # Update the config with the new data config.
             self.config = Config(total_config)
 
