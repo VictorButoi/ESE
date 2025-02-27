@@ -6,6 +6,7 @@ from pydantic import validate_arguments
 from typing import Dict, Optional, Union, List, Literal
 # ionpy imports
 from ionpy.util.meter import Meter
+from ionpy.metrics.util import Reduction
 from ionpy.loss.util import _loss_module_from_func
 # local imports for:
 # - pixel statistics
@@ -36,6 +37,7 @@ def image_ece_loss(
     lower_threshold: Optional[float] = None,
     neighborhood_width: Optional[int] = None,
     preloaded_obj_dict: Optional[dict] = None,
+    batch_reduction: Reduction = "mean",
     **kwargs
 ) -> Union[dict, Tensor]:
     
@@ -53,8 +55,9 @@ def image_ece_loss(
     )
     metric_dict = {
         "metric_type": "local",
-        "cal_info": cal_info,
-        "return_dict": kwargs.get("return_dict", False) 
+        "cal_info_dict": cal_info,
+        "return_dict": kwargs.get("return_dict", False),
+        "batch_reduction": batch_reduction
     }
 
     return ece_reduction(**metric_dict)
@@ -90,7 +93,7 @@ def image_tl_ece_loss(
     )
     metric_dict = {
         "metric_type": "local",
-        "cal_info": cal_info,
+        "cal_info_dict": cal_info,
         "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
@@ -130,7 +133,7 @@ def image_cw_ece_loss(
     )
     metric_dict = {
         "metric_type": "local",
-        "cal_info": cal_info,
+        "cal_info_dict": cal_info,
         "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
@@ -159,7 +162,7 @@ def ece_loss(
     )
     metric_dict = {
         "metric_type": "global",
-        "cal_info": cal_info,
+        "cal_info_dict": cal_info,
         "return_dict": kwargs.get("return_dict", False) 
     }
     # print("Global Bin counts: ", cal_info["bin_amounts"])
@@ -192,7 +195,7 @@ def tl_ece_loss(
     )
     metric_dict = {
         "metric_type": "global",
-        "cal_info": cal_info,
+        "cal_info_dict": cal_info,
         "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 
@@ -228,7 +231,7 @@ def cw_ece_loss(
     )
     metric_dict = {
         "metric_type": "global",
-        "cal_info": cal_info,
+        "cal_info_dict": cal_info,
         "class_weighting": class_weighting,
         "ignore_index": ignore_index,
         "return_dict": kwargs.get("return_dict", False) 

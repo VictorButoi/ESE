@@ -1,5 +1,7 @@
 # local imports for:
 from .utils import reduce_bin_errors
+# Ionpy imports
+from ionpy.metrics.util import Reduction
 # torch imports
 import torch
 from torch import Tensor
@@ -10,28 +12,37 @@ from typing import Union, Literal, Optional
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def ece_reduction(
-    cal_info: dict,
+    cal_info_dict: dict,
     metric_type: str,
     return_dict: bool = False,
+    batch_reduction: Reduction = "mean",
 ) -> Union[dict, Tensor]:
     """
     Calculates the reduction for Expected Calibration Error (ECE) metrics.
     """
     # Finally, get the calibration score.
-    cal_info['cal_error'] = reduce_bin_errors(
-        error_per_bin=cal_info["bin_cal_errors"], 
-        amounts_per_bin=cal_info["bin_amounts"]
-        )
+    cal_error = reduce_bin_errors(
+        error_per_bin=cal_info_dict["bin_cal_errors"], 
+        amounts_per_bin=cal_info_dict["bin_amounts"],
+        batch_reduction=batch_reduction
+    )
     # Return the calibration information.
-    if cal_info['bin_amounts'].sum() > 0:
-        assert 0.0 <= cal_info['cal_error'] <= 1.0,\
-            f"Expected calibration error to be in [0, 1]. Got {cal_info['cal_error']}."
+    if cal_info_dict['bin_amounts'].sum() > 0:
+        # If we have a batch tensor, then we need to check for all the bins to make sure they don't have NaNs.
+        if isinstance(cal_error, Tensor):
+            raise ValueError("Expected calibration error to be in [0, 1]. Got NaN.")
+        else:
+            assert 0.0 <= cal_error <= 1.0,\
+                f"Expected calibration error to be in [0, 1]. Got {cal_error}."
     # Return the calibration information.
     if return_dict:
-        cal_info['metric_type'] = metric_type
-        return cal_info
+        cal_info_dict.update({
+            'metric_type': metric_type,
+            'cal_error': cal_error
+        })
+        return cal_info_dict
     else:
-        return cal_info['cal_error']
+        return cal_error
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))

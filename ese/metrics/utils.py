@@ -2,6 +2,8 @@
 import torch
 from torch import Tensor
 import torch.nn.functional as F
+# ionpy imports
+from ionpy.metrics.util import Reduction
 # misc imports
 import numpy as np
 from pydantic import validate_arguments
@@ -31,8 +33,11 @@ def reduce_bin_errors(
     error_per_bin: Tensor, 
     amounts_per_bin: Tensor, 
     weighting: str = "proportional",
-    bin_weights: Optional[Tensor] = None
+    bin_weights: Optional[Tensor] = None,
+    batch_reduction: Reduction = "mean"
     ) -> float:
+    print("error_per_bin shape", error_per_bin.shape)
+    print("amounts_per_bin shape", amounts_per_bin.shape)
     if bin_weights is None:
         if amounts_per_bin.sum() == 0:
             return torch.tensor(0.0)
@@ -44,6 +49,7 @@ def reduce_bin_errors(
     assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
     reduced_error = (error_per_bin * bin_weights).sum()
     assert 0 <= reduced_error <= 1, f"Reduced error should be between 0 and 1, got {reduced_error} instead."
+    raise ValueError("Expected calibration error to be in [0, 1]. Got NaN.")
     return reduced_error
 
 

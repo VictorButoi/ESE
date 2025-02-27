@@ -26,7 +26,7 @@ def pixel_accuracy(
     threshold: float = 0.5,
     mode: InputMode = "auto",
     from_logits: bool = False,
-    ignore_index: Optional[int] = None
+    ignore_index: Optional[int] = None,
 ):
     y_pred_long, y_true_long = _inputs_as_longlabels(
         y_pred=y_pred, 
@@ -36,11 +36,12 @@ def pixel_accuracy(
         threshold=threshold,
         discretize=True
     )
+
     # Note this only really makes sense in non-binary contexts.
     if ignore_index is not None:
         y_pred_long = y_pred_long[y_true_long != ignore_index] 
         y_true_long = y_true_long[y_true_long != ignore_index]
-
+    
     return (y_pred_long == y_true_long).float().mean()
 
 
