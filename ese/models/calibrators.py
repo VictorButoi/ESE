@@ -5,9 +5,11 @@ import torch.nn.functional as F
 from torchvision.models import resnet18
 # misc imports
 import math
+import matplotlib.pyplot as plt
 from typing import Any, Optional
 # local imports
 from .unet import UNet
+from ..metrics.attributes import entropy_score
 # Set the print options
 torch.set_printoptions(sci_mode=False, precision=3)
     
@@ -42,6 +44,8 @@ class TS(nn.Module):
         if freeze_backbone:
             for param in self.backbone_model.parameters():
                 param.requires_grad = False
+        # Do the weight initialization.
+        self.weights_init()
 
     def weights_init(self):
         self.temp.data.fill_(1)
@@ -71,6 +75,56 @@ class TS(nn.Module):
         return next(self.parameters()).device
 
 
+class EnTS(nn.Module):
+    def __init__(
+        self, 
+        model: nn.Module, 
+        freeze_backbone: bool = True, 
+        **kwargs
+    ):
+        super(EnTS, self).__init__()
+        # We define a weight and bias for the temperature.
+        self.temp_w = nn.Parameter(torch.ones(1))
+        self.temp_b = nn.Parameter(torch.zeros(1))
+        #
+        self.backbone_model = model
+        if freeze_backbone:
+            for param in self.backbone_model.parameters():
+                param.requires_grad = False
+        # Do the weight initialization.
+        self.weights_init()
+
+    def weights_init(self):
+        self.temp_w.data.fill_(1)
+        self.temp_b.data.fill_(0)
+
+    def forward(self, x, **kwargs):
+        # Pass through the backbone model.
+        logits = self.backbone_model(x)
+        # Get the temperature map.
+        ent_cond_temp_map = self.get_temp_map(logits)
+        # Finally, scale the logits by the temperatures.
+        tempered_logits = logits / ent_cond_temp_map
+        # Return the tempered logits and the predicts temperatures.
+        return tempered_logits
+    
+    def get_temp_map(self, logits):
+        l_shape = logits.shape
+        B = l_shape[0]
+        # Get the entropy of the logits.
+        entropy = entropy_score(logits, from_logits=True, batch_reduction="none")
+        # Scale the entropy and scale to get something in the shape of the logits.
+        # We add 1 intially to avoid settling too quickly on 0 temperatures.
+        temps = 1 + (self.temp_w * entropy) + self.temp_b
+        tiled_temp_map = temps.view(*([B] + [1] * (len(l_shape) - 1))).expand(*l_shape) 
+        # Now we copy this to fit out the shape of the logits.
+        return tiled_temp_map
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
 class VS(nn.Module):
     def __init__(
         self,
@@ -86,6 +140,8 @@ class VS(nn.Module):
                 param.requires_grad = False
         self.vector_parameters = nn.Parameter(torch.ones(1, num_classes, 1, 1))
         self.vector_offset = nn.Parameter(torch.zeros(1, num_classes, 1, 1))
+        # Initialize the weights.
+        self.weights_init()
 
     def weights_init(self):
         self.vector_parameters.data.fill_(1)
@@ -118,6 +174,8 @@ class DS(nn.Module):
                 param.requires_grad = False
         self.dirichlet_linear = nn.Linear(num_classes, num_classes)
         self.eps = eps
+        # Initialize the weights.
+        self.weights_init()
 
     def weights_init(self):
         self.dirichlet_linear.weight.data.copy_(torch.eye(self.dirichlet_linear.weight.shape[0]))
@@ -131,14 +189,12 @@ class DS(nn.Module):
             probs = torch.sigmoid(logits)
         else:
             probs = torch.softmax(logits, dim=1)
+        # Get the log probabilities.
         ln_probs = torch.log(probs + self.eps) # B x C x H x W
         # We want to do ln_probs but for an arbitrary number of dimensions (channels last)
         ln_probs = ln_probs.permute(0, *range(2, len(ln_probs.shape)), 1).contiguous() # B x H x W x C
         ds_probs = self.dirichlet_linear(ln_probs)
-        # Nw move the channel dim back to the front
-        ds_probs = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
-        # Convert these probs back into logits.
-        ds_logits = torch.log(ds_probs / (1 - ds_probs + self.eps))
+        ds_logits = ds_probs.permute(0, -1, *range(1, len(ds_probs.shape)-1)).contiguous()
         # Return scaled 
         return ds_logits
 
@@ -180,9 +236,6 @@ class LTS(nn.Module):
         self.use_image = use_image
         self.eps = eps 
         self.nonlinear = nn.ReLU()
-
-    def weights_init(self):
-        pass
 
     def forward(self, x, **kwargs):
         # Pass through the backbone model.
@@ -257,9 +310,6 @@ class IBTS(nn.Module):
         self.use_image = use_image
         self.use_logits = use_logits
         self.eps = eps 
-
-    def weights_init(self):
-        pass
 
     def forward(self, x, **kwargs):
         # Pass through the backbone model.

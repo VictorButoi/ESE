@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def entropy_score(
     y_pred: Tensor,
-    y_true: Tensor,
+    y_true: Tensor = None,
     eps: float = 1e-10,
     from_logits: bool = False,
     batch_reduction: Reduction = "mean",
