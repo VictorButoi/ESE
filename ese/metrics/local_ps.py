@@ -165,6 +165,7 @@ def bin_stats(
     preloaded_obj_dict: Optional[dict] = None,
 ) -> dict:
     y_pred, y_true = pair_to_tensor(y_pred, y_true)
+    bsize = y_pred.shape[0]
     # Assert that both are torch tensors.
     assert isinstance(y_pred, torch.Tensor) and isinstance(y_true, torch.Tensor),\
         f"y_pred and y_true must be torch tensors. Got {type(y_pred)} and {type(y_true)}."
@@ -182,10 +183,10 @@ def bin_stats(
         )
     # Keep track of different things for each bin.
     cal_info = {
-        "bin_confs": torch.zeros(num_prob_bins, dtype=torch.float64),
-        "bin_freqs": torch.zeros(num_prob_bins, dtype=torch.float64),
-        "bin_amounts": torch.zeros(num_prob_bins, dtype=torch.float64),
-        "bin_cal_errors": torch.zeros(num_prob_bins, dtype=torch.float64),
+        "bin_confs": torch.zeros(bsize, num_prob_bins, dtype=torch.float64),
+        "bin_freqs": torch.zeros(bsize, num_prob_bins, dtype=torch.float64),
+        "bin_amounts": torch.zeros(bsize, num_prob_bins, dtype=torch.float64),
+        "bin_cal_errors": torch.zeros(bsize, num_prob_bins, dtype=torch.float64),
     }
 
     # Get the regions of the prediction corresponding to each bin of confidence.
@@ -212,10 +213,10 @@ def bin_stats(
                 # Assert that v is not a torch NaN
                 assert not torch.isnan(v).any(), f"Bin {bin_idx} has NaN in key: {k}."
             # Calculate the average calibration error for the regions in the bin.
-            cal_info["bin_confs"][bin_idx] = bi["avg_conf"] 
-            cal_info["bin_freqs"][bin_idx] = bi["avg_freq"] 
-            cal_info["bin_amounts"][bin_idx] = bi["num_samples"] 
-            cal_info["bin_cal_errors"][bin_idx] = bi["cal_error"]
+            cal_info["bin_confs"][:, bin_idx] = bi["avg_conf"] 
+            cal_info["bin_freqs"][:, bin_idx] = bi["avg_freq"] 
+            cal_info["bin_amounts"][:, bin_idx] = bi["num_samples"] 
+            cal_info["bin_cal_errors"][:, bin_idx] = bi["cal_error"]
     # Return the calibration information.
     return cal_info
 

@@ -1,6 +1,7 @@
 # torch imports
 import torch
 from torch import Tensor
+import matplotlib.pyplot as plt
 import torch.nn.functional as F
 # ionpy imports
 from ionpy.metrics.util import Reduction
@@ -35,22 +36,30 @@ def reduce_bin_errors(
     weighting: str = "proportional",
     bin_weights: Optional[Tensor] = None,
     batch_reduction: Reduction = "mean"
-    ) -> float:
-    print("error_per_bin shape", error_per_bin.shape)
-    print("amounts_per_bin shape", amounts_per_bin.shape)
+) -> float:
+    assert len(error_per_bin.shape) == 2,\
+        f"Expected error_per_bin to be 2D (B + S). Got {error_per_bin.shape}."
+    assert len(amounts_per_bin.shape) == 2,\
+        f"Expected amounts_per_bin to be 2D (B + S). Got {amounts_per_bin.shape}."
+    # IF we haven't defined the bin weights then we need to calculate them
+    # based on the weighting scheme.
     if bin_weights is None:
         if amounts_per_bin.sum() == 0:
             return torch.tensor(0.0)
         elif weighting == 'proportional':
-            bin_weights = amounts_per_bin / (amounts_per_bin).sum()
+            totals = amounts_per_bin.sum(dim=1).unsqueeze(1)
+            bin_weights = amounts_per_bin / totals
         else:
             raise ValueError(f"Invalid bin weighting. Must be 'proportional', got '{weighting}' instead.")
     # Multiply by the weights and sum.
-    assert 1.0 - torch.sum(bin_weights) < 1e-5, f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
-    reduced_error = (error_per_bin * bin_weights).sum()
-    assert 0 <= reduced_error <= 1, f"Reduced error should be between 0 and 1, got {reduced_error} instead."
-    raise ValueError("Expected calibration error to be in [0, 1]. Got NaN.")
-    return reduced_error
+    assert torch.all(1.0 - torch.sum(bin_weights, dim=1) < 1e-5), f"Weights should approx. sum to 1.0, got {bin_weights.sum()} instead."
+    reduced_error = (error_per_bin * bin_weights).sum(dim=1)
+    assert torch.all(0 <= reduced_error) and torch.all(reduced_error <= 1), f"Reduced error should be between 0 and 1, got {reduced_error} instead."
+    # Finally, apply a reduction if using mean, otherwise return the tensor.
+    if batch_reduction == "mean":
+        return reduced_error.mean()
+    else:
+        return reduced_error    
 
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -60,21 +69,32 @@ def calc_bin_info(
     bin_conf_region: Tensor,
     square_diff: bool,
 ):
-    bin_num_samples = bin_conf_region.sum() 
-    avg_bin_confidence = prob_map[bin_conf_region].sum() / bin_num_samples
-    avg_bin_frequency = frequency_map[bin_conf_region].sum() / bin_num_samples
-
+    bsize = prob_map.shape[0]
+    # We first need to flatten our tensors to look like
+    # [B, D] where B is the batch size and D is the number of pixels.
+    prob_map = prob_map.flatten(start_dim=1)
+    frequency_map = frequency_map.flatten(start_dim=1)
+    bin_conf_region = bin_conf_region.flatten(start_dim=1)
+    # Now we need to calculate per batch-item statistics.
+    batch_num_samples = torch.zeros(bsize)
+    batch_confs = torch.zeros(bsize)
+    batch_freqs = torch.zeros(bsize)
+    # Iterate through each batch item and calculate the calibration error.
+    for i in range(bsize):
+        batch_bin_region = bin_conf_region[i]
+        batch_num_samples[i] = batch_bin_region.sum()
+        batch_confs[i] = prob_map[i][batch_bin_region].sum() / batch_num_samples[i]
+        batch_freqs[i] = frequency_map[i][batch_bin_region].sum() / batch_num_samples[i]
     # Calculate the calibration error.
     if square_diff:
-        cal_error = (avg_bin_confidence - avg_bin_frequency).square()
+        batch_cal_error = (batch_confs - batch_freqs).square()
     else:
-        cal_error = (avg_bin_confidence - avg_bin_frequency).abs()
-
+        batch_cal_error = (batch_confs - batch_freqs).abs()
     return {
-        "avg_conf": avg_bin_confidence,
-        "avg_freq": avg_bin_frequency,
-        "cal_error": cal_error,
-        "num_samples": bin_num_samples
+        "num_samples": batch_num_samples,
+        "avg_conf": batch_confs,
+        "avg_freq": batch_freqs,
+        "cal_error": batch_cal_error,
     }
 
 

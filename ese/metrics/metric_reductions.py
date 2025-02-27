@@ -20,20 +20,11 @@ def ece_reduction(
     """
     Calculates the reduction for Expected Calibration Error (ECE) metrics.
     """
-    # Finally, get the calibration score.
     cal_error = reduce_bin_errors(
         error_per_bin=cal_info_dict["bin_cal_errors"], 
         amounts_per_bin=cal_info_dict["bin_amounts"],
         batch_reduction=batch_reduction
     )
-    # Return the calibration information.
-    if cal_info_dict['bin_amounts'].sum() > 0:
-        # If we have a batch tensor, then we need to check for all the bins to make sure they don't have NaNs.
-        if isinstance(cal_error, Tensor):
-            raise ValueError("Expected calibration error to be in [0, 1]. Got NaN.")
-        else:
-            assert 0.0 <= cal_error <= 1.0,\
-                f"Expected calibration error to be in [0, 1]. Got {cal_error}."
     # Return the calibration information.
     if return_dict:
         cal_info_dict.update({
