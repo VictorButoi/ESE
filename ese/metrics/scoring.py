@@ -16,10 +16,10 @@ def brier_score(
     y_pred: Tensor,
     y_true: Tensor,
     square_diff: bool = True,
-    batch_reduction: Reduction = "mean",
-    ignore_empty_labels: bool = False,
     from_logits: bool = False,
+    ignore_empty_labels: bool = False,
     ignore_index: Optional[int] = None,
+    batch_reduction: Reduction = "mean",
 ):
     """
     Calculates the Brier Score for a predicted label map.

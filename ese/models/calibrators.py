@@ -127,7 +127,10 @@ class DS(nn.Module):
         # Pass through the backbone model.
         logits = self.backbone_model(x)
         # Get the probabilities and log them.
-        probs = torch.softmax(logits, dim=1)
+        if logits.shape[1] == 1:
+            probs = torch.sigmoid(logits)
+        else:
+            probs = torch.softmax(logits, dim=1)
         ln_probs = torch.log(probs + self.eps) # B x C x H x W
         # We want to do ln_probs but for an arbitrary number of dimensions (channels last)
         ln_probs = ln_probs.permute(0, *range(2, len(ln_probs.shape)), 1).contiguous() # B x H x W x C
