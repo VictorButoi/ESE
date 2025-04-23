@@ -31,6 +31,7 @@ class WMH(ThunderDataset, DatapathMixin):
     iters_per_epoch: Optional[Any] = None
     sample_slice_with_replace: bool = False
     label_threshold: Optional[float] = None
+    data_root: Optional[str] = None
     slicing: Optional[Literal["midslice", "central", "dense", "uniform", "dense_full", "full"]] = None
 
     def __post_init__(self):
