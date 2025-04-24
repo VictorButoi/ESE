@@ -27,6 +27,7 @@ class ISLES(ThunderDataset, DatapathMixin):
     examples: Optional[List[str]] = None
     aug_data_prob: Optional[float] = None # By default, we don't use augmented data.
     iters_per_epoch: Optional[Any] = None
+    data_root: Optional[str] = None
     label_threshold: Optional[float] = None
 
     def __post_init__(self):
