@@ -53,6 +53,7 @@ class WMH(ThunderDataset, DatapathMixin):
         if self.num_examples is not None:
             self.samples = self.samples[:self.num_examples]
             self.subjects = self.samples
+        print("Number of subjects: ", len(self.subjects))
 
         # Control how many samples are in each epoch.
         self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
