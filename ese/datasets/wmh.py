@@ -17,6 +17,7 @@ class WMH(ThunderDataset, DatapathMixin):
     split: Literal["train", "cal", "val", "test"]
     hospital: Literal['Amsterdam', 'Singapore', 'Utrecht', 'Combined']
     annotator: str
+    mode: Literal["rgb", "grayscale"] = "grayscale"
     target: Literal['seg', 'temp', 'volume'] = 'seg' # Either optimize for segmentation or temperature.
     version: float = 1.0
     preload: bool = False
@@ -83,12 +84,19 @@ class WMH(ThunderDataset, DatapathMixin):
         if self.transforms:
             transform_obj = self.transforms(image=img, mask=mask)
             img, mask = transform_obj["image"], transform_obj["mask"]
-
+        else:
+            # We need to convert these image and masks to tensors at least.
+            img = torch.tensor(img).unsqueeze(0)
+            mask = torch.tensor(mask)
+        # If the mode is rgb, then we need to duplicate the image 3 times.
+        if self.mode == "rgb":
+            img = torch.cat([img] * 3, axis=0)
+        
         # Prepare the return dictionary.
         return_dict = {
-            "img": torch.from_numpy(img[None]).float()
+            "img": img.float()
         }
-        gt_seg = torch.from_numpy(mask[None]).float()
+        gt_seg = mask[None].float()
 
         # Determine which target we are optimizing for we want to always include
         # the ground truth segmentation, but sometimes as the prediction target
