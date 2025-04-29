@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from thunderpack import ThunderDB
 # Local imports
+from scipy.ndimage import zoom
 from .utils_for_build import (
     data_splits,
     vis_3D_subject,
@@ -14,6 +15,14 @@ from .utils_for_build import (
     pad_to_resolution
 )
 
+def resize_volume(volume, target_shape=(224, 280, 71)):
+    zoom_factors = [
+        target_shape[0] / volume.shape[0],  # height
+        target_shape[1] / volume.shape[1],  # width
+        1.0                                # depth (keep fixed)
+    ]
+    resized = zoom(volume, zoom=zoom_factors, order=1)  # order=1 = trilinear interpolation
+    return resized
 
 def thunderify_WMH(
     config: dict, 
@@ -108,6 +117,15 @@ def thunderify_WMH(
                                     config['pad_to'] = ast.literal_eval(config['pad_to'])
                                 img_vol_arr = pad_to_resolution(img_vol_arr, config['pad_to'])
                                 seg_vol_arr = pad_to_resolution(seg_vol_arr, config['pad_to'])
+
+                            # If we want to resize the image and segmentation, then we do that
+                            # here.
+                            if 'resize_to' in config:
+                                # If 'resize_to' is a string then we need to convert it to a tuple
+                                if isinstance(config['resize_to'], str):
+                                    config['resize_to'] = ast.literal_eval(config['resize_to'])
+                                img_vol_arr = resize_volume(img_vol_arr, config['resize_to'])
+                                seg_vol_arr = resize_volume(seg_vol_arr, config['resize_to'])
 
                             # Normalize the image to be between 0 and 1
                             normalized_img_arr = normalize_image(img_vol_arr)

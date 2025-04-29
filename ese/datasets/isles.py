@@ -9,6 +9,7 @@ from typing import Any, List, Literal, Optional
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
+from ionpy.augmentation import init_monai_transforms
 from ionpy.util.validation import validate_arguments_init
 
 
@@ -60,6 +61,10 @@ class ISLES(ThunderDataset, DatapathMixin):
         self.num_samples = len(self.subjects) if self.iters_per_epoch is None else self.iters_per_epoch
         print("Number of subjects: ", len(self.subjects))
 
+        # Initialize the data transforms.
+        # self.transforms_pipeline = init_album_transforms(self.transforms)
+        self.transforms_pipeline = init_monai_transforms(self.transforms)
+
         # If opt temps dir is provided, then we need to load the optimal temperatures.
         if self.opt_temps_dir is not None:
             # Load the optimal temperatures from the json
@@ -83,16 +88,17 @@ class ISLES(ThunderDataset, DatapathMixin):
             mask = (mask > self.label_threshold).astype(np.float32)
 
         # Apply the transforms, or a default conversion to tensor.
+        # print("Before transform: ", img.shape, mask.shape)
         if self.transforms:
             transform_obj = self.transforms_pipeline(
-                image=img,
-                mask=mask
+                {"image": img, "mask": mask}
             )
             img, mask = transform_obj["image"], transform_obj["mask"]
         else:
             # We need to convert these image and masks to tensors at least.
             img = torch.tensor(img).unsqueeze(0)
             mask = torch.tensor(mask)
+        # print("Post transform: ", img.shape, mask.shape)
         # If the mode is rgb, then we need to duplicate the image 3 times.
         if self.mode == "rgb":
             img = torch.cat([img] * 3, axis=0)
