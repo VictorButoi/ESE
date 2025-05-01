@@ -32,6 +32,9 @@ class ISLES(ThunderDataset, DatapathMixin):
     data_root: Optional[str] = None
     label_threshold: Optional[float] = None
     axis: Optional[Literal[0, 1, 2]] = None 
+    min_fg_label: Optional[float] = 0.0 
+    num_slices: Optional[int] = 1
+    sample_slice_with_replace: Optional[bool] = False
     slicing: Optional[Literal["midslice", "maxslice"]] = None
 
     def __post_init__(self):
@@ -92,7 +95,8 @@ class ISLES(ThunderDataset, DatapathMixin):
         # If we are slicing then we need to do that here
         if self.slicing is not None:
             slice_indices = self.get_slice_indices(example_obj)
-            raise ValueError
+            img = np.take(img, slice_indices, axis=self.axis)
+            mask = np.take(mask, slice_indices, axis=self.axis)
 
         # Apply the transforms, or a default conversion to tensor.
         # print("Before transform: ", img.shape, mask.shape)
@@ -142,13 +146,19 @@ class ISLES(ThunderDataset, DatapathMixin):
         return return_dict
     
     def get_slice_indices(self, subj_dict):
-        label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        if 'pixel_proportions' in subj_dict:
+            label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        else:
+            seg = subj_dict['seg']
+            # Use the axis to find the sum amount of label along the other two axes.
+            axes = [i for i in range(3) if i != self.axis]
+            label_amounts = np.sum(seg, axis=tuple(axes))
         # Threshold if we can about having a minimum amount of label.
         if self.min_fg_label is not None and np.any(label_amounts > self.min_fg_label):
             label_amounts[label_amounts < self.min_fg_label] = 0
 
         allow_replacement = self.sample_slice_with_replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
-        vol_size = subj_dict['image'].shape[0] # Typically 245
+        vol_size = subj_dict['seg'].shape[self.axis] # Typically 245
         midvol_idx = vol_size // 2
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":

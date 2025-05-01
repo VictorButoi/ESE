@@ -22,7 +22,7 @@ class WMH(ThunderDataset, DatapathMixin):
     version: float = 1.0
     preload: bool = False
     return_data_id: bool = False
-    num_slices: Optional[int] = None
+    num_slices: Optional[int] = 1 
     transforms: Optional[Any] = None
     min_fg_label: Optional[int] = None
     num_examples: Optional[int] = None
@@ -77,8 +77,8 @@ class WMH(ThunderDataset, DatapathMixin):
         # Data object ensures first axis is the slice axis.
         if self.slicing is not None:
             slice_indices = self.get_slice_indices(subj_dict)
-            img = img[slice_indices, ...]
-            mask = mask[slice_indices, ...]
+            img = np.take(img, slice_indices, axis=self.axis)
+            mask = np.take(mask, slice_indices, axis=self.axis)
 
         # Get the class name
         if self.transforms:
@@ -121,18 +121,19 @@ class WMH(ThunderDataset, DatapathMixin):
         return return_dict
     
     def get_slice_indices(self, subj_dict):
-        # NOTE: Pixel proportions is just the label amounts, it is not a proportion...
         if 'pixel_proportions' in subj_dict:
             label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
         else:
-            # We need to calculate the label_amopunts from the mask.
-            label_amounts = np.sum(subj_dict['seg'], axis=(1, 2))
+            seg = subj_dict['seg']
+            # Use the axis to find the sum amount of label along the other two axes.
+            axes = [i for i in range(3) if i != self.axis]
+            label_amounts = np.sum(seg, axis=tuple(axes))
         # Threshold if we can about having a minimum amount of label.
         if self.min_fg_label is not None and np.any(label_amounts > self.min_fg_label):
             label_amounts[label_amounts < self.min_fg_label] = 0
 
         allow_replacement = self.sample_slice_with_replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
-        vol_size = subj_dict['image'].shape[0] # Typically 245
+        vol_size = subj_dict['seg'].shape[self.axis] # Typically 245
         midvol_idx = vol_size // 2
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
