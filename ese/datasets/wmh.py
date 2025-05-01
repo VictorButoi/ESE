@@ -22,7 +22,6 @@ class WMH(ThunderDataset, DatapathMixin):
     version: float = 1.0
     preload: bool = False
     return_data_id: bool = False
-    major_axis: Literal[0, 1, 2] = 0 
     num_slices: Optional[int] = None
     transforms: Optional[Any] = None
     min_fg_label: Optional[int] = None
@@ -33,7 +32,8 @@ class WMH(ThunderDataset, DatapathMixin):
     sample_slice_with_replace: bool = False
     label_threshold: Optional[float] = None
     data_root: Optional[str] = None
-    slicing: Optional[Literal["midslice", "central", "dense", "uniform", "dense_full", "full"]] = None
+    axis: Optional[Literal[0, 1, 2]] = None 
+    slicing: Optional[Literal["midslice", "maxslice", "central", "dense", "uniform", "dense_full", "full"]] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -122,7 +122,11 @@ class WMH(ThunderDataset, DatapathMixin):
     
     def get_slice_indices(self, subj_dict):
         # NOTE: Pixel proportions is just the label amounts, it is not a proportion...
-        label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        if 'pixel_proportions' in subj_dict:
+            label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        else:
+            # We need to calculate the label_amopunts from the mask.
+            label_amounts = np.sum(subj_dict['seg'], axis=(1, 2))
         # Threshold if we can about having a minimum amount of label.
         if self.min_fg_label is not None and np.any(label_amounts > self.min_fg_label):
             label_amounts[label_amounts < self.min_fg_label] = 0
@@ -133,6 +137,10 @@ class WMH(ThunderDataset, DatapathMixin):
         # Slice the image and label volumes down the middle.
         if self.slicing == "midslice":
             slice_indices = np.array([midvol_idx])
+        elif self.slicing == "maxslice":
+            # Get the slice with the most label.
+            max_slice_idx = np.argmax(label_amounts)
+            slice_indices = np.array([max_slice_idx])
         # Sample an image and label slice from around a central region.
         elif self.slicing == "central":
             central_slices = np.arange(midvol_idx - self.central_width, midvol_idx + self.central_width)

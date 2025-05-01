@@ -31,6 +31,8 @@ class ISLES(ThunderDataset, DatapathMixin):
     iters_per_epoch: Optional[Any] = None
     data_root: Optional[str] = None
     label_threshold: Optional[float] = None
+    axis: Optional[Literal[0, 1, 2]] = None 
+    slicing: Optional[Literal["midslice", "maxslice"]] = None
 
     def __post_init__(self):
         init_attrs = self.__dict__.copy()
@@ -86,6 +88,11 @@ class ISLES(ThunderDataset, DatapathMixin):
         # Apply the label threshold
         if self.label_threshold is not None:
             mask = (mask > self.label_threshold).astype(np.float32)
+        
+        # If we are slicing then we need to do that here
+        if self.slicing is not None:
+            slice_indices = self.get_slice_indices(example_obj)
+            raise ValueError
 
         # Apply the transforms, or a default conversion to tensor.
         # print("Before transform: ", img.shape, mask.shape)
@@ -133,6 +140,44 @@ class ISLES(ThunderDataset, DatapathMixin):
             return_dict["data_id"] = subject_name
         
         return return_dict
+    
+    def get_slice_indices(self, subj_dict):
+        label_amounts = subj_dict['pixel_proportions'][self.annotator].copy()
+        # Threshold if we can about having a minimum amount of label.
+        if self.min_fg_label is not None and np.any(label_amounts > self.min_fg_label):
+            label_amounts[label_amounts < self.min_fg_label] = 0
+
+        allow_replacement = self.sample_slice_with_replace or (self.num_slices > len(label_amounts[label_amounts> 0]))
+        vol_size = subj_dict['image'].shape[0] # Typically 245
+        midvol_idx = vol_size // 2
+        # Slice the image and label volumes down the middle.
+        if self.slicing == "midslice":
+            slice_indices = np.array([midvol_idx])
+        elif self.slicing == "maxslice":
+            # Get the slice with the most label.
+            max_slice_idx = np.argmax(label_amounts)
+            slice_indices = np.array([max_slice_idx])
+        # Sample an image and label slice from around a central region.
+        elif self.slicing == "central":
+            central_slices = np.arange(midvol_idx - self.central_width, midvol_idx + self.central_width)
+            slice_indices = np.random.choice(central_slices, size=self.num_slices, replace=allow_replacement)
+        # Sample the slice proportional to how much label they have.
+        elif self.slicing == "dense":
+            label_probs = label_amounts / np.sum(label_amounts)
+            slice_indices = np.random.choice(np.arange(vol_size), size=self.num_slices, p=label_probs, replace=allow_replacement)
+        # Uniform slice sampling means that we sample all non-zero slices equally.
+        elif self.slicing == "uniform":
+            slice_indices = np.random.choice(np.where(label_amounts > 0)[0], size=self.num_slices, replace=allow_replacement)
+        # Return the entire image and label volumes.
+        elif self.slicing == "dense_full":
+            slice_indices = np.where(label_amounts > 0)[0]
+        elif self.slicing == "full":
+            slice_indices = np.arange(vol_size)
+        # Throw an error if the slicing method is unknown.
+        else:
+            raise NotImplementedError(f"Unknown slicing method {self.slicing}")
+        #
+        return slice_indices
 
     @property
     def _folder_name(self):
