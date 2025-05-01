@@ -95,8 +95,8 @@ class ISLES(ThunderDataset, DatapathMixin):
         # If we are slicing then we need to do that here
         if self.slicing is not None:
             slice_indices = self.get_slice_indices(example_obj)
-            img = np.take(img, slice_indices, axis=self.axis)
-            mask = np.take(mask, slice_indices, axis=self.axis)
+            img = np.take(img, slice_indices, axis=self.axis).squeeze(axis=self.axis)
+            mask = np.take(mask, slice_indices, axis=self.axis).squeeze(axis=self.axis)
 
         # Apply the transforms, or a default conversion to tensor.
         # print("Before transform: ", img.shape, mask.shape)

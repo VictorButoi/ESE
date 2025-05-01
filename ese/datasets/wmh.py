@@ -77,8 +77,8 @@ class WMH(ThunderDataset, DatapathMixin):
         # Data object ensures first axis is the slice axis.
         if self.slicing is not None:
             slice_indices = self.get_slice_indices(subj_dict)
-            img = np.take(img, slice_indices, axis=self.axis)
-            mask = np.take(mask, slice_indices, axis=self.axis)
+            img = np.take(img, slice_indices, axis=self.axis).squeeze(axis=self.axis)
+            mask = np.take(mask, slice_indices, axis=self.axis).squeeze(axis=self.axis)
 
         # Get the class name
         if self.transforms:
