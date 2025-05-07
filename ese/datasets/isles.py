@@ -9,8 +9,8 @@ from typing import Any, List, Literal, Optional
 # ionpy imports
 from ionpy.datasets.path import DatapathMixin
 from ionpy.datasets.thunder import ThunderDataset
-from ionpy.augmentation import init_monai_transforms
 from ionpy.util.validation import validate_arguments_init
+from ionpy.augmentation.gpu_transform_wrappers import build_monai_pipeline
 
 
 @validate_arguments_init
@@ -68,7 +68,7 @@ class ISLES(ThunderDataset, DatapathMixin):
 
         # Initialize the data transforms.
         # self.transforms_pipeline = init_album_transforms(self.transforms)
-        self.transforms_pipeline = init_monai_transforms(self.transforms)
+        self.transforms_pipeline = build_monai_pipeline(self.transforms)
 
         # If opt temps dir is provided, then we need to load the optimal temperatures.
         if self.opt_temps_dir is not None:
