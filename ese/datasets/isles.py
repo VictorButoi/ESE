@@ -97,18 +97,23 @@ class ISLES(ThunderDataset, DatapathMixin):
             slice_indices = self.get_slice_indices(example_obj)
             img = np.take(img, slice_indices, axis=self.axis).squeeze(axis=self.axis)
             mask = np.take(mask, slice_indices, axis=self.axis).squeeze(axis=self.axis)
-
+        # Need to unsqueeze the channel dim regardless.
+        if len(img.shape) == 2:
+            img = img[np.newaxis, ...]
+            mask = mask[np.newaxis, ...]
         # Apply the transforms, or a default conversion to tensor.
         # print("Before transform: ", img.shape, mask.shape)
         if self.transforms:
+            # Monai transforms expect a channel dim.
             transform_obj = self.transforms_pipeline(
-                {"image": img, "mask": mask}
+                {"image": img, "label": mask}
             )
-            img, mask = transform_obj["image"], transform_obj["mask"]
+            img, mask = transform_obj["image"], transform_obj["label"]
         else:
             # We need to convert these image and masks to tensors at least.
-            img = torch.tensor(img).unsqueeze(0)
+            img = torch.tensor(img)
             mask = torch.tensor(mask)
+
         # print("Post transform: ", img.shape, mask.shape)
         # If the mode is rgb, then we need to duplicate the image 3 times.
         if self.mode == "rgb":
@@ -118,8 +123,7 @@ class ISLES(ThunderDataset, DatapathMixin):
         return_dict = {
             "img": img.float()
         }
-        gt_seg = mask[None].float()
-
+        gt_seg = mask.float()
         # Determine which target we are optimizing for we want to always include
         # the ground truth segmentation, but sometimes as the prediction target
         # and sometimes as the label.
