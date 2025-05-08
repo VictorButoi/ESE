@@ -220,19 +220,19 @@ def process_and_save(
     label_amount = np.count_nonzero(seg_data)
     if label_amount >= min_label_amount:
 
-        img_padded = pad_to_resolution(img_data, pad_to)
-        seg_padded = pad_to_resolution(seg_data, pad_to)
-
-        # --- Resize ---
-        img_resized = resize_volume(img_padded, resize_to)
-        seg_resized = resize_volume(seg_padded, resize_to)
-
         # Slice the volume by the max slice on the last axis.
-        lab_per_slice = np.sum(seg_resized, axis=(0, 1))
+        lab_per_slice = np.sum(seg_data, axis=(0, 1))
         max_slice_idx = np.argmax(lab_per_slice)
 
-        img_slice = img_resized[:, :, max_slice_idx]
-        seg_slice = seg_resized[:, :, max_slice_idx]
+        img_slice = img_data[:, :, max_slice_idx]
+        seg_slice = seg_data[:, :, max_slice_idx]
+
+        img_slice = pad_to_resolution(img_slice, pad_to)
+        seg_slice = pad_to_resolution(seg_slice, pad_to)
+
+        # --- Resize ---
+        img_slice = resize_volume(img_slice, resize_to)
+        seg_slice = resize_volume(seg_slice, resize_to)
 
         # --- Normalize ---
         img_slice = (normalize_image(img_slice) * 255).astype(np.uint8)
